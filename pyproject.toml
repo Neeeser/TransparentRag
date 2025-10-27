@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transparent-rag"
+version = "0.1.0"
+description = "Modular Pinecone-backed retrieval toolkit for TransparentRAG."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pinecone>=5.0.0",
+    "sentence-transformers>=2.5.1",
+    "pydantic>=2.6.0",
+    "pypdf>=4.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["app"]
