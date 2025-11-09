@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -54,6 +54,9 @@ const safeParseJSON = (value?: string | null) => {
     return null;
   }
 };
+
+const CHAT_INPUT_MIN_HEIGHT = 40;
+const CHAT_INPUT_MAX_HEIGHT = 160;
 
 const markdownComponents: Components = {
   p: ({ children }) => (
@@ -113,8 +116,11 @@ export default function ChatStudioExperience() {
   const [historyOpen, setHistoryOpen] = useState(true);
   const [telemetryOpen, setTelemetryOpen] = useState(true);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const authToken = token ?? '';
+  const headerDescription =
+    collection ? collection.description?.trim() || 'No description provided yet.' : '';
 
   const sortSessions = (items: ChatSession[]) =>
     [...items].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
@@ -211,6 +217,19 @@ export default function ChatStudioExperience() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useLayoutEffect(() => {
+    const textarea = chatPromptRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const fullHeight = textarea.scrollHeight;
+    const clampedHeight = Math.max(
+      CHAT_INPUT_MIN_HEIGHT,
+      Math.min(fullHeight, CHAT_INPUT_MAX_HEIGHT),
+    );
+    textarea.style.height = `${clampedHeight}px`;
+    textarea.style.overflowY = fullHeight > CHAT_INPUT_MAX_HEIGHT ? 'auto' : 'hidden';
+  }, [draft]);
 
   const contextUtilization = useMemo(() => {
     if (!contextWindow) return 0;
@@ -604,18 +623,30 @@ export default function ChatStudioExperience() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Chat studio</p>
-          <h1 className="text-3xl font-semibold text-white">
-            {collection ? collection.name : 'Loading collection…'}
-          </h1>
-          {collection && (
-            <p className="mt-1 text-sm text-slate-400">{collection.description || 'No description provided yet.'}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Chat studio</p>
+            <h1 className="text-3xl font-semibold text-white min-w-0 truncate">
+              {collection ? collection.name : 'Loading collection…'}
+            </h1>
+          </div>
+          {collection && headerDescription && (
+            <p
+              className="text-sm text-slate-400 break-words"
+              style={{ maxWidth: 'clamp(18rem, 50vw, 40rem)' }}
+            >
+              {headerDescription}
+            </p>
           )}
         </div>
-        <Button variant="ghost" className="gap-2" onClick={() => router.push('/chat')}>
-          <ArrowLeft className="h-4 w-4" /> Collections
+        <Button
+          variant="ghost"
+          className="flex-shrink-0 items-center gap-2 whitespace-nowrap"
+          onClick={() => router.push('/chat')}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Collections
         </Button>
       </div>
 
@@ -704,10 +735,16 @@ export default function ChatStudioExperience() {
                 <div className="border-t border-white/5 bg-black/30 px-6 py-4">
                   <div className="flex flex-col gap-3">
                     <textarea
-                      className="h-36 w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                      ref={chatPromptRef}
+                      rows={1}
+                      className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
                       placeholder="Ask anything about this collection…"
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
+                      style={{
+                        minHeight: CHAT_INPUT_MIN_HEIGHT,
+                        maxHeight: CHAT_INPUT_MAX_HEIGHT,
+                      }}
                     />
                     <div className="flex items-center justify-between text-xs text-slate-400">
                       <span>{draft.length} characters</span>
