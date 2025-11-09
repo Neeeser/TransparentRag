@@ -101,7 +101,11 @@ def user_context(client: TestClient, user_credentials: dict[str, str]) -> dict[s
 
     token_resp = client.post(
         "/api/auth/token",
-        data={"username": user_credentials["email"], "password": user_credentials["password"]},
+        data={
+            "username": user_credentials["email"],
+            "password": user_credentials["password"],
+            "grant_type": "password",
+        },
     )
     assert token_resp.status_code == 200, token_resp.text
     token = token_resp.json()["access_token"]
