@@ -167,6 +167,19 @@ const PARAMETER_DEFINITIONS = [
     placeholder: '512',
   },
   {
+    key: 'reasoning',
+    label: 'Reasoning effort',
+    description: 'Control how much thinking budget the model should spend when reasoning tokens are available.',
+    input: 'select',
+    options: [
+      { label: 'Model default', value: '' },
+      { label: 'Minimal', value: 'minimal' },
+      { label: 'Low', value: 'low' },
+      { label: 'Medium', value: 'medium' },
+      { label: 'High', value: 'high' },
+    ],
+  },
+  {
     key: 'seed',
     label: 'Seed',
     description: 'Deterministic sampling seed.',
@@ -237,7 +250,7 @@ const PARAMETER_DEFINITIONS = [
 
 type ParameterDefinition = (typeof PARAMETER_DEFINITIONS)[number];
 type ModelParameterKey = ParameterDefinition['key'];
-type ParameterValue = number | string | boolean;
+type ParameterValue = number | string | boolean | Record<string, unknown>;
 type ParameterOverrides = Partial<Record<ModelParameterKey, ParameterValue>>;
 
 const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
@@ -1171,6 +1184,20 @@ export default function ChatStudioExperience() {
         return;
       }
       if (rawValue === undefined || rawValue === null) {
+        return;
+      }
+      if (normalizedKey === 'reasoning') {
+        if (typeof rawValue === 'string') {
+          const trimmedReasoning = rawValue.trim().toLowerCase();
+          if (!trimmedReasoning) {
+            return;
+          }
+          payload[normalizedKey] = { effort: trimmedReasoning };
+          return;
+        }
+        if (typeof rawValue === 'object') {
+          payload[normalizedKey] = rawValue;
+        }
         return;
       }
       if (typeof rawValue === 'string') {
