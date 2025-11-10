@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/panel';
 import { Loader } from '@/components/ui/loader';
 import { CollapsibleReasoning } from '@/components/ui/collapsible-reasoning';
+import { TypingAnimation } from '@/components/ui/typing-animation';
 import {
   chatWithCollection,
   deleteChatSession,
@@ -2357,7 +2358,18 @@ export default function ChatStudioExperience() {
       );
     }
 
-    return allMessages.flatMap((message) => {
+    const assistantTypingBubble = sending && (
+      <div key="typing-indicator" className="flex justify-start">
+        <div className={cn('max-w-[75%] rounded-2xl border px-4 py-3 text-sm', roleVariants.assistant)}>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">ASSISTANT</p>
+          </div>
+          <TypingAnimation />
+        </div>
+      </div>
+    );
+
+    const messageBubbles = allMessages.flatMap((message) => {
       const bubbles: ReactNode[] = [];
       const variant = roleVariants[message.role] ?? roleVariants.system;
       const isUser = message.role === 'user';
@@ -2521,6 +2533,8 @@ export default function ChatStudioExperience() {
 
       return bubbles;
     });
+
+    return assistantTypingBubble ? [...messageBubbles, assistantTypingBubble] : messageBubbles;
   };
 
   const renderHistoryList = () => (
