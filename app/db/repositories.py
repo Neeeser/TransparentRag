@@ -139,6 +139,13 @@ class ChatRepository:
             statement = statement.limit(limit)
         return self.session.exec(statement).all()
 
+    def delete_session(self, session_model: models.ChatSession) -> None:
+        self.session.exec(
+            sa_delete(models.ChatMessage).where(models.ChatMessage.session_id == session_model.id)
+        )
+        self.session.delete(session_model)
+        self.session.flush()
+
 
 class QueryRepository:
     def __init__(self, session: Session) -> None:

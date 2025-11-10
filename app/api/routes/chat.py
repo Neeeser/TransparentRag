@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
@@ -97,3 +97,18 @@ def get_chat_history(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
     messages = repo.list_messages(session_id)
     return [_message_to_schema(message) for message in messages]
+
+
+@router.delete("/chat/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_chat_session(
+    session_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> Response:
+    repo = ChatRepository(session)
+    session_model = repo.get_session(session_id, user_id=current_user.id)
+    if not session_model:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+    repo.delete_session(session_model)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

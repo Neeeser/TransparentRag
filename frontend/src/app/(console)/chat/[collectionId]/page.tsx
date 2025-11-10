@@ -17,6 +17,7 @@ import {
   PlusCircle,
   RotateCcw,
   SlidersHorizontal,
+  Trash2,
 } from 'lucide-react';
 import type { Components } from 'react-markdown';
 
@@ -26,6 +27,7 @@ import { Loader } from '@/components/ui/loader';
 import { CollapsibleReasoning } from '@/components/ui/collapsible-reasoning';
 import {
   chatWithCollection,
+  deleteChatSession,
   fetchCollections,
   fetchDocuments,
   getChatHistory,
@@ -485,6 +487,7 @@ export default function ChatStudioExperience() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = usePersistentToggle('chat.historyOpen', true);
   const [telemetryOpen, setTelemetryOpen] = usePersistentToggle('chat.telemetryOpen', true);
   const [vitalsOpen, setVitalsOpen] = usePersistentToggle('chat.telemetry.vitalsOpen', true);
@@ -980,6 +983,34 @@ export default function ChatStudioExperience() {
     setEditingMessageId(null);
     setEditingDraft('');
     setOptimisticMessages([]);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!authToken) return;
+    setStatus(null);
+    setDeletingSessionId(sessionId);
+    try {
+      await deleteChatSession(sessionId, authToken);
+      let nextSelectedId: string | null = null;
+      setSessions((prev) => {
+        const next = prev.filter((session) => session.id !== sessionId);
+        if (selectedSessionId === sessionId) {
+          nextSelectedId = next[0]?.id ?? null;
+        }
+        return next;
+      });
+      if (selectedSessionId === sessionId) {
+        if (nextSelectedId) {
+          setSelectedSessionId(nextSelectedId);
+        } else {
+          handleStartNewChat();
+        }
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to delete chat session.');
+    } finally {
+      setDeletingSessionId((current) => (current === sessionId ? null : current));
+    }
   };
 
   const updateParameterValue = useCallback(
@@ -1515,24 +1546,54 @@ export default function ChatStudioExperience() {
           <p className="text-sm text-slate-400">No chats yet — start one below.</p>
         ) : (
           <div className="space-y-2">
-            {sessions.map((session) => (
-              <button
-                type="button"
-                key={session.id}
-                onClick={() => setSelectedSessionId(session.id)}
-                className={cn(
-                  'w-full rounded-2xl border px-4 py-3 text-left text-sm transition',
-                  selectedSessionId === session.id
-                    ? 'border-violet-400 bg-violet-500/10 text-white'
-                    : 'border-white/5 bg-white/5 text-slate-300 hover:border-white/20',
-                )}
-              >
-                <p className="text-base font-semibold">{session.title}</p>
-                <p className="text-xs text-slate-400">
-                  {session.chat_model} • {timeAgo(session.updated_at)}
-                </p>
-              </button>
-            ))}
+            {sessions.map((session) => {
+              const isSelected = selectedSessionId === session.id;
+              return (
+                <div
+                  key={session.id}
+                  className={cn(
+                    'group flex items-center gap-2 rounded-2xl border px-2 py-2 text-sm transition',
+                    isSelected
+                      ? 'border-violet-400 bg-violet-500/10 text-white'
+                      : 'border-white/5 bg-white/5 text-slate-300 hover:border-white/20',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSessionId(session.id)}
+                    className={cn(
+                      'flex-1 rounded-xl px-2 py-1 text-left',
+                      isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white',
+                    )}
+                  >
+                    <p className="text-base font-semibold">{session.title}</p>
+                    <p
+                      className={cn(
+                        'text-xs',
+                        isSelected ? 'text-slate-300' : 'text-slate-400 group-hover:text-slate-200',
+                      )}
+                    >
+                      {session.chat_model} • {timeAgo(session.updated_at)}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSession(session.id)}
+                    disabled={deletingSessionId === session.id}
+                    title="Delete chat"
+                    aria-label={`Delete ${session.title}`}
+                    className={cn(
+                      'inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-slate-400 transition hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-50',
+                      isSelected
+                        ? 'border-white/20 hover:border-rose-300/60'
+                        : 'border-white/10 hover:border-rose-300/60',
+                    )}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
