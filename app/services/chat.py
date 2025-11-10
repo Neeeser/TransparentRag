@@ -143,6 +143,18 @@ class ChatService:
             
         return options
 
+    @staticmethod
+    def _build_openrouter_body(reasoning_options: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        body: Dict[str, Any] = dict(reasoning_options) if reasoning_options else {}
+        usage_config = body.get("usage")
+        if isinstance(usage_config, dict):
+            merged_usage = dict(usage_config)
+            merged_usage["include"] = True
+            body["usage"] = merged_usage
+        else:
+            body["usage"] = {"include": True}
+        return body
+
     def _reasoning_request_options(self, model_name: str) -> Dict[str, Any]:
         model_info = self.openrouter.get_model(model_name)
         supported = model_info.supported_parameters if model_info else []
@@ -497,12 +509,13 @@ class ChatService:
 
         while iteration < max_iterations:
             iteration += 1
+            extra_body = self._build_openrouter_body(reasoning_options)
             response = self.openrouter.chat(
                 messages=messages,
                 tools=tools,
                 model=collection.chat_model,
                 parallel_tool_calls=True,
-                extra_body=reasoning_options or None,
+                extra_body=extra_body,
             )
             final_response = response
             choice = response["choices"][0]
