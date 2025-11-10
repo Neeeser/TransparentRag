@@ -54,7 +54,20 @@ class ChatService:
         return None
 
     @staticmethod
-    def _add_usage_value(aggregate: Dict[str, int], key: str, value: Optional[int]) -> None:
+    def _coerce_float_value(value: object) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _add_usage_value(aggregate: Dict[str, float], key: str, value: Optional[float]) -> None:
         if value is None:
             return
         aggregate[key] = aggregate.get(key, 0) + value
@@ -517,7 +530,8 @@ class ChatService:
 
         tools = self._tool_spec(collection)
         tool_traces: List[ToolCallTrace] = []
-        usage_aggregate: Dict[str, int] = {}
+        usage_aggregate: Dict[str, float] = {}
+        latest_usage_payload: Dict[str, Any] = {}
         provider = "openrouter"
         reasoning_trace: List[Dict[str, Any]] = []
         processed_reasoning_calls: Set[str] = set()
@@ -546,14 +560,17 @@ class ChatService:
             provider = response.get("provider", provider)
 
             if usage:
+                latest_usage_payload = usage
                 prompt_tokens = self._coerce_usage_value(usage.get("prompt_tokens"))
                 completion_tokens = self._coerce_usage_value(usage.get("completion_tokens"))
                 total_tokens = self._coerce_usage_value(usage.get("total_tokens"))
                 reasoning_tokens = self._extract_reasoning_tokens_from_usage(usage)
+                cost_value = self._coerce_float_value(usage.get("cost"))
                 self._add_usage_value(usage_aggregate, "prompt_tokens", prompt_tokens)
                 self._add_usage_value(usage_aggregate, "completion_tokens", completion_tokens)
                 self._add_usage_value(usage_aggregate, "total_tokens", total_tokens)
                 self._add_usage_value(usage_aggregate, "reasoning_tokens", reasoning_tokens)
+                self._add_usage_value(usage_aggregate, "cost", cost_value)
 
             # Extract reasoning from the reasoning field (new format)
             reasoning_content = message.get("reasoning")
@@ -647,8 +664,12 @@ class ChatService:
                 assistant_content = json.dumps(assistant_content)
             content = assistant_content or ""
             reasoning_payload = {"segments": reasoning_trace} if reasoning_trace else None
-            latest_usage_total = self._coerce_usage_value(usage.get("total_tokens"))
-            final_usage = usage_aggregate or usage
+            latest_usage_source = latest_usage_payload or usage or {}
+            latest_usage_total = self._coerce_usage_value(latest_usage_source.get("total_tokens"))
+            final_usage: Dict[str, Any] = dict(latest_usage_payload or usage or {})
+            if usage_aggregate:
+                final_usage = dict(final_usage) if final_usage else {}
+                final_usage.update({key: value for key, value in usage_aggregate.items() if value is not None})
             assistant_msg = self._record_message(
                 session_id=session_model.id,
                 role=models.ChatRole.ASSISTANT,

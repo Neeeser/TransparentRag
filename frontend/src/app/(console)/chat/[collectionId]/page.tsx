@@ -879,23 +879,32 @@ export default function ChatStudioExperience() {
     </div>
   );
 
-  const renderTelemetry = () => (
-    <div className="flex h-full flex-col min-h-0">
-      <div className="flex items-center justify-between border-b border-white/5 pb-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Context</p>
-          <h2 className="text-xl font-semibold text-white">Run settings</h2>
+  const renderTelemetry = () => {
+    const usageCostLabel =
+      usage?.cost != null
+        ? `$${usage.cost.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 6,
+          })}`
+        : '—';
+
+    return (
+      <div className="flex h-full flex-col min-h-0">
+        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Context</p>
+            <h2 className="text-xl font-semibold text-white">Run settings</h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 rounded-full border border-white/10 p-0 text-slate-300"
+            onClick={() => setTelemetryOpen(false)}
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 w-9 rounded-full border border-white/10 p-0 text-slate-300"
-          onClick={() => setTelemetryOpen(false)}
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="mt-4 flex-1 min-h-0 space-y-4 overflow-y-auto">
+        <div className="mt-4 flex-1 min-h-0 space-y-4 overflow-y-auto">
         {collection && (
           <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -938,6 +947,13 @@ export default function ChatStudioExperience() {
             />
           </div>
           <div className="space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+                OpenRouter total cost
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{usageCostLabel}</p>
+              <p className="text-[11px] text-slate-500">API cost for this session</p>
+            </div>
             {usageMetrics.map((metric) => {
               const metricValue = usage?.[metric.key];
               const formattedValue =
@@ -983,8 +999,9 @@ export default function ChatStudioExperience() {
       </div>
     </div>
   );
+};
 
-  return (
+return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
