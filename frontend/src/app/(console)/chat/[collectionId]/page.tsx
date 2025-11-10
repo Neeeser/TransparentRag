@@ -838,7 +838,7 @@ export default function ChatStudioExperience() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-9 w-9 rounded-full border border-white/10 p-0 text-slate-300"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 p-0 text-slate-300"
           onClick={() => setHistoryOpen(false)}
         >
           <PanelLeftClose className="h-4 w-4" />
@@ -898,7 +898,7 @@ export default function ChatStudioExperience() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 rounded-full border border-white/10 p-0 text-slate-300"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 p-0 text-slate-300"
             onClick={() => setTelemetryOpen(false)}
           >
             <PanelRightClose className="h-4 w-4" />
@@ -1078,29 +1078,9 @@ return (
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-10 w-10 rounded-full border border-white/10 p-0 text-slate-300"
-                    onClick={() => setHistoryOpen((prev) => !prev)}
-                  >
-                    {historyOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-                  </Button>
                   <Button variant="secondary" className="gap-2" onClick={handleStartNewChat}>
                     <PlusCircle className="h-4 w-4" />
                     New chat
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-10 w-10 rounded-full border border-white/10 p-0 text-slate-300"
-                    onClick={() => setTelemetryOpen((prev) => !prev)}
-                  >
-                    {telemetryOpen ? (
-                      <PanelRightClose className="h-4 w-4" />
-                    ) : (
-                      <PanelRightOpen className="h-4 w-4" />
-                    )}
                   </Button>
                 </div>
               </div>
