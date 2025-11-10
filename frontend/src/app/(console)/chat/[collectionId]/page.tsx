@@ -415,6 +415,13 @@ const generateClientSessionId = () => {
   });
 };
 
+const generateClientMessageId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `client-${crypto.randomUUID()}`;
+  }
+  return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
 const CHAT_INPUT_MIN_HEIGHT = 40;
 const CHAT_INPUT_MAX_HEIGHT = 160;
 const STREAM_REVEAL_DELAY = 350;
@@ -477,6 +484,7 @@ export default function ChatStudioExperience() {
   const [sending, setSending] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
+  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
   const [historyOpen, setHistoryOpen] = usePersistentToggle('chat.historyOpen', true);
   const [telemetryOpen, setTelemetryOpen] = usePersistentToggle('chat.telemetryOpen', true);
   const [vitalsOpen, setVitalsOpen] = usePersistentToggle('chat.telemetry.vitalsOpen', true);
@@ -653,6 +661,38 @@ export default function ChatStudioExperience() {
       cancelled = true;
     };
   }, [authToken, selectedSessionId, syncMessages, deriveToolTraces]);
+
+  useEffect(() => {
+    if (!selectedSessionId) {
+      setOptimisticMessages([]);
+      return;
+    }
+    setOptimisticMessages((prev) =>
+      prev.filter((message) => message.session_id === selectedSessionId),
+    );
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    setOptimisticMessages((prev) => {
+      if (prev.length === 0) {
+        return prev;
+      }
+      return prev.filter((optimistic) => {
+        const trimmedOptimistic = optimistic.content.trim();
+        if (!trimmedOptimistic) {
+          return false;
+        }
+        const duplicate = messages.some(
+          (message) =>
+            message.session_id === optimistic.session_id &&
+            message.role === 'user' &&
+            message.content.trim() === trimmedOptimistic &&
+            message.id !== optimistic.id,
+        );
+        return !duplicate;
+      });
+    });
+  }, [messages]);
 
   useEffect(() => {
     if (!selectedSessionId) {
@@ -835,7 +875,9 @@ export default function ChatStudioExperience() {
   );
 
   const handleSend = async () => {
-    if (!authToken || !collection || !draft.trim()) return;
+    if (!authToken || !collection) return;
+    const trimmed = draft.trim();
+    if (!trimmed) return;
     let sessionId = selectedSessionId;
     const isNewSession = !sessionId;
     if (!sessionId) {
@@ -856,23 +898,39 @@ export default function ChatStudioExperience() {
       pendingSessionIdsRef.current.add(sessionId);
     }
     if (!sessionId) return;
+
+    setDraft('');
+    const placeholderMessageId = generateClientMessageId();
+    const placeholderMessage: ChatMessage = {
+      id: placeholderMessageId,
+      session_id: sessionId,
+      role: 'user',
+      content: trimmed,
+      created_at: new Date().toISOString(),
+    };
+    setOptimisticMessages((prev) => [...prev, placeholderMessage]);
+
     const parameterPayload = buildParameterPayload();
     const parameters = Object.keys(parameterPayload).length > 0 ? parameterPayload : undefined;
     try {
       await performChatMutation(sessionId, {
-        content: draft.trim(),
+        content: trimmed,
         mode: 'chat',
         title: isNewSession ? `Chat ${new Date().toLocaleTimeString()}` : undefined,
         parameters,
       });
-      setDraft('');
     } catch (error) {
+      setDraft(trimmed);
       if (isNewSession && sessionId) {
         pendingSessionIdsRef.current.delete(sessionId);
         setSessions((prev) => prev.filter((session) => session.id !== sessionId));
         setSelectedSessionId(null);
       }
       setStatus(error instanceof Error ? error.message : 'Unable to send your message.');
+    } finally {
+      setOptimisticMessages((prev) =>
+        prev.filter((message) => message.id !== placeholderMessageId),
+      );
     }
   };
 
@@ -921,6 +979,7 @@ export default function ChatStudioExperience() {
     setDraft('');
     setEditingMessageId(null);
     setEditingDraft('');
+    setOptimisticMessages([]);
   };
 
   const updateParameterValue = useCallback(
@@ -1216,7 +1275,21 @@ export default function ChatStudioExperience() {
   };
 
   const renderMessages = () => {
-    if (displayedMessages.length === 0) {
+    const dedupedOptimistic = optimisticMessages.filter((optimistic) => {
+      const trimmedOptimistic = optimistic.content.trim();
+      if (!trimmedOptimistic) {
+        return false;
+      }
+      return !displayedMessages.some(
+        (message) =>
+          message.session_id === optimistic.session_id &&
+          message.role === optimistic.role &&
+          message.role === 'user' &&
+          message.content.trim() === trimmedOptimistic,
+      );
+    });
+    const allMessages = [...displayedMessages, ...dedupedOptimistic];
+    if (allMessages.length === 0) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-10 text-center">
           <div className="space-y-2">
@@ -1244,7 +1317,7 @@ export default function ChatStudioExperience() {
       );
     }
 
-    return displayedMessages.flatMap((message) => {
+    return allMessages.flatMap((message) => {
       const bubbles: ReactNode[] = [];
       const variant = roleVariants[message.role] ?? roleVariants.system;
       const isUser = message.role === 'user';
