@@ -218,6 +218,8 @@ class ChatService:
                 segment.get("id")
                 or segment.get("tool_call_id")
                 or segment.get("call_id")
+                or call_payload.get("id")
+                or function_payload.get("id")
                 or f"reasoning_tool_{uuid4().hex}"
             )
             arguments_str = ChatService._ensure_arguments_string(arguments_source)
