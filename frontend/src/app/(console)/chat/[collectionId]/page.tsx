@@ -111,6 +111,23 @@ const deriveToolTracesFromMessages = (items: ChatMessage[]): ToolCallTrace[] =>
       } satisfies ToolCallTrace;
     });
 
+const usageMetrics: { key: keyof UsageBreakdown; label: string }[] = [
+  { key: 'prompt_tokens', label: 'Prompt tokens' },
+  { key: 'completion_tokens', label: 'Completion tokens' },
+  { key: 'total_tokens', label: 'Total tokens' },
+  { key: 'reasoning_tokens', label: 'Reasoning tokens' },
+];
+
+const getLatestAssistantUsage = (items: ChatMessage[]): UsageBreakdown | null => {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const message = items[index];
+    if (message.role === 'assistant' && message.usage) {
+      return message.usage;
+    }
+  }
+  return null;
+};
+
 const isToolReasoningSegment = (segment: ReasoningTraceSegment): boolean => {
   const typeValue = typeof segment.type === 'string' ? segment.type.toLowerCase() : '';
   if (
@@ -147,7 +164,7 @@ const PROGRESS_POLL_INTERVAL = 800;
 
 const markdownComponents: Components = {
   p: ({ children }) => (
-    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{children}</p>
+    <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{children}</div>
   ),
   a: ({ children, href }) => (
     <a
@@ -329,7 +346,7 @@ export default function ChatStudioExperience() {
         if (!cancelled) {
           syncMessages(history, { hydrate: true });
           setToolTraces(deriveToolTraces(history));
-          setUsage(null);
+          setUsage(getLatestAssistantUsage(history));
         }
       } catch (error) {
         if (!cancelled) {
@@ -862,23 +879,32 @@ export default function ChatStudioExperience() {
     </div>
   );
 
-  const renderTelemetry = () => (
-    <div className="flex h-full flex-col min-h-0">
-      <div className="flex items-center justify-between border-b border-white/5 pb-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Context</p>
-          <h2 className="text-xl font-semibold text-white">Run settings</h2>
+  const renderTelemetry = () => {
+    const usageCostLabel =
+      usage?.cost != null
+        ? `$${usage.cost.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 6,
+          })}`
+        : '—';
+
+    return (
+      <div className="flex h-full flex-col min-h-0">
+        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Context</p>
+            <h2 className="text-xl font-semibold text-white">Run settings</h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 rounded-full border border-white/10 p-0 text-slate-300"
+            onClick={() => setTelemetryOpen(false)}
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 w-9 rounded-full border border-white/10 p-0 text-slate-300"
-          onClick={() => setTelemetryOpen(false)}
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="mt-4 flex-1 min-h-0 space-y-4 overflow-y-auto">
+        <div className="mt-4 flex-1 min-h-0 space-y-4 overflow-y-auto">
         {collection && (
           <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -908,9 +934,9 @@ export default function ChatStudioExperience() {
         )}
 
         <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-slate-400">
+          <div className="space-y-1 text-xs uppercase tracking-[0.3em] text-slate-400">
             <span>Usage</span>
-            <span>
+            <span className="block text-sm text-slate-300">
               {contextConsumed.toLocaleString()} / {contextWindow.toLocaleString()} tokens
             </span>
           </div>
@@ -920,15 +946,28 @@ export default function ChatStudioExperience() {
               style={{ width: `${contextUtilization}%` }}
             />
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {['prompt_tokens', 'completion_tokens', 'total_tokens'].map((key) => (
-              <div key={key} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{key}</p>
-                <p className="mt-1 text-2xl font-semibold">
-                  {usage?.[key as keyof UsageBreakdown]?.toLocaleString() ?? '—'}
-                </p>
-              </div>
-            ))}
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+                OpenRouter total cost
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{usageCostLabel}</p>
+              <p className="text-[11px] text-slate-500">API cost for this session</p>
+            </div>
+            {usageMetrics.map((metric) => {
+              const metricValue = usage?.[metric.key];
+              const formattedValue =
+                metricValue != null ? metricValue.toLocaleString() : '—';
+              return (
+                <div
+                  key={`${metric.key}`}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center"
+                >
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{metric.label}</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{formattedValue}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -960,8 +999,9 @@ export default function ChatStudioExperience() {
       </div>
     </div>
   );
+};
 
-  return (
+return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
