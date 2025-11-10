@@ -45,6 +45,32 @@ class ChatService:
     }
     VERBOSITY_OPTIONS = {"low", "medium", "high"}
     REASONING_EFFORT_OPTIONS = {"minimal", "low", "medium", "high"}
+    PROVIDER_ALLOWED_KEYS = {
+        "order",
+        "allow_fallbacks",
+        "require_parameters",
+        "data_collection",
+        "zdr",
+        "enforce_distillable_text",
+        "only",
+        "ignore",
+        "quantizations",
+        "sort",
+        "max_price",
+    }
+    PROVIDER_KEY_ALIASES = {
+        "allowfallbacks": "allow_fallbacks",
+        "allow-fallbacks": "allow_fallbacks",
+        "requireparameters": "require_parameters",
+        "require-parameters": "require_parameters",
+        "datacollection": "data_collection",
+        "data-collection": "data_collection",
+        "enforcedistillabletext": "enforce_distillable_text",
+        "enforce-distillable-text": "enforce_distillable_text",
+        "maxprice": "max_price",
+    }
+    PROVIDER_SORT_OPTIONS = {"price", "throughput", "latency"}
+    PROVIDER_DATA_COLLECTION_OPTIONS = {"allow", "deny"}
 
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -194,7 +220,10 @@ class ChatService:
         return options
 
     @staticmethod
-    def _build_openrouter_body(reasoning_options: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _build_openrouter_body(
+        reasoning_options: Optional[Dict[str, Any]],
+        provider_options: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         body: Dict[str, Any] = dict(reasoning_options) if reasoning_options else {}
         usage_config = body.get("usage")
         if isinstance(usage_config, dict):
@@ -203,6 +232,8 @@ class ChatService:
             body["usage"] = merged_usage
         else:
             body["usage"] = {"include": True}
+        if provider_options:
+            body["provider"] = provider_options
         return body
 
     @staticmethod
@@ -365,6 +396,103 @@ class ChatService:
                 continue
             sanitized[canonical_key] = parsed
         return sanitized
+
+    @classmethod
+    def _normalize_provider_key(cls, key: str) -> Optional[str]:
+        normalized = key.strip().lower().replace("-", "_")
+        if normalized in cls.PROVIDER_ALLOWED_KEYS:
+            return normalized
+        return cls.PROVIDER_KEY_ALIASES.get(normalized)
+
+    @staticmethod
+    def _coerce_string_list(value: Any) -> Optional[List[str]]:
+        if value is None:
+            return None
+        items: List[str] = []
+        if isinstance(value, str):
+            chunks = value.replace("\n", ",").split(",")
+            for chunk in chunks:
+                trimmed = chunk.strip()
+                if trimmed:
+                    items.append(trimmed)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                if item is None:
+                    continue
+                trimmed = str(item).strip()
+                if trimmed:
+                    items.append(trimmed)
+        return items or None
+
+    @classmethod
+    def _coerce_provider_sort(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        candidate = str(value).strip().lower()
+        if candidate in cls.PROVIDER_SORT_OPTIONS:
+            return candidate
+        return None
+
+    @classmethod
+    def _coerce_data_collection(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        candidate = str(value).strip().lower()
+        if candidate in cls.PROVIDER_DATA_COLLECTION_OPTIONS:
+            return candidate
+        return None
+
+    @classmethod
+    def _coerce_max_price(cls, value: Any) -> Optional[Dict[str, float]]:
+        if not isinstance(value, dict):
+            return None
+        parsed: Dict[str, float] = {}
+        for key in ("prompt", "completion", "request", "image"):
+            if key not in value:
+                continue
+            number = cls._coerce_numeric_parameter(value.get(key))
+            if number is None:
+                continue
+            parsed[key] = float(number)
+        return parsed or None
+
+    @classmethod
+    def _sanitize_provider_preferences(cls, raw: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not raw:
+            return None
+        normalized_input: Dict[str, Any] = {}
+        for incoming_key, incoming_value in raw.items():
+            if not isinstance(incoming_key, str):
+                continue
+            canonical_key = cls._normalize_provider_key(incoming_key)
+            if canonical_key:
+                normalized_input[canonical_key] = incoming_value
+        if not normalized_input:
+            return None
+
+        sanitized: Dict[str, Any] = {}
+        for list_key in ("order", "only", "ignore", "quantizations"):
+            parsed_list = cls._coerce_string_list(normalized_input.get(list_key))
+            if parsed_list:
+                sanitized[list_key] = parsed_list
+        for bool_key in ("allow_fallbacks", "require_parameters", "zdr", "enforce_distillable_text"):
+            bool_value = cls._coerce_bool_parameter(normalized_input.get(bool_key))
+            if bool_value is not None:
+                sanitized[bool_key] = bool_value
+
+        sort_value = cls._coerce_provider_sort(normalized_input.get("sort"))
+        if sort_value:
+            sanitized["sort"] = sort_value
+
+        data_collection_value = cls._coerce_data_collection(normalized_input.get("data_collection"))
+        if data_collection_value:
+            sanitized["data_collection"] = data_collection_value
+
+        max_price_value = cls._coerce_max_price(normalized_input.get("max_price"))
+        if max_price_value:
+            sanitized["max_price"] = max_price_value
+
+        return sanitized or None
 
     def _reasoning_request_options(
         self,
@@ -748,6 +876,7 @@ class ChatService:
             model_info,
             reasoning_override,
         )
+        provider_preferences = self._sanitize_provider_preferences(payload.provider)
         context_window = model_info.context_length or collection.context_window
 
         max_iterations = 48
@@ -756,7 +885,7 @@ class ChatService:
 
         while iteration < max_iterations:
             iteration += 1
-            extra_body = self._build_openrouter_body(reasoning_options)
+            extra_body = self._build_openrouter_body(reasoning_options, provider_preferences)
             response = self.openrouter.chat(
                 messages=messages,
                 tools=tools,

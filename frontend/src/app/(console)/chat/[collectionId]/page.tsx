@@ -18,6 +18,7 @@ import {
   PlusCircle,
   RotateCcw,
   Search,
+  Share2,
   SlidersHorizontal,
   Trash2,
 } from 'lucide-react';
@@ -43,6 +44,8 @@ import type {
   ChatSession,
   Collection,
   ModelInfo,
+  ProviderPreferences,
+  ProviderSortOption,
   ReasoningTraceSegment,
   ToolCallTrace,
   UsageBreakdown,
@@ -253,6 +256,25 @@ type ModelParameterKey = ParameterDefinition['key'];
 type ParameterValue = number | string | boolean | Record<string, unknown>;
 type ParameterOverrides = Partial<Record<ModelParameterKey, ParameterValue>>;
 
+type ProviderSortChoice = '' | ProviderSortOption;
+
+interface ProviderFormState {
+  sort: ProviderSortChoice;
+  order: string;
+  only: string;
+  ignore: string;
+  quantizations: string;
+  allowFallbacks: boolean;
+  requireParameters: boolean;
+  dataCollection: 'allow' | 'deny';
+  zdr: boolean;
+  enforceDistillableText: boolean;
+  maxPrompt: string;
+  maxCompletion: string;
+  maxRequest: string;
+  maxImage: string;
+}
+
 const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
   PARAMETER_DEFINITIONS.reduce(
     (acc, definition) => {
@@ -323,6 +345,40 @@ const coerceRecord = (value: unknown): Record<string, unknown> => {
   }
   return { value };
 };
+
+const splitListField = (value: string): string[] =>
+  value
+    .split(/[\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const parsePriceInput = (value: string): number | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
+};
+
+const createDefaultProviderForm = (): ProviderFormState => ({
+  sort: '',
+  order: '',
+  only: '',
+  ignore: '',
+  quantizations: '',
+  allowFallbacks: true,
+  requireParameters: true,
+  dataCollection: 'allow',
+  zdr: false,
+  enforceDistillableText: false,
+  maxPrompt: '',
+  maxCompletion: '',
+  maxRequest: '',
+  maxImage: '',
+});
 
 const deriveToolTracesFromMessages = (items: ChatMessage[]): ToolCallTrace[] =>
   items
@@ -511,12 +567,17 @@ export default function ChatStudioExperience() {
     'chat.telemetry.parametersOpen',
     true,
   );
+  const [providerPreferencesOpen, setProviderPreferencesOpen] = usePersistentToggle(
+    'chat.telemetry.providersOpen',
+    true,
+  );
   const [modelCatalog, setModelCatalog] = useState<ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [modelSearchTerm, setModelSearchTerm] = useState('');
   const [parameterOverrides, setParameterOverrides] = useState<ParameterOverrides>({});
+  const [providerForm, setProviderForm] = useState<ProviderFormState>(() => createDefaultProviderForm());
   const endRef = useRef<HTMLDivElement | null>(null);
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
@@ -781,6 +842,69 @@ export default function ChatStudioExperience() {
     ).length;
   }, [parameterOverrides, supportedParameterKeys]);
 
+  const providerPayload = useMemo<ProviderPreferences>(() => {
+    const payload: ProviderPreferences = {};
+    const orderList = splitListField(providerForm.order);
+    if (orderList.length > 0) {
+      payload.order = orderList;
+    }
+    const onlyList = splitListField(providerForm.only);
+    if (onlyList.length > 0) {
+      payload.only = onlyList;
+    }
+    const ignoreList = splitListField(providerForm.ignore);
+    if (ignoreList.length > 0) {
+      payload.ignore = ignoreList;
+    }
+    const quantizationList = splitListField(providerForm.quantizations).map((entry) =>
+      entry.toLowerCase(),
+    );
+    if (quantizationList.length > 0) {
+      payload.quantizations = quantizationList;
+    }
+    if (providerForm.sort) {
+      payload.sort = providerForm.sort;
+    }
+    if (!providerForm.allowFallbacks) {
+      payload.allow_fallbacks = false;
+    }
+    if (providerForm.requireParameters) {
+      payload.require_parameters = true;
+    }
+    if (providerForm.dataCollection === 'deny') {
+      payload.data_collection = 'deny';
+    }
+    if (providerForm.zdr) {
+      payload.zdr = true;
+    }
+    if (providerForm.enforceDistillableText) {
+      payload.enforce_distillable_text = true;
+    }
+    const maxPrice: ProviderPreferences['max_price'] = {};
+    const promptPrice = parsePriceInput(providerForm.maxPrompt);
+    if (promptPrice !== null) {
+      maxPrice.prompt = promptPrice;
+    }
+    const completionPrice = parsePriceInput(providerForm.maxCompletion);
+    if (completionPrice !== null) {
+      maxPrice.completion = completionPrice;
+    }
+    const requestPrice = parsePriceInput(providerForm.maxRequest);
+    if (requestPrice !== null) {
+      maxPrice.request = requestPrice;
+    }
+    const imagePrice = parsePriceInput(providerForm.maxImage);
+    if (imagePrice !== null) {
+      maxPrice.image = imagePrice;
+    }
+    if (maxPrice && Object.keys(maxPrice).length > 0) {
+      payload.max_price = maxPrice;
+    }
+    return payload;
+  }, [providerForm]);
+
+  const providerRuleCount = useMemo(() => Object.keys(providerPayload).length, [providerPayload]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [visibleMessageIds]);
@@ -980,6 +1104,7 @@ export default function ChatStudioExperience() {
 
     const parameterPayload = buildParameterPayload();
     const parameters = Object.keys(parameterPayload).length > 0 ? parameterPayload : undefined;
+    const provider = providerRuleCount > 0 ? providerPayload : undefined;
     try {
       await performChatMutation(sessionId, {
         content: trimmed,
@@ -987,6 +1112,7 @@ export default function ChatStudioExperience() {
         title: isNewSession ? `Chat ${new Date().toLocaleTimeString()}` : undefined,
         chat_model: targetModelId,
         parameters,
+        provider,
       });
     } catch (error) {
       setDraft(trimmed);
@@ -1012,6 +1138,7 @@ export default function ChatStudioExperience() {
     }
     const parameterPayload = buildParameterPayload();
     const parameters = Object.keys(parameterPayload).length > 0 ? parameterPayload : undefined;
+    const provider = providerRuleCount > 0 ? providerPayload : undefined;
     try {
       await performChatMutation(selectedSessionId, {
         content: newContent,
@@ -1019,6 +1146,7 @@ export default function ChatStudioExperience() {
         mode: 'chat',
         chat_model: targetModelId,
         parameters,
+        provider,
       });
       setEditingMessageId(null);
       setEditingDraft('');
@@ -1497,6 +1625,279 @@ export default function ChatStudioExperience() {
     );
   };
 
+  const renderProviderControls = () => {
+    const inputClasses =
+      'w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-white outline-none focus:border-violet-400';
+    const textAreaClasses = `${inputClasses} h-auto`;
+    const resetProviderPreferences = () => setProviderForm(createDefaultProviderForm());
+    return (
+      <div className="space-y-4">
+        <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Routing strategy</p>
+              <p className="text-sm text-slate-300">
+                Nitro/Floor shortcuts map to these settings. Choose throughput, price, or an explicit
+                provider order.
+              </p>
+            </div>
+            {providerRuleCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 rounded-full border border-white/10 px-3 text-xs text-slate-200"
+                onClick={resetProviderPreferences}
+              >
+                Reset rules
+              </Button>
+            )}
+          </div>
+          <label className="space-y-2 text-sm text-slate-200">
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Sort providers</span>
+            <select
+              className={inputClasses}
+              value={providerForm.sort}
+              onChange={(event) =>
+                setProviderForm((prev) => ({
+                  ...prev,
+                  sort: event.target.value as ProviderSortChoice,
+                }))
+              }
+            >
+              <option value="">Load balance (default)</option>
+              <option value="throughput">Throughput (Nitro)</option>
+              <option value="price">Price (Floor)</option>
+              <option value="latency">Latency</option>
+            </select>
+          </label>
+          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+            <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+              <span className="font-medium text-white">Allow fallbacks</span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-white/30 bg-transparent"
+                checked={providerForm.allowFallbacks}
+                onChange={(event) =>
+                  setProviderForm((prev) => ({ ...prev, allowFallbacks: event.target.checked }))
+                }
+              />
+            </label>
+            <p className="mt-1 text-xs text-slate-400">
+              Disable this to fail fast if your preferred providers are unavailable.
+            </p>
+          </div>
+          <label className="space-y-2 text-sm text-slate-200">
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Order providers</span>
+            <textarea
+              className={textAreaClasses}
+              rows={2}
+              placeholder={'anthropic, openai, azure'}
+              value={providerForm.order}
+              onChange={(event) =>
+                setProviderForm((prev) => ({ ...prev, order: event.target.value }))
+              }
+            />
+            <p className="text-xs text-slate-400">
+              Requests will follow this order before trying the default OpenRouter list.
+            </p>
+          </label>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Provider filters</p>
+          <label className="space-y-1 text-sm text-slate-200">
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Only allow</span>
+            <textarea
+              className={textAreaClasses}
+              rows={2}
+              placeholder="azure, together"
+              value={providerForm.only}
+              onChange={(event) =>
+                setProviderForm((prev) => ({ ...prev, only: event.target.value }))
+              }
+            />
+          </label>
+          <label className="space-y-1 text-sm text-slate-200">
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Ignore</span>
+            <textarea
+              className={textAreaClasses}
+              rows={2}
+              placeholder="deepinfra, openai"
+              value={providerForm.ignore}
+              onChange={(event) =>
+                setProviderForm((prev) => ({ ...prev, ignore: event.target.value }))
+              }
+            />
+          </label>
+          <label className="space-y-1 text-sm text-slate-200">
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Quantizations</span>
+            <textarea
+              className={textAreaClasses}
+              rows={2}
+              placeholder="int4, fp8"
+              value={providerForm.quantizations}
+              onChange={(event) =>
+                setProviderForm((prev) => ({ ...prev, quantizations: event.target.value }))
+              }
+            />
+            <p className="text-xs text-slate-400">Filter open-weight endpoints by quantization level.</p>
+          </label>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Data guardrails</p>
+          <div className="space-y-2">
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                <span className="font-medium text-white">Require parameters</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-white/30 bg-transparent"
+                  checked={providerForm.requireParameters}
+                  onChange={(event) =>
+                    setProviderForm((prev) => ({ ...prev, requireParameters: event.target.checked }))
+                  }
+                />
+              </label>
+              <p className="mt-1 text-xs text-slate-400">
+                Only route to providers that support every parameter in your request.
+              </p>
+            </div>
+            <label className="space-y-2 text-sm text-slate-200">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Data collection</span>
+              <select
+                className={inputClasses}
+                value={providerForm.dataCollection}
+                onChange={(event) =>
+                  setProviderForm((prev) => ({
+                    ...prev,
+                    dataCollection: event.target.value === 'deny' ? 'deny' : 'allow',
+                  }))
+                }
+              >
+                <option value="allow">Allow (default)</option>
+                <option value="deny">Deny (no collection)</option>
+              </select>
+            </label>
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                <span className="font-medium text-white">Zero data retention</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-white/30 bg-transparent"
+                  checked={providerForm.zdr}
+                  onChange={(event) =>
+                    setProviderForm((prev) => ({ ...prev, zdr: event.target.checked }))
+                  }
+                />
+              </label>
+              <p className="mt-1 text-xs text-slate-400">Only send requests to ZDR endpoints.</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                <span className="font-medium text-white">Distillable text only</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-white/30 bg-transparent"
+                  checked={providerForm.enforceDistillableText}
+                  onChange={(event) =>
+                    setProviderForm((prev) => ({
+                      ...prev,
+                      enforceDistillableText: event.target.checked,
+                    }))
+                  }
+                />
+              </label>
+              <p className="mt-1 text-xs text-slate-400">
+                Restrict routing to models that permit text distillation.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Max price ($/m tokens)</p>
+            <p className="text-sm text-slate-300">
+              Cap prompt, completion, request, or image pricing for this turn.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="space-y-1 text-sm text-slate-200">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Prompt</span>
+              <input
+                type="number"
+                min="0"
+                step="0.0001"
+                className={inputClasses}
+                placeholder="1.00"
+                value={providerForm.maxPrompt}
+                onChange={(event) =>
+                  setProviderForm((prev) => ({ ...prev, maxPrompt: event.target.value }))
+                }
+              />
+            </label>
+            <label className="space-y-1 text-sm text-slate-200">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Completion</span>
+              <input
+                type="number"
+                min="0"
+                step="0.0001"
+                className={inputClasses}
+                placeholder="2.00"
+                value={providerForm.maxCompletion}
+                onChange={(event) =>
+                  setProviderForm((prev) => ({ ...prev, maxCompletion: event.target.value }))
+                }
+              />
+            </label>
+            <label className="space-y-1 text-sm text-slate-200">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Request</span>
+              <input
+                type="number"
+                min="0"
+                step="0.0001"
+                className={inputClasses}
+                placeholder="0.25"
+                value={providerForm.maxRequest}
+                onChange={(event) =>
+                  setProviderForm((prev) => ({ ...prev, maxRequest: event.target.value }))
+                }
+              />
+            </label>
+            <label className="space-y-1 text-sm text-slate-200">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Image</span>
+              <input
+                type="number"
+                min="0"
+                step="0.0001"
+                className={inputClasses}
+                placeholder="0.02"
+                value={providerForm.maxImage}
+                onChange={(event) =>
+                  setProviderForm((prev) => ({ ...prev, maxImage: event.target.value }))
+                }
+              />
+            </label>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          Need a refresher? Read the{' '}
+          <a
+            href="https://openrouter.ai/docs/features/provider-routing"
+            target="_blank"
+            rel="noreferrer"
+            className="text-cyan-300 underline decoration-dotted underline-offset-4"
+          >
+            provider routing guide
+          </a>{' '}
+          for tips on building multi-provider policies.
+        </p>
+      </div>
+    );
+  };
+
   const renderMessages = () => {
     const dedupedOptimistic = optimisticMessages.filter((optimistic) => {
       const trimmedOptimistic = optimistic.content.trim();
@@ -1823,6 +2224,19 @@ export default function ChatStudioExperience() {
         </div>
         <div className="mt-4 flex-1 min-h-0 space-y-4 overflow-y-auto">
           {renderModelSelector()}
+          <TelemetrySection
+            title="Provider routing"
+            description={
+              providerRuleCount === 0
+                ? 'Load balance across top providers'
+                : `${providerRuleCount} routing rule${providerRuleCount === 1 ? '' : 's'} configured`
+            }
+            icon={<Share2 className="h-4 w-4 text-emerald-300" />}
+            isOpen={providerPreferencesOpen}
+            onToggle={() => setProviderPreferencesOpen((prev) => !prev)}
+          >
+            {renderProviderControls()}
+          </TelemetrySection>
           <TelemetrySection
             title="Collection vitals"
             description="Current ingestion settings"

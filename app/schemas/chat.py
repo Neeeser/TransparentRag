@@ -54,6 +54,7 @@ class ChatMessageCreate(BaseModel):
     edit_message_id: Optional[UUID] = None
     chat_model: Optional[str] = None
     parameters: Optional[Dict[str, Any]] = None
+    provider: Optional[Dict[str, Any]] = None
 
 
 class ChatCompletionResponse(BaseModel):
