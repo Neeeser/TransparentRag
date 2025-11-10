@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import UUID, uuid4
@@ -22,6 +23,27 @@ from app.services.retrieval import RetrievalService
 
 
 class ChatService:
+    PARAMETER_TYPE_HINTS: Dict[str, str] = {
+        "temperature": "float",
+        "top_p": "float",
+        "top_k": "int",
+        "min_p": "float",
+        "top_a": "float",
+        "frequency_penalty": "float",
+        "presence_penalty": "float",
+        "repetition_penalty": "float",
+        "max_tokens": "int",
+        "seed": "int",
+        "logit_bias": "dict",
+        "logprobs": "bool",
+        "top_logprobs": "int",
+        "response_format": "dict",
+        "structured_outputs": "bool",
+        "stop": "list",
+        "verbosity": "enum",
+    }
+    VERBOSITY_OPTIONS = {"low", "medium", "high"}
+
     def __init__(self, session: Session) -> None:
         self.session = session
         self.settings = get_settings()
@@ -188,9 +210,135 @@ class ChatService:
             body["usage"] = {"include": True}
         return body
 
-    def _reasoning_request_options(self, model_name: str) -> Dict[str, Any]:
-        model_info = self.openrouter.get_model(model_name)
-        supported = model_info.supported_parameters if model_info else []
+    @staticmethod
+    def _coerce_numeric_parameter(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            number = float(value)
+        elif isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                number = float(stripped)
+            except ValueError:
+                return None
+        else:
+            return None
+        if not math.isfinite(number):
+            return None
+        return number
+
+    @staticmethod
+    def _coerce_bool_parameter(value: Any) -> Optional[bool]:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "on"}:
+                return True
+            if lowered in {"false", "0", "no", "off"}:
+                return False
+        return None
+
+    @staticmethod
+    def _coerce_dict_parameter(value: Any) -> Optional[Dict[str, Any]]:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                decoded = json.loads(stripped)
+            except json.JSONDecodeError:
+                return None
+            if isinstance(decoded, dict):
+                return decoded
+        return None
+
+    @staticmethod
+    def _coerce_list_parameter(value: Any) -> Optional[List[str]]:
+        if value is None:
+            return None
+        items: List[str] = []
+        if isinstance(value, list):
+            for item in value:
+                if item is None:
+                    continue
+                if isinstance(item, str):
+                    text = item.strip()
+                    if text:
+                        items.append(text)
+                else:
+                    items.append(str(item))
+        elif isinstance(value, str):
+            normalized = value.replace("\n", ",")
+            for piece in normalized.split(","):
+                text = piece.strip()
+                if text:
+                    items.append(text)
+        else:
+            items.append(str(value))
+        return items or None
+
+    @classmethod
+    def _coerce_parameter_value(cls, key: str, value: Any) -> Optional[Any]:
+        hint = cls.PARAMETER_TYPE_HINTS.get(key)
+        if hint is None:
+            return None
+        if hint == "float":
+            return cls._coerce_numeric_parameter(value)
+        if hint == "int":
+            number = cls._coerce_numeric_parameter(value)
+            return None if number is None else int(number)
+        if hint == "bool":
+            return cls._coerce_bool_parameter(value)
+        if hint == "dict":
+            return cls._coerce_dict_parameter(value)
+        if hint == "list":
+            return cls._coerce_list_parameter(value)
+        if hint == "enum":
+            if isinstance(value, str):
+                lowered = value.strip().lower()
+            else:
+                lowered = str(value).strip().lower()
+            return lowered if lowered in cls.VERBOSITY_OPTIONS else None
+        return None
+
+    @classmethod
+    def _sanitize_parameter_overrides(
+        cls,
+        raw: Optional[Dict[str, Any]],
+        supported_parameters: Optional[List[str]],
+    ) -> Dict[str, Any]:
+        if not raw or not supported_parameters:
+            return {}
+        supported_lookup = {param.lower(): param for param in supported_parameters}
+        sanitized: Dict[str, Any] = {}
+        for incoming_key, value in raw.items():
+            normalized_key = incoming_key.lower()
+            canonical_key = supported_lookup.get(normalized_key)
+            if not canonical_key or normalized_key not in cls.PARAMETER_TYPE_HINTS:
+                continue
+            parsed = cls._coerce_parameter_value(normalized_key, value)
+            if parsed is None:
+                continue
+            sanitized[canonical_key] = parsed
+        return sanitized
+
+    def _reasoning_request_options(
+        self,
+        model_name: str,
+        model_info: Optional["ModelInfo"] = None,
+    ) -> Dict[str, Any]:
+        info = model_info or self.openrouter.get_model(model_name)
+        supported = info.supported_parameters if info else []
         return self._build_reasoning_options(supported, self.reasoning_effort)
 
     @staticmethod
@@ -536,7 +684,10 @@ class ChatService:
         reasoning_trace: List[Dict[str, Any]] = []
         processed_reasoning_calls: Set[str] = set()
         reasoning_call_segments: Dict[str, Dict[str, Any]] = {}
-        reasoning_options = self._reasoning_request_options(collection.chat_model)
+        model_info = self.openrouter.get_model(collection.chat_model)
+        supported_parameters = model_info.supported_parameters if model_info else []
+        reasoning_options = self._reasoning_request_options(collection.chat_model, model_info)
+        parameter_overrides = self._sanitize_parameter_overrides(payload.parameters, supported_parameters)
 
         max_iterations = 48
         iteration = 0
@@ -551,6 +702,7 @@ class ChatService:
                 model=collection.chat_model,
                 parallel_tool_calls=True,
                 extra_body=extra_body,
+                parameters=parameter_overrides or None,
             )
             final_response = response
             choice = response["choices"][0]

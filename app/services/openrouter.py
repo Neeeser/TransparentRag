@@ -16,11 +16,9 @@ class OpenRouterClient:
 
     def __init__(self) -> None:
         self.settings = get_settings()
+        self._app_headers = self._build_app_headers()
         default_headers = {"Authorization": f"Bearer {self.settings.openrouter_api_key}"}
-        if self.settings.openrouter_site_url:
-            default_headers["HTTP-Referer"] = self.settings.openrouter_site_url
-        if self.settings.openrouter_site_name:
-            default_headers["X-Title"] = self.settings.openrouter_site_name
+        default_headers.update(self._app_headers)
 
         self._http = httpx.Client(
             base_url=self.settings.openrouter_base_url,
@@ -32,6 +30,19 @@ class OpenRouterClient:
             api_key=self.settings.openrouter_api_key,
         )
         self._model_cache: dict[str, Any] = {"ts": 0.0, "data": []}
+
+    def _build_app_headers(self) -> Dict[str, str]:
+        headers = {"X-Title": self.settings.openrouter_site_name or "TransparentRag"}
+        if self.settings.openrouter_site_url:
+            headers["HTTP-Referer"] = self.settings.openrouter_site_url
+        return headers
+
+    def _merge_extra_headers(self, extra_headers: Optional[Dict[str, str]]) -> Dict[str, str]:
+        if extra_headers:
+            merged = dict(self._app_headers)
+            merged.update(extra_headers)
+            return merged
+        return dict(self._app_headers)
 
     def list_models(self, force_refresh: bool = False) -> List[ModelInfo]:
         now = time.time()
@@ -56,7 +67,7 @@ class OpenRouterClient:
         model: Optional[str] = None,
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> dict[str, Any]:
-        headers = extra_headers or {}
+        headers = self._merge_extra_headers(extra_headers)
         embeddings = self._client.embeddings.create(
             model=model or self.settings.default_embedding_model,
             input=list(texts),
@@ -74,6 +85,7 @@ class OpenRouterClient:
         parallel_tool_calls: Optional[bool] = None,
         extra_headers: Optional[Dict[str, str]] = None,
         extra_body: Optional[Dict[str, Any]] = None,
+        parameters: Optional[Dict[str, Any]] = None,
     ) -> dict[str, Any]:
         kwargs: Dict[str, Any] = {"messages": messages, "model": model or self.settings.default_chat_model}
         if tools:
@@ -82,10 +94,13 @@ class OpenRouterClient:
             kwargs["tool_choice"] = tool_choice
         if parallel_tool_calls is not None:
             kwargs["parallel_tool_calls"] = parallel_tool_calls
-        if extra_headers:
-            kwargs["extra_headers"] = extra_headers
+        kwargs["extra_headers"] = self._merge_extra_headers(extra_headers)
         if extra_body:
             kwargs["extra_body"] = extra_body
+        if parameters:
+            for key, value in parameters.items():
+                if value is not None:
+                    kwargs[key] = value
         response = self._client.chat.completions.create(**kwargs)
         return response.model_dump()
 

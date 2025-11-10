@@ -16,6 +16,7 @@ import {
   PanelRightOpen,
   PlusCircle,
   RotateCcw,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { Components } from 'react-markdown';
 
@@ -29,6 +30,7 @@ import {
   fetchDocuments,
   getChatHistory,
   listChatSessions,
+  listModels,
 } from '@/lib/api';
 import type {
   ChatCompletionPayload,
@@ -36,6 +38,7 @@ import type {
   ChatRequestPayload,
   ChatSession,
   Collection,
+  ModelInfo,
   ReasoningTraceSegment,
   ToolCallTrace,
   UsageBreakdown,
@@ -49,6 +52,198 @@ const samplePrompts = [
   'Draft next steps using the last three answers.',
   'List any flagged chunks that might need review.',
 ];
+
+type ParameterInputKind = 'number' | 'integer' | 'boolean' | 'list' | 'json' | 'select';
+
+interface ParameterOption {
+  label: string;
+  value: string;
+}
+
+interface ParameterDefinitionShape {
+  key: string;
+  label: string;
+  description: string;
+  input: ParameterInputKind;
+  min?: number;
+  max?: number;
+  step?: number;
+  placeholder?: string;
+  options?: ParameterOption[];
+  rows?: number;
+}
+
+const PARAMETER_DEFINITIONS = [
+  {
+    key: 'temperature',
+    label: 'Temperature',
+    description: 'Higher values increase randomness (0-2).',
+    input: 'number',
+    min: 0,
+    max: 2,
+    step: 0.1,
+    placeholder: '1.0',
+  },
+  {
+    key: 'top_p',
+    label: 'Top P',
+    description: 'Limit tokens to a probability mass.',
+    input: 'number',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    placeholder: '1.0',
+  },
+  {
+    key: 'top_k',
+    label: 'Top K',
+    description: 'Sample only from the top K tokens.',
+    input: 'integer',
+    min: 0,
+    step: 1,
+    placeholder: '0 (disabled)',
+  },
+  {
+    key: 'min_p',
+    label: 'Min P',
+    description: 'Minimum relative probability threshold.',
+    input: 'number',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    placeholder: '0.0',
+  },
+  {
+    key: 'top_a',
+    label: 'Top A',
+    description: 'Adaptive nucleus setting (0-1).',
+    input: 'number',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    placeholder: '0.0',
+  },
+  {
+    key: 'frequency_penalty',
+    label: 'Frequency penalty',
+    description: 'Penalize repeated tokens by count.',
+    input: 'number',
+    min: -2,
+    max: 2,
+    step: 0.1,
+    placeholder: '0.0',
+  },
+  {
+    key: 'presence_penalty',
+    label: 'Presence penalty',
+    description: 'Discourage reusing prior tokens.',
+    input: 'number',
+    min: -2,
+    max: 2,
+    step: 0.1,
+    placeholder: '0.0',
+  },
+  {
+    key: 'repetition_penalty',
+    label: 'Repetition penalty',
+    description: 'Reduce repeated generations.',
+    input: 'number',
+    min: 0,
+    max: 2,
+    step: 0.05,
+    placeholder: '1.0',
+  },
+  {
+    key: 'max_tokens',
+    label: 'Max tokens',
+    description: 'Cap on generated tokens.',
+    input: 'integer',
+    min: 1,
+    step: 1,
+    placeholder: '512',
+  },
+  {
+    key: 'seed',
+    label: 'Seed',
+    description: 'Deterministic sampling seed.',
+    input: 'integer',
+    min: 0,
+    step: 1,
+    placeholder: 'Leave blank for randomness',
+  },
+  {
+    key: 'logprobs',
+    label: 'Log probabilities',
+    description: 'Return logprobs for each token.',
+    input: 'boolean',
+  },
+  {
+    key: 'top_logprobs',
+    label: 'Top logprobs',
+    description: 'How many alternate tokens to include (0-20).',
+    input: 'integer',
+    min: 0,
+    max: 20,
+    step: 1,
+    placeholder: '5',
+  },
+  {
+    key: 'structured_outputs',
+    label: 'Structured outputs',
+    description: 'Request JSON schema enforcement.',
+    input: 'boolean',
+  },
+  {
+    key: 'verbosity',
+    label: 'Verbosity',
+    description: 'Control response detail level.',
+    input: 'select',
+    options: [
+      { label: 'Model default', value: '' },
+      { label: 'Low', value: 'low' },
+      { label: 'Medium', value: 'medium' },
+      { label: 'High', value: 'high' },
+    ],
+  },
+  {
+    key: 'stop',
+    label: 'Stop sequences',
+    description: 'Comma or newline separated stop strings.',
+    input: 'list',
+    placeholder: '###, END',
+    rows: 2,
+  },
+  {
+    key: 'response_format',
+    label: 'Response format',
+    description: 'JSON describing the expected response schema.',
+    input: 'json',
+    placeholder: '{ "type": "json_object" }',
+    rows: 3,
+  },
+  {
+    key: 'logit_bias',
+    label: 'Logit bias',
+    description: 'JSON map of token IDs to bias values.',
+    input: 'json',
+    placeholder: '{ "318": -100 }',
+    rows: 3,
+  },
+] as const satisfies readonly ParameterDefinitionShape[];
+
+type ParameterDefinition = (typeof PARAMETER_DEFINITIONS)[number];
+type ModelParameterKey = ParameterDefinition['key'];
+type ParameterValue = number | string | boolean;
+type ParameterOverrides = Partial<Record<ModelParameterKey, ParameterValue>>;
+
+const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
+  PARAMETER_DEFINITIONS.reduce(
+    (acc, definition) => {
+      acc[definition.key] = definition;
+      return acc;
+    },
+    {} as Record<ModelParameterKey, ParameterDefinition>,
+  );
 
 const safeParseJSON = (value?: string | null) => {
   if (!value) return null;
@@ -286,6 +481,14 @@ export default function ChatStudioExperience() {
   const [telemetryOpen, setTelemetryOpen] = usePersistentToggle('chat.telemetryOpen', true);
   const [vitalsOpen, setVitalsOpen] = usePersistentToggle('chat.telemetry.vitalsOpen', true);
   const [usageOpen, setUsageOpen] = usePersistentToggle('chat.telemetry.usageOpen', true);
+  const [modelParametersOpen, setModelParametersOpen] = usePersistentToggle(
+    'chat.telemetry.parametersOpen',
+    true,
+  );
+  const [modelCatalog, setModelCatalog] = useState<ModelInfo[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [parameterOverrides, setParameterOverrides] = useState<ParameterOverrides>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
@@ -385,6 +588,32 @@ export default function ChatStudioExperience() {
   }, [authToken, collectionId, sortSessions]);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadModels = async () => {
+      setModelsLoading(true);
+      try {
+        const items = await listModels(authToken || undefined);
+        if (!cancelled) {
+          setModelCatalog(items);
+          setModelsError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setModelsError(error instanceof Error ? error.message : 'Unable to load model metadata.');
+        }
+      } finally {
+        if (!cancelled) {
+          setModelsLoading(false);
+        }
+      }
+    };
+    loadModels();
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
     if (!authToken) return;
     if (!selectedSessionId) {
       setMessages([]);
@@ -435,6 +664,45 @@ export default function ChatStudioExperience() {
       setContextConsumed(activeSession.context_tokens);
     }
   }, [selectedSessionId, sessions]);
+
+  useEffect(() => {
+    setParameterOverrides({});
+  }, [collection?.chat_model]);
+
+  const currentModelInfo = useMemo(() => {
+    if (!collection) return null;
+    return (
+      modelCatalog.find(
+        (model) =>
+          model.id === collection.chat_model || model.canonical_slug === collection.chat_model,
+      ) ?? null
+    );
+  }, [collection, modelCatalog]);
+
+  const supportedParameterKeys = useMemo(() => {
+    const supported = new Set<ModelParameterKey>();
+    if (!currentModelInfo) {
+      return supported;
+    }
+    (currentModelInfo.supported_parameters || []).forEach((param) => {
+      const normalized = param.toLowerCase();
+      if (normalized in PARAMETER_DEFINITION_MAP) {
+        supported.add(normalized as ModelParameterKey);
+      }
+    });
+    return supported;
+  }, [currentModelInfo]);
+
+  const visibleParameterDefinitions = useMemo(
+    () => PARAMETER_DEFINITIONS.filter((definition) => supportedParameterKeys.has(definition.key)),
+    [supportedParameterKeys],
+  );
+
+  const activeParameterCount = useMemo(() => {
+    return Object.keys(parameterOverrides).filter((key) =>
+      supportedParameterKeys.has(key as ModelParameterKey),
+    ).length;
+  }, [parameterOverrides, supportedParameterKeys]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -588,11 +856,14 @@ export default function ChatStudioExperience() {
       pendingSessionIdsRef.current.add(sessionId);
     }
     if (!sessionId) return;
+    const parameterPayload = buildParameterPayload();
+    const parameters = Object.keys(parameterPayload).length > 0 ? parameterPayload : undefined;
     try {
       await performChatMutation(sessionId, {
         content: draft.trim(),
         mode: 'chat',
         title: isNewSession ? `Chat ${new Date().toLocaleTimeString()}` : undefined,
+        parameters,
       });
       setDraft('');
     } catch (error) {
@@ -607,11 +878,14 @@ export default function ChatStudioExperience() {
 
   const runEditMutation = async (messageId: string, newContent: string) => {
     if (!authToken || !collection || !selectedSessionId) return;
+    const parameterPayload = buildParameterPayload();
+    const parameters = Object.keys(parameterPayload).length > 0 ? parameterPayload : undefined;
     try {
       await performChatMutation(selectedSessionId, {
         content: newContent,
         edit_message_id: messageId,
         mode: 'chat',
+        parameters,
       });
       setEditingMessageId(null);
       setEditingDraft('');
@@ -649,6 +923,120 @@ export default function ChatStudioExperience() {
     setEditingDraft('');
   };
 
+  const updateParameterValue = useCallback(
+    (key: ModelParameterKey, value?: ParameterValue | null) => {
+      setParameterOverrides((prev) => {
+        const next = { ...prev };
+        if (value === undefined || value === null) {
+          delete next[key];
+        } else if (typeof value === 'string' && value.trim() === '') {
+          delete next[key];
+        } else {
+          next[key] = value;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleNumberParameterChange = useCallback(
+    (key: ModelParameterKey, rawValue: string, asInteger = false) => {
+      if (rawValue === '') {
+        updateParameterValue(key, undefined);
+        return;
+      }
+      const parsed = Number(rawValue);
+      if (Number.isNaN(parsed)) {
+        updateParameterValue(key, undefined);
+        return;
+      }
+      updateParameterValue(key, asInteger ? Math.round(parsed) : parsed);
+    },
+    [updateParameterValue],
+  );
+
+  const handleBooleanParameterChange = useCallback(
+    (key: ModelParameterKey, checked: boolean) => {
+      updateParameterValue(key, checked ? true : undefined);
+    },
+    [updateParameterValue],
+  );
+
+  const handleTextParameterChange = useCallback(
+    (key: ModelParameterKey, value: string) => {
+      updateParameterValue(key, value);
+    },
+    [updateParameterValue],
+  );
+
+  const handleSelectParameterChange = useCallback(
+    (key: ModelParameterKey, value: string) => {
+      updateParameterValue(key, value ? value : undefined);
+    },
+    [updateParameterValue],
+  );
+
+  const handleClearParameter = useCallback(
+    (key: ModelParameterKey) => {
+      updateParameterValue(key, undefined);
+    },
+    [updateParameterValue],
+  );
+
+  const resetAllParameters = useCallback(() => {
+    setParameterOverrides({});
+  }, []);
+
+  const formatDefaultParameter = useCallback(
+    (key: ModelParameterKey) => {
+      if (!currentModelInfo?.default_parameters) return null;
+      const rawValue = currentModelInfo.default_parameters[key];
+      if (rawValue === undefined || rawValue === null) return null;
+      if (Array.isArray(rawValue)) {
+        return rawValue.join(', ');
+      }
+      if (typeof rawValue === 'object') {
+        try {
+          return JSON.stringify(rawValue);
+        } catch {
+          return String(rawValue);
+        }
+      }
+      return String(rawValue);
+    },
+    [currentModelInfo],
+  );
+
+  const buildParameterPayload = useCallback(() => {
+    if (!currentModelInfo) {
+      return {};
+    }
+    const supportedSet = new Set(
+      (currentModelInfo.supported_parameters || []).map((param) => param.toLowerCase()),
+    );
+    const payload: Record<string, unknown> = {};
+    Object.entries(parameterOverrides).forEach(([key, rawValue]) => {
+      const normalizedKey = key.toLowerCase();
+      if (!supportedSet.has(normalizedKey)) {
+        return;
+      }
+      if (rawValue === undefined || rawValue === null) {
+        return;
+      }
+      if (typeof rawValue === 'string') {
+        const trimmed = rawValue.trim();
+        if (!trimmed) {
+          return;
+        }
+        payload[normalizedKey] = trimmed;
+        return;
+      }
+      payload[normalizedKey] = rawValue;
+    });
+    return payload;
+  }, [currentModelInfo, parameterOverrides]);
+
   const performChatMutation = useCallback(
     async (sessionId: string, payload: Omit<ChatRequestPayload, 'session_id'>) => {
       if (!authToken || !collection) {
@@ -683,6 +1071,148 @@ export default function ChatStudioExperience() {
     assistant: 'border-white/15 bg-white/10 text-white',
     tool: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-50',
     system: 'border-slate-500/30 bg-slate-900/60 text-slate-100',
+  };
+
+  const renderParameterControl = (definition: ParameterDefinition) => {
+    const hasOverride = Object.prototype.hasOwnProperty.call(parameterOverrides, definition.key);
+    const currentValue = parameterOverrides[definition.key];
+    const defaultDisplay = formatDefaultParameter(definition.key);
+    const inputClasses =
+      'w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400';
+
+    let control: ReactNode;
+    if (definition.input === 'number' || definition.input === 'integer') {
+      control = (
+        <input
+          type="number"
+          min={definition.min}
+          max={definition.max}
+          step={definition.step ?? (definition.input === 'integer' ? 1 : 0.05)}
+          className={inputClasses}
+          placeholder={definition.placeholder}
+          value={typeof currentValue === 'number' ? currentValue : ''}
+          onChange={(event) =>
+            handleNumberParameterChange(
+              definition.key,
+              event.target.value,
+              definition.input === 'integer',
+            )
+          }
+        />
+      );
+    } else if (definition.input === 'boolean') {
+      control = (
+        <label className="flex items-center gap-3 text-sm text-slate-200">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-white/30 bg-transparent"
+            checked={currentValue === true}
+            onChange={(event) => handleBooleanParameterChange(definition.key, event.target.checked)}
+          />
+          <span>Enable</span>
+        </label>
+      );
+    } else if (definition.input === 'select') {
+      control = (
+        <select
+          className={inputClasses}
+          value={typeof currentValue === 'string' ? currentValue : ''}
+          onChange={(event) => handleSelectParameterChange(definition.key, event.target.value)}
+        >
+          {(definition.options ?? []).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    } else {
+      control = (
+        <textarea
+          className={`${inputClasses} h-auto`}
+          rows={definition.rows ?? 2}
+          placeholder={definition.placeholder}
+          value={typeof currentValue === 'string' ? currentValue : ''}
+          onChange={(event) => handleTextParameterChange(definition.key, event.target.value)}
+        />
+      );
+    }
+
+    return (
+      <div
+        key={definition.key}
+        className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-white">{definition.label}</p>
+            <p className="text-xs text-slate-400">{definition.description}</p>
+            {defaultDisplay && (
+              <p className="text-[11px] text-slate-500">Default: {defaultDisplay}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            className="text-xs text-slate-400 transition hover:text-white disabled:opacity-40"
+            disabled={!hasOverride}
+            onClick={() => handleClearParameter(definition.key)}
+          >
+            Clear
+          </button>
+        </div>
+        {control}
+      </div>
+    );
+  };
+
+  const renderParameterControls = () => {
+    if (modelsError) {
+      return <p className="text-sm text-rose-300">{modelsError}</p>;
+    }
+    if (modelsLoading && !currentModelInfo) {
+      return <p className="text-sm text-slate-400">Loading model catalog…</p>;
+    }
+    if (!collection) {
+      return <p className="text-sm text-slate-400">Select a collection to view model controls.</p>;
+    }
+    if (!currentModelInfo) {
+      return (
+        <p className="text-sm text-slate-400">
+          Unable to find OpenRouter metadata for <span className="text-white">{collection.chat_model}</span>.
+        </p>
+      );
+    }
+    if (visibleParameterDefinitions.length === 0) {
+      return (
+        <p className="text-sm text-slate-400">
+          This model does not expose the common sampling parameters listed in the OpenRouter docs.
+        </p>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-slate-300">
+          <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Model</p>
+          <p className="text-white">{currentModelInfo.name}</p>
+          <p className="text-[11px] text-slate-500 break-all">{currentModelInfo.id}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.3em] text-slate-500">
+            <span>{visibleParameterDefinitions.length} controls</span>
+            {activeParameterCount > 0 && (
+              <button
+                type="button"
+                onClick={resetAllParameters}
+                className="text-slate-200 underline-offset-4 hover:underline"
+              >
+                Reset overrides
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="space-y-4">
+          {visibleParameterDefinitions.map((definition) => renderParameterControl(definition))}
+        </div>
+      </div>
+    );
   };
 
   const renderMessages = () => {
@@ -1001,6 +1531,20 @@ export default function ChatStudioExperience() {
             ) : (
               <p className="text-sm text-slate-400">Loading collection details…</p>
             )}
+          </TelemetrySection>
+
+          <TelemetrySection
+            title="Model parameters"
+            description={
+              currentModelInfo
+                ? `${activeParameterCount} override${activeParameterCount === 1 ? '' : 's'} active`
+                : 'Load model metadata'
+            }
+            icon={<SlidersHorizontal className="h-4 w-4 text-violet-300" />}
+            isOpen={modelParametersOpen}
+            onToggle={() => setModelParametersOpen((prev) => !prev)}
+          >
+            {renderParameterControls()}
           </TelemetrySection>
 
           <TelemetrySection

@@ -51,6 +51,7 @@ class ChatMessageCreate(BaseModel):
     mode: ChatMode = ChatMode.CHAT
     title: Optional[str] = None
     edit_message_id: Optional[UUID] = None
+    parameters: Optional[Dict[str, Any]] = None
 
 
 class ChatCompletionResponse(BaseModel):
