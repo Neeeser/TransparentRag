@@ -20,7 +20,7 @@ def test_extract_reasoning_tool_calls_creates_openai_payload() -> None:
         },
         {"type": "reasoning", "text": "Thinking"},
     ]
-    tool_calls, context = ChatService._extract_reasoning_tool_calls(segments, set())
+    tool_calls, context, residual = ChatService._extract_reasoning_tool_calls(segments, set())
 
     assert len(tool_calls) == 1
     call = tool_calls[0]
@@ -29,11 +29,58 @@ def test_extract_reasoning_tool_calls_creates_openai_payload() -> None:
     args = ChatService._decode_tool_arguments(call["function"]["arguments"])
     assert args == {"query": "docs", "top_k": 7}
     assert "call-1" in context
+    assert residual == [{"type": "reasoning", "text": "Thinking"}]
 
 
 def test_build_reasoning_options_honors_supported_parameters() -> None:
     supported = ["temperature", "include_reasoning", "reasoning"]
     options = ChatService._build_reasoning_options(supported, "high")
 
-    assert options["include_reasoning"] is True
+    assert "include_reasoning" not in options
     assert options["reasoning"] == {"effort": "high"}
+
+
+def test_extract_reasoning_tool_calls_captures_leading_context_and_residual_segments() -> None:
+    segments = [
+        {"type": "text", "content": "Step 1"},
+        {
+            "type": "tool_call",
+            "id": "call-1",
+            "name": "pinecone_query",
+            "arguments": {"query": "docs"},
+        },
+        {"type": "text", "content": "post-tool reflection"},
+    ]
+
+    tool_calls, context, residual = ChatService._extract_reasoning_tool_calls(segments, set())
+
+    assert len(tool_calls) == 1
+    assert context["call-1"]["segments"][0]["content"] == "Step 1"
+    assert context["call-1"]["segments"][1]["id"] == "call-1"
+    assert residual == [{"type": "text", "content": "post-tool reflection"}]
+
+
+def test_extract_reasoning_tool_calls_handles_multiple_calls_and_shared_context() -> None:
+    segments = [
+        {"type": "text", "content": "preface"},
+        {
+            "type": "tool_call",
+            "id": "call-1",
+            "name": "pinecone_query",
+            "arguments": {"query": "docs"},
+        },
+        {"type": "text", "content": "between calls"},
+        {
+            "type": "function_call",
+            "call": {"id": "call-2", "name": "pinecone_query", "arguments": {"query": "more"}},
+        },
+    ]
+
+    tool_calls, context, residual = ChatService._extract_reasoning_tool_calls(segments, set())
+
+    assert {call["id"] for call in tool_calls} == {"call-1", "call-2"}
+    assert context["call-1"]["segments"][0]["content"] == "preface"
+    assert context["call-1"]["segments"][1]["id"] == "call-1"
+    assert context["call-2"]["segments"][0]["content"] == "between calls"
+    assert context["call-2"]["segments"][1]["call"]["id"] == "call-2"
+    assert residual == []
