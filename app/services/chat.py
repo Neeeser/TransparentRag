@@ -142,11 +142,10 @@ class ChatService:
         if raw_reasoning is None:
             return []
         if isinstance(raw_reasoning, str):
-            stripped = raw_reasoning.strip()
-            if not stripped:
+            if not raw_reasoning.strip():
                 return [{"type": "text", "content": raw_reasoning}]
             try:
-                parsed = json.loads(stripped)
+                parsed = json.loads(raw_reasoning)
             except json.JSONDecodeError:
                 return [{"type": "text", "content": raw_reasoning}]
             return ChatService._normalize_reasoning_segments(parsed)
@@ -231,13 +230,7 @@ class ChatService:
             return right
         if not right:
             return left
-        if left[-1].isspace() or right[0].isspace():
-            return left + right
-        no_space_after = ",.!?:;)]}'\""
-        no_space_before = "([{"
-        if right[0] in no_space_after or left[-1] in no_space_before:
-            return left + right
-        return f"{left} {right}"
+        return left + right
 
     @staticmethod
     def _ensure_arguments_string(arguments: Any) -> str:

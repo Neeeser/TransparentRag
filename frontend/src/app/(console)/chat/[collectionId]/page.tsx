@@ -338,17 +338,7 @@ const usePersistentToggle = (key: string, defaultValue: boolean) => {
 const joinTextWithSpacing = (left: string, right: string): string => {
   if (!left) return right;
   if (!right) return left;
-  const leftTail = left[left.length - 1];
-  const rightHead = right[0];
-  if (/\s/.test(leftTail) || /\s/.test(rightHead)) {
-    return `${left}${right}`;
-  }
-  const noSpaceAfter = ',.!?:;)]}\'"';
-  const noSpaceBefore = '([{';
-  if (noSpaceAfter.includes(rightHead) || noSpaceBefore.includes(leftTail)) {
-    return `${left}${right}`;
-  }
-  return `${left} ${right}`;
+  return `${left}${right}`;
 };
 
 const appendReasoningSegment = (
