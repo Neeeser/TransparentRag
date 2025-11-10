@@ -41,8 +41,36 @@ class ChatService:
         "structured_outputs": "bool",
         "stop": "list",
         "verbosity": "enum",
+        "reasoning": "dict",
     }
     VERBOSITY_OPTIONS = {"low", "medium", "high"}
+    REASONING_EFFORT_OPTIONS = {"minimal", "low", "medium", "high"}
+    PROVIDER_ALLOWED_KEYS = {
+        "order",
+        "allow_fallbacks",
+        "require_parameters",
+        "data_collection",
+        "zdr",
+        "enforce_distillable_text",
+        "only",
+        "ignore",
+        "quantizations",
+        "sort",
+        "max_price",
+    }
+    PROVIDER_KEY_ALIASES = {
+        "allowfallbacks": "allow_fallbacks",
+        "allow-fallbacks": "allow_fallbacks",
+        "requireparameters": "require_parameters",
+        "require-parameters": "require_parameters",
+        "datacollection": "data_collection",
+        "data-collection": "data_collection",
+        "enforcedistillabletext": "enforce_distillable_text",
+        "enforce-distillable-text": "enforce_distillable_text",
+        "maxprice": "max_price",
+    }
+    PROVIDER_SORT_OPTIONS = {"price", "throughput", "latency"}
+    PROVIDER_DATA_COLLECTION_OPTIONS = {"allow", "deny"}
 
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -173,33 +201,29 @@ class ChatService:
         supported_parameters: Optional[List[str]],
         effort: Optional[str],
     ) -> Dict[str, Any]:
-        # Always request reasoning tokens by default
-        options: Dict[str, Any] = {"reasoning": {}}
-        
+        selected_effort = ChatService._normalize_reasoning_effort(effort) or "medium"
+        options: Dict[str, Any] = {}
+
         if not supported_parameters:
-            # Default to medium effort if no model info
-            if effort:
-                options["reasoning"]["effort"] = effort
-            else:
-                options["reasoning"]["effort"] = "medium"
+            options["reasoning"] = {"effort": selected_effort}
             return options
-            
+
         normalized = {param.lower() for param in supported_parameters}
-        
-        # Use the unified reasoning parameter
+
         if "reasoning" in normalized:
-            if effort:
-                options["reasoning"]["effort"] = effort
-            else:
-                options["reasoning"]["effort"] = "medium"
-        # Fallback to legacy include_reasoning parameter
+            options["reasoning"] = {"effort": selected_effort}
         elif "include_reasoning" in normalized:
             options["include_reasoning"] = True
-            
+        else:
+            options["reasoning"] = {"effort": selected_effort}
+
         return options
 
     @staticmethod
-    def _build_openrouter_body(reasoning_options: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _build_openrouter_body(
+        reasoning_options: Optional[Dict[str, Any]],
+        provider_options: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         body: Dict[str, Any] = dict(reasoning_options) if reasoning_options else {}
         usage_config = body.get("usage")
         if isinstance(usage_config, dict):
@@ -208,6 +232,8 @@ class ChatService:
             body["usage"] = merged_usage
         else:
             body["usage"] = {"include": True}
+        if provider_options:
+            body["provider"] = provider_options
         return body
 
     @staticmethod
@@ -287,6 +313,45 @@ class ChatService:
             items.append(str(value))
         return items or None
 
+    @staticmethod
+    def _normalize_reasoning_effort(value: Any) -> Optional[str]:
+        if not value:
+            return None
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+        else:
+            lowered = str(value).strip().lower()
+        return lowered if lowered in ChatService.REASONING_EFFORT_OPTIONS else None
+
+    @classmethod
+    def _prepare_reasoning_override(cls, raw: Any) -> Optional[Dict[str, Any]]:
+        if raw is None:
+            return None
+        payload: Dict[str, Any]
+        if isinstance(raw, dict):
+            payload = raw
+        else:
+            normalized = cls._normalize_reasoning_effort(raw)
+            if not normalized:
+                return None
+            payload = {"effort": normalized}
+        prepared: Dict[str, Any] = {}
+        for key, value in payload.items():
+            normalized_key = str(key).lower()
+            if normalized_key == "effort":
+                effort_value = cls._normalize_reasoning_effort(value)
+                if effort_value:
+                    prepared["effort"] = effort_value
+            elif normalized_key == "max_tokens":
+                numeric_value = cls._coerce_numeric_parameter(value)
+                if numeric_value is not None:
+                    prepared["max_tokens"] = int(numeric_value)
+            elif normalized_key in {"exclude", "enabled"}:
+                bool_value = cls._coerce_bool_parameter(value)
+                if bool_value is not None:
+                    prepared[normalized_key] = bool_value
+        return prepared or None
+
     @classmethod
     def _coerce_parameter_value(cls, key: str, value: Any) -> Optional[Any]:
         hint = cls.PARAMETER_TYPE_HINTS.get(key)
@@ -332,14 +397,116 @@ class ChatService:
             sanitized[canonical_key] = parsed
         return sanitized
 
+    @classmethod
+    def _normalize_provider_key(cls, key: str) -> Optional[str]:
+        normalized = key.strip().lower().replace("-", "_")
+        if normalized in cls.PROVIDER_ALLOWED_KEYS:
+            return normalized
+        return cls.PROVIDER_KEY_ALIASES.get(normalized)
+
+    @staticmethod
+    def _coerce_string_list(value: Any) -> Optional[List[str]]:
+        if value is None:
+            return None
+        items: List[str] = []
+        if isinstance(value, str):
+            chunks = value.replace("\n", ",").split(",")
+            for chunk in chunks:
+                trimmed = chunk.strip()
+                if trimmed:
+                    items.append(trimmed)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                if item is None:
+                    continue
+                trimmed = str(item).strip()
+                if trimmed:
+                    items.append(trimmed)
+        return items or None
+
+    @classmethod
+    def _coerce_provider_sort(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        candidate = str(value).strip().lower()
+        if candidate in cls.PROVIDER_SORT_OPTIONS:
+            return candidate
+        return None
+
+    @classmethod
+    def _coerce_data_collection(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        candidate = str(value).strip().lower()
+        if candidate in cls.PROVIDER_DATA_COLLECTION_OPTIONS:
+            return candidate
+        return None
+
+    @classmethod
+    def _coerce_max_price(cls, value: Any) -> Optional[Dict[str, float]]:
+        if not isinstance(value, dict):
+            return None
+        parsed: Dict[str, float] = {}
+        for key in ("prompt", "completion", "request", "image"):
+            if key not in value:
+                continue
+            number = cls._coerce_numeric_parameter(value.get(key))
+            if number is None:
+                continue
+            parsed[key] = float(number)
+        return parsed or None
+
+    @classmethod
+    def _sanitize_provider_preferences(cls, raw: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not raw:
+            return None
+        normalized_input: Dict[str, Any] = {}
+        for incoming_key, incoming_value in raw.items():
+            if not isinstance(incoming_key, str):
+                continue
+            canonical_key = cls._normalize_provider_key(incoming_key)
+            if canonical_key:
+                normalized_input[canonical_key] = incoming_value
+        if not normalized_input:
+            return None
+
+        sanitized: Dict[str, Any] = {}
+        for list_key in ("order", "only", "ignore", "quantizations"):
+            parsed_list = cls._coerce_string_list(normalized_input.get(list_key))
+            if parsed_list:
+                sanitized[list_key] = parsed_list
+        for bool_key in ("allow_fallbacks", "require_parameters", "zdr", "enforce_distillable_text"):
+            bool_value = cls._coerce_bool_parameter(normalized_input.get(bool_key))
+            if bool_value is not None:
+                sanitized[bool_key] = bool_value
+
+        sort_value = cls._coerce_provider_sort(normalized_input.get("sort"))
+        if sort_value:
+            sanitized["sort"] = sort_value
+
+        data_collection_value = cls._coerce_data_collection(normalized_input.get("data_collection"))
+        if data_collection_value:
+            sanitized["data_collection"] = data_collection_value
+
+        max_price_value = cls._coerce_max_price(normalized_input.get("max_price"))
+        if max_price_value:
+            sanitized["max_price"] = max_price_value
+
+        return sanitized or None
+
     def _reasoning_request_options(
         self,
         model_name: str,
         model_info: Optional["ModelInfo"] = None,
+        reasoning_override: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         info = model_info or self.openrouter.get_model(model_name)
         supported = info.supported_parameters if info else []
-        return self._build_reasoning_options(supported, self.reasoning_effort)
+        override_effort = reasoning_override.get("effort") if reasoning_override else None
+        options = self._build_reasoning_options(supported, override_effort or self.reasoning_effort)
+        if reasoning_override and "reasoning" in options:
+            options["reasoning"].update(reasoning_override)
+        return options
 
     @staticmethod
     def _normalize_tool_calls(
@@ -514,13 +681,14 @@ class ChatService:
     ) -> models.ChatSession:
         base_title = payload.title or (payload.content[:60] if payload.content else None)
         fallback_title = f"Chat {utc_now().strftime('%H:%M:%S')}"
+        preferred_model = (payload.chat_model or "").strip() or collection.chat_model
         session_model = models.ChatSession(
             id=session_id or uuid4(),
             user_id=user.id,
             collection_id=collection.id,
             title=base_title or fallback_title,
             mode=payload.mode,
-            chat_model=collection.chat_model,
+            chat_model=preferred_model,
         )
         self.chat_repo.add_session(session_model)
         self.session.commit()
@@ -671,6 +839,16 @@ class ChatService:
                 content=trimmed_content,
             )
 
+        requested_model = (payload.chat_model or "").strip() or None
+        if requested_model and requested_model != session_model.chat_model:
+            session_model.chat_model = requested_model
+            self.session.add(session_model)
+            self.session.flush()
+
+        active_model_name = session_model.chat_model or collection.chat_model
+        if not active_model_name:
+            raise ValueError("This collection does not have a chat model configured.")
+
         history = self.chat_repo.list_messages(session_model.id)
         messages = [{"role": "system", "content": self._system_prompt(collection)}]
         for msg in history:
@@ -684,10 +862,22 @@ class ChatService:
         reasoning_trace: List[Dict[str, Any]] = []
         processed_reasoning_calls: Set[str] = set()
         reasoning_call_segments: Dict[str, Dict[str, Any]] = {}
-        model_info = self.openrouter.get_model(collection.chat_model)
-        supported_parameters = model_info.supported_parameters if model_info else []
-        reasoning_options = self._reasoning_request_options(collection.chat_model, model_info)
+        model_info = self.openrouter.get_model(active_model_name)
+        if not model_info:
+            raise ValueError("Selected model is not available on OpenRouter.")
+        supported_parameters = model_info.supported_parameters if model_info.supported_parameters else []
+        tool_supported = any(param.lower() == "tools" for param in supported_parameters)
+        if not tool_supported:
+            raise ValueError("Selected model does not support tool calls required for retrieval.")
         parameter_overrides = self._sanitize_parameter_overrides(payload.parameters, supported_parameters)
+        reasoning_override = self._prepare_reasoning_override(parameter_overrides.pop("reasoning", None))
+        reasoning_options = self._reasoning_request_options(
+            active_model_name,
+            model_info,
+            reasoning_override,
+        )
+        provider_preferences = self._sanitize_provider_preferences(payload.provider)
+        context_window = model_info.context_length or collection.context_window
 
         max_iterations = 48
         iteration = 0
@@ -695,11 +885,11 @@ class ChatService:
 
         while iteration < max_iterations:
             iteration += 1
-            extra_body = self._build_openrouter_body(reasoning_options)
+            extra_body = self._build_openrouter_body(reasoning_options, provider_preferences)
             response = self.openrouter.chat(
                 messages=messages,
                 tools=tools,
-                model=collection.chat_model,
+                model=active_model_name,
                 parallel_tool_calls=True,
                 extra_body=extra_body,
                 parameters=parameter_overrides or None,
@@ -845,7 +1035,7 @@ class ChatService:
                 tool_traces=tool_traces,
                 usage=final_usage,
                 provider=provider,
-                context_window=collection.context_window,
+                context_window=context_window,
                 context_consumed=session_model.context_tokens,
             )
 
