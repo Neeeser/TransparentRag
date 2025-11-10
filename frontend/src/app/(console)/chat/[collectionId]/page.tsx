@@ -6,6 +6,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
   Edit3,
   MessageCircle,
   PanelLeftClose,
@@ -14,7 +16,6 @@ import {
   PanelRightOpen,
   PlusCircle,
   RotateCcw,
-  Waves,
 } from 'lucide-react';
 import type { Components } from 'react-markdown';
 
@@ -56,6 +57,25 @@ const safeParseJSON = (value?: string | null) => {
   } catch {
     return null;
   }
+};
+
+const usePersistentToggle = (key: string, defaultValue: boolean) => {
+  const [value, setValue] = useState(() => {
+    if (typeof window === 'undefined') {
+      return defaultValue;
+    }
+    const stored = window.localStorage.getItem(key);
+    return stored === null ? defaultValue : stored === 'true';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(key, value ? 'true' : 'false');
+  }, [key, value]);
+
+  return [value, setValue] as const;
 };
 
 const normalizeReasoningSegments = (payload: unknown): ReasoningTraceSegment[] => {
@@ -110,6 +130,49 @@ const deriveToolTracesFromMessages = (items: ChatMessage[]): ToolCallTrace[] =>
         reasoning: reasoningSegments.length > 0 ? { segments: reasoningSegments } : null,
       } satisfies ToolCallTrace;
     });
+
+interface TelemetrySectionProps {
+  title: string;
+  description?: ReactNode;
+  icon?: ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}
+
+const TelemetrySection = ({
+  title,
+  description,
+  icon,
+  isOpen,
+  onToggle,
+  children,
+}: TelemetrySectionProps) => (
+  <div className="rounded-2xl border border-white/10 bg-white/5">
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isOpen}
+      className="flex w-full items-center justify-between gap-3 rounded-2xl border-b border-white/5 px-4 py-3 text-left transition hover:bg-white/10"
+    >
+      <div className="flex flex-1 items-center gap-2">
+        {icon && <span className="text-slate-300">{icon}</span>}
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{title}</p>
+          {description && (
+            <p className="text-[11px] text-slate-300">{description}</p>
+          )}
+        </div>
+      </div>
+      {isOpen ? (
+        <ChevronDown className="h-4 w-4 text-slate-300" />
+      ) : (
+        <ChevronRight className="h-4 w-4 text-slate-300" />
+      )}
+    </button>
+    {isOpen && <div className="space-y-3 px-4 pb-4 pt-3">{children}</div>}
+  </div>
+);
 
 const usageMetrics: { key: keyof UsageBreakdown; label: string }[] = [
   { key: 'prompt_tokens', label: 'Prompt tokens' },
@@ -219,8 +282,10 @@ export default function ChatStudioExperience() {
   const [sending, setSending] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
-  const [historyOpen, setHistoryOpen] = useState(true);
-  const [telemetryOpen, setTelemetryOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = usePersistentToggle('chat.historyOpen', true);
+  const [telemetryOpen, setTelemetryOpen] = usePersistentToggle('chat.telemetryOpen', true);
+  const [vitalsOpen, setVitalsOpen] = usePersistentToggle('chat.telemetry.vitalsOpen', true);
+  const [usageOpen, setUsageOpen] = usePersistentToggle('chat.telemetry.usageOpen', true);
   const endRef = useRef<HTMLDivElement | null>(null);
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
@@ -466,18 +531,6 @@ export default function ChatStudioExperience() {
     const idSet = new Set(visibleMessageIds);
     return messages.filter((message) => idSet.has(message.id));
   }, [messages, visibleMessageIds]);
-
-  const displayedToolTraces = useMemo(() => {
-    const visibleToolCallIds = new Set(
-      displayedMessages
-        .filter((message) => message.role === 'tool' && message.tool_call_id)
-        .map((message) => message.tool_call_id as string),
-    );
-    if (visibleToolCallIds.size === 0) {
-      return [];
-    }
-    return toolTraces.filter((trace) => visibleToolCallIds.has(trace.id));
-  }, [displayedMessages, toolTraces]);
 
   const toolTraceMap = useMemo(() => {
     const map = new Map<string, ToolCallTrace>();
@@ -892,6 +945,10 @@ export default function ChatStudioExperience() {
           })}`
         : '—';
 
+    const usageDescription = contextWindow
+      ? `${contextConsumed.toLocaleString()} / ${contextWindow.toLocaleString()} tokens`
+      : `${contextConsumed.toLocaleString()} tokens consumed`;
+
     return (
       <div className="flex h-full flex-col min-h-0">
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
@@ -909,101 +966,92 @@ export default function ChatStudioExperience() {
           </Button>
         </div>
         <div className="mt-4 flex-1 min-h-0 space-y-4 overflow-y-auto">
-        {collection && (
-          <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-400">
-              <MessageCircle className="h-4 w-4 text-cyan-300" />
-              Collection vitals
-            </div>
-            <p>
-              Documents: <span className="text-white">{documentCount}</span>
-            </p>
-            <p>
-              Embeddings: <span className="text-white">{collection.embedding_model}</span>
-            </p>
-            <p>
-              Chat model: <span className="text-white">{collection.chat_model}</span>
-            </p>
-            <p>
-              Chunking:{' '}
-              <span className="text-white">
-                {collection.chunk_settings.strategy} • {collection.chunk_settings.chunk_size}/
-                {collection.chunk_settings.chunk_overlap}
-              </span>
-            </p>
-            <p>
-              Context window: <span className="text-white">{collection.context_window.toLocaleString()} tokens</span>
-            </p>
-          </div>
-        )}
+          <TelemetrySection
+            title="Collection vitals"
+            description="Current ingestion settings"
+            icon={<MessageCircle className="h-4 w-4 text-cyan-300" />}
+            isOpen={vitalsOpen}
+            onToggle={() => setVitalsOpen((prev) => !prev)}
+          >
+            {collection ? (
+              <div className="space-y-2 text-sm text-slate-300">
+                <p>
+                  Documents: <span className="text-white">{documentCount}</span>
+                </p>
+                <p>
+                  Embeddings: <span className="text-white">{collection.embedding_model}</span>
+                </p>
+                <p>
+                  Chat model: <span className="text-white">{collection.chat_model}</span>
+                </p>
+                <p>
+                  Chunking:{' '}
+                  <span className="text-white">
+                    {collection.chunk_settings.strategy} • {collection.chunk_settings.chunk_size}/
+                    {collection.chunk_settings.chunk_overlap}
+                  </span>
+                </p>
+                <p>
+                  Context window:{' '}
+                  <span className="text-white">
+                    {collection.context_window.toLocaleString()} tokens
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">Loading collection details…</p>
+            )}
+          </TelemetrySection>
 
-        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="space-y-1 text-xs uppercase tracking-[0.3em] text-slate-400">
-            <span>Usage</span>
-            <span className="block text-sm text-slate-300">
-              {contextConsumed.toLocaleString()} / {contextWindow.toLocaleString()} tokens
-            </span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
-              style={{ width: `${contextUtilization}%` }}
-            />
-          </div>
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
-                OpenRouter total cost
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-white">{usageCostLabel}</p>
-              <p className="text-[11px] text-slate-500">API cost for this session</p>
-            </div>
-            {usageMetrics.map((metric) => {
-              const metricValue = usage?.[metric.key];
-              const formattedValue =
-                metricValue != null ? metricValue.toLocaleString() : '—';
-              return (
+          <TelemetrySection
+            title="Usage"
+            description={usageDescription}
+            isOpen={usageOpen}
+            onToggle={() => setUsageOpen((prev) => !prev)}
+          >
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="space-y-1 text-xs uppercase tracking-[0.3em] text-slate-400">
+                <span>Usage window</span>
+                <span className="block text-sm text-slate-300">{usageDescription}</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-white/10">
                 <div
-                  key={`${metric.key}`}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center"
-                >
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{metric.label}</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{formattedValue}</p>
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
+                  style={{ width: `${contextUtilization}%` }}
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+                    OpenRouter total cost
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{usageCostLabel}</p>
+                  <p className="text-[11px] text-slate-500">API cost for this session</p>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-slate-400">
-            <span>Tool traces</span>
-            <Waves className="h-4 w-4 text-cyan-300" />
-          </div>
-          {displayedToolTraces.length === 0 ? (
-            <p className="text-sm text-slate-400">Trigger a chat turn to capture tool traces.</p>
-          ) : (
-            <div className="space-y-3">
-              {displayedToolTraces.map((trace) => (
-                <div key={trace.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{trace.name}</p>
-                  <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-200">
-                    {JSON.stringify(trace.arguments, null, 2)}
-                  </pre>
-                  {trace.response && (
-                    <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap break-words text-xs text-cyan-200">
-                      {JSON.stringify(trace.response, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              ))}
+                {usageMetrics.map((metric) => {
+                  const metricValue = usage?.[metric.key];
+                  const formattedValue =
+                    metricValue != null ? metricValue.toLocaleString() : '—';
+                  return (
+                    <div
+                      key={`${metric.key}`}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center"
+                    >
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                        {metric.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{formattedValue}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
+          </TelemetrySection>
+
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 return (
     <div className="flex h-full flex-col gap-4">
