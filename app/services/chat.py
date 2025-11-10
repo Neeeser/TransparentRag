@@ -118,14 +118,29 @@ class ChatService:
         supported_parameters: Optional[List[str]],
         effort: Optional[str],
     ) -> Dict[str, Any]:
+        # Always request reasoning tokens by default
+        options: Dict[str, Any] = {"reasoning": {}}
+        
         if not supported_parameters:
-            return {}
+            # Default to medium effort if no model info
+            if effort:
+                options["reasoning"]["effort"] = effort
+            else:
+                options["reasoning"]["effort"] = "medium"
+            return options
+            
         normalized = {param.lower() for param in supported_parameters}
-        options: Dict[str, Any] = {}
-        if "include_reasoning" in normalized:
+        
+        # Use the unified reasoning parameter
+        if "reasoning" in normalized:
+            if effort:
+                options["reasoning"]["effort"] = effort
+            else:
+                options["reasoning"]["effort"] = "medium"
+        # Fallback to legacy include_reasoning parameter
+        elif "include_reasoning" in normalized:
             options["include_reasoning"] = True
-        if effort and "reasoning" in normalized:
-            options["reasoning"] = {"effort": effort}
+            
         return options
 
     def _reasoning_request_options(self, model_name: str) -> Dict[str, Any]:
@@ -202,18 +217,21 @@ class ChatService:
                 or segment.get("call_id")
                 or f"reasoning_tool_{uuid4().hex}"
             )
-            if call_id in processed_ids:
-                continue
-            processed_ids.add(call_id)
             arguments_str = ChatService._ensure_arguments_string(arguments_source)
-            tool_calls.append(
-                {
-                    "id": call_id,
-                    "type": "function",
-                    "function": {"name": name, "arguments": arguments_str},
-                }
-            )
-            context[call_id] = segment
+            if call_id not in processed_ids:
+                processed_ids.add(call_id)
+                tool_calls.append(
+                    {
+                        "id": call_id,
+                        "type": "function",
+                        "function": {"name": name, "arguments": arguments_str},
+                    }
+                )
+            existing = context.get(call_id)
+            if existing and "segments" in existing:
+                existing["segments"].append(segment)
+            else:
+                context[call_id] = {"segments": [segment]}
         return tool_calls, context
 
     def _system_prompt(self, collection: models.Collection) -> str:
@@ -278,12 +296,29 @@ class ChatService:
                 if existing.collection_id != collection.id:
                     raise ValueError("Session does not belong to this collection.")
                 return existing
-            raise ValueError("Chat session not found.")
-        title = payload.title or payload.content[:60]
+            return self._create_session(
+                user=user,
+                collection=collection,
+                payload=payload,
+                session_id=payload.session_id,
+            )
+        return self._create_session(user=user, collection=collection, payload=payload)
+
+    def _create_session(
+        self,
+        *,
+        user: models.User,
+        collection: models.Collection,
+        payload: ChatMessageCreate,
+        session_id: Optional[UUID] = None,
+    ) -> models.ChatSession:
+        base_title = payload.title or (payload.content[:60] if payload.content else None)
+        fallback_title = f"Chat {datetime.utcnow().strftime('%H:%M:%S')}"
         session_model = models.ChatSession(
+            id=session_id or uuid4(),
             user_id=user.id,
             collection_id=collection.id,
-            title=title,
+            title=base_title or fallback_title,
             mode=payload.mode,
             chat_model=collection.chat_model,
         )
@@ -449,7 +484,7 @@ class ChatService:
         reasoning_call_segments: Dict[str, Dict[str, Any]] = {}
         reasoning_options = self._reasoning_request_options(collection.chat_model)
 
-        max_iterations = 4
+        max_iterations = 48
         iteration = 0
         final_response: Optional[Dict[str, object]] = None
 
@@ -476,7 +511,13 @@ class ChatService:
                         continue
                     usage_aggregate[key] = usage_aggregate.get(key, 0) + coerced
 
-            reasoning_segments = self._normalize_reasoning_segments(message.get("reasoning_content"))
+            # Extract reasoning from the reasoning field (new format)
+            reasoning_content = message.get("reasoning")
+            if not reasoning_content:
+                # Fallback to reasoning_content for backwards compatibility
+                reasoning_content = message.get("reasoning_content")
+            
+            reasoning_segments = self._normalize_reasoning_segments(reasoning_content)
             if reasoning_segments:
                 reasoning_trace.extend(reasoning_segments)
 
@@ -511,8 +552,19 @@ class ChatService:
                         top_k = 5
                     top_k = max(1, min(10, top_k))
                     retrieval_response = self.retrieval.query_collection(collection, query_text, top_k=top_k)
-                    tool_content = json.dumps(retrieval_response)
+                    tool_payload = {
+                        "arguments": arguments,
+                        "response": retrieval_response,
+                    }
+                    tool_content = json.dumps(tool_payload)
                     call_id = tool_call.get("id")
+                    reasoning_segment = reasoning_call_segments.pop(call_id, None)
+                    reasoning_payload = None
+                    if reasoning_segment:
+                        if "segments" not in reasoning_segment:
+                            reasoning_payload = {"segments": [reasoning_segment]}
+                        else:
+                            reasoning_payload = reasoning_segment
                     messages.append(
                         {
                             "role": "tool",
@@ -520,14 +572,13 @@ class ChatService:
                             "content": tool_content,
                         }
                     )
-                    reasoning_segment = reasoning_call_segments.pop(call_id, None)
                     tool_traces.append(
                         ToolCallTrace(
                             id=call_id,
                             name=name,
                             arguments=arguments,
                             response=retrieval_response,
-                            reasoning=reasoning_segment,
+                            reasoning=reasoning_payload,
                         )
                     )
                     self._record_message(
@@ -536,7 +587,8 @@ class ChatService:
                         content=tool_content,
                         tool_name=name,
                         tool_call_id=call_id,
-                        tool_payload=retrieval_response,
+                        tool_payload=tool_payload,
+                        reasoning=reasoning_payload,
                     )
                 continue
 

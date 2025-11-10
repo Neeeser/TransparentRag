@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,6 +21,7 @@ import type { Components } from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/panel';
 import { Loader } from '@/components/ui/loader';
+import { CollapsibleReasoning } from '@/components/ui/collapsible-reasoning';
 import {
   chatWithCollection,
   fetchCollections,
@@ -31,8 +32,10 @@ import {
 import type {
   ChatCompletionPayload,
   ChatMessage,
+  ChatRequestPayload,
   ChatSession,
   Collection,
+  ReasoningTraceSegment,
   ToolCallTrace,
   UsageBreakdown,
 } from '@/lib/types';
@@ -55,8 +58,92 @@ const safeParseJSON = (value?: string | null) => {
   }
 };
 
+const normalizeReasoningSegments = (payload: unknown): ReasoningTraceSegment[] => {
+  if (!payload) {
+    return [];
+  }
+  if (Array.isArray(payload)) {
+    return payload.filter(Boolean) as ReasoningTraceSegment[];
+  }
+  if (typeof payload === 'object') {
+    const candidate = payload as { segments?: ReasoningTraceSegment[] };
+    if (Array.isArray(candidate?.segments)) {
+      return candidate.segments.filter(Boolean) as ReasoningTraceSegment[];
+    }
+    return [candidate as ReasoningTraceSegment];
+  }
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    return trimmed ? [{ type: 'text', content: trimmed }] : [];
+  }
+  return [{ type: 'value', content: String(payload) }];
+};
+
+const coerceRecord = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (Array.isArray(value)) {
+    return { items: value };
+  }
+  if (value === null || value === undefined) {
+    return {};
+  }
+  return { value };
+};
+
+const deriveToolTracesFromMessages = (items: ChatMessage[]): ToolCallTrace[] =>
+  items
+    .filter((message) => message.role === 'tool')
+    .map((message) => {
+      const payload =
+        (message.tool_payload as Record<string, unknown> | null) ?? safeParseJSON(message.content) ?? {};
+      const payloadRecord = coerceRecord(payload);
+      const argsValue = payloadRecord.arguments ?? {};
+      const responseValue = payloadRecord.response ?? payloadRecord;
+      const reasoningSegments = normalizeReasoningSegments(message.reasoning_trace);
+      return {
+        id: message.tool_call_id || message.id,
+        name: message.tool_name || 'tool_call',
+        arguments: coerceRecord(argsValue),
+        response: coerceRecord(responseValue),
+        reasoning: reasoningSegments.length > 0 ? { segments: reasoningSegments } : null,
+      } satisfies ToolCallTrace;
+    });
+
+const isToolReasoningSegment = (segment: ReasoningTraceSegment): boolean => {
+  const typeValue = typeof segment.type === 'string' ? segment.type.toLowerCase() : '';
+  if (
+    typeValue === 'tool_call' ||
+    typeValue === 'tool_use' ||
+    typeValue === 'tool_request' ||
+    typeValue === 'call_tool' ||
+    typeValue === 'function_call'
+  ) {
+    return true;
+  }
+  return Boolean(segment.call || segment.function || segment.tool_call_id || segment.tool_name);
+};
+
+const generateClientSessionId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  const template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
+  return template.replace(/[xy]/g, (char) => {
+    const rand = Math.floor(Math.random() * 16);
+    if (char === 'x') {
+      return rand.toString(16);
+    }
+    // Ensure the variant bits are 10xx for UUID v4 compatibility
+    return ((rand & 0x3) | 0x8).toString(16);
+  });
+};
+
 const CHAT_INPUT_MIN_HEIGHT = 40;
 const CHAT_INPUT_MAX_HEIGHT = 160;
+const STREAM_REVEAL_DELAY = 350;
+const PROGRESS_POLL_INTERVAL = 800;
 
 const markdownComponents: Components = {
   p: ({ children }) => (
@@ -104,6 +191,8 @@ export default function ChatStudioExperience() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [toolTraces, setToolTraces] = useState<ToolCallTrace[]>([]);
+  const [visibleMessageIds, setVisibleMessageIds] = useState<string[]>([]);
+  const [pendingMessageIds, setPendingMessageIds] = useState<string[]>([]);
   const [usage, setUsage] = useState<UsageBreakdown | null>(null);
   const [contextWindow, setContextWindow] = useState<number>(0);
   const [contextConsumed, setContextConsumed] = useState<number>(0);
@@ -117,6 +206,38 @@ export default function ChatStudioExperience() {
   const [telemetryOpen, setTelemetryOpen] = useState(true);
   const endRef = useRef<HTMLDivElement | null>(null);
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
+  const pollIntervalRef = useRef<number | null>(null);
+  const activePollingSession = useRef<string | null>(null);
+  const pendingSessionIdsRef = useRef<Set<string>>(new Set());
+
+  const syncMessages = useCallback(
+    (incoming: ChatMessage[], options: { hydrate?: boolean } = {}) => {
+      const { hydrate = false } = options;
+      setMessages(incoming);
+      setVisibleMessageIds((prev) => {
+        const nextIds = incoming.map((message) => message.id);
+        if (hydrate || prev.length === 0) {
+          setPendingMessageIds([]);
+          return nextIds;
+        }
+        const nextIdSet = new Set(nextIds);
+        const hasRemoval = prev.some((id) => !nextIdSet.has(id));
+        if (hasRemoval) {
+          setPendingMessageIds([]);
+          return nextIds;
+        }
+        const prevSet = new Set(prev);
+        const newIds = nextIds.filter((id) => !prevSet.has(id));
+        if (newIds.length > 0) {
+          setPendingMessageIds((queue) => [...queue, ...newIds]);
+        }
+        return prev;
+      });
+    },
+    [],
+  );
+
+  const deriveToolTraces = useCallback((items: ChatMessage[]) => deriveToolTracesFromMessages(items), []);
 
   const authToken = token ?? '';
   const headerDescription =
@@ -178,6 +299,17 @@ export default function ChatStudioExperience() {
     if (!selectedSessionId) {
       setMessages([]);
       setToolTraces([]);
+      setVisibleMessageIds([]);
+      setPendingMessageIds([]);
+      setUsage(null);
+      setContextConsumed(0);
+      return;
+    }
+    if (pendingSessionIdsRef.current.has(selectedSessionId)) {
+      setMessages([]);
+      setToolTraces([]);
+      setVisibleMessageIds([]);
+      setPendingMessageIds([]);
       setUsage(null);
       setContextConsumed(0);
       return;
@@ -187,8 +319,8 @@ export default function ChatStudioExperience() {
       try {
         const history = await getChatHistory(selectedSessionId, authToken);
         if (!cancelled) {
-          setMessages(history);
-          setToolTraces([]);
+          syncMessages(history, { hydrate: true });
+          setToolTraces(deriveToolTraces(history));
           setUsage(null);
         }
       } catch (error) {
@@ -201,7 +333,7 @@ export default function ChatStudioExperience() {
     return () => {
       cancelled = true;
     };
-  }, [authToken, selectedSessionId]);
+  }, [authToken, selectedSessionId, syncMessages, deriveToolTraces]);
 
   useEffect(() => {
     if (!selectedSessionId) {
@@ -216,7 +348,7 @@ export default function ChatStudioExperience() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [visibleMessageIds]);
 
   useLayoutEffect(() => {
     const textarea = chatPromptRef.current;
@@ -231,76 +363,182 @@ export default function ChatStudioExperience() {
     textarea.style.overflowY = fullHeight > CHAT_INPUT_MAX_HEIGHT ? 'auto' : 'hidden';
   }, [draft]);
 
+  const pollSessionHistory = useCallback(
+    async (sessionId: string) => {
+      if (!authToken) return;
+      try {
+        const history = await getChatHistory(sessionId, authToken);
+        if (activePollingSession.current !== sessionId) {
+          return;
+        }
+        syncMessages(history);
+        setToolTraces(deriveToolTraces(history));
+      } catch {
+        // swallow transient polling errors
+      }
+    },
+    [authToken, deriveToolTraces, syncMessages],
+  );
+
+  const stopProgressPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      window.clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    activePollingSession.current = null;
+  }, []);
+
+  const startProgressPolling = useCallback(
+    (sessionId: string) => {
+      if (!authToken) return;
+      activePollingSession.current = sessionId;
+      void pollSessionHistory(sessionId);
+      if (pollIntervalRef.current) {
+        window.clearInterval(pollIntervalRef.current);
+      }
+      pollIntervalRef.current = window.setInterval(() => {
+        void pollSessionHistory(sessionId);
+      }, PROGRESS_POLL_INTERVAL);
+    },
+    [authToken, pollSessionHistory],
+  );
+
+  useEffect(() => () => stopProgressPolling(), [stopProgressPolling]);
+
+  useEffect(() => {
+    if (!activePollingSession.current) {
+      return;
+    }
+    if (!selectedSessionId || activePollingSession.current !== selectedSessionId) {
+      stopProgressPolling();
+    }
+  }, [selectedSessionId, stopProgressPolling]);
+
+  useEffect(() => {
+    if (pendingMessageIds.length === 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const nextId = pendingMessageIds[0];
+      const nextMessage = messages.find((msg) => msg.id === nextId);
+      if (nextMessage) {
+        setVisibleMessageIds((prev) => [...prev, nextId]);
+      }
+      setPendingMessageIds((prev) => prev.slice(1));
+    }, STREAM_REVEAL_DELAY);
+    return () => window.clearTimeout(timer);
+  }, [pendingMessageIds, messages]);
+
   const contextUtilization = useMemo(() => {
     if (!contextWindow) return 0;
     return Math.min(100, Math.round((contextConsumed / contextWindow) * 100));
   }, [contextConsumed, contextWindow]);
 
-  const applyChatResponse = (response: ChatCompletionPayload) => {
-    setMessages(response.messages);
-    setToolTraces(response.tool_traces);
-    setUsage(response.usage);
-    setContextConsumed(response.context_consumed);
-    setContextWindow(response.context_window || collection?.context_window || 0);
-    setSelectedSessionId(response.session.id);
-    setSessions((prev) => {
-      const next = [...prev];
-      const idx = next.findIndex((session) => session.id === response.session.id);
-      if (idx >= 0) {
-        next[idx] = response.session;
-      } else {
-        next.push(response.session);
-      }
-      return sortSessions(next);
-    });
-  };
+  const displayedMessages = useMemo(() => {
+    if (visibleMessageIds.length === 0) {
+      return messages;
+    }
+    const idSet = new Set(visibleMessageIds);
+    return messages.filter((message) => idSet.has(message.id));
+  }, [messages, visibleMessageIds]);
+
+  const displayedToolTraces = useMemo(() => {
+    const visibleToolCallIds = new Set(
+      displayedMessages
+        .filter((message) => message.role === 'tool' && message.tool_call_id)
+        .map((message) => message.tool_call_id as string),
+    );
+    if (visibleToolCallIds.size === 0) {
+      return [];
+    }
+    return toolTraces.filter((trace) => visibleToolCallIds.has(trace.id));
+  }, [displayedMessages, toolTraces]);
+
+  const toolTraceMap = useMemo(() => {
+    const map = new Map<string, ToolCallTrace>();
+    toolTraces.forEach((trace) => map.set(trace.id, trace));
+    return map;
+  }, [toolTraces]);
+
+
+  const applyChatResponse = useCallback(
+    (response: ChatCompletionPayload) => {
+      pendingSessionIdsRef.current.delete(response.session.id);
+      syncMessages(response.messages);
+      const nextToolTraces =
+        response.tool_traces && response.tool_traces.length > 0
+          ? response.tool_traces
+          : deriveToolTraces(response.messages);
+      setToolTraces(nextToolTraces);
+      setUsage(response.usage);
+      setContextConsumed(response.context_consumed);
+      setContextWindow(response.context_window || collection?.context_window || 0);
+      setSelectedSessionId(response.session.id);
+      setSessions((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((session) => session.id === response.session.id);
+        if (idx >= 0) {
+          next[idx] = response.session;
+        } else {
+          next.push(response.session);
+        }
+        return sortSessions(next);
+      });
+    },
+    [collection, deriveToolTraces, sortSessions, syncMessages],
+  );
 
   const handleSend = async () => {
     if (!authToken || !collection || !draft.trim()) return;
-    setSending(true);
-    setStatus(null);
+    let sessionId = selectedSessionId;
+    const isNewSession = !sessionId;
+    if (!sessionId) {
+      sessionId = generateClientSessionId();
+      setSelectedSessionId(sessionId);
+      const placeholderSession: ChatSession = {
+        id: sessionId,
+        collection_id: collection.id,
+        user_id: collection.user_id,
+        title: `Chat ${new Date().toLocaleTimeString()}`,
+        mode: 'chat',
+        chat_model: collection.chat_model,
+        context_tokens: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setSessions((prev) => sortSessions([...prev, placeholderSession]));
+      pendingSessionIdsRef.current.add(sessionId);
+    }
+    if (!sessionId) return;
     try {
-      const result = await chatWithCollection(
-        collection.id,
-        {
-          content: draft.trim(),
-          session_id: selectedSessionId || undefined,
-          mode: 'chat',
-          title: selectedSessionId ? undefined : `Chat ${new Date().toLocaleTimeString()}`,
-        },
-        authToken,
-      );
-      applyChatResponse(result);
+      await performChatMutation(sessionId, {
+        content: draft.trim(),
+        mode: 'chat',
+        title: isNewSession ? `Chat ${new Date().toLocaleTimeString()}` : undefined,
+      });
       setDraft('');
     } catch (error) {
+      if (isNewSession && sessionId) {
+        pendingSessionIdsRef.current.delete(sessionId);
+        setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+        setSelectedSessionId(null);
+      }
       setStatus(error instanceof Error ? error.message : 'Unable to send your message.');
-    } finally {
-      setSending(false);
     }
   };
 
   const runEditMutation = async (messageId: string, newContent: string) => {
     if (!authToken || !collection || !selectedSessionId) return;
-    setSending(true);
-    setStatus(null);
     try {
-      const result = await chatWithCollection(
-        collection.id,
-        {
-          content: newContent,
-          session_id: selectedSessionId,
-          edit_message_id: messageId,
-          mode: 'chat',
-        },
-        authToken,
-      );
-      applyChatResponse(result);
+      await performChatMutation(selectedSessionId, {
+        content: newContent,
+        edit_message_id: messageId,
+        mode: 'chat',
+      });
       setEditingMessageId(null);
       setEditingDraft('');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to edit this turn.');
-    } finally {
-      setSending(false);
     }
   };
 
@@ -319,15 +557,48 @@ export default function ChatStudioExperience() {
   };
 
   const handleStartNewChat = () => {
+    stopProgressPolling();
     setSelectedSessionId(null);
+    pendingSessionIdsRef.current.clear();
     setMessages([]);
     setToolTraces([]);
+    setVisibleMessageIds([]);
+    setPendingMessageIds([]);
     setUsage(null);
     setContextConsumed(0);
     setDraft('');
     setEditingMessageId(null);
     setEditingDraft('');
   };
+
+  const performChatMutation = useCallback(
+    async (sessionId: string, payload: Omit<ChatRequestPayload, 'session_id'>) => {
+      if (!authToken || !collection) {
+        throw new Error('Missing authentication context.');
+      }
+      setSending(true);
+      setStatus(null);
+      startProgressPolling(sessionId);
+      try {
+        const result = await chatWithCollection(
+          collection.id,
+          {
+            ...payload,
+            session_id: sessionId,
+          },
+          authToken,
+        );
+        applyChatResponse(result);
+        return result;
+      } catch (error) {
+        throw error;
+      } finally {
+        stopProgressPolling();
+        setSending(false);
+      }
+    },
+    [applyChatResponse, authToken, collection, startProgressPolling, stopProgressPolling],
+  );
 
   const roleVariants: Record<string, string> = {
     user: 'border-violet-500/40 bg-violet-500/15 text-violet-50',
@@ -337,7 +608,7 @@ export default function ChatStudioExperience() {
   };
 
   const renderMessages = () => {
-    if (messages.length === 0) {
+    if (displayedMessages.length === 0) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-10 text-center">
           <div className="space-y-2">
@@ -365,15 +636,96 @@ export default function ChatStudioExperience() {
       );
     }
 
-    return messages.flatMap((message) => {
+    return displayedMessages.flatMap((message) => {
       const bubbles: ReactNode[] = [];
       const variant = roleVariants[message.role] ?? roleVariants.system;
       const isUser = message.role === 'user';
       const isAssistant = message.role === 'assistant';
       const showActions = (isUser || isAssistant) && !!selectedSessionId;
       const displayedContent = message.content?.trim() || 'No response captured.';
-      const parsedToolPayload =
-        message.role === 'tool' ? message.tool_payload ?? safeParseJSON(message.content) : null;
+      const messageReasoningSegments = normalizeReasoningSegments(message.reasoning_trace);
+
+      if (isAssistant) {
+        const assistantSegments = messageReasoningSegments.filter(
+          (segment) => !isToolReasoningSegment(segment),
+        );
+        if (assistantSegments.length > 0) {
+          bubbles.push(
+            <div
+              key={`${message.id}-assistant-reasoning`}
+              className={cn('rounded-2xl border px-4 py-3 text-sm', roleVariants.assistant)}
+            >
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">Reasoning</p>
+              </div>
+              <CollapsibleReasoning
+                segments={assistantSegments}
+                messageId={`${message.id}-assistant-reasoning`}
+              />
+            </div>,
+          );
+        }
+      }
+
+      if (message.role === 'tool') {
+        const trace = message.tool_call_id ? toolTraceMap.get(message.tool_call_id) : null;
+        const toolSegments = trace
+          ? normalizeReasoningSegments(trace.reasoning)
+          : messageReasoningSegments;
+        const toolLabel = trace?.name || message.tool_name || 'Tool';
+        if (toolSegments.length > 0) {
+          bubbles.push(
+            <div
+              key={`${message.id}-tool-reasoning`}
+              className={cn('rounded-2xl border px-4 py-3 text-sm', roleVariants.assistant)}
+            >
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">
+                  Reasoning • {toolLabel}
+                </p>
+              </div>
+              <CollapsibleReasoning segments={toolSegments} messageId={`${message.id}-tool-reasoning`} />
+            </div>,
+          );
+        }
+
+        const payloadRecord: Record<string, unknown> = trace
+          ? { arguments: trace.arguments, response: trace.response }
+          : coerceRecord(
+              (message.tool_payload as Record<string, unknown> | null) ??
+                safeParseJSON(message.content) ??
+                {},
+            );
+        const argsRecord = coerceRecord(payloadRecord.arguments ?? {});
+        const responseRecord = coerceRecord(payloadRecord.response ?? payloadRecord);
+        bubbles.push(
+          <div
+            key={`${message.id}-tool`}
+            className={cn('rounded-2xl border px-4 py-3 text-sm', roleVariants.tool)}
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">
+                Tool Call • {toolLabel}
+              </p>
+            </div>
+            {Object.keys(argsRecord).length > 0 && (
+              <div className="mb-3 space-y-1">
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Arguments</p>
+                <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words text-xs text-cyan-100">
+                  {JSON.stringify(argsRecord, null, 2)}
+                </pre>
+              </div>
+            )}
+            <div className="space-y-1">
+              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Response</p>
+              <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-100">
+                {JSON.stringify(responseRecord, null, 2)}
+              </pre>
+            </div>
+          </div>,
+        );
+        return bubbles;
+      }
 
       bubbles.push(
         <div key={message.id} className={cn('rounded-2xl border px-4 py-3 text-sm', variant)}>
@@ -441,32 +793,12 @@ export default function ChatStudioExperience() {
                 {displayedContent}
               </ReactMarkdown>
             </div>
-          ) : message.role === 'tool' ? (
-            <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap text-xs text-cyan-100">
-              {JSON.stringify(parsedToolPayload ?? displayedContent, null, 2)}
-            </pre>
           ) : (
             <p className="whitespace-pre-wrap text-sm leading-relaxed">{displayedContent}</p>
           )}
         </div>,
       );
 
-      const reasoningSegments = message.reasoning_trace?.segments ?? [];
-      reasoningSegments.forEach((segment, idx) => {
-        const reasoningText =
-          (typeof segment.text === 'string' && segment.text.trim()) ||
-          (typeof segment.content === 'string' && segment.content.trim()) ||
-          JSON.stringify(segment, null, 2);
-        bubbles.push(
-          <div
-            key={`${message.id}-reasoning-${idx}`}
-            className="rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-50"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-amber-200/80">REASONING • Step {idx + 1}</p>
-            <pre className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{reasoningText}</pre>
-          </div>,
-        );
-      });
       return bubbles;
     });
   };
@@ -597,11 +929,11 @@ export default function ChatStudioExperience() {
             <span>Tool traces</span>
             <Waves className="h-4 w-4 text-cyan-300" />
           </div>
-          {toolTraces.length === 0 ? (
+          {displayedToolTraces.length === 0 ? (
             <p className="text-sm text-slate-400">Trigger a chat turn to capture tool traces.</p>
           ) : (
             <div className="space-y-3">
-              {toolTraces.map((trace) => (
+              {displayedToolTraces.map((trace) => (
                 <div key={trace.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{trace.name}</p>
                   <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap break-words text-xs text-slate-200">
