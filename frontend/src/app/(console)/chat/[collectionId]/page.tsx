@@ -571,6 +571,48 @@ const getLatestAssistantUsage = (items: ChatMessage[]): UsageBreakdown | null =>
   return null;
 };
 
+const calculateSessionUsage = (items: ChatMessage[]): UsageBreakdown | null => {
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let totalTokens = 0;
+  let totalReasoningTokens = 0;
+  let totalCost = 0;
+  let hasUsage = false;
+
+  for (const message of items) {
+    if (message.usage) {
+      hasUsage = true;
+      if (message.usage.prompt_tokens != null) {
+        totalPromptTokens += message.usage.prompt_tokens;
+      }
+      if (message.usage.completion_tokens != null) {
+        totalCompletionTokens += message.usage.completion_tokens;
+      }
+      if (message.usage.total_tokens != null) {
+        totalTokens += message.usage.total_tokens;
+      }
+      if (message.usage.reasoning_tokens != null) {
+        totalReasoningTokens += message.usage.reasoning_tokens;
+      }
+      if (message.usage.cost != null) {
+        totalCost += message.usage.cost;
+      }
+    }
+  }
+
+  if (!hasUsage) {
+    return null;
+  }
+
+  return {
+    prompt_tokens: totalPromptTokens,
+    completion_tokens: totalCompletionTokens,
+    total_tokens: totalTokens,
+    reasoning_tokens: totalReasoningTokens,
+    cost: totalCost,
+  };
+};
+
 const isToolReasoningSegment = (segment: ReasoningTraceSegment): boolean => {
   const typeValue = typeof segment.type === 'string' ? segment.type.toLowerCase() : '';
   if (
@@ -867,7 +909,7 @@ export default function ChatStudioExperience() {
         if (!cancelled) {
           syncMessages(history, { hydrate: true });
           setToolTraces(deriveToolTraces(history));
-          setUsage(getLatestAssistantUsage(history));
+          setUsage(calculateSessionUsage(history));
         }
       } catch (error) {
         if (!cancelled) {
@@ -1094,6 +1136,7 @@ export default function ChatStudioExperience() {
         }
         syncMessages(history);
         setToolTraces(deriveToolTraces(history));
+        setUsage(calculateSessionUsage(history));
       } catch {
         // swallow transient polling errors
       }
@@ -1204,7 +1247,7 @@ export default function ChatStudioExperience() {
           ? response.tool_traces
           : deriveToolTraces(response.messages);
       setToolTraces(nextToolTraces);
-      setUsage(response.usage);
+      setUsage(calculateSessionUsage(response.messages));
       setContextConsumed(response.context_consumed);
       setContextWindow(response.context_window || collection?.context_window || 0);
       setSelectedSessionId(response.session.id);
@@ -2459,73 +2502,109 @@ export default function ChatStudioExperience() {
 
       bubbles.push(
         <div key={message.id} className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
-          <div className={cn('max-w-[75%] rounded-2xl border px-4 py-3 text-sm', variant)}>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">
-                {message.role.toUpperCase()}
-                {message.tool_name ? ` • ${message.tool_name}` : ''}
-              </p>
-              {showActions && (
-                <div className="flex items-center gap-2 text-[11px] text-slate-300">
-                  {isUser && (
-                    <button
+          <div className="group relative max-w-[75%]">
+            <div className={cn('rounded-2xl border px-4 py-3 text-sm', variant)}>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">
+                  {message.role.toUpperCase()}
+                  {message.tool_name ? ` • ${message.tool_name}` : ''}
+                </p>
+                {showActions && (
+                  <div className="flex items-center gap-2 text-[11px] text-slate-300">
+                    {isUser && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 hover:border-white/30 hover:text-white"
+                        onClick={() => {
+                          setEditingMessageId(message.id);
+                          setEditingDraft(message.content);
+                        }}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+                    )}
+                    {isAssistant && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 hover:border-white/30 hover:text-white"
+                        onClick={() => handleRetryAssistant(message.id)}
+                        disabled={sending}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {isUser && editingMessageId === message.id ? (
+                <div className="space-y-2">
+                  <textarea
+                    className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400"
+                    value={editingDraft}
+                    onChange={(event) => setEditingDraft(event.target.value)}
+                  />
+                  <div className="flex items-center gap-3">
+                    <Button size="sm" onClick={handleEditSubmit} loading={sending}>
+                      Update & rerun
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 hover:border-white/30 hover:text-white"
                       onClick={() => {
-                        setEditingMessageId(message.id);
-                        setEditingDraft(message.content);
+                        setEditingMessageId(null);
+                        setEditingDraft('');
                       }}
                     >
-                      <Edit3 className="h-3.5 w-3.5" />
-                      Edit
-                    </button>
-                  )}
-                  {isAssistant && (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 hover:border-white/30 hover:text-white"
-                      onClick={() => handleRetryAssistant(message.id)}
-                      disabled={sending}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      Retry
-                    </button>
-                  )}
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
+              ) : message.role === 'assistant' ? (
+                <div className="space-y-3">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {displayedContent}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{displayedContent}</p>
               )}
             </div>
-            {isUser && editingMessageId === message.id ? (
-              <div className="space-y-2">
-                <textarea
-                  className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-violet-400"
-                  value={editingDraft}
-                  onChange={(event) => setEditingDraft(event.target.value)}
-                />
-                <div className="flex items-center gap-3">
-                  <Button size="sm" onClick={handleEditSubmit} loading={sending}>
-                    Update & rerun
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    type="button"
-                    onClick={() => {
-                      setEditingMessageId(null);
-                      setEditingDraft('');
-                    }}
-                  >
-                    Cancel
-                  </Button>
+            {message.usage && (
+              <div className="pointer-events-none absolute left-0 right-0 top-full mt-1 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400/60">
+                  {message.usage.total_tokens != null && (
+                    <span>
+                      {message.usage.total_tokens.toLocaleString()} tok
+                    </span>
+                  )}
+                  {message.usage.prompt_tokens != null && (
+                    <span>
+                      {message.usage.prompt_tokens.toLocaleString()} in
+                    </span>
+                  )}
+                  {message.usage.completion_tokens != null && (
+                    <span>
+                      {message.usage.completion_tokens.toLocaleString()} out
+                    </span>
+                  )}
+                  {message.usage.reasoning_tokens != null && message.usage.reasoning_tokens > 0 && (
+                    <span>
+                      {message.usage.reasoning_tokens.toLocaleString()} reasoning
+                    </span>
+                  )}
+                  {message.usage.cost != null && (
+                    <span className="text-slate-400/80">
+                      ${message.usage.cost.toLocaleString(undefined, {
+                        minimumFractionDigits: 4,
+                        maximumFractionDigits: 6,
+                      })}
+                    </span>
+                  )}
                 </div>
               </div>
-            ) : message.role === 'assistant' ? (
-              <div className="space-y-3">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                  {displayedContent}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{displayedContent}</p>
             )}
           </div>
         </div>,
