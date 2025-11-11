@@ -1778,12 +1778,12 @@ export default function ChatStudioExperience() {
 
 
   const applyChatResponse = useCallback(
-    (response: ChatCompletionPayload) => {
+    (response: ChatCompletionPayload, options: { hydrate?: boolean } = {}) => {
       setLiveResponse('');
       setIsStreamingResponse(false);
       setLiveReasoningSegments([]);
       pendingSessionIdsRef.current.delete(response.session.id);
-      syncMessages(response.messages);
+      syncMessages(response.messages, { hydrate: Boolean(options.hydrate) });
       const nextToolTraces =
         response.tool_traces && response.tool_traces.length > 0
           ? response.tool_traces
@@ -2250,7 +2250,7 @@ export default function ChatStudioExperience() {
         if (!result) {
           throw new Error('Streaming response did not complete.');
         }
-        applyChatResponse(result);
+        applyChatResponse(result, { hydrate: Boolean(payload.stream) });
         return result;
       } catch (error) {
         setIsStreamingResponse(false);
