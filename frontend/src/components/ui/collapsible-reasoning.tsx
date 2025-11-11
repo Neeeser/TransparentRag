@@ -1,16 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, Lightbulb } from 'lucide-react';
 import type { ReasoningTraceSegment } from '@/lib/types';
 
 interface CollapsibleReasoningProps {
   segments: ReasoningTraceSegment[];
   messageId: string;
+  isAutoOpen?: boolean;
+  preventAutoClose?: boolean;
+  onManualToggle?: (messageId: string, isOpen: boolean) => void;
 }
 
-export function CollapsibleReasoning({ segments, messageId }: CollapsibleReasoningProps) {
+export function CollapsibleReasoning({
+  segments,
+  messageId,
+  isAutoOpen = false,
+  preventAutoClose = false,
+  onManualToggle,
+}: CollapsibleReasoningProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isAutoOpen) {
+      setIsOpen(true);
+      return;
+    }
+    if (!preventAutoClose) {
+      setIsOpen(false);
+    }
+  }, [isAutoOpen, preventAutoClose]);
 
   if (!segments || segments.length === 0) {
     return null;
@@ -20,7 +39,15 @@ export function CollapsibleReasoning({ segments, messageId }: CollapsibleReasoni
     <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 overflow-hidden w-full">
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen((prev) => {
+            const next = !prev;
+            if (onManualToggle) {
+              onManualToggle(messageId, next);
+            }
+            return next;
+          });
+        }}
         className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-amber-500/15"
       >
         <div className="flex items-center gap-2">

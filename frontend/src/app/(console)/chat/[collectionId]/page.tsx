@@ -1230,12 +1230,23 @@ export default function ChatStudioExperience() {
   const [liveResponse, setLiveResponse] = useState('');
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const [liveReasoningSegments, setLiveReasoningSegments] = useState<ReasoningTraceSegment[]>([]);
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
+  const [activeReasoningId, setActiveReasoningId] = useState<string | null>(null);
+  const [manuallyOpenedReasoningIds, setManuallyOpenedReasoningIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [reasoningFocusActive, setReasoningFocusActive] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const programmaticScrollRef = useRef(false);
+  const programmaticScrollTimeoutRef = useRef<number | null>(null);
+  const reasoningFocusTimeoutRef = useRef<number | null>(null);
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const promptEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
   const activePollingSession = useRef<string | null>(null);
   const pendingSessionIdsRef = useRef<Set<string>>(new Set());
+  const reasoningCacheRef = useRef<Map<string, ReasoningTraceSegment[]>>(new Map());
 
   const syncMessages = useCallback(
     (incoming: ChatMessage[], options: { hydrate?: boolean } = {}) => {
@@ -1634,9 +1645,111 @@ export default function ChatStudioExperience() {
     setProviderSearchTerm('');
   }, [providerModelSlug]);
 
+  const markProgrammaticScroll = useCallback((duration = 150) => {
+    if (programmaticScrollTimeoutRef.current) {
+      window.clearTimeout(programmaticScrollTimeoutRef.current);
+    }
+    programmaticScrollRef.current = true;
+    programmaticScrollTimeoutRef.current = window.setTimeout(() => {
+      programmaticScrollRef.current = false;
+      programmaticScrollTimeoutRef.current = null;
+    }, duration);
+  }, []);
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = 'auto') => {
+      if (!endRef.current) {
+        return;
+      }
+      markProgrammaticScroll(behavior === 'smooth' ? 600 : 150);
+      endRef.current.scrollIntoView({ behavior });
+    },
+    [markProgrammaticScroll],
+  );
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [visibleMessageIds]);
+    if (!autoScrollEnabled) {
+      return;
+    }
+    scrollToBottom('auto');
+  }, [autoScrollEnabled, liveReasoningSegments, liveResponse, scrollToBottom, visibleMessageIds]);
+
+  useEffect(() => {
+    setAutoScrollEnabled(true);
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    setManuallyOpenedReasoningIds(new Set());
+    reasoningCacheRef.current.clear();
+  }, [selectedSessionId]);
+
+  const handleReasoningToggle = useCallback((messageId: string, isOpen: boolean) => {
+    setManuallyOpenedReasoningIds((prev) => {
+      if (isOpen) {
+        if (prev.has(messageId)) {
+          return prev;
+        }
+        const next = new Set(prev);
+        next.add(messageId);
+        return next;
+      }
+      if (!prev.has(messageId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.delete(messageId);
+      return next;
+    });
+  }, []);
+
+  const getPersistedReasoningSegments = useCallback(
+    (messageId: string, segments: ReasoningTraceSegment[]) => {
+      if (segments.length > 0) {
+        reasoningCacheRef.current.set(messageId, segments);
+        return segments;
+      }
+      return reasoningCacheRef.current.get(messageId) ?? segments;
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      if (programmaticScrollTimeoutRef.current) {
+        window.clearTimeout(programmaticScrollTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) {
+      return;
+    }
+    if (programmaticScrollRef.current) {
+      return;
+    }
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distanceFromBottom > 12) {
+      if (autoScrollEnabled) {
+        setAutoScrollEnabled(false);
+      }
+      return;
+    }
+    if (!autoScrollEnabled && distanceFromBottom <= 2) {
+      setAutoScrollEnabled(true);
+    }
+  }, [autoScrollEnabled]);
+
+  const handleReenableAutoScroll = useCallback(() => {
+    setAutoScrollEnabled(true);
+    scrollToBottom('smooth');
+  }, [scrollToBottom]);
+
+  const showFollowButton =
+    !autoScrollEnabled &&
+    (messages.length > 0 || liveResponse.trim().length > 0 || liveReasoningSegments.length > 0);
 
   useLayoutEffect(() => {
     const textarea = chatPromptRef.current;
@@ -1736,6 +1849,76 @@ export default function ChatStudioExperience() {
     toolTraces.forEach((trace) => map.set(trace.id, trace));
     return map;
   }, [toolTraces]);
+
+  const pendingRevealCount = pendingMessageIds.length;
+  const liveReasoningCount = liveReasoningSegments.length;
+
+  useEffect(() => {
+    const inProgress =
+      isStreamingResponse || liveReasoningCount > 0 || pendingRevealCount > 0;
+    if (inProgress) {
+      if (reasoningFocusTimeoutRef.current) {
+        window.clearTimeout(reasoningFocusTimeoutRef.current);
+        reasoningFocusTimeoutRef.current = null;
+      }
+      setReasoningFocusActive(true);
+      return;
+    }
+    if (reasoningFocusTimeoutRef.current) {
+      window.clearTimeout(reasoningFocusTimeoutRef.current);
+    }
+    reasoningFocusTimeoutRef.current = window.setTimeout(() => {
+      setReasoningFocusActive(false);
+      reasoningFocusTimeoutRef.current = null;
+    }, 400);
+  }, [isStreamingResponse, liveReasoningCount, pendingRevealCount]);
+
+  useEffect(
+    () => () => {
+      if (reasoningFocusTimeoutRef.current) {
+        window.clearTimeout(reasoningFocusTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const latestReasoningId = useMemo(() => {
+    for (let i = displayedMessages.length - 1; i >= 0; i--) {
+      const message = displayedMessages[i];
+      if (message.role === 'tool') {
+        const trace = message.tool_call_id ? toolTraceMap.get(message.tool_call_id) : null;
+        const toolSegments = trace
+          ? normalizeReasoningSegments(trace.reasoning)
+          : normalizeReasoningSegments(message.reasoning_trace);
+        if (toolSegments.length > 0) {
+          return `${message.id}-tool-reasoning`;
+        }
+        continue;
+      }
+      if (message.role === 'assistant') {
+        const reasoningSegments = normalizeReasoningSegments(message.reasoning_trace);
+        const assistantSegments = reasoningSegments.filter(
+          (segment) => !isToolReasoningSegment(segment),
+        );
+        if (assistantSegments.length > 0) {
+          return `${message.id}-assistant-reasoning`;
+        }
+      }
+    }
+    return null;
+  }, [displayedMessages, toolTraceMap]);
+
+  useEffect(() => {
+    if (!reasoningFocusActive) {
+      setActiveReasoningId((prev) => (prev === null ? prev : null));
+      return;
+    }
+    if (liveReasoningCount > 0) {
+      setActiveReasoningId((prev) => (prev === 'live-reasoning' ? prev : 'live-reasoning'));
+      return;
+    }
+    setActiveReasoningId((prev) => (prev === latestReasoningId ? prev : latestReasoningId));
+  }, [latestReasoningId, liveReasoningCount, reasoningFocusActive]);
 
   const toolReadyModels = useMemo(
     () =>
@@ -3127,7 +3310,13 @@ export default function ChatStudioExperience() {
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">Reasoning</p>
             </div>
-            <CollapsibleReasoning segments={liveReasoningSegments} messageId="live-reasoning" />
+            <CollapsibleReasoning
+              segments={liveReasoningSegments}
+              messageId="live-reasoning"
+              isAutoOpen={activeReasoningId === 'live-reasoning'}
+              preventAutoClose={manuallyOpenedReasoningIds.has('live-reasoning')}
+              onManualToggle={handleReasoningToggle}
+            />
           </div>
         </div>
       ) : null;
@@ -3161,7 +3350,10 @@ export default function ChatStudioExperience() {
         Array.isArray(message.tool_payload?.tool_calls) &&
         message.tool_payload?.tool_calls.length > 0;
       const displayedContent = trimmedContent || 'No response captured.';
-      const messageReasoningSegments = normalizeReasoningSegments(message.reasoning_trace);
+      const messageReasoningSegments = getPersistedReasoningSegments(
+        `${message.id}-base`,
+        normalizeReasoningSegments(message.reasoning_trace),
+      );
 
       if (isAssistant) {
         const assistantSegments = messageReasoningSegments.filter(
@@ -3177,6 +3369,11 @@ export default function ChatStudioExperience() {
                 <CollapsibleReasoning
                   segments={assistantSegments}
                   messageId={`${message.id}-assistant-reasoning`}
+                  isAutoOpen={activeReasoningId === `${message.id}-assistant-reasoning`}
+                  preventAutoClose={manuallyOpenedReasoningIds.has(
+                    `${message.id}-assistant-reasoning`,
+                  )}
+                  onManualToggle={handleReasoningToggle}
                 />
               </div>
             </div>,
@@ -3186,9 +3383,10 @@ export default function ChatStudioExperience() {
 
       if (message.role === 'tool') {
         const trace = message.tool_call_id ? toolTraceMap.get(message.tool_call_id) : null;
-        const toolSegments = trace
-          ? normalizeReasoningSegments(trace.reasoning)
-          : messageReasoningSegments;
+        const toolSegments = getPersistedReasoningSegments(
+          `${message.id}-tool`,
+          trace ? normalizeReasoningSegments(trace.reasoning) : messageReasoningSegments,
+        );
         const toolLabel = trace?.name || message.tool_name || 'Tool';
         if (toolSegments.length > 0) {
           bubbles.push(
@@ -3199,7 +3397,13 @@ export default function ChatStudioExperience() {
                     Reasoning • {toolLabel}
                   </p>
                 </div>
-                <CollapsibleReasoning segments={toolSegments} messageId={`${message.id}-tool-reasoning`} />
+                <CollapsibleReasoning
+                  segments={toolSegments}
+                  messageId={`${message.id}-tool-reasoning`}
+                  isAutoOpen={activeReasoningId === `${message.id}-tool-reasoning`}
+                  preventAutoClose={manuallyOpenedReasoningIds.has(`${message.id}-tool-reasoning`)}
+                  onManualToggle={handleReasoningToggle}
+                />
               </div>
             </div>,
           );
@@ -3906,7 +4110,7 @@ export default function ChatStudioExperience() {
               </button>
             )}
 
-            <div className="flex min-w-0 flex-1 flex-col min-h-0">
+            <div className="relative flex min-w-0 flex-1 flex-col min-h-0">
               <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Conversation</p>
@@ -3931,13 +4135,29 @@ export default function ChatStudioExperience() {
                 </div>
               </div>
 
-              <div className="flex h-full flex-col min-h-0 overflow-hidden">
-                <div className="flex-1 min-h-0 overflow-y-auto px-16 py-6">
-                  <div className="flex h-full flex-col gap-4">
-                    {renderMessages()}
-                    <div ref={endRef} />
+                <div className="flex h-full flex-col min-h-0 overflow-hidden">
+                  <div
+                    ref={messagesContainerRef}
+                    onScroll={handleScroll}
+                    className="relative flex-1 min-h-0 overflow-y-auto px-16 py-6"
+                  >
+                    <div className="flex h-full flex-col gap-4">
+                      {renderMessages()}
+                      <div ref={endRef} />
+                    </div>
                   </div>
-                </div>
+                  {showFollowButton && (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-[9rem] flex justify-center">
+                      <button
+                        type="button"
+                        onClick={handleReenableAutoScroll}
+                        aria-label="Scroll to latest message"
+                        className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white opacity-90 shadow-2xl backdrop-blur-sm transition hover:bg-black/80 hover:opacity-100"
+                      >
+                        <ArrowDown className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
                 <div className="border-t border-white/5 bg-black/30 px-6 py-4">
                   <div className="flex flex-col gap-3">
                     <textarea
