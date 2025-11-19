@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from app.db.models import ChunkStrategy
+from app.schemas.base import DateTimeConfigMixin
 
 
 class ChunkSettings(BaseModel):
@@ -36,7 +37,7 @@ class CollectionUpdate(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class CollectionRead(CollectionBase):
+class CollectionRead(DateTimeConfigMixin, CollectionBase):
     id: UUID
     user_id: UUID
     pinecone_index: str
@@ -47,3 +48,21 @@ class CollectionRead(CollectionBase):
 
 class CollectionDeleteResponse(BaseModel):
     status: str = "deleted"
+
+
+class PromptVariable(BaseModel):
+    name: str
+    description: str
+    example: Optional[str] = None
+
+
+class CollectionPromptRead(BaseModel):
+    template: str
+    rendered: str
+    context: Dict[str, str]
+    variables: List[PromptVariable]
+    is_custom: bool = False
+
+
+class CollectionPromptUpdate(BaseModel):
+    template: Optional[str] = None

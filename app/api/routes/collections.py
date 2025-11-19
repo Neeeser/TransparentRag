@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import List
 from uuid import UUID, uuid4
 
@@ -18,11 +17,21 @@ from app.schemas.collections import (
     ChunkSettings,
     CollectionCreate,
     CollectionDeleteResponse,
+    CollectionPromptRead,
+    CollectionPromptUpdate,
     CollectionRead,
     CollectionUpdate,
 )
 from app.services.openrouter import get_openrouter_client
+from app.services.prompts import (
+    SYSTEM_PROMPT_METADATA_KEY,
+    apply_prompt_template,
+    get_system_prompt_template,
+    prompt_variables_payload,
+    system_prompt_context,
+)
 from app.utils.file_storage import FileStorage
+from app.utils.time import utc_now
 
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
@@ -49,6 +58,18 @@ def _to_schema(collection: models.Collection) -> CollectionRead:
     )
 
 
+def _prompt_read(collection: models.Collection, user: models.User) -> CollectionPromptRead:
+    template = get_system_prompt_template(collection)
+    context = system_prompt_context(collection, user)
+    rendered = apply_prompt_template(template, context)
+    return CollectionPromptRead(
+        template=template,
+        rendered=rendered,
+        context=context,
+        variables=prompt_variables_payload(),
+    )
+
+
 @router.get("", response_model=List[CollectionRead])
 def list_collections(
     current_user: models.User = Depends(get_current_user),
@@ -69,6 +90,19 @@ def get_collection(
     if not collection:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
     return _to_schema(collection)
+
+
+@router.get("/{collection_id}/prompt", response_model=CollectionPromptRead)
+def get_collection_prompt(
+    collection_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> CollectionPromptRead:
+    repo = CollectionRepository(session)
+    collection = repo.get(collection_id, user_id=current_user.id)
+    if not collection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    return _prompt_read(collection, current_user)
 
 
 @router.post("", response_model=CollectionRead, status_code=status.HTTP_201_CREATED)
@@ -168,11 +202,35 @@ def update_collection(
             collection.chunk_overlap = settings_obj.chunk_overlap
         if "strategy" in fields_set:
             collection.chunk_strategy = settings_obj.strategy
-    collection.updated_at = datetime.utcnow()
+    collection.updated_at = utc_now()
     session.add(collection)
     session.commit()
     session.refresh(collection)
     return _to_schema(collection)
+
+
+@router.patch("/{collection_id}/prompt", response_model=CollectionPromptRead)
+def update_collection_prompt(
+    collection_id: UUID,
+    payload: CollectionPromptUpdate,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> CollectionPromptRead:
+    repo = CollectionRepository(session)
+    collection = repo.get(collection_id, user_id=current_user.id)
+    if not collection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+
+    template_value = (payload.template or "").replace("\r\n", "\n")
+    if template_value.strip():
+        collection.extra_metadata[SYSTEM_PROMPT_METADATA_KEY] = template_value
+    else:
+        collection.extra_metadata.pop(SYSTEM_PROMPT_METADATA_KEY, None)
+    collection.updated_at = utc_now()
+    session.add(collection)
+    session.commit()
+    session.refresh(collection)
+    return _prompt_read(collection, current_user)
 
 
 @router.delete(

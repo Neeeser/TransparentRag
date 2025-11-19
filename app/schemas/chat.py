@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.db.models import ChatMode, ChatRole
+from app.schemas.base import DateTimeConfigMixin
 
 
 class ToolCallTrace(BaseModel):
@@ -17,7 +18,7 @@ class ToolCallTrace(BaseModel):
     reasoning: Optional[Dict[str, Any]] = None
 
 
-class ChatMessageRead(BaseModel):
+class ChatMessageRead(DateTimeConfigMixin, BaseModel):
     id: UUID
     session_id: UUID
     role: ChatRole
@@ -29,10 +30,11 @@ class ChatMessageRead(BaseModel):
     reasoning_trace: Optional[Dict[str, Any]]
     prompt_tokens: Optional[int]
     completion_tokens: Optional[int]
+    usage: Optional[Dict[str, Any]] = None
     created_at: datetime
 
 
-class ChatSessionRead(BaseModel):
+class ChatSessionRead(DateTimeConfigMixin, BaseModel):
     id: UUID
     collection_id: UUID
     user_id: UUID
@@ -49,6 +51,11 @@ class ChatMessageCreate(BaseModel):
     content: str
     mode: ChatMode = ChatMode.CHAT
     title: Optional[str] = None
+    edit_message_id: Optional[UUID] = None
+    chat_model: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = None
+    provider: Optional[Dict[str, Any]] = None
+    stream: Optional[bool] = False
 
 
 class ChatCompletionResponse(BaseModel):
