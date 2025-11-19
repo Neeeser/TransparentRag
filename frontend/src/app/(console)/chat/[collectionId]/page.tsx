@@ -4187,7 +4187,7 @@ export default function ChatStudioExperience() {
               {!historyOpen && (
                 <button
                   type="button"
-                  className="absolute left-4 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 hover:border-white/40 lg:flex"
+                  className="absolute left-4 top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 transition-all hover:border-white/40 hover:bg-black/60 lg:flex"
                   onClick={() => setHistoryOpen(true)}
                 >
                   <PanelLeftOpen className="h-4 w-4" />
