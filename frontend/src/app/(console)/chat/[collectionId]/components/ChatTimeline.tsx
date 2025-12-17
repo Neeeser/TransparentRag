@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react';
+import React, { Fragment, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Edit3, RotateCcw } from 'lucide-react';
@@ -8,7 +8,7 @@ import { TypingAnimation } from '@/components/ui/typing-animation';
 import { ToolCallBubble } from '@/components/chat-studio/Tooling';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { ReasoningTraceSegment } from '@/lib/types';
+import type { ReasoningTraceSegment, ToolCallTrace } from '@/lib/types';
 import type { Components } from 'react-markdown';
 
 import type { ChatEntry } from '../chat-types';
@@ -32,7 +32,9 @@ type ChatTimelineProps = {
   collectionName: string | null;
   chatEntryOrder: string[];
   chatEntryMap: Map<string, ChatEntry>;
+  finalStreamAssistantId: string | null;
   streamEntryKeyMap: Record<string, string>;
+  liveToolEvents: ToolCallTrace[];
   selectedSessionId: string | null;
   sending: boolean;
   editingMessageId: string | null;
@@ -52,6 +54,10 @@ type ChatTimelineProps = {
   activeStreamEntryKey: string | null;
   shouldShowStreamingReasoningBubble: boolean;
   liveReasoningAnimationKey: number;
+  liveReasoningBlocks: ReasoningTraceSegment[][];
+  liveReasoningPhase: number;
+  liveToolOrder: string[];
+  liveToolPhaseById: Record<string, number>;
   liveReasoningDisplaySegments: ReasoningTraceSegment[];
   showStreamingBubble: boolean;
 };
@@ -60,7 +66,9 @@ export function ChatTimeline({
   collectionName,
   chatEntryOrder,
   chatEntryMap,
+  finalStreamAssistantId,
   streamEntryKeyMap,
+  liveToolEvents,
   selectedSessionId,
   sending,
   editingMessageId,
@@ -80,12 +88,29 @@ export function ChatTimeline({
   activeStreamEntryKey,
   shouldShowStreamingReasoningBubble,
   liveReasoningAnimationKey,
+  liveReasoningBlocks,
+  liveReasoningPhase,
+  liveToolOrder,
+  liveToolPhaseById,
   liveReasoningDisplaySegments,
   showStreamingBubble,
 }: ChatTimelineProps) {
   const timelineEntries = chatEntryOrder
     .map((entryId) => chatEntryMap.get(entryId))
     .filter((entry): entry is ChatEntry => Boolean(entry));
+
+  const existingToolIds = useMemo(() => {
+    const ids = new Set<string>();
+    timelineEntries.forEach((entry) => {
+      if (entry.type === 'tool-call') {
+        const toolId = entry.message.tool_call_id || entry.messageId || entry.id;
+        if (toolId) {
+          ids.add(toolId);
+        }
+      }
+    });
+    return ids;
+  }, [timelineEntries]);
 
   if (timelineEntries.length === 0) {
     return (
@@ -132,35 +157,123 @@ export function ChatTimeline({
 
   const hasFinalReasoningForStream =
     Boolean(activeStreamEntryKey) &&
-    timelineEntries.some((entry) => {
-      if (entry.type !== 'reasoning' || !entry.messageId) {
-        return false;
-      }
-      const mappedKey = streamEntryKeyMap[entry.messageId];
-      if (!mappedKey) {
-        return false;
-      }
-      return `${mappedKey}-reasoning` === liveReasoningBubbleKey;
-    });
+    Boolean(finalStreamAssistantId) &&
+    timelineEntries.some(
+      (entry) => entry.type === 'reasoning' && entry.messageId === finalStreamAssistantId,
+    );
 
-  const streamingReasoningBubble = shouldShowStreamingReasoningBubble && !hasFinalReasoningForStream ? (
-    <div
-      key={liveReasoningBubbleKey}
-      className="flex justify-start"
-      data-live-reasoning-key={liveReasoningAnimationKey}
-    >
-      <CollapsibleReasoning
-        segments={liveReasoningDisplaySegments}
-        messageId="live-reasoning"
-        title="Reasoning"
-        subtitle={liveReasoningSubtitle}
-        isAutoOpen={false}
-        preventAutoClose
-        onManualToggle={onReasoningToggle}
-        className={cn('live-stream-reasoning chat-bubble chat-bubble-enter max-w-[75%]', roleVariants.reasoning)}
-      />
-    </div>
-  ) : null;
+  const filteredLiveToolEvents = liveToolEvents.filter(
+    (tool) => tool.id && !existingToolIds.has(tool.id),
+  );
+
+  const sortedLiveToolEvents = (() => {
+    if (filteredLiveToolEvents.length === 0) {
+      return [];
+    }
+    const orderIndex = new Map<string, number>();
+    liveToolOrder.forEach((toolId, index) => orderIndex.set(toolId, index));
+    return [...filteredLiveToolEvents].sort((a, b) => {
+      const aId = a.id || '';
+      const bId = b.id || '';
+      const aIndex = orderIndex.get(aId) ?? Number.MAX_SAFE_INTEGER;
+      const bIndex = orderIndex.get(bId) ?? Number.MAX_SAFE_INTEGER;
+      if (aIndex === bIndex) {
+        return aId.localeCompare(bId);
+      }
+      return aIndex - bIndex;
+    });
+  })();
+
+  const toolEventsByPhase = (() => {
+    const grouped = new Map<number, ToolCallTrace[]>();
+    sortedLiveToolEvents.forEach((tool) => {
+      const toolId = tool.id;
+      if (!toolId) return;
+      const phaseIndex = liveToolPhaseById[toolId] ?? 0;
+      const list = grouped.get(phaseIndex) ?? [];
+      list.push(tool);
+      grouped.set(phaseIndex, list);
+    });
+    return grouped;
+  })();
+
+  const renderToolBubbles = (phaseIndex: number) => {
+    if (!showStreamingBubble) return null;
+    const tools = toolEventsByPhase.get(phaseIndex) ?? [];
+    if (tools.length === 0) return null;
+    return tools.map((tool) => {
+      const argsRecord = tool.arguments || {};
+      const responseRecord = tool.response || {};
+      const rawPayload = {
+        arguments: argsRecord,
+        response: responseRecord,
+        ...(tool.reasoning ? { reasoning: tool.reasoning } : {}),
+      };
+      const status = responseRecord && Object.keys(responseRecord).length > 0 ? 'complete' : 'pending';
+      const bubbleKey = tool.id || `live-tool-${tool.name || 'tool'}`;
+      return (
+        <ToolCallBubble
+          key={bubbleKey}
+          label={tool.name || 'Tool'}
+          variantClass={roleVariants.tool}
+          args={argsRecord}
+          response={responseRecord}
+          rawPayload={rawPayload}
+          className="chat-bubble chat-bubble-enter"
+          status={status}
+        />
+      );
+    });
+  };
+
+  const streamingPhaseBubbles =
+    shouldShowStreamingReasoningBubble && !hasFinalReasoningForStream && activeStreamEntryKey
+      ? Array.from({ length: Math.max(0, liveReasoningPhase) }).flatMap((_, phaseIndex) => {
+          const segments = liveReasoningBlocks[phaseIndex] ?? [];
+          const reasoningNode =
+            segments.length > 0 ? (
+              <div key={`${activeStreamEntryKey}-reasoning-block-${phaseIndex}`} className="flex justify-start">
+                <CollapsibleReasoning
+                  segments={segments}
+                  messageId={`${activeStreamEntryKey}-reasoning-block-${phaseIndex}`}
+                  title="Reasoning"
+                  subtitle={phaseIndex === 0 ? liveReasoningSubtitle : undefined}
+                  isAutoOpen={false}
+                  preventAutoClose
+                  onManualToggle={onReasoningToggle}
+                  className={cn('chat-bubble chat-bubble-enter max-w-[75%]', roleVariants.reasoning)}
+                />
+              </div>
+            ) : null;
+          const toolNodes = renderToolBubbles(phaseIndex);
+          return [reasoningNode, toolNodes].flat().filter(Boolean) as React.ReactNode[];
+        })
+      : [];
+
+  const streamingCurrentReasoningBubble =
+    shouldShowStreamingReasoningBubble &&
+    !hasFinalReasoningForStream &&
+    liveReasoningDisplaySegments.length > 0 ? (
+      <div
+        key={liveReasoningBubbleKey}
+        className="flex justify-start"
+        data-live-reasoning-key={liveReasoningAnimationKey}
+      >
+        <CollapsibleReasoning
+          segments={liveReasoningDisplaySegments}
+          messageId="live-reasoning"
+          title="Reasoning"
+          subtitle={liveReasoningSubtitle}
+          isAutoOpen={false}
+          preventAutoClose
+          onManualToggle={onReasoningToggle}
+          className={cn(
+            'live-stream-reasoning chat-bubble chat-bubble-enter max-w-[75%]',
+            roleVariants.reasoning,
+          )}
+        />
+      </div>
+    ) : null;
 
   const assistantTypingBubble = showStreamingBubble ? (
     <div key={assistantBubbleKey} className="flex justify-start">
@@ -189,41 +302,47 @@ export function ChatTimeline({
 
   const messageBubbles = timelineEntries.map((entry) => {
     if (entry.type === 'tool-call') {
+      const toolKey =
+        (entry.message.tool_call_id && streamEntryKeyMap[entry.message.tool_call_id]) ||
+        entry.message.tool_call_id ||
+        entry.messageId ||
+        entry.id;
       return (
-        <Fragment key={entry.id}>
+        <Fragment key={toolKey}>
           <ToolCallBubble
             label={entry.label}
             variantClass={roleVariants.tool}
             args={entry.args}
             response={entry.response}
             rawPayload={entry.rawPayload}
-            className="chat-bubble chat-bubble-enter"
+            className="chat-bubble"
           />
         </Fragment>
       );
     }
 
     if (entry.type === 'reasoning') {
-      const mappedKey = entry.messageId ? streamEntryKeyMap[entry.messageId] : undefined;
-      const bubbleKey = mappedKey ? `${mappedKey}-reasoning` : entry.id;
+      const mappedKey =
+        entry.messageId && streamEntryKeyMap[entry.messageId]
+          ? `${streamEntryKeyMap[entry.messageId]}-reasoning`
+          : null;
+      const bubbleKey = mappedKey || entry.id;
       return (
-        <Fragment key={bubbleKey}>
-          <div className="flex justify-start">
-            <CollapsibleReasoning
-              segments={entry.segments}
-              messageId={entry.id}
-              title={entry.title}
-              subtitle={entry.subtitle}
-              isAutoOpen={false}
-              preventAutoClose
-              onManualToggle={onReasoningToggle}
-              className={cn(
-                'chat-bubble chat-bubble-enter max-w-[75%]',
-                roleVariants.reasoning,
-              )}
-            />
-          </div>
-        </Fragment>
+        <div key={bubbleKey} className="flex justify-start">
+          <CollapsibleReasoning
+            segments={entry.segments}
+            messageId={entry.id}
+            title={entry.title}
+            subtitle={entry.subtitle}
+            isAutoOpen={false}
+            preventAutoClose
+            onManualToggle={onReasoningToggle}
+            className={cn(
+              'chat-bubble max-w-[75%]',
+              roleVariants.reasoning,
+            )}
+          />
+        </div>
       );
     }
 
@@ -234,14 +353,14 @@ export function ChatTimeline({
     const alignClass = isUser ? 'justify-end' : 'justify-start';
     const usage = entry.message.usage;
     const headerLabel = entry.message.role === 'user' ? 'You' : entry.message.role.toUpperCase();
-    const bubbleKey = streamEntryKeyMap[entry.id] ?? entry.id;
+    const bubbleKey = entry.id;
 
     return (
       <div key={bubbleKey} className={cn('flex', alignClass)}>
         <div className="group relative max-w-[75%]">
           <div
             className={cn(
-              'chat-bubble chat-bubble-enter rounded-2xl border px-4 py-3 text-sm shadow-2xl transition',
+              'chat-bubble rounded-2xl border px-4 py-3 text-sm shadow-2xl transition',
               variant,
             )}
             data-chat-role={entry.type}
@@ -329,7 +448,14 @@ export function ChatTimeline({
   });
 
   const streamingBubbles: React.ReactNode[] = [];
-  if (streamingReasoningBubble) streamingBubbles.push(streamingReasoningBubble);
+  if (streamingPhaseBubbles.length > 0) streamingBubbles.push(...streamingPhaseBubbles);
+  if (streamingCurrentReasoningBubble) streamingBubbles.push(streamingCurrentReasoningBubble);
+  const trailingTools = renderToolBubbles(liveReasoningPhase);
+  if (trailingTools) {
+    streamingBubbles.push(
+      ...(Array.isArray(trailingTools) ? trailingTools : [trailingTools]),
+    );
+  }
   if (assistantTypingBubble) streamingBubbles.push(assistantTypingBubble);
   return streamingBubbles.length > 0 ? [...messageBubbles, ...streamingBubbles] : messageBubbles;
 }
