@@ -33,6 +33,7 @@ type ChatTimelineProps = {
   chatEntryOrder: string[];
   chatEntryMap: Map<string, ChatEntry>;
   finalStreamAssistantId: string | null;
+  streamEntryKeyMap: Record<string, string>;
   liveToolEvents: ToolCallTrace[];
   selectedSessionId: string | null;
   sending: boolean;
@@ -53,6 +54,10 @@ type ChatTimelineProps = {
   activeStreamEntryKey: string | null;
   shouldShowStreamingReasoningBubble: boolean;
   liveReasoningAnimationKey: number;
+  liveReasoningBlocks: ReasoningTraceSegment[][];
+  liveReasoningPhase: number;
+  liveToolOrder: string[];
+  liveToolPhaseById: Record<string, number>;
   liveReasoningDisplaySegments: ReasoningTraceSegment[];
   showStreamingBubble: boolean;
 };
@@ -62,6 +67,7 @@ export function ChatTimeline({
   chatEntryOrder,
   chatEntryMap,
   finalStreamAssistantId,
+  streamEntryKeyMap,
   liveToolEvents,
   selectedSessionId,
   sending,
@@ -82,6 +88,10 @@ export function ChatTimeline({
   activeStreamEntryKey,
   shouldShowStreamingReasoningBubble,
   liveReasoningAnimationKey,
+  liveReasoningBlocks,
+  liveReasoningPhase,
+  liveToolOrder,
+  liveToolPhaseById,
   liveReasoningDisplaySegments,
   showStreamingBubble,
 }: ChatTimelineProps) {
@@ -152,55 +162,118 @@ export function ChatTimeline({
       (entry) => entry.type === 'reasoning' && entry.messageId === finalStreamAssistantId,
     );
 
-  const streamingReasoningBubble = shouldShowStreamingReasoningBubble && !hasFinalReasoningForStream ? (
-    <div
-      key={liveReasoningBubbleKey}
-      className="flex justify-start"
-      data-live-reasoning-key={liveReasoningAnimationKey}
-    >
-      <CollapsibleReasoning
-        segments={liveReasoningDisplaySegments}
-        messageId="live-reasoning"
-        title="Reasoning"
-        subtitle={liveReasoningSubtitle}
-        isAutoOpen={false}
-        preventAutoClose
-        onManualToggle={onReasoningToggle}
-        className={cn('live-stream-reasoning chat-bubble chat-bubble-enter max-w-[75%]', roleVariants.reasoning)}
-      />
-    </div>
-  ) : null;
-
   const filteredLiveToolEvents = liveToolEvents.filter(
     (tool) => tool.id && !existingToolIds.has(tool.id),
   );
 
-  const liveToolBubbles =
-    showStreamingBubble && filteredLiveToolEvents.length > 0
-      ? filteredLiveToolEvents.map((tool) => {
-        const argsRecord = tool.arguments || {};
-        const responseRecord = tool.response || {};
-        const rawPayload = {
-          arguments: argsRecord,
-          response: responseRecord,
-          ...(tool.reasoning ? { reasoning: tool.reasoning } : {}),
-        };
-        const status = responseRecord && Object.keys(responseRecord).length > 0 ? 'complete' : 'pending';
-        const bubbleKey = tool.id || `live-tool-${tool.name || 'tool'}`;
-        return (
-          <ToolCallBubble
-            key={bubbleKey}
-            label={tool.name || 'Tool'}
-            variantClass={roleVariants.tool}
-            args={argsRecord}
-            response={responseRecord}
-            rawPayload={rawPayload}
-            className="chat-bubble chat-bubble-enter"
-            status={status}
-          />
-        );
-      })
-      : null;
+  const sortedLiveToolEvents = (() => {
+    if (filteredLiveToolEvents.length === 0) {
+      return [];
+    }
+    const orderIndex = new Map<string, number>();
+    liveToolOrder.forEach((toolId, index) => orderIndex.set(toolId, index));
+    return [...filteredLiveToolEvents].sort((a, b) => {
+      const aId = a.id || '';
+      const bId = b.id || '';
+      const aIndex = orderIndex.get(aId) ?? Number.MAX_SAFE_INTEGER;
+      const bIndex = orderIndex.get(bId) ?? Number.MAX_SAFE_INTEGER;
+      if (aIndex === bIndex) {
+        return aId.localeCompare(bId);
+      }
+      return aIndex - bIndex;
+    });
+  })();
+
+  const toolEventsByPhase = (() => {
+    const grouped = new Map<number, ToolCallTrace[]>();
+    sortedLiveToolEvents.forEach((tool) => {
+      const toolId = tool.id;
+      if (!toolId) return;
+      const phaseIndex = liveToolPhaseById[toolId] ?? 0;
+      const list = grouped.get(phaseIndex) ?? [];
+      list.push(tool);
+      grouped.set(phaseIndex, list);
+    });
+    return grouped;
+  })();
+
+  const renderToolBubbles = (phaseIndex: number) => {
+    if (!showStreamingBubble) return null;
+    const tools = toolEventsByPhase.get(phaseIndex) ?? [];
+    if (tools.length === 0) return null;
+    return tools.map((tool) => {
+      const argsRecord = tool.arguments || {};
+      const responseRecord = tool.response || {};
+      const rawPayload = {
+        arguments: argsRecord,
+        response: responseRecord,
+        ...(tool.reasoning ? { reasoning: tool.reasoning } : {}),
+      };
+      const status = responseRecord && Object.keys(responseRecord).length > 0 ? 'complete' : 'pending';
+      const bubbleKey = tool.id || `live-tool-${tool.name || 'tool'}`;
+      return (
+        <ToolCallBubble
+          key={bubbleKey}
+          label={tool.name || 'Tool'}
+          variantClass={roleVariants.tool}
+          args={argsRecord}
+          response={responseRecord}
+          rawPayload={rawPayload}
+          className="chat-bubble chat-bubble-enter"
+          status={status}
+        />
+      );
+    });
+  };
+
+  const streamingPhaseBubbles =
+    shouldShowStreamingReasoningBubble && !hasFinalReasoningForStream && activeStreamEntryKey
+      ? Array.from({ length: Math.max(0, liveReasoningPhase) }).flatMap((_, phaseIndex) => {
+          const segments = liveReasoningBlocks[phaseIndex] ?? [];
+          const reasoningNode =
+            segments.length > 0 ? (
+              <div key={`${activeStreamEntryKey}-reasoning-block-${phaseIndex}`} className="flex justify-start">
+                <CollapsibleReasoning
+                  segments={segments}
+                  messageId={`${activeStreamEntryKey}-reasoning-block-${phaseIndex}`}
+                  title="Reasoning"
+                  subtitle={phaseIndex === 0 ? liveReasoningSubtitle : undefined}
+                  isAutoOpen={false}
+                  preventAutoClose
+                  onManualToggle={onReasoningToggle}
+                  className={cn('chat-bubble chat-bubble-enter max-w-[75%]', roleVariants.reasoning)}
+                />
+              </div>
+            ) : null;
+          const toolNodes = renderToolBubbles(phaseIndex);
+          return [reasoningNode, toolNodes].flat().filter(Boolean) as React.ReactNode[];
+        })
+      : [];
+
+  const streamingCurrentReasoningBubble =
+    shouldShowStreamingReasoningBubble &&
+    !hasFinalReasoningForStream &&
+    liveReasoningDisplaySegments.length > 0 ? (
+      <div
+        key={liveReasoningBubbleKey}
+        className="flex justify-start"
+        data-live-reasoning-key={liveReasoningAnimationKey}
+      >
+        <CollapsibleReasoning
+          segments={liveReasoningDisplaySegments}
+          messageId="live-reasoning"
+          title="Reasoning"
+          subtitle={liveReasoningSubtitle}
+          isAutoOpen={false}
+          preventAutoClose
+          onManualToggle={onReasoningToggle}
+          className={cn(
+            'live-stream-reasoning chat-bubble chat-bubble-enter max-w-[75%]',
+            roleVariants.reasoning,
+          )}
+        />
+      </div>
+    ) : null;
 
   const assistantTypingBubble = showStreamingBubble ? (
     <div key={assistantBubbleKey} className="flex justify-start">
@@ -229,7 +302,11 @@ export function ChatTimeline({
 
   const messageBubbles = timelineEntries.map((entry) => {
     if (entry.type === 'tool-call') {
-      const toolKey = entry.message.tool_call_id || entry.messageId || entry.id;
+      const toolKey =
+        (entry.message.tool_call_id && streamEntryKeyMap[entry.message.tool_call_id]) ||
+        entry.message.tool_call_id ||
+        entry.messageId ||
+        entry.id;
       return (
         <Fragment key={toolKey}>
           <ToolCallBubble
@@ -238,14 +315,18 @@ export function ChatTimeline({
             args={entry.args}
             response={entry.response}
             rawPayload={entry.rawPayload}
-            className="chat-bubble chat-bubble-enter"
+            className="chat-bubble"
           />
         </Fragment>
       );
     }
 
     if (entry.type === 'reasoning') {
-      const bubbleKey = entry.id;
+      const mappedKey =
+        entry.messageId && streamEntryKeyMap[entry.messageId]
+          ? `${streamEntryKeyMap[entry.messageId]}-reasoning`
+          : null;
+      const bubbleKey = mappedKey || entry.id;
       return (
         <div key={bubbleKey} className="flex justify-start">
           <CollapsibleReasoning
@@ -257,7 +338,7 @@ export function ChatTimeline({
             preventAutoClose
             onManualToggle={onReasoningToggle}
             className={cn(
-              'chat-bubble chat-bubble-enter max-w-[75%]',
+              'chat-bubble max-w-[75%]',
               roleVariants.reasoning,
             )}
           />
@@ -279,7 +360,7 @@ export function ChatTimeline({
         <div className="group relative max-w-[75%]">
           <div
             className={cn(
-              'chat-bubble chat-bubble-enter rounded-2xl border px-4 py-3 text-sm shadow-2xl transition',
+              'chat-bubble rounded-2xl border px-4 py-3 text-sm shadow-2xl transition',
               variant,
             )}
             data-chat-role={entry.type}
@@ -367,10 +448,12 @@ export function ChatTimeline({
   });
 
   const streamingBubbles: React.ReactNode[] = [];
-  if (streamingReasoningBubble) streamingBubbles.push(streamingReasoningBubble);
-  if (liveToolBubbles) {
+  if (streamingPhaseBubbles.length > 0) streamingBubbles.push(...streamingPhaseBubbles);
+  if (streamingCurrentReasoningBubble) streamingBubbles.push(streamingCurrentReasoningBubble);
+  const trailingTools = renderToolBubbles(liveReasoningPhase);
+  if (trailingTools) {
     streamingBubbles.push(
-      ...(Array.isArray(liveToolBubbles) ? liveToolBubbles : [liveToolBubbles]),
+      ...(Array.isArray(trailingTools) ? trailingTools : [trailingTools]),
     );
   }
   if (assistantTypingBubble) streamingBubbles.push(assistantTypingBubble);
