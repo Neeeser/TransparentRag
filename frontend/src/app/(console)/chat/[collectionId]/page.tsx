@@ -228,6 +228,19 @@ const generateClientMessageId = () => {
 const CHAT_INPUT_MIN_HEIGHT = 40;
 const CHAT_INPUT_MAX_HEIGHT = 160;
 const PROGRESS_POLL_INTERVAL = 800;
+const OPTIMISTIC_DEDUPE_WINDOW_MS = 15_000;
+
+const ensureMessageOrder = (
+  map: Map<string, number>,
+  nextOrderRef: { current: number },
+  items: ChatMessage[],
+) => {
+  items.forEach((message) => {
+    if (!map.has(message.id)) {
+      map.set(message.id, nextOrderRef.current++);
+    }
+  });
+};
 
 const sortMessagesChronologically = (messages: ChatMessage[]) => {
   return [...messages].sort((a, b) => {
@@ -394,11 +407,13 @@ export default function ChatStudioExperience() {
   const programmaticScrollTimeoutRef = useRef<number | null>(null);
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const promptEditorRef = useRef<HTMLTextAreaElement | null>(null);
-  const pollIntervalRef = useRef<number | null>(null);
-  const activePollingSession = useRef<string | null>(null);
-  const pendingSessionIdsRef = useRef<Set<string>>(new Set());
-  const chatHydrationPendingRef = useRef(false);
-  const reasoningCacheRef = useRef<Map<string, ReasoningTraceSegment[]>>(new Map());
+	  const pollIntervalRef = useRef<number | null>(null);
+	  const activePollingSession = useRef<string | null>(null);
+	  const pendingSessionIdsRef = useRef<Set<string>>(new Set());
+	  const chatHydrationPendingRef = useRef(false);
+	  const reasoningCacheRef = useRef<Map<string, ReasoningTraceSegment[]>>(new Map());
+	  const messageOrderRef = useRef<Map<string, number>>(new Map());
+	  const nextMessageOrderRef = useRef(1);
 
   const hasLiveText = liveResponse.trim().length > 0;
   const hasLiveReasoning = liveReasoningSegments.length > 0;
@@ -494,9 +509,11 @@ export default function ChatStudioExperience() {
     ) => {
       setMessages((previousMessages) => {
         const sortedIncoming = sortMessagesChronologically(incoming);
-        return hydrate
+        const next = hydrate
           ? sortedIncoming
           : mergeMessageHistory(previousMessages, sortedIncoming);
+        ensureMessageOrder(messageOrderRef.current, nextMessageOrderRef, next);
+        return next;
       });
       if (hydrate) {
         chatHydrationPendingRef.current = true;
@@ -712,13 +729,23 @@ export default function ChatStudioExperience() {
         if (!trimmedOptimistic) {
           return false;
         }
-        const duplicate = messages.some(
-          (message) =>
-            message.session_id === optimistic.session_id &&
-            message.role === 'user' &&
-            message.content.trim() === trimmedOptimistic &&
-            message.id !== optimistic.id,
-        );
+        const optimisticTimestamp = Date.parse(optimistic.created_at) || Date.now();
+        const duplicate = messages.some((message) => {
+          if (message.session_id !== optimistic.session_id) {
+            return false;
+          }
+          if (message.role !== 'user') {
+            return false;
+          }
+          if (message.content.trim() !== trimmedOptimistic) {
+            return false;
+          }
+          if (message.id === optimistic.id) {
+            return false;
+          }
+          const persistedTimestamp = Date.parse(message.created_at) || 0;
+          return Math.abs(persistedTimestamp - optimisticTimestamp) < OPTIMISTIC_DEDUPE_WINDOW_MS;
+        });
         return !duplicate;
       });
     });
@@ -1089,24 +1116,50 @@ export default function ChatStudioExperience() {
     return map;
   }, [toolTraces]);
 
-  const chatEntries = useMemo<ChatEntry[]>(() => {
-    const dedupedOptimistic = optimisticMessages.filter((optimistic) => {
-      const trimmedOptimistic = optimistic.content.trim();
-      if (!trimmedOptimistic) {
-        return false;
-      }
-      return !messages.some(
-        (message) =>
-          message.session_id === optimistic.session_id &&
-          message.role === 'user' &&
-          message.content.trim() === trimmedOptimistic,
-      );
-    });
-    const combined = sortMessagesChronologically([...messages, ...dedupedOptimistic]);
+	  const chatEntries = useMemo<ChatEntry[]>(() => {
+	    const dedupedOptimistic = optimisticMessages.filter((optimistic) => {
+	      const trimmedOptimistic = optimistic.content.trim();
+	      if (!trimmedOptimistic) {
+	        return false;
+	      }
+	      const optimisticTimestamp = Date.parse(optimistic.created_at) || Date.now();
+	      return !messages.some((message) => {
+	        if (message.session_id !== optimistic.session_id) {
+	          return false;
+	        }
+	        if (message.role !== 'user') {
+	          return false;
+	        }
+	        if (message.content.trim() !== trimmedOptimistic) {
+	          return false;
+	        }
+	        const persistedTimestamp = Date.parse(message.created_at) || 0;
+	        return Math.abs(persistedTimestamp - optimisticTimestamp) < OPTIMISTIC_DEDUPE_WINDOW_MS;
+	      });
+	    });
+		    const combined = [...messages, ...dedupedOptimistic].sort((a, b) => {
+		      const aOrder = messageOrderRef.current.get(a.id);
+		      const bOrder = messageOrderRef.current.get(b.id);
+		      if (aOrder !== undefined && bOrder !== undefined) {
+		        return aOrder - bOrder;
+		      }
+		      if (aOrder !== undefined) {
+		        return -1;
+		      }
+		      if (bOrder !== undefined) {
+		        return 1;
+		      }
+		      const aTime = Date.parse(a.created_at) || 0;
+		      const bTime = Date.parse(b.created_at) || 0;
+		      if (aTime === bTime) {
+		        return a.id.localeCompare(b.id);
+		      }
+		      return aTime - bTime;
+		    });
 
     return combined.flatMap((message) => {
       const entryList: ChatEntry[] = [];
-      const createdAt = message.created_at || new Date().toISOString();
+	      const createdAt = message.created_at;
       const trimmedContent = message.content?.trim() ?? '';
       const isAssistant = message.role === 'assistant';
       const isUser = message.role === 'user';
@@ -1445,15 +1498,16 @@ export default function ChatStudioExperience() {
     if (!sessionId) return;
 
     setDraft('');
-    const placeholderMessageId = generateClientMessageId();
-    const placeholderMessage: ChatMessage = {
-      id: placeholderMessageId,
-      session_id: sessionId,
-      role: 'user',
-      content: trimmed,
-      created_at: new Date().toISOString(),
-    };
-    setOptimisticMessages((prev) => [...prev, placeholderMessage]);
+	    const placeholderMessageId = generateClientMessageId();
+	    const placeholderMessage: ChatMessage = {
+	      id: placeholderMessageId,
+	      session_id: sessionId,
+	      role: 'user',
+	      content: trimmed,
+	      created_at: new Date().toISOString(),
+	    };
+	    ensureMessageOrder(messageOrderRef.current, nextMessageOrderRef, [placeholderMessage]);
+	    setOptimisticMessages((prev) => [...prev, placeholderMessage]);
 
     const parameterPayload = buildParameterPayload();
     const parameters = Object.keys(parameterPayload).length > 0 ? parameterPayload : undefined;
