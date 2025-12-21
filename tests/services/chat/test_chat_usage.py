@@ -35,3 +35,15 @@ def test_extract_reasoning_tokens_from_usage_nested_details() -> None:
     reasoning_tokens = ChatService._extract_reasoning_tokens_from_usage(usage)
 
     assert reasoning_tokens == 8
+
+
+def test_extract_reasoning_tokens_from_usage_direct_value() -> None:
+    usage = {"reasoning_tokens": "6"}
+
+    reasoning_tokens = ChatService._extract_reasoning_tokens_from_usage(usage)
+
+    assert reasoning_tokens == 6
+
+
+def test_extract_reasoning_tokens_from_usage_empty_payload() -> None:
+    assert ChatService._extract_reasoning_tokens_from_usage({}) is None

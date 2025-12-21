@@ -13,9 +13,18 @@ def test_coerce_usage_value_returns_none_for_empty_dict() -> None:
     assert ChatService._coerce_usage_value({}) is None
 
 
+def test_coerce_usage_value_rejects_invalid_inputs() -> None:
+    assert ChatService._coerce_usage_value("not-a-number") is None
+    assert ChatService._coerce_usage_value(["list"]) is None
+
+
 def test_coerce_numeric_parameter_rejects_non_finite() -> None:
     assert ChatService._coerce_numeric_parameter("nan") is None
     assert ChatService._coerce_numeric_parameter(float("inf")) is None
+
+
+def test_coerce_float_value_rejects_invalid_string() -> None:
+    assert ChatService._coerce_float_value("bad") is None
 
 
 def test_coerce_bool_parameter_from_strings() -> None:

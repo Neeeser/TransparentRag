@@ -40,6 +40,12 @@ def test_build_reasoning_options_honors_supported_parameters() -> None:
     assert options["reasoning"] == {"effort": "high"}
 
 
+def test_build_reasoning_options_defaults_when_missing_supported_params() -> None:
+    options = ChatService._build_reasoning_options(None, None)
+
+    assert options["reasoning"]["effort"] == "medium"
+
+
 def test_extract_reasoning_tool_calls_captures_leading_context_and_residual_segments() -> None:
     segments = [
         {"type": "text", "content": "Step 1"},
@@ -100,3 +106,26 @@ def test_append_reasoning_segment_merges_adjacent_text() -> None:
 
     assert len(segments) == 2
     assert segments[1]["text"] == "!"
+
+
+def test_normalize_reasoning_segments_handles_blank_and_mapping() -> None:
+    blank = ChatService._normalize_reasoning_segments("   ")
+    mapped = ChatService._normalize_reasoning_segments({"type": "text", "content": "hello"})
+
+    assert blank[0]["content"] == "   "
+    assert mapped[0]["content"] == "hello"
+
+
+def test_normalize_reasoning_segments_converts_values() -> None:
+    segments = ChatService._normalize_reasoning_segments(["text", 123])
+
+    assert segments[0]["content"] == "text"
+    assert segments[1]["content"] == 123
+
+
+def test_append_reasoning_segment_handles_empty_and_value() -> None:
+    segments: list[dict[str, object]] = []
+    ChatService._append_reasoning_segment(segments, {})
+    ChatService._append_reasoning_segment(segments, {"value": "raw"})
+
+    assert segments[0]["content"] == "raw"

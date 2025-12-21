@@ -11,6 +11,7 @@ from app.services import prompts
 from app.services.prompts import (
   DEFAULT_SYSTEM_PROMPT_TEMPLATE,
   SYSTEM_PROMPT_METADATA_KEY,
+  _stringify,
   apply_prompt_template,
   get_system_prompt_template,
   prompt_variables_payload,
@@ -96,3 +97,14 @@ def test_prompt_variables_payload_exposes_expected_names():
     assert "collection.name" in names
     assert "datetime.iso" in names
     assert "user.email" in names
+
+
+def test_stringify_returns_default_on_unserializable_value() -> None:
+    payload = {("tuple",): "value"}
+
+    assert _stringify(payload) == "N/A"
+
+
+def test_stringify_handles_boolean_values() -> None:
+    assert _stringify(True) == "true"
+    assert _stringify(False) == "false"

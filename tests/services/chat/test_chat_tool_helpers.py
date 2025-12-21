@@ -18,10 +18,15 @@ def test_ensure_arguments_string_preserves_valid_json() -> None:
     assert ChatService._ensure_arguments_string(payload) == payload
 
 
+def test_ensure_arguments_string_handles_none() -> None:
+    assert ChatService._ensure_arguments_string(None) == "{}"
+
+
 def test_decode_tool_arguments_handles_strings_and_dicts() -> None:
     assert ChatService._decode_tool_arguments({"query": "docs"}) == {"query": "docs"}
     assert ChatService._decode_tool_arguments("plain") == {"query": "plain"}
     assert ChatService._decode_tool_arguments(" ") == {}
+    assert ChatService._decode_tool_arguments("{not-json}") == {"query": "{not-json}"}
 
 
 def test_normalize_tool_calls_filters_missing_names() -> None:

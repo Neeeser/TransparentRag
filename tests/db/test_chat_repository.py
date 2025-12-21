@@ -1,0 +1,178 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from sqlmodel import Session, SQLModel, create_engine
+
+from app.db import models
+from app.db.models import ChatRole, ChunkStrategy
+from app.db.repositories import ChatRepository, CollectionRepository, UserRepository
+
+
+def _session() -> Session:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    return Session(engine)
+
+
+def _create_user(session: Session, email: str) -> models.User:
+    repo = UserRepository(session)
+    user = models.User(email=email, full_name="User", hashed_password="hashed")
+    repo.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def _create_collection(session: Session, user: models.User) -> models.Collection:
+    repo = CollectionRepository(session)
+    collection = models.Collection(
+        user_id=user.id,
+        name="Collection",
+        description="",
+        embedding_model="embed",
+        chat_model="chat",
+        context_window=1024,
+        chunk_size=128,
+        chunk_overlap=8,
+        chunk_strategy=ChunkStrategy.TOKEN,
+        pinecone_index="idx",
+        pinecone_namespace=f"ns-{uuid4().hex[:6]}",
+        metadata={"embedding_dimension": 128},
+    )
+    repo.add(collection)
+    session.commit()
+    session.refresh(collection)
+    return collection
+
+
+def _create_session(session: Session, user: models.User, collection: models.Collection) -> models.ChatSession:
+    chat_session = models.ChatSession(
+        user_id=user.id,
+        collection_id=collection.id,
+        title="Session",
+        mode=models.ChatMode.CHAT,
+        chat_model=collection.chat_model,
+        context_tokens=0,
+    )
+    repo = ChatRepository(session)
+    repo.add_session(chat_session)
+    session.commit()
+    session.refresh(chat_session)
+    return chat_session
+
+
+def _add_message(
+    session: Session,
+    chat_session: models.ChatSession,
+    *,
+    role: ChatRole,
+    content: str,
+    created_at: datetime,
+) -> models.ChatMessage:
+    message = models.ChatMessage(
+        session_id=chat_session.id,
+        role=role,
+        content=content,
+        created_at=created_at,
+        updated_at=created_at,
+    )
+    repo = ChatRepository(session)
+    repo.add_message(message)
+    session.commit()
+    session.refresh(message)
+    return message
+
+
+def test_chat_repository_filters_sessions_by_user() -> None:
+    session = _session()
+    user_a = _create_user(session, "a@example.com")
+    user_b = _create_user(session, "b@example.com")
+    collection_a = _create_collection(session, user_a)
+    collection_b = _create_collection(session, user_b)
+    session_a = _create_session(session, user_a, collection_a)
+    session_b = _create_session(session, user_b, collection_b)
+
+    repo = ChatRepository(session)
+
+    assert repo.get_session(session_a.id, user_id=user_a.id)
+    assert repo.get_session(session_b.id, user_id=user_a.id) is None
+    assert len(list(repo.list_sessions(collection_id=collection_a.id, user_id=user_a.id))) == 1
+
+
+def test_chat_repository_filters_messages_by_user() -> None:
+    session = _session()
+    user_a = _create_user(session, "a@example.com")
+    user_b = _create_user(session, "b@example.com")
+    collection_a = _create_collection(session, user_a)
+    collection_b = _create_collection(session, user_b)
+    session_a = _create_session(session, user_a, collection_a)
+    _create_session(session, user_b, collection_b)
+    message = _add_message(
+        session,
+        session_a,
+        role=ChatRole.USER,
+        content="hello",
+        created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    )
+
+    repo = ChatRepository(session)
+
+    assert repo.get_message(message.id, user_id=user_b.id) is None
+    assert repo.get_message(message.id, user_id=user_a.id)
+
+
+def test_chat_repository_deletes_messages_after_anchor() -> None:
+    session = _session()
+    user = _create_user(session, "a@example.com")
+    collection = _create_collection(session, user)
+    chat_session = _create_session(session, user, collection)
+    anchor_time = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    anchor = _add_message(session, chat_session, role=ChatRole.USER, content="a", created_at=anchor_time)
+    _add_message(session, chat_session, role=ChatRole.USER, content="b", created_at=anchor_time.replace(minute=1))
+
+    repo = ChatRepository(session)
+    repo.delete_messages_after(chat_session.id, anchor.created_at, include_anchor=False)
+
+    remaining = list(repo.list_messages(chat_session.id))
+    assert len(remaining) == 1
+    assert remaining[0].content == "a"
+
+    repo.delete_messages_after(chat_session.id, anchor.created_at, include_anchor=True)
+    assert list(repo.list_messages(chat_session.id)) == []
+
+
+def test_chat_repository_tool_deletion_and_last_user_message() -> None:
+    session = _session()
+    user = _create_user(session, "a@example.com")
+    collection = _create_collection(session, user)
+    chat_session = _create_session(session, user, collection)
+    t0 = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+    _add_message(session, chat_session, role=ChatRole.USER, content="first", created_at=t0)
+    _add_message(session, chat_session, role=ChatRole.TOOL, content="tool", created_at=t0.replace(minute=1))
+    _add_message(session, chat_session, role=ChatRole.USER, content="second", created_at=t0.replace(minute=2))
+
+    repo = ChatRepository(session)
+    last_user = repo.get_last_user_message_before(chat_session.id, t0.replace(minute=2))
+    assert last_user
+    assert last_user.content == "second"
+
+    repo.delete_tool_messages_since(chat_session.id, t0.replace(minute=1))
+    remaining_roles = [msg.role for msg in repo.list_messages(chat_session.id, limit=0)]
+    assert ChatRole.TOOL not in remaining_roles
+
+
+def test_chat_repository_delete_session_removes_messages() -> None:
+    session = _session()
+    user = _create_user(session, "a@example.com")
+    collection = _create_collection(session, user)
+    chat_session = _create_session(session, user, collection)
+    _add_message(session, chat_session, role=ChatRole.USER, content="hello", created_at=datetime.now(timezone.utc))
+
+    repo = ChatRepository(session)
+    repo.delete_session(chat_session)
+    session.commit()
+
+    assert repo.get_session(chat_session.id) is None
+    assert list(repo.list_messages(chat_session.id)) == []

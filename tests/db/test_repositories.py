@@ -11,6 +11,7 @@ from app.db.repositories import (
     ChunkRepository,
     CollectionRepository,
     DocumentRepository,
+    QueryRepository,
     UserRepository,
 )
 
@@ -125,3 +126,47 @@ def test_document_and_chunk_repositories(session: Session) -> None:
     assert len(stored) == 1
     assert stored[0].chunk_metadata["source"] == "unit-test"
     assert stored[0].embedding_model == collection.embedding_model
+
+
+def test_collection_repository_get_filters_user(session: Session) -> None:
+    user_a = _create_user(session)
+    user_b = models.User(email="user-b@example.com", full_name="User B", hashed_password="hashed")
+    UserRepository(session).add(user_b)
+    session.commit()
+    session.refresh(user_b)
+    collection = _create_collection(session, user_a)
+
+    repo = CollectionRepository(session)
+
+    assert repo.get(collection.id)
+    assert repo.get(collection.id, user_id=user_a.id)
+    assert repo.get(collection.id, user_id=user_b.id) is None
+
+
+def test_document_repository_get_by_id(session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    document = _create_document(session, user, collection)
+
+    repo = DocumentRepository(session)
+
+    assert repo.get(document.id) is not None
+
+
+def test_query_repository_add_event(session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    repo = QueryRepository(session)
+    event = models.QueryEvent(
+        user_id=user.id,
+        collection_id=collection.id,
+        query_text="What is RAG?",
+        model="unit-test",
+        response_payload={"answer": "ok"},
+    )
+
+    repo.add_event(event)
+    session.commit()
+    session.refresh(event)
+
+    assert event.id is not None
