@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
 export type UUID = string;
 
-export type DocumentStatus = 'pending' | 'processing' | 'ready' | 'failed';
-export type ChunkStrategy = 'token' | 'sentence' | 'paragraph' | 'semantic';
-export type ChatMode = 'query' | 'chat';
-export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
+export type DocumentStatus = "pending" | "processing" | "ready" | "failed";
+export type ChunkStrategy = "token" | "sentence" | "paragraph" | "semantic";
+export type ChatMode = "query" | "chat";
+export type ChatRole = "system" | "user" | "assistant" | "tool";
 
 export interface User {
   id: UUID;
@@ -168,7 +168,7 @@ export interface UsageBreakdown {
   [key: string]: number | Record<string, number | undefined> | undefined;
 }
 
-export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
 
 export interface ReasoningConfig {
   effort?: ReasoningEffort;
@@ -184,7 +184,7 @@ export interface ChatGenerationConfig {
   reasoning?: ReasoningConfig;
 }
 
-export type ProviderSortOption = 'price' | 'throughput' | 'latency';
+export type ProviderSortOption = "price" | "throughput" | "latency";
 
 export interface ProviderMaxPrice {
   prompt?: number;
@@ -197,7 +197,7 @@ export interface ProviderPreferences {
   order?: string[];
   allow_fallbacks?: boolean;
   require_parameters?: boolean;
-  data_collection?: 'allow' | 'deny';
+  data_collection?: "allow" | "deny";
   zdr?: boolean;
   enforce_distillable_text?: boolean;
   only?: string[];

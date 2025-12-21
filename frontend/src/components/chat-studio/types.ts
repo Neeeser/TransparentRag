@@ -6,7 +6,7 @@ export interface ProviderFormState {
   quantizations: string[];
   allowFallbacks: boolean;
   requireParameters: boolean;
-  dataCollection: 'allow' | 'deny';
+  dataCollection: "allow" | "deny";
   zdr: boolean;
   enforceDistillableText: boolean;
   maxPrompt: string;
@@ -15,4 +15,4 @@ export interface ProviderFormState {
   maxImage: string;
 }
 
-export type ProviderSelectionField = 'order' | 'only' | 'ignore';
+export type ProviderSelectionField = "order" | "only" | "ignore";

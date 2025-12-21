@@ -1,16 +1,24 @@
-'use client';
+"use client";
 
-import { ArrowDown, ArrowLeft, PanelLeftOpen, PanelRightOpen, PlusCircle } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, PanelLeftOpen, PanelRightOpen, PlusCircle } from "lucide-react";
+import { useParams } from "next/navigation";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { ChatInput, PromptEditorOverlay } from '@/components/chat-studio';
-import { HistoryPanel } from '@/components/chat-studio/HistoryPanel';
-import { TelemetryPanel } from '@/components/chat-studio/telemetry/TelemetryPanel';
-import { formatToolLabel } from '@/components/chat-studio/Tooling';
-import { Button } from '@/components/ui/button';
-import { Loader } from '@/components/ui/loader';
-import { GlassCard } from '@/components/ui/panel';
+import { ChatInput, PromptEditorOverlay } from "@/components/chat-studio";
+import { HistoryPanel } from "@/components/chat-studio/HistoryPanel";
+import { TelemetryPanel } from "@/components/chat-studio/telemetry/TelemetryPanel";
+import { formatToolLabel } from "@/components/chat-studio/Tooling";
+import { Button } from "@/components/ui/button";
+import { Loader } from "@/components/ui/loader";
+import { GlassCard } from "@/components/ui/panel";
 import {
   chatWithCollection,
   deleteChatSession,
@@ -23,9 +31,9 @@ import {
   listModels,
   streamChatWithCollection,
   updateCollectionPrompt,
-} from '@/lib/api';
-import { PARAMETER_DEFINITIONS } from '@/lib/chat-parameters';
-import { useAuth } from '@/providers/auth-provider';
+} from "@/lib/api";
+import { PARAMETER_DEFINITIONS } from "@/lib/chat-parameters";
+import { useAuth } from "@/providers/auth-provider";
 
 import {
   coerceRecord,
@@ -35,17 +43,17 @@ import {
   sanitizeFileName,
   sanitizeModelSlug,
   safeParseJSON,
-} from './chat-utils';
-import { ChatTimeline } from './components/ChatTimeline';
+} from "./chat-utils";
+import { ChatTimeline } from "./components/ChatTimeline";
 
-import type { ChatEntry } from './chat-types';
-import type { ProviderFormState } from '@/components/chat-studio/types';
+import type { ChatEntry } from "./chat-types";
+import type { ProviderFormState } from "@/components/chat-studio/types";
 import type {
   ModelParameterKey,
   ParameterDefinition,
   ParameterOverrides,
   ParameterValue,
-} from '@/lib/chat-parameters';
+} from "@/lib/chat-parameters";
 import type {
   ChatCompletionPayload,
   ChatMessage,
@@ -60,13 +68,13 @@ import type {
   ReasoningTraceSegment,
   ToolCallTrace,
   UsageBreakdown,
-} from '@/lib/types';
+} from "@/lib/types";
 
 const samplePrompts = [
-  'Give me the latest ingestion summary with citations.',
-  'What changed in the newest document batch?',
-  'Draft next steps using the last three answers.',
-  'List any flagged chunks that might need review.',
+  "Give me the latest ingestion summary with citations.",
+  "What changed in the newest document batch?",
+  "Draft next steps using the last three answers.",
+  "List any flagged chunks that might need review.",
 ];
 
 const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
@@ -80,53 +88,55 @@ const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
 
 const usePersistentToggle = (key: string, defaultValue: boolean) => {
   const [value, setValue] = useState(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return defaultValue;
     }
     const stored = window.localStorage.getItem(key);
-    return stored === null ? defaultValue : stored === 'true';
+    return stored === null ? defaultValue : stored === "true";
   });
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return;
     }
-    window.localStorage.setItem(key, value ? 'true' : 'false');
+    window.localStorage.setItem(key, value ? "true" : "false");
   }, [key, value]);
 
   return [value, setValue] as const;
 };
 
 const createDefaultProviderForm = (): ProviderFormState => ({
-  sort: '',
+  sort: "",
   order: [],
   only: [],
   ignore: [],
   quantizations: [],
   allowFallbacks: true,
   requireParameters: false,
-  dataCollection: 'allow',
+  dataCollection: "allow",
   zdr: false,
   enforceDistillableText: false,
-  maxPrompt: '',
-  maxCompletion: '',
-  maxRequest: '',
-  maxImage: '',
+  maxPrompt: "",
+  maxCompletion: "",
+  maxRequest: "",
+  maxImage: "",
 });
 
 const deriveToolTracesFromMessages = (items: ChatMessage[]): ToolCallTrace[] =>
   items
-    .filter((message) => message.role === 'tool')
+    .filter((message) => message.role === "tool")
     .map((message) => {
       const payload =
-        (message.tool_payload as Record<string, unknown> | null) ?? safeParseJSON(message.content) ?? {};
+        (message.tool_payload as Record<string, unknown> | null) ??
+        safeParseJSON(message.content) ??
+        {};
       const payloadRecord = coerceRecord(payload);
       const argsValue = payloadRecord.arguments ?? {};
       const responseValue = payloadRecord.response ?? payloadRecord;
       const reasoningSegments = normalizeReasoningSegments(message.reasoning_trace);
       return {
         id: message.tool_call_id || message.id,
-        name: message.tool_name || 'tool_call',
+        name: message.tool_name || "tool_call",
         arguments: coerceRecord(argsValue),
         response: coerceRecord(responseValue),
         reasoning: reasoningSegments.length > 0 ? { segments: reasoningSegments } : null,
@@ -182,7 +192,7 @@ const attachUsageToLastAssistantMessage = (
   if (!usage) {
     return messages;
   }
-  const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
+  const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant");
   if (!lastAssistant || lastAssistant.usage) {
     return messages;
   }
@@ -192,13 +202,13 @@ const attachUsageToLastAssistantMessage = (
 };
 
 const isToolReasoningSegment = (segment: ReasoningTraceSegment): boolean => {
-  const typeValue = typeof segment.type === 'string' ? segment.type.toLowerCase() : '';
+  const typeValue = typeof segment.type === "string" ? segment.type.toLowerCase() : "";
   if (
-    typeValue === 'tool_call' ||
-    typeValue === 'tool_use' ||
-    typeValue === 'tool_request' ||
-    typeValue === 'call_tool' ||
-    typeValue === 'function_call'
+    typeValue === "tool_call" ||
+    typeValue === "tool_use" ||
+    typeValue === "tool_request" ||
+    typeValue === "call_tool" ||
+    typeValue === "function_call"
   ) {
     return true;
   }
@@ -206,13 +216,13 @@ const isToolReasoningSegment = (segment: ReasoningTraceSegment): boolean => {
 };
 
 const generateClientSessionId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  const template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
+  const template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
   return template.replace(/[xy]/g, (char) => {
     const rand = Math.floor(Math.random() * 16);
-    if (char === 'x') {
+    if (char === "x") {
       return rand.toString(16);
     }
     // Ensure the variant bits are 10xx for UUID v4 compatibility
@@ -221,7 +231,7 @@ const generateClientSessionId = () => {
 };
 
 const generateClientMessageId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return `client-${crypto.randomUUID()}`;
   }
   return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -255,10 +265,7 @@ const sortMessagesChronologically = (messages: ChatMessage[]) => {
   });
 };
 
-const mergeMessageHistory = (
-  existing: ChatMessage[],
-  incoming: ChatMessage[],
-): ChatMessage[] => {
+const mergeMessageHistory = (existing: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] => {
   if (incoming.length === 0) {
     return existing;
   }
@@ -268,7 +275,11 @@ const mergeMessageHistory = (
   return sortMessagesChronologically(Array.from(mergedMap.values()));
 };
 
-const pruneHistoryForEdit = (items: ChatMessage[], editMessageId: string, newContent: string): ChatMessage[] => {
+const pruneHistoryForEdit = (
+  items: ChatMessage[],
+  editMessageId: string,
+  newContent: string,
+): ChatMessage[] => {
   if (items.length === 0) {
     return items;
   }
@@ -279,7 +290,7 @@ const pruneHistoryForEdit = (items: ChatMessage[], editMessageId: string, newCon
   }
   const target = sorted[targetIndex];
 
-  if (target.role === 'user') {
+  if (target.role === "user") {
     const trimmed = newContent.trim();
     return sorted.slice(0, targetIndex + 1).map((message) => {
       if (message.id !== editMessageId) {
@@ -294,7 +305,7 @@ const pruneHistoryForEdit = (items: ChatMessage[], editMessageId: string, newCon
 
   let lastUserIndex = -1;
   for (let idx = targetIndex - 1; idx >= 0; idx -= 1) {
-    if (sorted[idx].role === 'user') {
+    if (sorted[idx].role === "user") {
       lastUserIndex = idx;
       break;
     }
@@ -306,7 +317,7 @@ const pruneHistoryForEdit = (items: ChatMessage[], editMessageId: string, newCon
 
   let anchorIndex = -1;
   for (let idx = lastUserIndex + 1; idx < sorted.length; idx += 1) {
-    if (sorted[idx].role !== 'user') {
+    if (sorted[idx].role !== "user") {
       anchorIndex = idx;
       break;
     }
@@ -321,8 +332,7 @@ const pruneHistoryForEdit = (items: ChatMessage[], editMessageId: string, newCon
 
 export default function ChatStudioExperience() {
   const params = useParams<{ collectionId: string }>();
-  const collectionId = params?.collectionId ?? '';
-  const router = useRouter();
+  const collectionId = params?.collectionId ?? "";
   const { token } = useAuth();
   const [collection, setCollection] = useState<Collection | null>(null);
   const [documentCount, setDocumentCount] = useState(0);
@@ -334,56 +344,64 @@ export default function ChatStudioExperience() {
   const [usage, setUsage] = useState<UsageBreakdown | null>(null);
   const [contextWindow, setContextWindow] = useState<number>(0);
   const [contextConsumed, setContextConsumed] = useState<number>(0);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [isStopping, setIsStopping] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingDraft, setEditingDraft] = useState('');
+  const [editingDraft, setEditingDraft] = useState("");
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = usePersistentToggle('chat.historyOpen', true);
-  const [telemetryOpen, setTelemetryOpen] = usePersistentToggle('chat.telemetryOpen', true);
+  const [historyOpen, setHistoryOpen] = usePersistentToggle("chat.historyOpen", true);
+  const [telemetryOpen, setTelemetryOpen] = usePersistentToggle("chat.telemetryOpen", true);
   const [modelSelectorOpen, setModelSelectorOpen] = usePersistentToggle(
-    'chat.telemetry.modelsOpen',
+    "chat.telemetry.modelsOpen",
     true,
   );
-  const [systemPromptOpen, setSystemPromptOpen] = usePersistentToggle('chat.telemetry.promptOpen', true);
-  const [vitalsOpen, setVitalsOpen] = usePersistentToggle('chat.telemetry.vitalsOpen', true);
-  const [usageOpen, setUsageOpen] = usePersistentToggle('chat.telemetry.usageOpen', true);
+  const [systemPromptOpen, setSystemPromptOpen] = usePersistentToggle(
+    "chat.telemetry.promptOpen",
+    true,
+  );
+  const [vitalsOpen, setVitalsOpen] = usePersistentToggle("chat.telemetry.vitalsOpen", true);
+  const [usageOpen, setUsageOpen] = usePersistentToggle("chat.telemetry.usageOpen", true);
   const [modelParametersOpen, setModelParametersOpen] = usePersistentToggle(
-    'chat.telemetry.parametersOpen',
+    "chat.telemetry.parametersOpen",
     true,
   );
   const [providerPreferencesOpen, setProviderPreferencesOpen] = usePersistentToggle(
-    'chat.telemetry.providersOpen',
+    "chat.telemetry.providersOpen",
     true,
   );
   const [streamingOptionsOpen, setStreamingOptionsOpen] = usePersistentToggle(
-    'chat.telemetry.streamingOpen',
+    "chat.telemetry.streamingOpen",
     true,
   );
-  const [streamingEnabled, setStreamingEnabled] = usePersistentToggle('chat.streamingEnabled', false);
+  const [streamingEnabled, setStreamingEnabled] = usePersistentToggle(
+    "chat.streamingEnabled",
+    false,
+  );
   const [modelCatalog, setModelCatalog] = useState<ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
-  const [modelSearchTerm, setModelSearchTerm] = useState('');
+  const [modelSearchTerm, setModelSearchTerm] = useState("");
   const [parameterOverrides, setParameterOverrides] = useState<ParameterOverrides>({});
-  const [providerForm, setProviderForm] = useState<ProviderFormState>(() => createDefaultProviderForm());
+  const [providerForm, setProviderForm] = useState<ProviderFormState>(() =>
+    createDefaultProviderForm(),
+  );
   const [providerDirectory, setProviderDirectory] = useState<ModelEndpointDirectory | null>(null);
   const [providerDirectoryLoading, setProviderDirectoryLoading] = useState(false);
   const [providerDirectoryError, setProviderDirectoryError] = useState<string | null>(null);
-  const [providerSearchTerm, setProviderSearchTerm] = useState('');
+  const [providerSearchTerm, setProviderSearchTerm] = useState("");
   const [promptDetails, setPromptDetails] = useState<CollectionPromptDetails | null>(null);
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
-  const [promptDraft, setPromptDraft] = useState('');
+  const [promptDraft, setPromptDraft] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
-  const [liveResponse, setLiveResponse] = useState('');
+  const [liveResponse, setLiveResponse] = useState("");
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const [liveReasoningSegments, setLiveReasoningSegments] = useState<ReasoningTraceSegment[]>([]);
   const [liveReasoningBlocks, setLiveReasoningBlocks] = useState<ReasoningTraceSegment[][]>([]);
@@ -409,13 +427,13 @@ export default function ChatStudioExperience() {
   const programmaticScrollTimeoutRef = useRef<number | null>(null);
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const promptEditorRef = useRef<HTMLTextAreaElement | null>(null);
-	  const pollIntervalRef = useRef<number | null>(null);
-	  const activePollingSession = useRef<string | null>(null);
-	  const pendingSessionIdsRef = useRef<Set<string>>(new Set());
-	  const chatHydrationPendingRef = useRef(false);
-	  const reasoningCacheRef = useRef<Map<string, ReasoningTraceSegment[]>>(new Map());
-	  const messageOrderRef = useRef<Map<string, number>>(new Map());
-	  const nextMessageOrderRef = useRef(1);
+  const pollIntervalRef = useRef<number | null>(null);
+  const activePollingSession = useRef<string | null>(null);
+  const pendingSessionIdsRef = useRef<Set<string>>(new Set());
+  const chatHydrationPendingRef = useRef(false);
+  const reasoningCacheRef = useRef<Map<string, ReasoningTraceSegment[]>>(new Map());
+  const messageOrderRef = useRef<Map<string, number>>(new Map());
+  const nextMessageOrderRef = useRef(1);
 
   const hasLiveText = liveResponse.trim().length > 0;
   const hasLiveReasoning = liveReasoningSegments.length > 0;
@@ -436,7 +454,7 @@ export default function ChatStudioExperience() {
   }, [isStreamingResponse]);
 
   useEffect(() => {
-    console.debug('[chat] chatEntryOrder updated', { chatEntryOrder });
+    console.debug("[chat] chatEntryOrder updated", { chatEntryOrder });
   }, [chatEntryOrder]);
 
   useEffect(() => {
@@ -484,22 +502,21 @@ export default function ChatStudioExperience() {
           existingIndex >= 0
             ? next[existingIndex]
             : {
-              id: eventId,
-              name: update.name || 'tool_call',
-              arguments: {},
-              response: {},
-              reasoning: null as ToolCallTrace['reasoning'],
-            };
+                id: eventId,
+                name: update.name || "tool_call",
+                arguments: {},
+                response: {},
+                reasoning: null as ToolCallTrace["reasoning"],
+              };
         const merged = {
           ...base,
           name: update.name || base.name,
           arguments: { ...base.arguments, ...(update.arguments || {}) },
-          response:
-            update.response !== undefined ? update.response || {} : base.response || {},
+          response: update.response !== undefined ? update.response || {} : base.response || {},
           reasoning:
             reasoningSegments && reasoningSegments.length > 0
               ? { segments: reasoningSegments }
-              : base.reasoning ?? null,
+              : (base.reasoning ?? null),
         };
         if (existingIndex >= 0) {
           next[existingIndex] = merged;
@@ -514,7 +531,10 @@ export default function ChatStudioExperience() {
   const syncMessages = useCallback(
     (
       incoming: ChatMessage[],
-      { hydrate = false, resetStreamKeys = false }: { hydrate?: boolean; resetStreamKeys?: boolean } = {},
+      {
+        hydrate = false,
+        resetStreamKeys = false,
+      }: { hydrate?: boolean; resetStreamKeys?: boolean } = {},
     ) => {
       setMessages((previousMessages) => {
         const sortedIncoming = sortMessagesChronologically(incoming);
@@ -535,11 +555,12 @@ export default function ChatStudioExperience() {
     [],
   );
 
-  const deriveToolTraces = useCallback((items: ChatMessage[]) => deriveToolTracesFromMessages(items), []);
+  const deriveToolTraces = useCallback(
+    (items: ChatMessage[]) => deriveToolTracesFromMessages(items),
+    [],
+  );
 
-  const authToken = token ?? '';
-  const headerDescription =
-    collection ? collection.description?.trim() || 'No description provided yet.' : '';
+  const authToken = token ?? "";
 
   const sortSessions = useCallback((items: ChatSession[]) => {
     const pendingIds = pendingSessionIdsRef.current;
@@ -555,7 +576,7 @@ export default function ChatStudioExperience() {
   useEffect(() => {
     if (!authToken || !collectionId) {
       setLoading(false);
-      setStatus(collectionId ? 'Sign in to access this collection.' : 'Missing collection id.');
+      setStatus(collectionId ? "Sign in to access this collection." : "Missing collection id.");
       return;
     }
     let cancelled = false;
@@ -568,7 +589,7 @@ export default function ChatStudioExperience() {
         if (cancelled) return;
         const active = allCollections.find((col) => col.id === collectionId);
         if (!active) {
-          setStatus('Collection not found.');
+          setStatus("Collection not found.");
           setCollection(null);
           return;
         }
@@ -585,7 +606,7 @@ export default function ChatStudioExperience() {
         setSelectedSessionId(sorted[0]?.id ?? null);
       } catch (error) {
         if (!cancelled) {
-          setStatus(error instanceof Error ? error.message : 'Unable to load chat studio.');
+          setStatus(error instanceof Error ? error.message : "Unable to load chat studio.");
         }
       } finally {
         if (!cancelled) {
@@ -603,7 +624,7 @@ export default function ChatStudioExperience() {
   useEffect(() => {
     if (!authToken || !collectionId) {
       setPromptDetails(null);
-      setPromptDraft('');
+      setPromptDraft("");
       return;
     }
     let cancelled = false;
@@ -615,11 +636,11 @@ export default function ChatStudioExperience() {
         if (cancelled) return;
         setPromptDetails(details);
         if (!promptEditorOpen) {
-          setPromptDraft(details.template ?? '');
+          setPromptDraft(details.template ?? "");
         }
       } catch (error) {
         if (!cancelled) {
-          setPromptError(error instanceof Error ? error.message : 'Unable to load system prompt.');
+          setPromptError(error instanceof Error ? error.message : "Unable to load system prompt.");
         }
       } finally {
         if (!cancelled) {
@@ -645,7 +666,7 @@ export default function ChatStudioExperience() {
         }
       } catch (error) {
         if (!cancelled) {
-          setModelsError(error instanceof Error ? error.message : 'Unable to load model metadata.');
+          setModelsError(error instanceof Error ? error.message : "Unable to load model metadata.");
         }
       } finally {
         if (!cancelled) {
@@ -673,7 +694,9 @@ export default function ChatStudioExperience() {
     }
     const session = sessions.find((item) => item.id === selectedSessionId);
     if (session?.chat_model) {
-      setActiveModelId((current) => (current === session.chat_model ? current : session.chat_model));
+      setActiveModelId((current) =>
+        current === session.chat_model ? current : session.chat_model,
+      );
     }
   }, [selectedSessionId, sessions]);
 
@@ -708,7 +731,7 @@ export default function ChatStudioExperience() {
         }
       } catch (error) {
         if (!cancelled) {
-          setStatus(error instanceof Error ? error.message : 'Unable to load chat history.');
+          setStatus(error instanceof Error ? error.message : "Unable to load chat history.");
         }
       }
     }
@@ -743,7 +766,7 @@ export default function ChatStudioExperience() {
           if (message.session_id !== optimistic.session_id) {
             return false;
           }
-          if (message.role !== 'user') {
+          if (message.role !== "user") {
             return false;
           }
           if (message.content.trim() !== trimmedOptimistic) {
@@ -838,8 +861,8 @@ export default function ChatStudioExperience() {
     if (providerForm.requireParameters) {
       payload.require_parameters = true;
     }
-    if (providerForm.dataCollection === 'deny') {
-      payload.data_collection = 'deny';
+    if (providerForm.dataCollection === "deny") {
+      payload.data_collection = "deny";
     }
     if (providerForm.zdr) {
       payload.zdr = true;
@@ -847,7 +870,7 @@ export default function ChatStudioExperience() {
     if (providerForm.enforceDistillableText) {
       payload.enforce_distillable_text = true;
     }
-    const maxPrice: ProviderPreferences['max_price'] = {};
+    const maxPrice: ProviderPreferences["max_price"] = {};
     const promptPrice = parsePriceInput(providerForm.maxPrompt);
     if (promptPrice !== null) {
       maxPrice.prompt = promptPrice;
@@ -879,8 +902,8 @@ export default function ChatStudioExperience() {
       setProviderDirectoryLoading(false);
       return;
     }
-    const [author, ...rest] = providerModelSlug.split('/');
-    const slugPart = rest.join('/');
+    const [author, ...rest] = providerModelSlug.split("/");
+    const slugPart = rest.join("/");
     if (!author || !slugPart) {
       setProviderDirectory(null);
       return;
@@ -895,8 +918,7 @@ export default function ChatStudioExperience() {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        const message =
-          error instanceof Error ? error.message : 'Unable to load provider catalog.';
+        const message = error instanceof Error ? error.message : "Unable to load provider catalog.";
         setProviderDirectoryError(message);
         setProviderDirectory(null);
       })
@@ -911,7 +933,7 @@ export default function ChatStudioExperience() {
   }, [providerModelSlug]);
 
   useEffect(() => {
-    setProviderSearchTerm('');
+    setProviderSearchTerm("");
   }, [providerModelSlug]);
 
   const markProgrammaticScroll = useCallback((duration = 150) => {
@@ -926,14 +948,14 @@ export default function ChatStudioExperience() {
   }, []);
 
   const scrollToBottom = useCallback(
-    (behavior: ScrollBehavior = 'smooth') => {
+    (behavior: ScrollBehavior = "smooth") => {
       if (!endRef.current) {
         return;
       }
       if (scrollAnimationFrameRef.current) {
         window.cancelAnimationFrame(scrollAnimationFrameRef.current);
       }
-      markProgrammaticScroll(behavior === 'smooth' ? 600 : 150);
+      markProgrammaticScroll(behavior === "smooth" ? 600 : 150);
       scrollAnimationFrameRef.current = window.requestAnimationFrame(() => {
         endRef.current?.scrollIntoView({ behavior });
         scrollAnimationFrameRef.current = null;
@@ -954,9 +976,9 @@ export default function ChatStudioExperience() {
     if (!autoScrollEnabled) {
       return;
     }
-    scrollToBottom('smooth');
+    scrollToBottom("smooth");
     const timeout = setTimeout(() => {
-      scrollToBottom('smooth');
+      scrollToBottom("smooth");
     }, 100);
     return () => clearTimeout(timeout);
   }, [autoScrollEnabled, chatEntryOrder, liveReasoningSegments, liveResponse, scrollToBottom]);
@@ -974,7 +996,7 @@ export default function ChatStudioExperience() {
     chatHydrationPendingRef.current = true;
   }, [selectedSessionId]);
 
-  const handleReasoningToggle = useCallback(() => { }, []);
+  const handleReasoningToggle = useCallback(() => {}, []);
 
   const getPersistedReasoningSegments = useCallback(
     (messageId: string, segments: ReasoningTraceSegment[]) => {
@@ -1010,7 +1032,8 @@ export default function ChatStudioExperience() {
     if (programmaticScrollRef.current) {
       return;
     }
-    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
     if (distanceFromBottom > 12) {
       if (autoScrollEnabled) {
         setAutoScrollEnabled(false);
@@ -1024,34 +1047,39 @@ export default function ChatStudioExperience() {
 
   const handleReenableAutoScroll = useCallback(() => {
     setAutoScrollEnabled(true);
-    scrollToBottom('smooth');
+    scrollToBottom("smooth");
   }, [scrollToBottom]);
 
   const showFollowButton =
-    !autoScrollEnabled &&
-    (chatEntryOrder.length > 0 || hasLiveText || hasDisplayedLiveReasoning);
+    !autoScrollEnabled && (chatEntryOrder.length > 0 || hasLiveText || hasDisplayedLiveReasoning);
 
   useEffect(() => {
-    console.debug('[chat] stream visibility', {
+    console.debug("[chat] stream visibility", {
       showStreamingBubble,
       activeStreamEntryKey,
       hasLiveText,
       liveResponseLength: liveResponse.length,
       isStreamingResponse,
     });
-  }, [activeStreamEntryKey, hasLiveText, isStreamingResponse, liveResponse.length, showStreamingBubble]);
+  }, [
+    activeStreamEntryKey,
+    hasLiveText,
+    isStreamingResponse,
+    liveResponse.length,
+    showStreamingBubble,
+  ]);
 
   useLayoutEffect(() => {
     const textarea = chatPromptRef.current;
     if (!textarea) return;
-    textarea.style.height = 'auto';
+    textarea.style.height = "auto";
     const fullHeight = textarea.scrollHeight;
     const clampedHeight = Math.max(
       CHAT_INPUT_MIN_HEIGHT,
       Math.min(fullHeight, CHAT_INPUT_MAX_HEIGHT),
     );
     textarea.style.height = `${clampedHeight}px`;
-    textarea.style.overflowY = fullHeight > CHAT_INPUT_MAX_HEIGHT ? 'auto' : 'hidden';
+    textarea.style.overflowY = fullHeight > CHAT_INPUT_MAX_HEIGHT ? "auto" : "hidden";
   }, [draft]);
 
   const pollSessionHistory = useCallback(
@@ -1073,7 +1101,7 @@ export default function ChatStudioExperience() {
         syncMessages(history, { hydrate: true });
         setToolTraces(deriveToolTraces(history));
         setUsage(calculateSessionUsage(history));
-        console.debug('[chat] polled session history', {
+        console.debug("[chat] polled session history", {
           sessionId,
           messageCount: history.length,
           hasUsage: Boolean(history.at(-1)?.usage),
@@ -1125,55 +1153,55 @@ export default function ChatStudioExperience() {
     return map;
   }, [toolTraces]);
 
-	  const chatEntries = useMemo<ChatEntry[]>(() => {
-	    const dedupedOptimistic = optimisticMessages.filter((optimistic) => {
-	      const trimmedOptimistic = optimistic.content.trim();
-	      if (!trimmedOptimistic) {
-	        return false;
-	      }
-	      const optimisticTimestamp = Date.parse(optimistic.created_at) || Date.now();
-	      return !messages.some((message) => {
-	        if (message.session_id !== optimistic.session_id) {
-	          return false;
-	        }
-	        if (message.role !== 'user') {
-	          return false;
-	        }
-	        if (message.content.trim() !== trimmedOptimistic) {
-	          return false;
-	        }
-	        const persistedTimestamp = Date.parse(message.created_at) || 0;
-	        return Math.abs(persistedTimestamp - optimisticTimestamp) < OPTIMISTIC_DEDUPE_WINDOW_MS;
-	      });
-	    });
-		    const combined = [...messages, ...dedupedOptimistic].sort((a, b) => {
-		      const aOrder = messageOrderRef.current.get(a.id);
-		      const bOrder = messageOrderRef.current.get(b.id);
-		      if (aOrder !== undefined && bOrder !== undefined) {
-		        return aOrder - bOrder;
-		      }
-		      if (aOrder !== undefined) {
-		        return -1;
-		      }
-		      if (bOrder !== undefined) {
-		        return 1;
-		      }
-		      const aTime = Date.parse(a.created_at) || 0;
-		      const bTime = Date.parse(b.created_at) || 0;
-		      if (aTime === bTime) {
-		        return a.id.localeCompare(b.id);
-		      }
-		      return aTime - bTime;
-		    });
+  const chatEntries = useMemo<ChatEntry[]>(() => {
+    const dedupedOptimistic = optimisticMessages.filter((optimistic) => {
+      const trimmedOptimistic = optimistic.content.trim();
+      if (!trimmedOptimistic) {
+        return false;
+      }
+      const optimisticTimestamp = Date.parse(optimistic.created_at) || Date.now();
+      return !messages.some((message) => {
+        if (message.session_id !== optimistic.session_id) {
+          return false;
+        }
+        if (message.role !== "user") {
+          return false;
+        }
+        if (message.content.trim() !== trimmedOptimistic) {
+          return false;
+        }
+        const persistedTimestamp = Date.parse(message.created_at) || 0;
+        return Math.abs(persistedTimestamp - optimisticTimestamp) < OPTIMISTIC_DEDUPE_WINDOW_MS;
+      });
+    });
+    const combined = [...messages, ...dedupedOptimistic].sort((a, b) => {
+      const aOrder = messageOrderRef.current.get(a.id);
+      const bOrder = messageOrderRef.current.get(b.id);
+      if (aOrder !== undefined && bOrder !== undefined) {
+        return aOrder - bOrder;
+      }
+      if (aOrder !== undefined) {
+        return -1;
+      }
+      if (bOrder !== undefined) {
+        return 1;
+      }
+      const aTime = Date.parse(a.created_at) || 0;
+      const bTime = Date.parse(b.created_at) || 0;
+      if (aTime === bTime) {
+        return a.id.localeCompare(b.id);
+      }
+      return aTime - bTime;
+    });
 
     return combined.flatMap((message) => {
       const entryList: ChatEntry[] = [];
-	      const createdAt = message.created_at;
-      const trimmedContent = message.content?.trim() ?? '';
-      const isAssistant = message.role === 'assistant';
-      const isUser = message.role === 'user';
-      const isSystem = message.role === 'system';
-      const isTool = message.role === 'tool';
+      const createdAt = message.created_at;
+      const trimmedContent = message.content?.trim() ?? "";
+      const isAssistant = message.role === "assistant";
+      const isUser = message.role === "user";
+      const isSystem = message.role === "system";
+      const isTool = message.role === "tool";
       const isToolCallPlaceholder =
         isAssistant &&
         !trimmedContent &&
@@ -1191,11 +1219,11 @@ export default function ChatStudioExperience() {
         if (assistantSegments.length > 0) {
           entryList.push({
             id: `${message.id}:reasoning:assistant`,
-            type: 'reasoning',
+            type: "reasoning",
             messageId: message.id,
-            source: 'assistant',
-            title: 'Reasoning',
-            subtitle: 'Assistant reasoning',
+            source: "assistant",
+            title: "Reasoning",
+            subtitle: "Assistant reasoning",
             segments: assistantSegments,
             createdAt,
           });
@@ -1206,16 +1234,18 @@ export default function ChatStudioExperience() {
         const trace = message.tool_call_id ? toolTraceMap.get(message.tool_call_id) : null;
         const toolSegments = getPersistedReasoningSegments(
           `${message.id}-tool-reasoning`,
-          trace ? normalizeReasoningSegments(trace.reasoning) : normalizeReasoningSegments(message.reasoning_trace),
+          trace
+            ? normalizeReasoningSegments(trace.reasoning)
+            : normalizeReasoningSegments(message.reasoning_trace),
         );
-        const toolLabel = formatToolLabel(trace?.name || message.tool_name || 'Tool');
+        const toolLabel = formatToolLabel(trace?.name || message.tool_name || "Tool");
         if (toolSegments.length > 0) {
           entryList.push({
             id: `${message.id}:reasoning:tool`,
-            type: 'reasoning',
+            type: "reasoning",
             messageId: message.id,
-            source: 'tool',
-            title: 'Reasoning',
+            source: "tool",
+            title: "Reasoning",
             subtitle: toolLabel,
             segments: toolSegments,
             relatedToolLabel: toolLabel,
@@ -1230,16 +1260,16 @@ export default function ChatStudioExperience() {
           ...coerceRecord(rawPayload),
           ...(trace
             ? {
-              arguments: trace.arguments,
-              response: trace.response,
-            }
+                arguments: trace.arguments,
+                response: trace.response,
+              }
             : {}),
         };
         const argsRecord = coerceRecord(payloadRecord.arguments ?? {});
         const responseRecord = coerceRecord(payloadRecord.response ?? payloadRecord);
         entryList.push({
           id: `${message.id}:tool`,
-          type: 'tool-call',
+          type: "tool-call",
           message,
           messageId: message.id,
           label: toolLabel,
@@ -1254,10 +1284,10 @@ export default function ChatStudioExperience() {
       if (!isToolCallPlaceholder && (isUser || isAssistant || isSystem)) {
         entryList.push({
           id: message.id,
-          type: isAssistant ? 'assistant' : isUser ? 'user' : 'system',
+          type: isAssistant ? "assistant" : isUser ? "user" : "system",
           message,
           messageId: message.id,
-          content: trimmedContent || 'No response captured.',
+          content: trimmedContent || "No response captured.",
           createdAt,
         });
       }
@@ -1282,7 +1312,7 @@ export default function ChatStudioExperience() {
       if (sameOrder) {
         return prev;
       }
-      console.debug('[chat] normalized entries', { normalizedChatEntryIds });
+      console.debug("[chat] normalized entries", { normalizedChatEntryIds });
       return normalizedChatEntryIds;
     });
     chatHydrationPendingRef.current = false;
@@ -1291,7 +1321,7 @@ export default function ChatStudioExperience() {
   const toolReadyModels = useMemo(
     () =>
       modelCatalog.filter((model) =>
-        (model.supported_parameters || []).some((param) => param.toLowerCase() === 'tools'),
+        (model.supported_parameters || []).some((param) => param.toLowerCase() === "tools"),
       ),
     [modelCatalog],
   );
@@ -1302,20 +1332,20 @@ export default function ChatStudioExperience() {
     return toolReadyModels.filter((model) => {
       const haystack = [model.name, model.id, model.canonical_slug, model.description]
         .filter(Boolean)
-        .join(' ')
+        .join(" ")
         .toLowerCase();
       return haystack.includes(query);
     });
   }, [modelSearchTerm, toolReadyModels]);
 
   const selectedModelKey = useMemo(
-    () => activeModelId || collection?.chat_model || '',
+    () => activeModelId || collection?.chat_model || "",
     [activeModelId, collection?.chat_model],
   );
 
   const substitutePromptVariables = useCallback(
     (templateValue: string) => {
-      if (!templateValue) return '';
+      if (!templateValue) return "";
       if (!promptDetails) return templateValue;
       return templateValue.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, rawKey) => {
         const key = String(rawKey).trim();
@@ -1332,17 +1362,16 @@ export default function ChatStudioExperience() {
     if (promptDetails?.template) {
       return substitutePromptVariables(promptDetails.template);
     }
-    return promptDetails?.rendered ?? '';
+    return promptDetails?.rendered ?? "";
   }, [promptDraft, promptDetails, substitutePromptVariables]);
 
   const promptHasChanges = useMemo(() => {
     if (!promptDetails) {
       return Boolean(promptDraft);
     }
-    const original = promptDetails.template ?? '';
+    const original = promptDetails.template ?? "";
     return promptDraft !== original;
   }, [promptDetails, promptDraft]);
-
 
   const liveReasoningSegmentsRef = useRef<ReasoningTraceSegment[]>([]);
   const streamedReasoningAllRef = useRef<ReasoningTraceSegment[]>([]);
@@ -1372,7 +1401,7 @@ export default function ChatStudioExperience() {
   useEffect(() => {
     const persistedToolIds = new Set<string>();
     messages.forEach((message) => {
-      if (message.role === 'tool') {
+      if (message.role === "tool") {
         const toolId = message.tool_call_id || message.id;
         if (toolId) {
           persistedToolIds.add(toolId);
@@ -1389,98 +1418,96 @@ export default function ChatStudioExperience() {
     });
   }, [messages]);
 
-	  const applyChatResponse = useCallback((response: ChatCompletionPayload) => {
-	    console.debug('[chat] applyChatResponse start', {
-	      activeStreamEntryKey: activeStreamEntryKeyRef.current,
-	      responseMessages: response.messages.length,
-	    });
-	    finalizeLiveReasoningBlock();
-	    const streamedReasoningSegments = streamedReasoningAllRef.current;
-	    setLiveResponse('');
-	    setIsStreamingResponse(false);
-	    setPersistedLiveReasoningSegments(streamedReasoningSegments);
-	    setLiveReasoningSegments([]);
-	    setLiveReasoningBlocks([]);
-	    streamedReasoningAllRef.current = [];
-	    const finalAssistant = [...response.messages].reverse().find((msg) => msg.role === 'assistant');
-	    setFinalStreamAssistantId(finalAssistant?.id ?? null);
-    const streamKey = activeStreamEntryKeyRef.current;
-    if (finalAssistant?.id && streamKey) {
-      setStreamEntryKeyMap((prev) => ({ ...prev, [finalAssistant.id]: streamKey }));
-    }
-    pendingSessionIdsRef.current.delete(response.session.id);
-
-    // Check if we need to inject persisted reasoning into the final assistant message
-    // This handles the case where the tool call response doesn't include the reasoning trace
-    // that was just streamed.
-    let messagesToSync = response.messages;
-    if (finalAssistant && streamedReasoningSegments.length > 0) {
-      const hasReasoning =
-        finalAssistant.reasoning_trace?.segments && finalAssistant.reasoning_trace.segments.length > 0;
-      if (!hasReasoning) {
-        messagesToSync = messagesToSync.map((msg) => {
-          if (msg.id === finalAssistant.id) {
-            return {
-              ...msg,
-              reasoning_trace: {
-                segments: streamedReasoningSegments,
-              },
-            };
-          }
-          return msg;
-        });
+  const applyChatResponse = useCallback(
+    (response: ChatCompletionPayload) => {
+      console.debug("[chat] applyChatResponse start", {
+        activeStreamEntryKey: activeStreamEntryKeyRef.current,
+        responseMessages: response.messages.length,
+      });
+      finalizeLiveReasoningBlock();
+      const streamedReasoningSegments = streamedReasoningAllRef.current;
+      setLiveResponse("");
+      setIsStreamingResponse(false);
+      setPersistedLiveReasoningSegments(streamedReasoningSegments);
+      setLiveReasoningSegments([]);
+      setLiveReasoningBlocks([]);
+      streamedReasoningAllRef.current = [];
+      const finalAssistant = [...response.messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+      setFinalStreamAssistantId(finalAssistant?.id ?? null);
+      const streamKey = activeStreamEntryKeyRef.current;
+      if (finalAssistant?.id && streamKey) {
+        setStreamEntryKeyMap((prev) => ({ ...prev, [finalAssistant.id]: streamKey }));
       }
-    }
+      pendingSessionIdsRef.current.delete(response.session.id);
 
-    const enrichedMessages = attachUsageToLastAssistantMessage(
-      messagesToSync,
-      response.usage ?? null,
-    );
-    // Always hydrate when streaming to prevent delayed message reveals
-    syncMessages(enrichedMessages, { hydrate: true });
-    console.debug('[chat] applied chat response', {
-      messages: response.messages.length,
-      toolTraces: response.tool_traces?.length ?? 0,
-      usage: response.usage,
-    });
-    const nextToolTraces =
-      response.tool_traces && response.tool_traces.length > 0
-        ? response.tool_traces
-        : deriveToolTraces(response.messages);
-    setToolTraces(nextToolTraces);
-    setUsage(calculateSessionUsage(enrichedMessages) ?? response.usage ?? null);
-    setContextConsumed(response.context_consumed);
-    setContextWindow(response.context_window || collection?.context_window || 0);
-    setSelectedSessionId(response.session.id);
-    setActiveModelId(response.session.chat_model);
-    setSessions((prev) => {
-      const next = [...prev];
-      const idx = next.findIndex((session) => session.id === response.session.id);
-      if (idx >= 0) {
-        next[idx] = response.session;
-      } else {
-        next.push(response.session);
+      // Check if we need to inject persisted reasoning into the final assistant message
+      // This handles the case where the tool call response doesn't include the reasoning trace
+      // that was just streamed.
+      let messagesToSync = response.messages;
+      if (finalAssistant && streamedReasoningSegments.length > 0) {
+        const hasReasoning =
+          finalAssistant.reasoning_trace?.segments &&
+          finalAssistant.reasoning_trace.segments.length > 0;
+        if (!hasReasoning) {
+          messagesToSync = messagesToSync.map((msg) => {
+            if (msg.id === finalAssistant.id) {
+              return {
+                ...msg,
+                reasoning_trace: {
+                  segments: streamedReasoningSegments,
+                },
+              };
+            }
+            return msg;
+          });
+        }
       }
-      return sortSessions(next);
-    });
-	  },
-	    [
-	      collection,
-	      deriveToolTraces,
-	      finalizeLiveReasoningBlock,
-	      sortSessions,
-	      syncMessages,
-	    ],
-	  );
+
+      const enrichedMessages = attachUsageToLastAssistantMessage(
+        messagesToSync,
+        response.usage ?? null,
+      );
+      // Always hydrate when streaming to prevent delayed message reveals
+      syncMessages(enrichedMessages, { hydrate: true });
+      console.debug("[chat] applied chat response", {
+        messages: response.messages.length,
+        toolTraces: response.tool_traces?.length ?? 0,
+        usage: response.usage,
+      });
+      const nextToolTraces =
+        response.tool_traces && response.tool_traces.length > 0
+          ? response.tool_traces
+          : deriveToolTraces(response.messages);
+      setToolTraces(nextToolTraces);
+      setUsage(calculateSessionUsage(enrichedMessages) ?? response.usage ?? null);
+      setContextConsumed(response.context_consumed);
+      setContextWindow(response.context_window || collection?.context_window || 0);
+      setSelectedSessionId(response.session.id);
+      setActiveModelId(response.session.chat_model);
+      setSessions((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((session) => session.id === response.session.id);
+        if (idx >= 0) {
+          next[idx] = response.session;
+        } else {
+          next.push(response.session);
+        }
+        return sortSessions(next);
+      });
+    },
+    [collection, deriveToolTraces, finalizeLiveReasoningBlock, sortSessions, syncMessages],
+  );
 
   const isAbortError = (value: unknown): value is DOMException =>
-    value instanceof DOMException && value.name === 'AbortError';
+    value instanceof DOMException && value.name === "AbortError";
 
   const handleSend = async () => {
     if (!authToken || !collection) return;
     const targetModelId = activeModelId || collection.chat_model;
     if (!targetModelId) {
-      setStatus('Select a chat model before sending a message.');
+      setStatus("Select a chat model before sending a message.");
       return;
     }
     const trimmed = draft.trim();
@@ -1495,7 +1522,7 @@ export default function ChatStudioExperience() {
         collection_id: collection.id,
         user_id: collection.user_id,
         title: `Chat ${new Date().toLocaleTimeString()}`,
-        mode: 'chat',
+        mode: "chat",
         chat_model: targetModelId,
         context_tokens: 0,
         created_at: new Date().toISOString(),
@@ -1506,28 +1533,28 @@ export default function ChatStudioExperience() {
     }
     if (!sessionId) return;
 
-    setDraft('');
-	    const placeholderMessageId = generateClientMessageId();
-	    const placeholderMessage: ChatMessage = {
-	      id: placeholderMessageId,
-	      session_id: sessionId,
-	      role: 'user',
-	      content: trimmed,
-	      created_at: new Date().toISOString(),
-	    };
-	    ensureMessageOrder(messageOrderRef.current, nextMessageOrderRef, [placeholderMessage]);
-	    setOptimisticMessages((prev) => [...prev, placeholderMessage]);
+    setDraft("");
+    const placeholderMessageId = generateClientMessageId();
+    const placeholderMessage: ChatMessage = {
+      id: placeholderMessageId,
+      session_id: sessionId,
+      role: "user",
+      content: trimmed,
+      created_at: new Date().toISOString(),
+    };
+    ensureMessageOrder(messageOrderRef.current, nextMessageOrderRef, [placeholderMessage]);
+    setOptimisticMessages((prev) => [...prev, placeholderMessage]);
 
     const parameterPayload = buildParameterPayload();
     const parameters = Object.keys(parameterPayload).length > 0 ? parameterPayload : undefined;
     const provider = providerRuleCount > 0 ? providerPayload : undefined;
-    setLiveResponse('');
+    setLiveResponse("");
     setIsStreamingResponse(false);
     resetLiveReasoningState();
     try {
       await performChatMutation(sessionId, {
         content: trimmed,
-        mode: 'chat',
+        mode: "chat",
         title: isNewSession ? `Chat ${new Date().toLocaleTimeString()}` : undefined,
         chat_model: targetModelId,
         parameters,
@@ -1548,7 +1575,7 @@ export default function ChatStudioExperience() {
       }
       if (!aborted) {
         const statusMessage =
-          error instanceof Error ? error.message : 'Unable to send your message.';
+          error instanceof Error ? error.message : "Unable to send your message.";
         setStatus(statusMessage);
       }
     } finally {
@@ -1571,7 +1598,7 @@ export default function ChatStudioExperience() {
     if (!authToken || !collection || !selectedSessionId) return;
     const targetModelId = activeModelId || collection.chat_model;
     if (!targetModelId) {
-      setStatus('Select a chat model before sending a message.');
+      setStatus("Select a chat model before sending a message.");
       return;
     }
     const parameterPayload = buildParameterPayload();
@@ -1587,16 +1614,16 @@ export default function ChatStudioExperience() {
       await performChatMutation(selectedSessionId, {
         content: newContent,
         edit_message_id: messageId,
-        mode: 'chat',
+        mode: "chat",
         chat_model: targetModelId,
         parameters,
         provider,
         stream: streamingEnabled,
       });
       setEditingMessageId(null);
-      setEditingDraft('');
+      setEditingDraft("");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Unable to edit this turn.');
+      setStatus(error instanceof Error ? error.message : "Unable to edit this turn.");
     }
   };
 
@@ -1604,14 +1631,14 @@ export default function ChatStudioExperience() {
     if (!editingMessageId) return;
     const trimmed = editingDraft.trim();
     if (!trimmed) {
-      setStatus('Edited message cannot be empty.');
+      setStatus("Edited message cannot be empty.");
       return;
     }
     await runEditMutation(editingMessageId, trimmed);
   };
 
   const handleRetryAssistant = async (messageId: string) => {
-    await runEditMutation(messageId, '');
+    await runEditMutation(messageId, "");
   };
 
   const handleStartNewChat = () => {
@@ -1626,19 +1653,19 @@ export default function ChatStudioExperience() {
     setStreamEntryKeyMap({});
     setUsage(null);
     setContextConsumed(0);
-    setDraft('');
-    setLiveResponse('');
+    setDraft("");
+    setLiveResponse("");
     setIsStreamingResponse(false);
     setActiveStreamEntryKey(null);
     activeStreamEntryKeyRef.current = null;
     resetLiveReasoningState();
     setEditingMessageId(null);
-    setEditingDraft('');
+    setEditingDraft("");
     setOptimisticMessages([]);
   };
 
   const handleExportChatHistory = useCallback(() => {
-    if (typeof document === 'undefined') {
+    if (typeof document === "undefined") {
       return;
     }
     const sortedMessages = sortMessagesChronologically(messages);
@@ -1647,12 +1674,11 @@ export default function ChatStudioExperience() {
       sessions.find((session) => session.id === selectedSessionId)?.title ?? null,
     );
     const idSegment = sanitizeFileName(selectedSessionId ?? null);
-    const fallbackSegment =
-      titleSegment || idSegment || sanitizeFileName(new Date().toISOString());
+    const fallbackSegment = titleSegment || idSegment || sanitizeFileName(new Date().toISOString());
     const fileName = `chat-history-${fallbackSegment || Date.now().toString(36)}.json`;
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
+    const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = fileName;
     anchor.click();
@@ -1661,7 +1687,7 @@ export default function ChatStudioExperience() {
 
   const handlePromptEditorOpen = useCallback(() => {
     if (promptDetails) {
-      setPromptDraft(promptDetails.template ?? '');
+      setPromptDraft(promptDetails.template ?? "");
     }
     setPromptEditorOpen(true);
     window.setTimeout(() => {
@@ -1689,13 +1715,13 @@ export default function ChatStudioExperience() {
         });
         return next;
       }
-      const spacer = prev.endsWith(' ') || prev.endsWith('\n') || prev.length === 0 ? '' : ' ';
+      const spacer = prev.endsWith(" ") || prev.endsWith("\n") || prev.length === 0 ? "" : " ";
       return `${prev}${spacer}${insertion}`;
     });
   }, []);
 
   const handlePromptReset = useCallback(() => {
-    setPromptDraft('');
+    setPromptDraft("");
     window.requestAnimationFrame(() => {
       promptEditorRef.current?.focus();
     });
@@ -1703,7 +1729,7 @@ export default function ChatStudioExperience() {
 
   const handlePromptSave = useCallback(async () => {
     if (!authToken || !collectionId) {
-      setPromptError('Sign in to update the system prompt.');
+      setPromptError("Sign in to update the system prompt.");
       return;
     }
     setPromptSaving(true);
@@ -1711,11 +1737,11 @@ export default function ChatStudioExperience() {
     try {
       const updated = await updateCollectionPrompt(collectionId, promptDraft, authToken);
       setPromptDetails(updated);
-      setPromptDraft(updated.template ?? '');
+      setPromptDraft(updated.template ?? "");
       setPromptEditorOpen(false);
     } catch (error) {
       setPromptError(
-        error instanceof Error ? error.message : 'Unable to update the system prompt right now.',
+        error instanceof Error ? error.message : "Unable to update the system prompt right now.",
       );
     } finally {
       setPromptSaving(false);
@@ -1744,7 +1770,7 @@ export default function ChatStudioExperience() {
         }
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Unable to delete chat session.');
+      setStatus(error instanceof Error ? error.message : "Unable to delete chat session.");
     } finally {
       setDeletingSessionId((current) => (current === sessionId ? null : current));
     }
@@ -1756,7 +1782,7 @@ export default function ChatStudioExperience() {
         const next = { ...prev };
         if (value === undefined || value === null) {
           delete next[key];
-        } else if (typeof value === 'string' && value.trim() === '') {
+        } else if (typeof value === "string" && value.trim() === "") {
           delete next[key];
         } else {
           next[key] = value;
@@ -1769,7 +1795,7 @@ export default function ChatStudioExperience() {
 
   const handleNumberParameterChange = useCallback(
     (key: ModelParameterKey, rawValue: string, asInteger = false) => {
-      if (rawValue === '') {
+      if (rawValue === "") {
         updateParameterValue(key, undefined);
         return;
       }
@@ -1821,9 +1847,9 @@ export default function ChatStudioExperience() {
       const rawValue = currentModelInfo.default_parameters[key];
       if (rawValue === undefined || rawValue === null) return null;
       if (Array.isArray(rawValue)) {
-        return rawValue.join(', ');
+        return rawValue.join(", ");
       }
-      if (typeof rawValue === 'object') {
+      if (typeof rawValue === "object") {
         try {
           return JSON.stringify(rawValue);
         } catch {
@@ -1851,8 +1877,8 @@ export default function ChatStudioExperience() {
       if (rawValue === undefined || rawValue === null) {
         return;
       }
-      if (normalizedKey === 'reasoning') {
-        if (typeof rawValue === 'string') {
+      if (normalizedKey === "reasoning") {
+        if (typeof rawValue === "string") {
           const trimmedReasoning = rawValue.trim().toLowerCase();
           if (!trimmedReasoning) {
             return;
@@ -1860,12 +1886,12 @@ export default function ChatStudioExperience() {
           payload[normalizedKey] = { effort: trimmedReasoning };
           return;
         }
-        if (typeof rawValue === 'object') {
+        if (typeof rawValue === "object") {
           payload[normalizedKey] = rawValue;
         }
         return;
       }
-      if (typeof rawValue === 'string') {
+      if (typeof rawValue === "string") {
         const trimmed = rawValue.trim();
         if (!trimmed) {
           return;
@@ -1879,11 +1905,11 @@ export default function ChatStudioExperience() {
   }, [currentModelInfo, parameterOverrides]);
 
   const performChatMutation = useCallback(
-    async (sessionId: string, payload: Omit<ChatRequestPayload, 'session_id'>) => {
+    async (sessionId: string, payload: Omit<ChatRequestPayload, "session_id">) => {
       if (!authToken || !collection) {
-        throw new Error('Missing authentication context.');
+        throw new Error("Missing authentication context.");
       }
-      console.debug('[chat] performChatMutation start', {
+      console.debug("[chat] performChatMutation start", {
         stream: payload.stream,
         sessionId,
         hasAbortController: Boolean(abortControllerRef.current),
@@ -1894,7 +1920,7 @@ export default function ChatStudioExperience() {
       setIsStopping(false);
       setSending(true);
       setStatus(null);
-      setLiveResponse('');
+      setLiveResponse("");
       setIsStreamingResponse(false);
       isStreamingResponseRef.current = false;
       setFinalStreamAssistantId(null);
@@ -1934,12 +1960,15 @@ export default function ChatStudioExperience() {
             },
             onToolCall: (event) => {
               finalizeLiveReasoningBlock();
-              const rawId = typeof event.id === 'string' && event.id.trim() ? event.id.trim() : null;
+              const rawId =
+                typeof event.id === "string" && event.id.trim() ? event.id.trim() : null;
               const toolId =
                 rawId ??
                 `tool-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
               const phaseIndex = streamReasoningPhaseRef.current;
-              setLiveToolPhaseById((prev) => (prev[toolId] === phaseIndex ? prev : { ...prev, [toolId]: phaseIndex }));
+              setLiveToolPhaseById((prev) =>
+                prev[toolId] === phaseIndex ? prev : { ...prev, [toolId]: phaseIndex },
+              );
               setLiveToolOrder((prev) => (prev.includes(toolId) ? prev : [...prev, toolId]));
               streamReasoningPhaseRef.current = phaseIndex + 1;
               setLiveReasoningPhase(phaseIndex + 1);
@@ -1951,7 +1980,8 @@ export default function ChatStudioExperience() {
               });
             },
             onToolResult: (event) => {
-              const rawId = typeof event.id === 'string' && event.id.trim() ? event.id.trim() : null;
+              const rawId =
+                typeof event.id === "string" && event.id.trim() ? event.id.trim() : null;
               const toolId =
                 rawId ??
                 `tool-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1984,7 +2014,7 @@ export default function ChatStudioExperience() {
           );
         }
         if (!result) {
-          throw new Error('Streaming response did not complete.');
+          throw new Error("Streaming response did not complete.");
         }
         applyChatResponse(result);
         return result;
@@ -1993,7 +2023,7 @@ export default function ChatStudioExperience() {
         isStreamingResponseRef.current = false;
         const shouldClearLiveState = !isAbortError(error);
         if (shouldClearLiveState) {
-          setLiveResponse('');
+          setLiveResponse("");
           resetLiveReasoningState();
         }
         throw error;
@@ -2002,55 +2032,28 @@ export default function ChatStudioExperience() {
         setSending(false);
         setIsStopping(false);
         abortControllerRef.current = null;
-        console.debug('[chat] performChatMutation finished', {
+        console.debug("[chat] performChatMutation finished", {
           stream: payload.stream,
           succeeded: true,
         });
       }
     },
-	    [
-	      applyChatResponse,
-	      authToken,
-	      collection,
-	      finalizeLiveReasoningBlock,
-	      setActiveStreamEntryKey,
-	      resetLiveReasoningState,
-	      startProgressPolling,
-	      stopProgressPolling,
-	      upsertLiveToolEvent,
-	    ],
-	  );
+    [
+      applyChatResponse,
+      authToken,
+      collection,
+      finalizeLiveReasoningBlock,
+      setActiveStreamEntryKey,
+      resetLiveReasoningState,
+      startProgressPolling,
+      stopProgressPolling,
+      upsertLiveToolEvent,
+    ],
+  );
 
   return (
     <Fragment>
       <div className="flex h-full flex-col gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex flex-wrap items-baseline gap-3">
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Chat studio</p>
-              <h1 className="text-3xl font-semibold text-white min-w-0 truncate">
-                {collection ? collection.name : 'Loading collection…'}
-              </h1>
-            </div>
-            {collection && headerDescription && (
-              <p
-                className="text-sm text-slate-400 break-words"
-                style={{ maxWidth: 'clamp(18rem, 50vw, 40rem)' }}
-              >
-                {headerDescription}
-              </p>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            className="flex-shrink-0 items-center gap-2 whitespace-nowrap"
-            onClick={() => router.push('/chat')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Collections
-          </Button>
-        </div>
-
         {status && (
           <GlassCard className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-100">
             {status}
@@ -2098,7 +2101,9 @@ export default function ChatStudioExperience() {
               <div className="relative flex min-w-0 flex-1 flex-col min-h-0">
                 <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Conversation</p>
+                    <p className="text-xs uppercase tracking-[0.35em] text-slate-500">
+                      Conversation
+                    </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <h2 className="text-2xl font-semibold text-white">{collection.name}</h2>
                       <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
@@ -2125,7 +2130,7 @@ export default function ChatStudioExperience() {
                     ref={messagesContainerRef}
                     onScroll={handleScroll}
                     className="relative flex-1 min-h-0 overflow-y-auto px-16 py-6 scroll-smooth !overflow-anchor-none"
-                    style={{ overflowAnchor: 'none' }}
+                    style={{ overflowAnchor: "none" }}
                   >
                     <div className="flex h-full flex-col gap-4">
                       <ChatTimeline
@@ -2146,7 +2151,7 @@ export default function ChatStudioExperience() {
                         }}
                         onEditCancel={() => {
                           setEditingMessageId(null);
-                          setEditingDraft('');
+                          setEditingDraft("");
                         }}
                         onEditSubmit={handleEditSubmit}
                         onRetryAssistant={handleRetryAssistant}
@@ -2158,15 +2163,15 @@ export default function ChatStudioExperience() {
                         hasLiveText={hasLiveText}
                         liveResponseAnimationKey={liveResponseAnimationKey}
                         activeStreamEntryKey={activeStreamEntryKey}
-	                        shouldShowStreamingReasoningBubble={shouldShowStreamingReasoningBubble}
-	                        liveReasoningAnimationKey={liveReasoningAnimationKey}
-	                        liveReasoningBlocks={liveReasoningBlocks}
-	                        liveReasoningPhase={liveReasoningPhase}
-	                        liveToolOrder={liveToolOrder}
-	                        liveToolPhaseById={liveToolPhaseById}
-	                        liveReasoningDisplaySegments={liveReasoningDisplaySegments}
-	                        showStreamingBubble={showStreamingBubble}
-	                      />
+                        shouldShowStreamingReasoningBubble={shouldShowStreamingReasoningBubble}
+                        liveReasoningAnimationKey={liveReasoningAnimationKey}
+                        liveReasoningBlocks={liveReasoningBlocks}
+                        liveReasoningPhase={liveReasoningPhase}
+                        liveToolOrder={liveToolOrder}
+                        liveToolPhaseById={liveToolPhaseById}
+                        liveReasoningDisplaySegments={liveReasoningDisplaySegments}
+                        showStreamingBubble={showStreamingBubble}
+                      />
                       <div ref={endRef} />
                     </div>
                   </div>
@@ -2191,7 +2196,6 @@ export default function ChatStudioExperience() {
                     onStop={handleStopGeneration}
                     inputRef={chatPromptRef}
                   />
-
                 </div>
               </div>
 
@@ -2287,7 +2291,6 @@ export default function ChatStudioExperience() {
         inputRef={promptEditorRef}
         markdownComponents={markdownComponents}
       />
-
     </Fragment>
   );
 }

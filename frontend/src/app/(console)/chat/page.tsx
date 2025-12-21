@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import { ArrowRight, ChevronDown, MessageSquare, Sparkles } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, ChevronDown, MessageSquare, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Loader } from '@/components/ui/loader';
-import { GlassCard } from '@/components/ui/panel';
-import { fetchCollections, fetchDocuments, listChatSessions } from '@/lib/api';
-import { cn, timeAgo } from '@/lib/utils';
-import { useAuth } from '@/providers/auth-provider';
+import { Button } from "@/components/ui/button";
+import { Loader } from "@/components/ui/loader";
+import { GlassCard } from "@/components/ui/panel";
+import { fetchCollections, fetchDocuments, listChatSessions } from "@/lib/api";
+import { cn, timeAgo } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
-import type { ChatSession, Collection, Document } from '@/lib/types';
+import type { ChatSession, Collection, Document } from "@/lib/types";
 
 interface CollectionSummary {
   documents: number;
@@ -21,7 +21,7 @@ interface CollectionSummary {
 
 type SummaryMap = Record<string, CollectionSummary>;
 
-const COLLECTIONS_ROUTE = '/collections';
+const COLLECTIONS_ROUTE = "/collections";
 
 export default function ChatStudioLanding() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function ChatStudioLanding() {
       return;
     }
 
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     let cancelled = false;
 
     async function hydrate() {
@@ -78,7 +78,7 @@ export default function ChatStudioLanding() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Unable to load collections.');
+          setError(err instanceof Error ? err.message : "Unable to load collections.");
         }
       } finally {
         if (!cancelled) {
@@ -99,10 +99,10 @@ export default function ChatStudioLanding() {
 
   const hasCollections = collections.length > 0;
   const headline = useMemo(() => {
-    if (error) return 'Something went wrong';
-    if (!token) return 'Sign in to view your chat studio';
-    if (!hasCollections) return 'No collections yet';
-    return 'Pick a collection to launch the studio';
+    if (error) return "Something went wrong";
+    if (!token) return "Sign in to view your chat studio";
+    if (!hasCollections) return "No collections yet";
+    return "Pick a collection to launch the studio";
   }, [error, hasCollections, token]);
 
   return (
@@ -110,7 +110,9 @@ export default function ChatStudioLanding() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Chat studio</p>
-          <h1 className="text-3xl font-semibold text-white">A focused workspace for multi-turn chats.</h1>
+          <h1 className="text-3xl font-semibold text-white">
+            A focused workspace for multi-turn chats.
+          </h1>
           <p className="mt-2 text-sm text-slate-400">{headline}</p>
         </div>
         <Button
@@ -135,8 +137,8 @@ export default function ChatStudioLanding() {
       ) : !hasCollections ? (
         <GlassCard className="rounded-3xl p-8 text-sm text-slate-300">
           <p>
-            You don&apos;t have any collections yet. Ingest documents on the collections page to unlock the
-            chat studio.
+            You don&apos;t have any collections yet. Ingest documents on the collections page to
+            unlock the chat studio.
           </p>
           <Button className="mt-4" onClick={() => router.push(COLLECTIONS_ROUTE)}>
             Create a collection
@@ -154,7 +156,7 @@ export default function ChatStudioLanding() {
                     <p className="text-xs uppercase tracking-[0.35em] text-slate-400">collection</p>
                     <h2 className="text-xl font-semibold text-white">{collection.name}</h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      {collection.description?.slice(0, 120) || 'No description yet.'}
+                      {collection.description?.slice(0, 120) || "No description yet."}
                     </p>
                   </div>
                   <button
@@ -163,20 +165,30 @@ export default function ChatStudioLanding() {
                     className="rounded-full border border-white/10 p-2 text-slate-300 hover:border-white/30"
                     aria-label="Toggle collection details"
                   >
-                    <ChevronDown className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
+                    <ChevronDown
+                      className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")}
+                    />
                   </button>
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {[{
-                    label: 'Documents',
-                    value: summary.documents.toLocaleString(),
-                  }, {
-                    label: 'Chats',
-                    value: summary.sessions.toLocaleString(),
-                  }].map((stat) => (
-                    <div key={`${collection.id}-${stat.label}`} className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{stat.label}</p>
+                  {[
+                    {
+                      label: "Documents",
+                      value: summary.documents.toLocaleString(),
+                    },
+                    {
+                      label: "Chats",
+                      value: summary.sessions.toLocaleString(),
+                    },
+                  ].map((stat) => (
+                    <div
+                      key={`${collection.id}-${stat.label}`}
+                      className="rounded-2xl border border-white/5 bg-white/5 p-4"
+                    >
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                        {stat.label}
+                      </p>
                       <p className="mt-2 text-2xl font-semibold">{stat.value}</p>
                     </div>
                   ))}
@@ -196,12 +208,15 @@ export default function ChatStudioLanding() {
                         Embeddings: <span className="text-white">{collection.embedding_model}</span>
                       </li>
                       <li>
-                        Context window: <span className="text-white">{collection.context_window.toLocaleString()} tokens</span>
+                        Context window:{" "}
+                        <span className="text-white">
+                          {collection.context_window.toLocaleString()} tokens
+                        </span>
                       </li>
                       <li>
-                        Last active:{' '}
+                        Last active:{" "}
                         <span className="text-white">
-                          {summary.lastUpdated ? timeAgo(summary.lastUpdated) : 'Never'}
+                          {summary.lastUpdated ? timeAgo(summary.lastUpdated) : "Never"}
                         </span>
                       </li>
                     </ul>

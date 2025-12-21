@@ -1,29 +1,29 @@
-'use client';
+"use client";
 
-import { Bot, FolderTree, Home, MessageSquare } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { Bot, FolderTree, Home, MessageSquare } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/providers/auth-provider';
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
 const navLinks = [
-  { href: '/dashboard', label: 'Overview', icon: Home },
-  { href: '/collections', label: 'Collections', icon: FolderTree },
-  { href: '/chat', label: 'Chat Studio', icon: MessageSquare },
+  { href: "/dashboard", label: "Overview", icon: Home },
+  { href: "/collections", label: "Collections", icon: FolderTree },
+  { href: "/chat", label: "Chat Studio", icon: MessageSquare },
 ];
 
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const isChatRoute = pathname?.startsWith('/chat');
+  const isChatRoute = pathname?.startsWith("/chat");
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace('/auth/sign-in');
+      router.replace("/auth/sign-in");
     }
   }, [loading, user, router]);
 
@@ -36,7 +36,12 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
   }
 
   return (
-    <div className={cn('flex min-h-screen flex-col bg-slate-950 text-slate-100', isChatRoute && 'h-screen')}>
+    <div
+      className={cn(
+        "flex min-h-screen flex-col bg-slate-950 text-slate-100",
+        isChatRoute && "h-screen",
+      )}
+    >
       <header className="sticky top-0 z-30 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 lg:px-8">
           <Link href="/dashboard" className="flex items-center gap-3 text-white">
@@ -56,10 +61,10 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    'rounded-full px-4 py-2 font-medium transition',
+                    "rounded-full px-4 py-2 font-medium transition",
                     isActive
-                      ? 'bg-white/15 text-white shadow shadow-violet-500/40'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-white',
+                      ? "bg-white/15 text-white shadow shadow-violet-500/40"
+                      : "text-slate-400 hover:bg-white/5 hover:text-white",
                   )}
                 >
                   {link.label}
@@ -80,8 +85,8 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
       </header>
       <main
         className={cn(
-          'flex-1 px-4 py-6 lg:px-10 lg:py-8 min-h-0',
-          isChatRoute && 'overflow-hidden',
+          "flex-1 px-4 py-6 lg:px-10 lg:py-8 min-h-0",
+          isChatRoute && "overflow-hidden",
         )}
       >
         {isChatRoute ? <div className="h-full">{children}</div> : children}

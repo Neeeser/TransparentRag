@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import type { Collection } from '@/lib/types';
+import type { Collection } from "@/lib/types";
 
 interface CollectionVitalsCardProps {
   collection: Collection | null;
@@ -24,17 +24,15 @@ export const CollectionVitalsCard = ({ collection, documentCount }: CollectionVi
         Chat model: <span className="text-white">{collection.chat_model}</span>
       </p>
       <p>
-        Chunking:{' '}
+        Chunking:{" "}
         <span className="text-white">
           {collection.chunk_settings.strategy} • {collection.chunk_settings.chunk_size}/
           {collection.chunk_settings.chunk_overlap}
         </span>
       </p>
       <p>
-        Context window:{' '}
-        <span className="text-white">
-          {collection.context_window.toLocaleString()} tokens
-        </span>
+        Context window:{" "}
+        <span className="text-white">{collection.context_window.toLocaleString()} tokens</span>
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
-import type { ChatMessage, ReasoningTraceSegment } from '@/lib/types';
+import type { ChatMessage, ReasoningTraceSegment } from "@/lib/types";
 
-export type ReasoningSource = 'assistant' | 'tool';
+export type ReasoningSource = "assistant" | "tool";
 
 interface ChatEntryBase {
   id: string;
@@ -9,13 +9,13 @@ interface ChatEntryBase {
 }
 
 export interface ChatMessageEntry extends ChatEntryBase {
-  type: 'user' | 'assistant' | 'system';
+  type: "user" | "assistant" | "system";
   message: ChatMessage;
   content: string;
 }
 
 export interface ChatReasoningEntry extends ChatEntryBase {
-  type: 'reasoning';
+  type: "reasoning";
   source: ReasoningSource;
   title: string;
   subtitle?: string;
@@ -24,7 +24,7 @@ export interface ChatReasoningEntry extends ChatEntryBase {
 }
 
 export interface ChatToolEntry extends ChatEntryBase {
-  type: 'tool-call';
+  type: "tool-call";
   message: ChatMessage;
   label: string;
   args: Record<string, unknown>;

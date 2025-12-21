@@ -1,32 +1,37 @@
-import { Edit3, RotateCcw } from 'lucide-react';
-import React, { Fragment, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Edit3, RotateCcw } from "lucide-react";
+import React, { Fragment, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-import { ToolCallBubble } from '@/components/chat-studio/Tooling';
-import { Button } from '@/components/ui/button';
-import { CollapsibleReasoning } from '@/components/ui/collapsible-reasoning';
-import { TypingAnimation } from '@/components/ui/typing-animation';
-import { cn } from '@/lib/utils';
+import { ToolCallBubble } from "@/components/chat-studio/Tooling";
+import { Button } from "@/components/ui/button";
+import { CollapsibleReasoning } from "@/components/ui/collapsible-reasoning";
+import { TypingAnimation } from "@/components/ui/typing-animation";
+import { cn } from "@/lib/utils";
 
-import type { ChatEntry } from '../chat-types';
-import type { ReasoningTraceSegment, ToolCallTrace } from '@/lib/types';
-import type { Components } from 'react-markdown';
+import type { ChatEntry } from "../chat-types";
+import type { ReasoningTraceSegment, ToolCallTrace } from "@/lib/types";
+import type { Components } from "react-markdown";
 
-
-const TOOL_REASONING_TYPES = new Set(['tool_call', 'tool_use', 'tool_request', 'call_tool', 'function_call']);
+const TOOL_REASONING_TYPES = new Set([
+  "tool_call",
+  "tool_use",
+  "tool_request",
+  "call_tool",
+  "function_call",
+]);
 
 const isToolReasoningSegment = (segment: ReasoningTraceSegment): boolean => {
-  const typeValue = typeof segment.type === 'string' ? segment.type.toLowerCase() : '';
+  const typeValue = typeof segment.type === "string" ? segment.type.toLowerCase() : "";
   return TOOL_REASONING_TYPES.has(typeValue);
 };
 
 const roleVariants: Record<string, string> = {
-  user: 'border-violet-500/50 bg-violet-600/20 text-violet-50 backdrop-blur-sm',
-  assistant: 'border-white/20 bg-white/10 text-white backdrop-blur-sm',
-  tool: 'border-cyan-400/40 bg-cyan-500/15 text-cyan-50 backdrop-blur-sm',
-  system: 'border-sky-500/30 bg-sky-500/10 text-sky-50',
-  reasoning: 'border-amber-400/50 bg-amber-500/15 text-amber-50 backdrop-blur-sm',
+  user: "border-violet-500/50 bg-violet-600/20 text-violet-50 backdrop-blur-sm",
+  assistant: "border-white/20 bg-white/10 text-white backdrop-blur-sm",
+  tool: "border-cyan-400/40 bg-cyan-500/15 text-cyan-50 backdrop-blur-sm",
+  system: "border-sky-500/30 bg-sky-500/10 text-sky-50",
+  reasoning: "border-amber-400/50 bg-amber-500/15 text-amber-50 backdrop-blur-sm",
 };
 
 type ChatTimelineProps = {
@@ -103,7 +108,7 @@ export function ChatTimeline({
   const existingToolIds = useMemo(() => {
     const ids = new Set<string>();
     timelineEntries.forEach((entry) => {
-      if (entry.type === 'tool-call') {
+      if (entry.type === "tool-call") {
         const toolId = entry.message.tool_call_id || entry.messageId || entry.id;
         if (toolId) {
           ids.add(toolId);
@@ -119,7 +124,7 @@ export function ChatTimeline({
         <div className="space-y-2">
           <p className="text-sm uppercase tracking-[0.35em] text-slate-500">Ready to chat</p>
           <h3 className="text-3xl font-semibold text-white">
-            {collectionName ? collectionName : 'Select a collection'}
+            {collectionName ? collectionName : "Select a collection"}
           </h3>
           <p className="text-sm text-slate-400">
             Ask anything about this dataset and we will cite the chunks that back it up.
@@ -141,11 +146,13 @@ export function ChatTimeline({
     );
   }
 
-  const liveStreamBubbleKey = activeStreamEntryKey ?? 'typing-indicator';
-  const assistantBubbleKey = activeStreamEntryKey ? `${activeStreamEntryKey}-assistant` : liveStreamBubbleKey;
+  const liveStreamBubbleKey = activeStreamEntryKey ?? "typing-indicator";
+  const assistantBubbleKey = activeStreamEntryKey
+    ? `${activeStreamEntryKey}-assistant`
+    : liveStreamBubbleKey;
   const liveReasoningBubbleKey = activeStreamEntryKey
     ? `${activeStreamEntryKey}-reasoning`
-    : 'live-reasoning-stream';
+    : "live-reasoning-stream";
   const hasStreamingToolReasoning = liveReasoningDisplaySegments.some((segment) =>
     isToolReasoningSegment(segment),
   );
@@ -153,14 +160,14 @@ export function ChatTimeline({
   const liveReasoningSubtitle = hasStreamingToolReasoning
     ? undefined
     : shouldShowAssistantSubtitle
-      ? 'Assistant reasoning'
+      ? "Assistant reasoning"
       : undefined;
 
   const hasFinalReasoningForStream =
     Boolean(activeStreamEntryKey) &&
     Boolean(finalStreamAssistantId) &&
     timelineEntries.some(
-      (entry) => entry.type === 'reasoning' && entry.messageId === finalStreamAssistantId,
+      (entry) => entry.type === "reasoning" && entry.messageId === finalStreamAssistantId,
     );
 
   const filteredLiveToolEvents = liveToolEvents.filter(
@@ -174,8 +181,8 @@ export function ChatTimeline({
     const orderIndex = new Map<string, number>();
     liveToolOrder.forEach((toolId, index) => orderIndex.set(toolId, index));
     return [...filteredLiveToolEvents].sort((a, b) => {
-      const aId = a.id || '';
-      const bId = b.id || '';
+      const aId = a.id || "";
+      const bId = b.id || "";
       const aIndex = orderIndex.get(aId) ?? Number.MAX_SAFE_INTEGER;
       const bIndex = orderIndex.get(bId) ?? Number.MAX_SAFE_INTEGER;
       if (aIndex === bIndex) {
@@ -210,12 +217,13 @@ export function ChatTimeline({
         response: responseRecord,
         ...(tool.reasoning ? { reasoning: tool.reasoning } : {}),
       };
-      const status = responseRecord && Object.keys(responseRecord).length > 0 ? 'complete' : 'pending';
-      const bubbleKey = tool.id || `live-tool-${tool.name || 'tool'}`;
+      const status =
+        responseRecord && Object.keys(responseRecord).length > 0 ? "complete" : "pending";
+      const bubbleKey = tool.id || `live-tool-${tool.name || "tool"}`;
       return (
         <ToolCallBubble
           key={bubbleKey}
-          label={tool.name || 'Tool'}
+          label={tool.name || "Tool"}
           variantClass={roleVariants.tool}
           args={argsRecord}
           response={responseRecord}
@@ -233,7 +241,10 @@ export function ChatTimeline({
           const segments = liveReasoningBlocks[phaseIndex] ?? [];
           const reasoningNode =
             segments.length > 0 ? (
-              <div key={`${activeStreamEntryKey}-reasoning-block-${phaseIndex}`} className="flex justify-start">
+              <div
+                key={`${activeStreamEntryKey}-reasoning-block-${phaseIndex}`}
+                className="flex justify-start"
+              >
                 <CollapsibleReasoning
                   segments={segments}
                   messageId={`${activeStreamEntryKey}-reasoning-block-${phaseIndex}`}
@@ -242,7 +253,10 @@ export function ChatTimeline({
                   isAutoOpen={false}
                   preventAutoClose
                   onManualToggle={onReasoningToggle}
-                  className={cn('chat-bubble chat-bubble-enter max-w-[75%]', roleVariants.reasoning)}
+                  className={cn(
+                    "chat-bubble chat-bubble-enter max-w-[75%]",
+                    roleVariants.reasoning,
+                  )}
                 />
               </div>
             ) : null;
@@ -269,7 +283,7 @@ export function ChatTimeline({
           preventAutoClose
           onManualToggle={onReasoningToggle}
           className={cn(
-            'live-stream-reasoning chat-bubble chat-bubble-enter max-w-[75%]',
+            "live-stream-reasoning chat-bubble chat-bubble-enter max-w-[75%]",
             roleVariants.reasoning,
           )}
         />
@@ -281,7 +295,7 @@ export function ChatTimeline({
       <div className="group relative max-w-[75%]">
         <div
           className={cn(
-            'live-stream-text chat-bubble chat-bubble-enter rounded-2xl border px-4 py-3 text-sm shadow-2xl',
+            "live-stream-text chat-bubble chat-bubble-enter rounded-2xl border px-4 py-3 text-sm shadow-2xl",
             roleVariants.assistant,
           )}
           data-live-stream-key={liveResponseAnimationKey}
@@ -302,7 +316,7 @@ export function ChatTimeline({
   ) : null;
 
   const messageBubbles = timelineEntries.map((entry) => {
-    if (entry.type === 'tool-call') {
+    if (entry.type === "tool-call") {
       const toolKey =
         (entry.message.tool_call_id && streamEntryKeyMap[entry.message.tool_call_id]) ||
         entry.message.tool_call_id ||
@@ -322,7 +336,7 @@ export function ChatTimeline({
       );
     }
 
-    if (entry.type === 'reasoning') {
+    if (entry.type === "reasoning") {
       const mappedKey =
         entry.messageId && streamEntryKeyMap[entry.messageId]
           ? `${streamEntryKeyMap[entry.messageId]}-reasoning`
@@ -338,30 +352,27 @@ export function ChatTimeline({
             isAutoOpen={false}
             preventAutoClose
             onManualToggle={onReasoningToggle}
-            className={cn(
-              'chat-bubble max-w-[75%]',
-              roleVariants.reasoning,
-            )}
+            className={cn("chat-bubble max-w-[75%]", roleVariants.reasoning)}
           />
         </div>
       );
     }
 
     const variant = roleVariants[entry.type] ?? roleVariants.system;
-    const isUser = entry.type === 'user';
-    const isAssistant = entry.type === 'assistant';
+    const isUser = entry.type === "user";
+    const isAssistant = entry.type === "assistant";
     const showActions = (isUser || isAssistant) && !!selectedSessionId;
-    const alignClass = isUser ? 'justify-end' : 'justify-start';
+    const alignClass = isUser ? "justify-end" : "justify-start";
     const usage = entry.message.usage;
-    const headerLabel = entry.message.role === 'user' ? 'You' : entry.message.role.toUpperCase();
+    const headerLabel = entry.message.role === "user" ? "You" : entry.message.role.toUpperCase();
     const bubbleKey = entry.id;
 
     return (
-      <div key={bubbleKey} className={cn('flex', alignClass)}>
+      <div key={bubbleKey} className={cn("flex", alignClass)}>
         <div className="group relative max-w-[75%]">
           <div
             className={cn(
-              'chat-bubble rounded-2xl border px-4 py-3 text-sm shadow-2xl transition',
+              "chat-bubble rounded-2xl border px-4 py-3 text-sm shadow-2xl transition",
               variant,
             )}
             data-chat-role={entry.type}
@@ -369,7 +380,7 @@ export function ChatTimeline({
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-xs uppercase tracking-[0.3em] text-white/70">
                 {headerLabel}
-                {entry.message.tool_name ? ` • ${entry.message.tool_name}` : ''}
+                {entry.message.tool_name ? ` • ${entry.message.tool_name}` : ""}
               </p>
               {showActions && (
                 <div className="flex items-center gap-2 text-[11px] text-white/80">
@@ -426,15 +437,22 @@ export function ChatTimeline({
           {usage && (
             <div className="pointer-events-none absolute left-0 right-0 top-full mt-1 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-300/70">
-                {usage.total_tokens != null && <span>{usage.total_tokens.toLocaleString()} tok</span>}
-                {usage.prompt_tokens != null && <span>{usage.prompt_tokens.toLocaleString()} in</span>}
-                {usage.completion_tokens != null && <span>{usage.completion_tokens.toLocaleString()} out</span>}
+                {usage.total_tokens != null && (
+                  <span>{usage.total_tokens.toLocaleString()} tok</span>
+                )}
+                {usage.prompt_tokens != null && (
+                  <span>{usage.prompt_tokens.toLocaleString()} in</span>
+                )}
+                {usage.completion_tokens != null && (
+                  <span>{usage.completion_tokens.toLocaleString()} out</span>
+                )}
                 {usage.reasoning_tokens != null && usage.reasoning_tokens > 0 && (
                   <span>{usage.reasoning_tokens.toLocaleString()} reasoning</span>
                 )}
                 {usage.cost != null && (
                   <span className="text-slate-100/80">
-                    ${usage.cost.toLocaleString(undefined, {
+                    $
+                    {usage.cost.toLocaleString(undefined, {
                       minimumFractionDigits: 4,
                       maximumFractionDigits: 6,
                     })}
@@ -453,9 +471,7 @@ export function ChatTimeline({
   if (streamingCurrentReasoningBubble) streamingBubbles.push(streamingCurrentReasoningBubble);
   const trailingTools = renderToolBubbles(liveReasoningPhase);
   if (trailingTools) {
-    streamingBubbles.push(
-      ...(Array.isArray(trailingTools) ? trailingTools : [trailingTools]),
-    );
+    streamingBubbles.push(...(Array.isArray(trailingTools) ? trailingTools : [trailingTools]));
   }
   if (assistantTypingBubble) streamingBubbles.push(assistantTypingBubble);
   return streamingBubbles.length > 0 ? [...messageBubbles, ...streamingBubbles] : messageBubbles;

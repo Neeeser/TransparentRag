@@ -1,21 +1,17 @@
-'use client';
+"use client";
 
-import { Activity, Database, Layers, Sparkles, Upload } from 'lucide-react';
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { Activity, Database, Layers, Sparkles, Upload } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Loader } from '@/components/ui/loader';
-import { GlassCard } from '@/components/ui/panel';
-import {
-  fetchCollections,
-  fetchDocuments,
-  listChatSessions,
-} from '@/lib/api';
-import { cn, timeAgo } from '@/lib/utils';
-import { useAuth } from '@/providers/auth-provider';
+import { Button } from "@/components/ui/button";
+import { Loader } from "@/components/ui/loader";
+import { GlassCard } from "@/components/ui/panel";
+import { fetchCollections, fetchDocuments, listChatSessions } from "@/lib/api";
+import { cn, timeAgo } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
-import type { ChatSession, Collection, Document } from '@/lib/types';
+import type { ChatSession, Collection, Document } from "@/lib/types";
 
 export default function DashboardPage() {
   const { token, user } = useAuth();
@@ -26,7 +22,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     if (!authToken) return;
     let cancelled = false;
 
@@ -64,7 +60,7 @@ export default function DashboardPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Unable to load data.');
+          setError(err instanceof Error ? err.message : "Unable to load data.");
         }
       } finally {
         if (!cancelled) {
@@ -107,9 +103,7 @@ export default function DashboardPage() {
   const recentDocuments = useMemo(
     () =>
       [...documents]
-        .sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        )
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5),
     [documents],
   );
@@ -148,19 +142,19 @@ export default function DashboardPage() {
           <section className="grid gap-4 md:grid-cols-3">
             {[
               {
-                label: 'Collections live',
+                label: "Collections live",
                 value: collections.length,
                 icon: Layers,
                 subtext: `${stats.totalChunks} chunks indexed`,
               },
               {
-                label: 'Documents ingested',
+                label: "Documents ingested",
                 value: stats.docCount,
                 icon: Upload,
                 subtext: `${stats.totalTokens.toLocaleString()} tokens parsed`,
               },
               {
-                label: 'Chat sessions',
+                label: "Chat sessions",
                 value: sessions.length,
                 icon: Activity,
                 subtext: `${stats.contextUtilization}% context utilization`,
@@ -211,27 +205,27 @@ export default function DashboardPage() {
               <div className="mt-6 space-y-4">
                 {[
                   {
-                    label: 'Parse',
-                    status: 'Healthy',
-                    detail: 'Uploads flowing',
+                    label: "Parse",
+                    status: "Healthy",
+                    detail: "Uploads flowing",
                     active: true,
                   },
                   {
-                    label: 'Chunk',
+                    label: "Chunk",
                     status: `${stats.avgChunkSize} avg tokens`,
-                    detail: 'Auto tuned by embedding context',
+                    detail: "Auto tuned by embedding context",
                     active: true,
                   },
                   {
-                    label: 'Embed',
-                    status: 'OpenRouter',
-                    detail: 'Stored locally + Pinecone',
+                    label: "Embed",
+                    status: "OpenRouter",
+                    detail: "Stored locally + Pinecone",
                     active: collections.length > 0,
                   },
                   {
-                    label: 'Chat',
+                    label: "Chat",
                     status: `${sessions.length} sessions`,
-                    detail: 'Tool traces captured',
+                    detail: "Tool traces captured",
                     active: sessions.length > 0,
                   },
                 ].map((item) => (
@@ -245,8 +239,10 @@ export default function DashboardPage() {
                     </div>
                     <span
                       className={cn(
-                        'rounded-full px-3 py-1 text-xs',
-                        item.active ? 'bg-green-500/20 text-green-200' : 'bg-slate-700 text-slate-300',
+                        "rounded-full px-3 py-1 text-xs",
+                        item.active
+                          ? "bg-green-500/20 text-green-200"
+                          : "bg-slate-700 text-slate-300",
                       )}
                     >
                       {item.status}
@@ -283,7 +279,8 @@ export default function DashboardPage() {
                       <div>
                         <p className="text-sm font-semibold text-white">{doc.name}</p>
                         <p className="text-xs text-slate-400">
-                          {doc.status.toUpperCase()} • {doc.num_chunks} chunks • {timeAgo(doc.created_at)}
+                          {doc.status.toUpperCase()} • {doc.num_chunks} chunks •{" "}
+                          {timeAgo(doc.created_at)}
                         </p>
                       </div>
                       <span className="text-xs text-slate-300">

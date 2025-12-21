@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import type {
   ChatCompletionPayload,
@@ -16,11 +16,11 @@ import type {
   ModelInfo,
   ListModelEndpointsResponse,
   ReasoningTraceSegment,
-} from '@/lib/types';
+} from "@/lib/types";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
-const STREAMING_REQUEST_FAILED_MESSAGE = 'Streaming request failed.';
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
+const STREAMING_REQUEST_FAILED_MESSAGE = "Streaming request failed.";
 
 interface LoginResponse {
   access_token: string;
@@ -41,22 +41,22 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const { token, ...rest } = options;
   const headers = new Headers(rest.headers);
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set("Authorization", `Bearer ${token}`);
   }
   if (rest.body && !(rest.body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json');
+    headers.set("Content-Type", "application/json");
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers,
-    cache: 'no-store',
+    cache: "no-store",
   });
 
   if (!response.ok) {
     const errorData = await parseError(response);
-    const detail = errorData?.detail || response.statusText || 'Request failed';
-    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    const detail = errorData?.detail || response.statusText || "Request failed";
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
   }
 
   if (response.status === 204) {
@@ -68,24 +68,24 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
 export async function loginRequest(email: string, password: string): Promise<LoginResponse> {
   const body = new URLSearchParams();
-  body.append('username', email);
-  body.append('password', password);
-  body.append('grant_type', 'password');
-  body.append('scope', '');
-  body.append('client_id', '');
-  body.append('client_secret', '');
+  body.append("username", email);
+  body.append("password", password);
+  body.append("grant_type", "password");
+  body.append("scope", "");
+  body.append("client_id", "");
+  body.append("client_secret", "");
 
   const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      "Content-Type": "application/x-www-form-urlencoded",
     },
     body,
   });
 
   if (!response.ok) {
     const data = await parseError(response);
-    throw new Error(data?.detail || 'Unable to sign in.');
+    throw new Error(data?.detail || "Unable to sign in.");
   }
 
   return response.json();
@@ -96,18 +96,18 @@ export async function registerUser(payload: {
   password: string;
   full_name?: string;
 }): Promise<User> {
-  return apiFetch<User>('/api/auth/register', {
-    method: 'POST',
+  return apiFetch<User>("/api/auth/register", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function getProfile(token: string): Promise<User> {
-  return apiFetch<User>('/api/auth/me', { token });
+  return apiFetch<User>("/api/auth/me", { token });
 }
 
 export async function fetchCollections(token: string): Promise<Collection[]> {
-  return apiFetch<Collection[]>('/api/collections', { token });
+  return apiFetch<Collection[]>("/api/collections", { token });
 }
 
 export async function getCollectionPrompt(
@@ -123,7 +123,7 @@ export async function updateCollectionPrompt(
   token: string,
 ): Promise<CollectionPromptDetails> {
   return apiFetch<CollectionPromptDetails>(`/api/collections/${collectionId}/prompt`, {
-    method: 'PATCH',
+    method: "PATCH",
     token,
     body: JSON.stringify({ template }),
   });
@@ -133,8 +133,8 @@ export async function createCollection(
   token: string,
   payload: CollectionCreatePayload,
 ): Promise<Collection> {
-  return apiFetch<Collection>('/api/collections', {
-    method: 'POST',
+  return apiFetch<Collection>("/api/collections", {
+    method: "POST",
     token,
     body: JSON.stringify(payload),
   });
@@ -150,9 +150,9 @@ export async function uploadDocument(
   token: string,
 ): Promise<IngestionResponse> {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append("file", file);
   return apiFetch<IngestionResponse>(`/api/collections/${collectionId}/documents`, {
-    method: 'POST',
+    method: "POST",
     body: formData,
     token,
   });
@@ -171,7 +171,7 @@ export async function runCollectionQuery(
   token: string,
 ): Promise<CollectionQueryResult> {
   return apiFetch<CollectionQueryResult>(`/api/collections/${collectionId}/query`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(payload),
     token,
   });
@@ -190,7 +190,7 @@ export async function getChatHistory(sessionId: string, token: string): Promise<
 
 export async function deleteChatSession(sessionId: string, token: string): Promise<void> {
   return apiFetch<void>(`/api/chat/sessions/${sessionId}`, {
-    method: 'DELETE',
+    method: "DELETE",
     token,
   });
 }
@@ -202,7 +202,7 @@ export async function chatWithCollection(
   signal?: AbortSignal,
 ): Promise<ChatCompletionPayload> {
   return apiFetch<ChatCompletionPayload>(`/api/collections/${collectionId}/chat`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(payload),
     token,
     signal,
@@ -219,28 +219,28 @@ export interface ChatStreamHandlers {
 }
 
 type ChatStreamEvent =
-  | { type: 'token'; content?: string }
-  | { type: 'reasoning'; segments?: ReasoningTraceSegment[] }
+  | { type: "token"; content?: string }
+  | { type: "reasoning"; segments?: ReasoningTraceSegment[] }
   | {
-      type: 'tool_call';
+      type: "tool_call";
       id?: string;
       name?: string;
       arguments?: Record<string, unknown>;
       reasoning?: unknown;
     }
   | {
-      type: 'tool_result';
+      type: "tool_result";
       id?: string;
       name?: string;
       arguments?: Record<string, unknown>;
       response?: Record<string, unknown>;
       reasoning?: unknown;
     }
-  | { type: 'final'; payload: ChatCompletionPayload }
-  | { type: 'error'; message?: string };
+  | { type: "final"; payload: ChatCompletionPayload }
+  | { type: "error"; message?: string };
 
 const isAbortError = (value: unknown): value is DOMException =>
-  value instanceof DOMException && value.name === 'AbortError';
+  value instanceof DOMException && value.name === "AbortError";
 
 export interface ToolStreamEvent {
   id?: string;
@@ -257,10 +257,10 @@ export async function streamChatWithCollection(
   handlers?: ChatStreamHandlers,
 ): Promise<ChatCompletionPayload | null> {
   const response = await fetch(`${API_BASE_URL}/api/collections/${collectionId}/chat/stream`, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
     signal: handlers?.signal,
@@ -269,18 +269,18 @@ export async function streamChatWithCollection(
   if (!response.ok) {
     const errorData = await parseError(response);
     const detail = errorData?.detail || response.statusText || STREAMING_REQUEST_FAILED_MESSAGE;
-    const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
+    const message = typeof detail === "string" ? detail : JSON.stringify(detail);
     throw new Error(message);
   }
 
   const body = response.body;
   if (!body) {
-    throw new Error('Streaming response body is not readable.');
+    throw new Error("Streaming response body is not readable.");
   }
 
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   let finalPayload: ChatCompletionPayload | null = null;
   let emittedError = false;
 
@@ -290,46 +290,46 @@ export async function streamChatWithCollection(
       if (done) {
         break;
       }
-      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-      let boundary = buffer.indexOf('\n\n');
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+      let boundary = buffer.indexOf("\n\n");
       while (boundary !== -1) {
         const rawEvent = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 2);
         const dataLine = rawEvent
-          .split('\n')
+          .split("\n")
           .map((line) => line.trim())
-          .find((line) => line.startsWith('data:'));
+          .find((line) => line.startsWith("data:"));
         if (!dataLine) {
-          boundary = buffer.indexOf('\n\n');
+          boundary = buffer.indexOf("\n\n");
           continue;
         }
         const payloadStr = dataLine.slice(5).trim();
         if (!payloadStr) {
-          boundary = buffer.indexOf('\n\n');
+          boundary = buffer.indexOf("\n\n");
           continue;
         }
-        if (payloadStr === '[DONE]') {
+        if (payloadStr === "[DONE]") {
           return finalPayload;
         }
         let parsed: ChatStreamEvent;
         try {
           parsed = JSON.parse(payloadStr) as ChatStreamEvent;
         } catch {
-          boundary = buffer.indexOf('\n\n');
+          boundary = buffer.indexOf("\n\n");
           continue;
         }
-        if (parsed.type === 'token' && parsed.content) {
+        if (parsed.type === "token" && parsed.content) {
           handlers?.onToken?.(parsed.content);
-        } else if (parsed.type === 'reasoning') {
+        } else if (parsed.type === "reasoning") {
           handlers?.onReasoning?.(parsed.segments ?? []);
-        } else if (parsed.type === 'tool_call') {
+        } else if (parsed.type === "tool_call") {
           handlers?.onToolCall?.({
             id: parsed.id,
             name: parsed.name,
             arguments: parsed.arguments,
             reasoning: parsed.reasoning,
           });
-        } else if (parsed.type === 'tool_result') {
+        } else if (parsed.type === "tool_result") {
           handlers?.onToolResult?.({
             id: parsed.id,
             name: parsed.name,
@@ -337,28 +337,28 @@ export async function streamChatWithCollection(
             response: parsed.response,
             reasoning: parsed.reasoning,
           });
-        } else if (parsed.type === 'final' && parsed.payload) {
+        } else if (parsed.type === "final" && parsed.payload) {
           finalPayload = parsed.payload;
-        } else if (parsed.type === 'error') {
+        } else if (parsed.type === "error") {
           const message =
-            typeof parsed.message === 'string' && parsed.message.trim()
+            typeof parsed.message === "string" && parsed.message.trim()
               ? parsed.message
               : STREAMING_REQUEST_FAILED_MESSAGE;
           handlers?.onError?.(message);
           emittedError = true;
           throw new Error(message);
         }
-        boundary = buffer.indexOf('\n\n');
+        boundary = buffer.indexOf("\n\n");
       }
     }
   } catch (error) {
-      if (!emittedError && !isAbortError(error)) {
-        if (error instanceof Error) {
-          handlers?.onError?.(error.message);
-        } else {
-          handlers?.onError?.(STREAMING_REQUEST_FAILED_MESSAGE);
-        }
+    if (!emittedError && !isAbortError(error)) {
+      if (error instanceof Error) {
+        handlers?.onError?.(error.message);
+      } else {
+        handlers?.onError?.(STREAMING_REQUEST_FAILED_MESSAGE);
       }
+    }
     throw error;
   } finally {
     try {
@@ -372,7 +372,7 @@ export async function streamChatWithCollection(
 }
 
 export async function listModels(token?: string, refresh?: boolean): Promise<ModelInfo[]> {
-  const query = refresh ? '?refresh=true' : '';
+  const query = refresh ? "?refresh=true" : "";
   const options: FetchOptions = {};
   if (token) {
     options.token = token;

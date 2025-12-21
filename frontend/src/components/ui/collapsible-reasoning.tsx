@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-import type { ReasoningTraceSegment } from '@/lib/types';
+import type { ReasoningTraceSegment } from "@/lib/types";
 
 interface CollapsibleReasoningProps {
   segments: ReasoningTraceSegment[];
@@ -25,14 +25,12 @@ export function CollapsibleReasoning({
   isAutoOpen = false,
   preventAutoClose = false,
   onManualToggle,
-  title = 'Reasoning',
+  title = "Reasoning",
   className,
 }: CollapsibleReasoningProps) {
   const [manualState, setManualState] = useState<boolean | null>(null);
   const isOpen =
-    isAutoOpen || manualState !== null
-      ? isAutoOpen || manualState === true
-      : preventAutoClose;
+    isAutoOpen || manualState !== null ? isAutoOpen || manualState === true : preventAutoClose;
 
   if (!segments || segments.length === 0) {
     return null;
@@ -41,7 +39,7 @@ export function CollapsibleReasoning({
   return (
     <div
       className={cn(
-        'w-full overflow-hidden rounded-2xl border border-amber-400/40 bg-amber-500/10 shadow-[0_20px_60px_rgba(251,191,36,0.25)]',
+        "w-full overflow-hidden rounded-2xl border border-amber-400/40 bg-amber-500/10 shadow-[0_20px_60px_rgba(251,191,36,0.25)]",
         className,
       )}
     >
@@ -67,7 +65,7 @@ export function CollapsibleReasoning({
         </div>
         <div className="flex items-center gap-3">
           <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs text-amber-100">
-            {segments.length} {segments.length === 1 ? 'step' : 'steps'}
+            {segments.length} {segments.length === 1 ? "step" : "steps"}
           </span>
           {isOpen ? (
             <ChevronDown className="h-4 w-4 text-amber-300" />
@@ -81,13 +79,13 @@ export function CollapsibleReasoning({
         <div className="border-t border-amber-400/30 px-4 py-3 space-y-3">
           {segments.map((segment, idx) => {
             const preferredText =
-              (typeof segment.text === 'string' && segment.text) ||
-              (typeof segment.content === 'string' && segment.content) ||
+              (typeof segment.text === "string" && segment.text) ||
+              (typeof segment.content === "string" && segment.content) ||
               null;
             const reasoningText =
               preferredText && preferredText.trim().length > 0
                 ? preferredText
-                : preferredText ?? JSON.stringify(segment, null, 2);
+                : (preferredText ?? JSON.stringify(segment, null, 2));
 
             return (
               <div
@@ -95,9 +93,7 @@ export function CollapsibleReasoning({
                 className="rounded-xl border border-amber-400/20 bg-amber-900/20 px-3 py-2"
               >
                 <div className="mb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-amber-200">
-                    Step {idx + 1}
-                  </span>
+                  <span className="text-xs font-semibold text-amber-200">Step {idx + 1}</span>
                   {segment.type && (
                     <span className="rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-100">
                       {segment.type}

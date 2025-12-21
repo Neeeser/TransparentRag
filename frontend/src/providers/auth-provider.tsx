@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -8,13 +8,13 @@ import {
   useMemo,
   useState,
   type ReactNode,
-} from 'react';
+} from "react";
 
-import { getProfile, loginRequest } from '@/lib/api';
+import { getProfile, loginRequest } from "@/lib/api";
 
-import type { User } from '@/lib/types';
+import type { User } from "@/lib/types";
 
-const STORAGE_KEY = 'transparentrag.jwt';
+const STORAGE_KEY = "transparentrag.jwt";
 
 type AuthContextValue = {
   user: User | null;
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setToken(null);
         window.localStorage.removeItem(STORAGE_KEY);
-        setError(err instanceof Error ? err.message : 'Unable to load profile.');
+        setError(err instanceof Error ? err.message : "Unable to load profile.");
       } finally {
         setLoading(false);
       }
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
+    const stored = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
     if (stored) {
       setToken(stored);
       fetchProfile(stored);
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return ctx;
 }

@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { FilePlus, FolderKanban, Search, UploadCloud } from 'lucide-react';
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FilePlus, FolderKanban, Search, UploadCloud } from "lucide-react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Loader } from '@/components/ui/loader';
-import { GlassCard } from '@/components/ui/panel';
+import { Button } from "@/components/ui/button";
+import { Loader } from "@/components/ui/loader";
+import { GlassCard } from "@/components/ui/panel";
 import {
   createCollection,
   fetchCollections,
@@ -13,13 +13,13 @@ import {
   fetchDocuments,
   runCollectionQuery,
   uploadDocument,
-} from '@/lib/api';
-import { cn, truncate } from '@/lib/utils';
-import { useAuth } from '@/providers/auth-provider';
+} from "@/lib/api";
+import { cn, truncate } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
-import type { Chunk, Collection, CollectionQueryResult, Document } from '@/lib/types';
+import type { Chunk, Collection, CollectionQueryResult, Document } from "@/lib/types";
 
-const chunkStrategies = ['token', 'sentence', 'paragraph', 'semantic'] as const;
+const chunkStrategies = ["token", "sentence", "paragraph", "semantic"] as const;
 
 export default function CollectionsPage() {
   const { token } = useAuth();
@@ -41,18 +41,18 @@ export default function CollectionsPage() {
     chunk_overlap: number;
     chunk_strategy: (typeof chunkStrategies)[number];
   }>({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     chunk_size: 1024,
     chunk_overlap: 200,
-    chunk_strategy: 'token',
+    chunk_strategy: "token",
   });
-  const [query, setQuery] = useState('What does TransparentRAG do?');
+  const [query, setQuery] = useState("What does TransparentRAG do?");
   const [topK, setTopK] = useState(4);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     if (!authToken) return;
     let cancelled = false;
 
@@ -67,7 +67,7 @@ export default function CollectionsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setMessage(err instanceof Error ? err.message : 'Unable to load collections.');
+          setMessage(err instanceof Error ? err.message : "Unable to load collections.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -81,7 +81,7 @@ export default function CollectionsPage() {
   }, [token]);
 
   useEffect(() => {
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     const collection = selectedCollection;
     if (!authToken || !collection) {
       setDocuments([]);
@@ -105,7 +105,7 @@ export default function CollectionsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setMessage(err instanceof Error ? err.message : 'Unable to load documents.');
+          setMessage(err instanceof Error ? err.message : "Unable to load documents.");
         }
       } finally {
         if (!cancelled) setWorking(false);
@@ -118,7 +118,7 @@ export default function CollectionsPage() {
   }, [selectedCollection, token]);
 
   useEffect(() => {
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     const document = selectedDocument;
     if (!authToken || !document) {
       setChunkView([]);
@@ -133,7 +133,7 @@ export default function CollectionsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setMessage(err instanceof Error ? err.message : 'Unable to load chunks.');
+          setMessage(err instanceof Error ? err.message : "Unable to load chunks.");
         }
       }
     }
@@ -145,7 +145,7 @@ export default function CollectionsPage() {
 
   const handleCreateCollection = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     if (!authToken) return;
     setCreating(true);
     setMessage(null);
@@ -163,22 +163,22 @@ export default function CollectionsPage() {
       setCollections((prev) => [newCollection, ...prev]);
       setSelectedCollection(newCollection);
       setForm({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         chunk_size: 1024,
         chunk_overlap: 200,
-        chunk_strategy: 'token',
+        chunk_strategy: "token",
       });
-      setMessage('Collection created. Configure documents below.');
+      setMessage("Collection created. Configure documents below.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to create collection.');
+      setMessage(error instanceof Error ? error.message : "Unable to create collection.");
     } finally {
       setCreating(false);
     }
   };
 
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     const collection = selectedCollection;
     if (!authToken || !collection) return;
     const file = event.target.files?.[0];
@@ -194,18 +194,18 @@ export default function CollectionsPage() {
       }
       setMessage(`Uploaded ${file.name}. Chunking in progress.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Upload failed.');
+      setMessage(error instanceof Error ? error.message : "Upload failed.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     }
   };
 
   const handleQuery = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const authToken = token ?? '';
+    const authToken = token ?? "";
     const collection = selectedCollection;
     if (!authToken || !collection || !query.trim()) return;
     setWorking(true);
@@ -214,7 +214,7 @@ export default function CollectionsPage() {
       const result = await runCollectionQuery(collection.id, { query, top_k: topK }, authToken);
       setQueryResult(result);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Query failed.');
+      setMessage(error instanceof Error ? error.message : "Query failed.");
     } finally {
       setWorking(false);
     }
@@ -264,10 +264,10 @@ export default function CollectionsPage() {
                       type="button"
                       key={collection.id}
                       className={cn(
-                        'w-full rounded-2xl border px-4 py-3 text-left text-sm transition',
+                        "w-full rounded-2xl border px-4 py-3 text-left text-sm transition",
                         isActive
-                          ? 'border-violet-400 bg-violet-500/10 text-white'
-                          : 'border-white/5 bg-white/5 text-slate-300 hover:border-white/20',
+                          ? "border-violet-400 bg-violet-500/10 text-white"
+                          : "border-white/5 bg-white/5 text-slate-300 hover:border-white/20",
                       )}
                       onClick={() => setSelectedCollection(collection)}
                     >
@@ -394,14 +394,17 @@ export default function CollectionsPage() {
                   </div>
                   <dl className="mt-6 grid gap-4 sm:grid-cols-3">
                     {[
-                      { label: 'Embedding model', value: selectedCollection.embedding_model },
-                      { label: 'Chat model', value: selectedCollection.chat_model },
+                      { label: "Embedding model", value: selectedCollection.embedding_model },
+                      { label: "Chat model", value: selectedCollection.chat_model },
                       {
-                        label: 'Pinecone namespace',
+                        label: "Pinecone namespace",
                         value: selectedCollection.pinecone_namespace,
                       },
                     ].map((item) => (
-                      <div key={item.label} className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                      <div
+                        key={item.label}
+                        className="rounded-2xl border border-white/5 bg-white/5 p-4"
+                      >
                         <dt className="text-xs uppercase tracking-[0.3em] text-slate-400">
                           {item.label}
                         </dt>
@@ -414,7 +417,9 @@ export default function CollectionsPage() {
                 <GlassCard className="rounded-3xl p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Retriever</p>
+                      <p className="text-sm uppercase tracking-[0.35em] text-slate-400">
+                        Retriever
+                      </p>
                       <h2 className="text-2xl font-semibold">Transparent similarity search</h2>
                     </div>
                     <Search className="h-5 w-5 text-violet-300" />
@@ -465,14 +470,14 @@ export default function CollectionsPage() {
                           </div>
                         </div>
                         <p className="mt-3 text-sm text-slate-100">
-                          {truncate(chunk.text ?? '', 320)}
+                          {truncate(chunk.text ?? "", 320)}
                         </p>
                         {chunk.metadata && (
                           <p className="mt-2 text-xs text-slate-400">
                             {Object.entries(chunk.metadata)
                               .slice(0, 3)
                               .map(([key, value]) => `${key}: ${value}`)
-                              .join(' • ')}
+                              .join(" • ")}
                           </p>
                         )}
                       </div>
@@ -483,7 +488,9 @@ export default function CollectionsPage() {
                 <GlassCard className="rounded-3xl p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Documents</p>
+                      <p className="text-sm uppercase tracking-[0.35em] text-slate-400">
+                        Documents
+                      </p>
                       <h2 className="text-2xl font-semibold">Sources & chunks</h2>
                     </div>
                     <span className="text-sm text-slate-400">{documents.length} total</span>
@@ -501,10 +508,10 @@ export default function CollectionsPage() {
                             type="button"
                             key={doc.id}
                             className={cn(
-                              'rounded-2xl border px-4 py-4 text-left text-sm transition',
+                              "rounded-2xl border px-4 py-4 text-left text-sm transition",
                               isActive
-                                ? 'border-violet-400 bg-violet-500/10 text-white'
-                                : 'border-white/5 bg-white/5 text-slate-300 hover:border-white/20',
+                                ? "border-violet-400 bg-violet-500/10 text-white"
+                                : "border-white/5 bg-white/5 text-slate-300 hover:border-white/20",
                             )}
                             onClick={() => setSelectedDocument(doc)}
                           >
@@ -524,7 +531,8 @@ export default function CollectionsPage() {
                         {selectedDocument.name}
                       </p>
                       <p className="text-xs text-slate-400">
-                        Strategy {selectedDocument.chunk_strategy} • overlap {selectedDocument.chunk_overlap}
+                        Strategy {selectedDocument.chunk_strategy} • overlap{" "}
+                        {selectedDocument.chunk_overlap}
                       </p>
                       <div className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-2">
                         {chunkView.length === 0 ? (

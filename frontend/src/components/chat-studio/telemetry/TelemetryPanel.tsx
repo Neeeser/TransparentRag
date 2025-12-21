@@ -1,31 +1,38 @@
-'use client';
+"use client";
 
-import { Share2, PanelRightClose, RotateCcw, SlidersHorizontal, MessageCircle, NotebookPen } from 'lucide-react';
+import {
+  Share2,
+  PanelRightClose,
+  RotateCcw,
+  SlidersHorizontal,
+  MessageCircle,
+  NotebookPen,
+} from "lucide-react";
 
-import { CollectionVitalsCard } from '@/components/chat-studio/telemetry/CollectionVitalsCard';
-import { ModelParametersCard } from '@/components/chat-studio/telemetry/ModelParametersCard';
-import { ModelSelectorCard } from '@/components/chat-studio/telemetry/ModelSelectorCard';
-import { ProviderRoutingCard } from '@/components/chat-studio/telemetry/ProviderRoutingCard';
-import { StreamingSettingsCard } from '@/components/chat-studio/telemetry/StreamingSettingsCard';
-import { SystemPromptCard } from '@/components/chat-studio/telemetry/SystemPromptCard';
-import { UsageCard } from '@/components/chat-studio/telemetry/UsageCard';
-import { TelemetrySection } from '@/components/chat-studio/TelemetrySection';
-import { Button } from '@/components/ui/button';
+import { CollectionVitalsCard } from "@/components/chat-studio/telemetry/CollectionVitalsCard";
+import { ModelParametersCard } from "@/components/chat-studio/telemetry/ModelParametersCard";
+import { ModelSelectorCard } from "@/components/chat-studio/telemetry/ModelSelectorCard";
+import { ProviderRoutingCard } from "@/components/chat-studio/telemetry/ProviderRoutingCard";
+import { StreamingSettingsCard } from "@/components/chat-studio/telemetry/StreamingSettingsCard";
+import { SystemPromptCard } from "@/components/chat-studio/telemetry/SystemPromptCard";
+import { UsageCard } from "@/components/chat-studio/telemetry/UsageCard";
+import { TelemetrySection } from "@/components/chat-studio/TelemetrySection";
+import { Button } from "@/components/ui/button";
 
-import type { ProviderFormState } from '@/components/chat-studio/types';
+import type { ProviderFormState } from "@/components/chat-studio/types";
 import type {
   ModelParameterKey,
   ParameterDefinition,
   ParameterOverrides,
-} from '@/lib/chat-parameters';
+} from "@/lib/chat-parameters";
 import type {
   Collection,
   CollectionPromptDetails,
   ModelEndpointDirectory,
   ModelInfo,
   UsageBreakdown,
-} from '@/lib/types';
-import type { Components } from 'react-markdown';
+} from "@/lib/types";
+import type { Components } from "react-markdown";
 
 interface TelemetryPanelProps {
   onClose: () => void;
@@ -72,7 +79,11 @@ interface TelemetryPanelProps {
   parameterOverrides: ParameterOverrides;
   activeParameterCount: number;
   resetAllParameters: () => void;
-  handleNumberParameterChange: (key: ModelParameterKey, rawValue: string, asInteger?: boolean) => void;
+  handleNumberParameterChange: (
+    key: ModelParameterKey,
+    rawValue: string,
+    asInteger?: boolean,
+  ) => void;
   handleBooleanParameterChange: (key: ModelParameterKey, checked: boolean) => void;
   handleTextParameterChange: (key: ModelParameterKey, value: string) => void;
   handleSelectParameterChange: (key: ModelParameterKey, value: string) => void;
@@ -167,12 +178,12 @@ export const TelemetryPanel = ({
           title="System prompt"
           description={
             promptLoading
-              ? 'Loading prompt...'
+              ? "Loading prompt..."
               : promptDetails
                 ? promptDetails.is_custom
-                  ? 'Custom template active'
-                  : 'Using default template'
-                : promptError || 'Define per-collection instructions'
+                  ? "Custom template active"
+                  : "Using default template"
+                : promptError || "Define per-collection instructions"
           }
           icon={<NotebookPen className="h-4 w-4 text-amber-300" />}
           isOpen={systemPromptOpen}
@@ -189,7 +200,9 @@ export const TelemetryPanel = ({
 
         <TelemetrySection
           title="Streaming"
-          description={streamingEnabled ? 'Live tokens enabled' : 'Responses buffered until completion'}
+          description={
+            streamingEnabled ? "Live tokens enabled" : "Responses buffered until completion"
+          }
           icon={<Share2 className="h-4 w-4 text-emerald-300" />}
           isOpen={streamingOptionsOpen}
           onToggle={onStreamingOptionsToggle}
@@ -199,7 +212,7 @@ export const TelemetryPanel = ({
 
         <TelemetrySection
           title="Model routing"
-          description={currentModelInfo?.name || selectedModelKey || 'Select a tool-enabled model'}
+          description={currentModelInfo?.name || selectedModelKey || "Select a tool-enabled model"}
           icon={<RotateCcw className="h-4 w-4 text-violet-300" />}
           isOpen={modelSelectorOpen}
           onToggle={onModelSelectorToggle}
@@ -221,8 +234,8 @@ export const TelemetryPanel = ({
           title="Provider routing"
           description={
             providerRuleCount === 0
-              ? 'Load balance across top providers'
-              : `${providerRuleCount} routing rule${providerRuleCount === 1 ? '' : 's'} configured`
+              ? "Load balance across top providers"
+              : `${providerRuleCount} routing rule${providerRuleCount === 1 ? "" : "s"} configured`
           }
           icon={<Share2 className="h-4 w-4 text-emerald-300" />}
           isOpen={providerPreferencesOpen}
@@ -256,8 +269,8 @@ export const TelemetryPanel = ({
           title="Model parameters"
           description={
             currentModelInfo
-              ? `${activeParameterCount} override${activeParameterCount === 1 ? '' : 's'} active`
-              : 'Load model metadata'
+              ? `${activeParameterCount} override${activeParameterCount === 1 ? "" : "s"} active`
+              : "Load model metadata"
           }
           icon={<SlidersHorizontal className="h-4 w-4 text-violet-300" />}
           isOpen={modelParametersOpen}

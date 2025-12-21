@@ -23,9 +23,9 @@ const eslintConfig = defineConfig([
       "import/order": [
         "error",
         {
-          "alphabetize": { "order": "asc", "caseInsensitive": true },
+          alphabetize: { order: "asc", caseInsensitive: true },
           "newlines-between": "always",
-          "groups": [
+          groups: [
             "builtin",
             "external",
             "internal",
@@ -33,20 +33,20 @@ const eslintConfig = defineConfig([
             "sibling",
             "index",
             "object",
-            "type"
-          ]
-        }
+            "type",
+          ],
+        },
       ],
       "unused-imports/no-unused-imports": "error",
       "unused-imports/no-unused-vars": [
         "warn",
         {
-          "vars": "all",
-          "varsIgnorePattern": "^_",
-          "args": "after-used",
-          "argsIgnorePattern": "^_"
-        }
-      ]
+          vars: "all",
+          varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   sonarjs.configs.recommended,

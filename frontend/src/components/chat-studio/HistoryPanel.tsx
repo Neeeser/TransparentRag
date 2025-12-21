@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { PanelLeftClose, PlusCircle, Trash2 } from 'lucide-react';
+import { PanelLeftClose, PlusCircle, Trash2 } from "lucide-react";
 
-import { Button } from '@/components/ui/button';
-import { cn, timeAgo } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import { cn, timeAgo } from "@/lib/utils";
 
-import type { ChatSession } from '@/lib/types';
+import type { ChatSession } from "@/lib/types";
 
 interface HistoryPanelProps {
   sessions: ChatSession[];
@@ -63,25 +63,25 @@ export const HistoryPanel = ({
                 <div
                   key={session.id}
                   className={cn(
-                    'group flex items-center gap-2 rounded-2xl border px-2 py-2 text-sm transition',
+                    "group flex items-center gap-2 rounded-2xl border px-2 py-2 text-sm transition",
                     isSelected
-                      ? 'border-violet-400 bg-violet-500/10 text-white'
-                      : 'border-white/5 bg-white/5 text-slate-300 hover:border-white/20',
+                      ? "border-violet-400 bg-violet-500/10 text-white"
+                      : "border-white/5 bg-white/5 text-slate-300 hover:border-white/20",
                   )}
                 >
                   <button
                     type="button"
                     onClick={() => onSelect(session.id)}
                     className={cn(
-                      'flex-1 rounded-xl px-2 py-1 text-left',
-                      isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white',
+                      "flex-1 rounded-xl px-2 py-1 text-left",
+                      isSelected ? "text-white" : "text-slate-300 group-hover:text-white",
                     )}
                   >
                     <p className="text-base font-semibold">{session.title}</p>
                     <p
                       className={cn(
-                        'text-xs',
-                        isSelected ? 'text-slate-300' : 'text-slate-400 group-hover:text-slate-200',
+                        "text-xs",
+                        isSelected ? "text-slate-300" : "text-slate-400 group-hover:text-slate-200",
                       )}
                     >
                       {session.chat_model} • {timeAgo(session.updated_at)}
@@ -94,10 +94,10 @@ export const HistoryPanel = ({
                     title="Delete chat"
                     aria-label={`Delete ${session.title}`}
                     className={cn(
-                      'inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-slate-400 transition hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-50',
+                      "inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-slate-400 transition hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-50",
                       isSelected
-                        ? 'border-white/20 hover:border-rose-300/60'
-                        : 'border-white/10 hover:border-rose-300/60',
+                        ? "border-white/20 hover:border-rose-300/60"
+                        : "border-white/10 hover:border-rose-300/60",
                     )}
                   >
                     <Trash2 className="h-4 w-4" />

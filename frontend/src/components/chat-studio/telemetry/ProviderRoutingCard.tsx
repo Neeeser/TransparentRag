@@ -1,36 +1,36 @@
-'use client';
+"use client";
 
-import { ArrowDown, ArrowUp, Loader, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, Loader, Search } from "lucide-react";
 
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-import type { ProviderFormState, ProviderSelectionField } from '@/components/chat-studio/types';
-import type { ModelEndpointDirectory, ProviderEndpoint } from '@/lib/types';
+import type { ProviderFormState, ProviderSelectionField } from "@/components/chat-studio/types";
+import type { ModelEndpointDirectory, ProviderEndpoint } from "@/lib/types";
 
 const QUANTIZATION_OPTIONS = [
-  'int4',
-  'int8',
-  'fp4',
-  'fp6',
-  'fp8',
-  'fp16',
-  'bf16',
-  'fp32',
-  'unknown',
+  "int4",
+  "int8",
+  "fp4",
+  "fp6",
+  "fp8",
+  "fp16",
+  "bf16",
+  "fp32",
+  "unknown",
 ] as const;
 
 const ENDPOINT_STATUS_LABELS: Record<string, string> = {
-  '0': 'Operational',
-  '-1': 'Degraded',
-  '-2': 'Unhealthy',
-  '-3': 'Outage',
-  '-5': 'Offline',
-  '-10': 'Disabled',
+  "0": "Operational",
+  "-1": "Degraded",
+  "-2": "Unhealthy",
+  "-3": "Outage",
+  "-5": "Offline",
+  "-10": "Disabled",
 };
 
 const formatProviderPrice = (value?: number | string | null): string => {
-  return formatPricePerMillion(value) ?? '—';
+  return formatPricePerMillion(value) ?? "—";
 };
 
 const formatPricePerMillion = (value?: number | string | null): string | null => {
@@ -38,28 +38,28 @@ const formatPricePerMillion = (value?: number | string | null): string | null =>
     return null;
   }
   const raw =
-    typeof value === 'number'
+    typeof value === "number"
       ? value
       : Number(
-        String(value)
-          .trim()
-          .replace(/[^0-9eE.+-]/g, ''),
-      );
+          String(value)
+            .trim()
+            .replace(/[^0-9eE.+-]/g, ""),
+        );
   if (!Number.isFinite(raw)) {
     const fallback = String(value).trim();
     return fallback || null;
   }
   const pricePerMillion = raw * 1_000_000;
   const trimFractionDigits = (numericString: string, minFractionDigits: number) => {
-    if (!numericString.includes('.')) {
+    if (!numericString.includes(".")) {
       return numericString;
     }
-    const [whole, fraction] = numericString.split('.');
+    const [whole, fraction] = numericString.split(".");
     if (fraction.length <= minFractionDigits) {
-      return `${whole}.${fraction.padEnd(minFractionDigits, '0')}`;
+      return `${whole}.${fraction.padEnd(minFractionDigits, "0")}`;
     }
     let trimmedFraction = fraction;
-    while (trimmedFraction.length > minFractionDigits && trimmedFraction.endsWith('0')) {
+    while (trimmedFraction.length > minFractionDigits && trimmedFraction.endsWith("0")) {
       trimmedFraction = trimmedFraction.slice(0, -1);
     }
     return trimmedFraction.length > 0 ? `${whole}.${trimmedFraction}` : whole;
@@ -93,7 +93,7 @@ const formatPricePerMillion = (value?: number | string | null): string | null =>
 
 const formatUptimePercentage = (value?: number | null): string => {
   if (value === null || value === undefined) {
-    return 'N/A';
+    return "N/A";
   }
   const normalized = value <= 1 ? value * 100 : value;
   return `${normalized.toFixed(1)}%`;
@@ -101,10 +101,10 @@ const formatUptimePercentage = (value?: number | null): string => {
 
 const getEndpointStatusLabel = (status?: string | number | null): string => {
   if (!status) {
-    return 'Unknown';
+    return "Unknown";
   }
-  const key = typeof status === 'number' ? String(status) : status;
-  return ENDPOINT_STATUS_LABELS[key] ?? 'Unknown';
+  const key = typeof status === "number" ? String(status) : status;
+  return ENDPOINT_STATUS_LABELS[key] ?? "Unknown";
 };
 
 interface ProviderRoutingCardProps {
@@ -133,19 +133,20 @@ export const ProviderRoutingCard = ({
   resetProviderPreferences,
 }: ProviderRoutingCardProps) => {
   const inputClasses =
-    'w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-white outline-none focus:border-violet-400';
+    "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-white outline-none focus:border-violet-400";
   const endpoints = providerDirectory?.endpoints ?? [];
   const normalizedSearch = providerSearchTerm.trim().toLowerCase();
   const filteredEndpoints =
     normalizedSearch.length === 0
       ? endpoints
       : endpoints.filter((endpoint) => {
-        const haystack = `${endpoint.name} ${endpoint.provider_name ?? ''} ${endpoint.tag ?? ''
+          const haystack = `${endpoint.name} ${endpoint.provider_name ?? ""} ${
+            endpoint.tag ?? ""
           }`.toLowerCase();
-        return haystack.includes(normalizedSearch);
-      });
+          return haystack.includes(normalizedSearch);
+        });
   const visibleEndpoints = [...filteredEndpoints].sort((a, b) => {
-    const providerCompare = (a.provider_name || '').localeCompare(b.provider_name || '');
+    const providerCompare = (a.provider_name || "").localeCompare(b.provider_name || "");
     if (providerCompare !== 0) {
       return providerCompare;
     }
@@ -207,7 +208,9 @@ export const ProviderRoutingCard = ({
                 key={`${field}-${slug}`}
                 className="flex items-center gap-1 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white"
               >
-                {options?.showIndex && <span className="text-[10px] text-slate-400">#{index + 1}</span>}
+                {options?.showIndex && (
+                  <span className="text-[10px] text-slate-400">#{index + 1}</span>
+                )}
                 <span className="font-mono text-[11px]">{slug}</span>
                 {options?.allowReorder && values.length > 1 && (
                   <div className="flex items-center gap-1 text-slate-400">
@@ -264,20 +267,20 @@ export const ProviderRoutingCard = ({
     const parameterCount = endpoint.supported_parameters?.length ?? 0;
     const actionClasses = (active: boolean) =>
       cn(
-        'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em]',
+        "rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em]",
         active
-          ? 'border-violet-400 bg-violet-500/20 text-white'
-          : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/40',
+          ? "border-violet-400 bg-violet-500/20 text-white"
+          : "border-white/10 bg-white/5 text-slate-200 hover:border-white/40",
       );
-    const cardKey = `${slug}-${endpoint.provider_name ?? 'unknown'}-${endpoint.tag ?? 'default'}-${position}`;
+    const cardKey = `${slug}-${endpoint.provider_name ?? "unknown"}-${endpoint.tag ?? "default"}-${position}`;
     const quantizationLabel =
-      typeof endpoint.quantization === 'string'
+      typeof endpoint.quantization === "string"
         ? endpoint.quantization?.toUpperCase()
-        : endpoint.quantization && typeof endpoint.quantization === 'object'
+        : endpoint.quantization && typeof endpoint.quantization === "object"
           ? Object.values(endpoint.quantization)
-            .filter(Boolean)
-            .map((value) => String(value))
-            .join(', ')
+              .filter(Boolean)
+              .map((value) => String(value))
+              .join(", ")
           : null;
     return (
       <div
@@ -287,7 +290,7 @@ export const ProviderRoutingCard = ({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-mono text-sm text-white">{slug}</p>
-            <p className="text-xs text-slate-400">{endpoint.provider_name || 'Unknown provider'}</p>
+            <p className="text-xs text-slate-400">{endpoint.provider_name || "Unknown provider"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">
             <span>{getEndpointStatusLabel(endpoint.status)}</span>
@@ -321,11 +324,13 @@ export const ProviderRoutingCard = ({
           <div className="rounded-xl border border-white/5 bg-black/40 p-3">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Capacity</p>
             <p className="text-lg font-semibold text-white">
-              {maxTokens ? `${Math.round(maxTokens).toLocaleString()} tokens` : '—'}
+              {maxTokens ? `${Math.round(maxTokens).toLocaleString()} tokens` : "—"}
             </p>
           </div>
           <div className="rounded-xl border border-white/5 bg-black/40 p-3">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Supported params</p>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+              Supported params
+            </p>
             <p className="text-lg font-semibold text-white">{parameterCount}</p>
           </div>
         </div>
@@ -333,23 +338,23 @@ export const ProviderRoutingCard = ({
           <button
             type="button"
             className={actionClasses(orderActive)}
-            onClick={() => toggleProviderField('order', slug)}
+            onClick={() => toggleProviderField("order", slug)}
           >
-            {orderActive ? 'In order' : 'Add to order'}
+            {orderActive ? "In order" : "Add to order"}
           </button>
           <button
             type="button"
             className={actionClasses(onlyActive)}
-            onClick={() => toggleProviderField('only', slug)}
+            onClick={() => toggleProviderField("only", slug)}
           >
-            {onlyActive ? 'Allowing' : 'Allow only'}
+            {onlyActive ? "Allowing" : "Allow only"}
           </button>
           <button
             type="button"
             className={actionClasses(ignoreActive)}
-            onClick={() => toggleProviderField('ignore', slug)}
+            onClick={() => toggleProviderField("ignore", slug)}
           >
-            {ignoreActive ? 'Ignored' : 'Ignore'}
+            {ignoreActive ? "Ignored" : "Ignore"}
           </button>
         </div>
       </div>
@@ -386,7 +391,7 @@ export const ProviderRoutingCard = ({
             onChange={(event) =>
               setProviderForm((prev) => ({
                 ...prev,
-                sort: event.target.value as ProviderFormState['sort'],
+                sort: event.target.value as ProviderFormState["sort"],
               }))
             }
           >
@@ -421,7 +426,7 @@ export const ProviderRoutingCard = ({
             <p className="text-sm text-slate-300">
               {providerModelSlug
                 ? `Pulled from OpenRouter for ${providerModelSlug}.`
-                : 'Select a model to browse provider endpoints.'}
+                : "Select a model to browse provider endpoints."}
             </p>
           </div>
           {providerDirectory && (
@@ -434,10 +439,7 @@ export const ProviderRoutingCard = ({
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             type="search"
-            className={cn(
-              inputClasses,
-              'pl-9 disabled:cursor-not-allowed disabled:opacity-60',
-            )}
+            className={cn(inputClasses, "pl-9 disabled:cursor-not-allowed disabled:opacity-60")}
             placeholder="Search provider slug, vendor, or tag"
             value={providerSearchTerm}
             onChange={(event) => setProviderSearchTerm(event.target.value)}
@@ -459,8 +461,8 @@ export const ProviderRoutingCard = ({
           ) : visibleEndpoints.length === 0 ? (
             <p className="text-sm text-slate-400">
               {normalizedSearch
-                ? 'No providers match your search.'
-                : 'No endpoints published for this model yet.'}
+                ? "No providers match your search."
+                : "No endpoints published for this model yet."}
             </p>
           ) : (
             <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
@@ -472,7 +474,7 @@ export const ProviderRoutingCard = ({
 
       <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
         <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Selections & filters</p>
-        {renderSelectionField('Order priority', 'order', {
+        {renderSelectionField("Order priority", "order", {
           showIndex: true,
           allowReorder: true,
         })}
@@ -481,8 +483,8 @@ export const ProviderRoutingCard = ({
             Requests follow this order before falling back to the OpenRouter defaults.
           </p>
         )}
-        {renderSelectionField('Allow only', 'only')}
-        {renderSelectionField('Ignore', 'ignore')}
+        {renderSelectionField("Allow only", "only")}
+        {renderSelectionField("Ignore", "ignore")}
         <div className="space-y-2">
           <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Quantizations</span>
           <div className="flex flex-wrap gap-2">
@@ -493,10 +495,10 @@ export const ProviderRoutingCard = ({
                   key={option}
                   type="button"
                   className={cn(
-                    'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em]',
+                    "rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em]",
                     active
-                      ? 'border-cyan-400 bg-cyan-500/20 text-white'
-                      : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/40',
+                      ? "border-cyan-400 bg-cyan-500/20 text-white"
+                      : "border-white/10 bg-white/5 text-slate-200 hover:border-white/40",
                   )}
                   onClick={() => toggleQuantization(option)}
                 >
@@ -506,9 +508,7 @@ export const ProviderRoutingCard = ({
             })}
           </div>
           {providerForm.quantizations.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              Load balance across all quantization levels.
-            </p>
+            <p className="text-xs text-slate-500">Load balance across all quantization levels.</p>
           ) : (
             <p className="text-xs text-slate-500">
               {providerForm.quantizations.length} selected • filters apply to open-weight endpoints.
@@ -537,14 +537,16 @@ export const ProviderRoutingCard = ({
             </p>
           </div>
           <label className="space-y-2 text-sm text-slate-200">
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Data collection</span>
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
+              Data collection
+            </span>
             <select
               className={inputClasses}
               value={providerForm.dataCollection}
               onChange={(event) =>
                 setProviderForm((prev) => ({
                   ...prev,
-                  dataCollection: event.target.value === 'deny' ? 'deny' : 'allow',
+                  dataCollection: event.target.value === "deny" ? "deny" : "allow",
                 }))
               }
             >
@@ -590,7 +592,9 @@ export const ProviderRoutingCard = ({
 
       <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Max price ($/m tokens)</p>
+          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">
+            Max price ($/m tokens)
+          </p>
           <p className="text-sm text-slate-300">
             Cap prompt, completion, request, or image pricing for this turn.
           </p>
@@ -656,7 +660,7 @@ export const ProviderRoutingCard = ({
       </div>
 
       <p className="text-xs text-slate-500">
-        Need a refresher? Read the{' '}
+        Need a refresher? Read the{" "}
         <a
           href="https://openrouter.ai/docs/features/provider-routing"
           target="_blank"
@@ -664,7 +668,7 @@ export const ProviderRoutingCard = ({
           className="text-cyan-300 underline decoration-dotted underline-offset-4"
         >
           provider routing guide
-        </a>{' '}
+        </a>{" "}
         for tips on building multi-provider policies.
       </p>
     </div>

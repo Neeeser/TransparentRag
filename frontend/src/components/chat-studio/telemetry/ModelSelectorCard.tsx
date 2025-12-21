@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { Check, Loader, Search } from 'lucide-react';
+import { Check, Loader, Search } from "lucide-react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-import type { ModelInfo } from '@/lib/types';
+import type { ModelInfo } from "@/lib/types";
 
 interface ModelSelectorCardProps {
   currentModelInfo: ModelInfo | null;
@@ -23,28 +23,28 @@ const formatPricePerMillion = (value?: number | string | null): string | null =>
     return null;
   }
   const raw =
-    typeof value === 'number'
+    typeof value === "number"
       ? value
       : Number(
-        String(value)
-          .trim()
-          .replace(/[^0-9eE.+-]/g, ''),
-      );
+          String(value)
+            .trim()
+            .replace(/[^0-9eE.+-]/g, ""),
+        );
   if (!Number.isFinite(raw)) {
     const fallback = String(value).trim();
     return fallback || null;
   }
   const pricePerMillion = raw * 1_000_000;
   const trimFractionDigits = (numericString: string, minFractionDigits: number) => {
-    if (!numericString.includes('.')) {
+    if (!numericString.includes(".")) {
       return numericString;
     }
-    const [whole, fraction] = numericString.split('.');
+    const [whole, fraction] = numericString.split(".");
     if (fraction.length <= minFractionDigits) {
-      return `${whole}.${fraction.padEnd(minFractionDigits, '0')}`;
+      return `${whole}.${fraction.padEnd(minFractionDigits, "0")}`;
     }
     let trimmedFraction = fraction;
-    while (trimmedFraction.length > minFractionDigits && trimmedFraction.endsWith('0')) {
+    while (trimmedFraction.length > minFractionDigits && trimmedFraction.endsWith("0")) {
       trimmedFraction = trimmedFraction.slice(0, -1);
     }
     return trimmedFraction.length > 0 ? `${whole}.${trimmedFraction}` : whole;
@@ -95,7 +95,7 @@ export const ModelSelectorCard = ({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-slate-300">
-            {currentModelInfo?.name || selectedModelKey || 'Select a tool-enabled model'}
+            {currentModelInfo?.name || selectedModelKey || "Select a tool-enabled model"}
           </p>
           {selectedModelKey && (
             <p className="text-[11px] text-slate-500 break-all">{selectedModelKey}</p>
@@ -133,7 +133,7 @@ export const ModelSelectorCard = ({
           <p className="text-sm text-slate-400">
             {modelSearchTerm
               ? `No models match "${modelSearchTerm}".`
-              : 'No tool-enabled models available.'}
+              : "No tool-enabled models available."}
           </p>
         ) : (
           visibleModels.map((model) => {
@@ -151,10 +151,10 @@ export const ModelSelectorCard = ({
                 type="button"
                 onClick={() => onSelectModel(model.id)}
                 className={cn(
-                  'w-full rounded-2xl border px-3 py-2 text-left transition',
+                  "w-full rounded-2xl border px-3 py-2 text-left transition",
                   isSelected
-                    ? 'border-violet-400 bg-violet-500/10 text-white'
-                    : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/40',
+                    ? "border-violet-400 bg-violet-500/10 text-white"
+                    : "border-white/10 bg-white/5 text-slate-200 hover:border-white/40",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">

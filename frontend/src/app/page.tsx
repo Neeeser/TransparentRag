@@ -1,27 +1,27 @@
-import {
-  ArrowRight,
-  BarChart3,
-  Bot,
-  Layers,
-  Radar,
-  Sparkles,
-  Workflow,
-} from 'lucide-react';
-import Link from 'next/link';
+import { ArrowRight, BarChart3, Bot, Layers, Radar, Sparkles, Workflow } from "lucide-react";
+import Link from "next/link";
 
 const pipeline = [
-  { label: 'Parse', description: 'Ingest PDFs & text via FastAPI or CLI', icon: Layers },
-  { label: 'Chunk', description: 'Token, sentence, paragraph & semantic splitting', icon: Workflow },
-  { label: 'Embed', description: 'OpenRouter embeddings with audit-friendly storage', icon: Bot },
-  { label: 'Index', description: 'Deterministic Pinecone orchestration per namespace', icon: Radar },
-  { label: 'Chat', description: 'Tool-aware conversations with telemetry & usage', icon: Sparkles },
+  { label: "Parse", description: "Ingest PDFs & text via FastAPI or CLI", icon: Layers },
+  {
+    label: "Chunk",
+    description: "Token, sentence, paragraph & semantic splitting",
+    icon: Workflow,
+  },
+  { label: "Embed", description: "OpenRouter embeddings with audit-friendly storage", icon: Bot },
+  {
+    label: "Index",
+    description: "Deterministic Pinecone orchestration per namespace",
+    icon: Radar,
+  },
+  { label: "Chat", description: "Tool-aware conversations with telemetry & usage", icon: Sparkles },
 ];
 
 const highlights = [
-  'Observe every chunk, embedding, and tool call.',
-  'Per-user workspaces with JWT + row-level isolation.',
-  'Collections tuned with chunk size, overlap, and metadata.',
-  'Realtime retriever & chat visibility powered by Pinecone + OpenRouter.',
+  "Observe every chunk, embedding, and tool call.",
+  "Per-user workspaces with JWT + row-level isolation.",
+  "Collections tuned with chunk size, overlap, and metadata.",
+  "Realtime retriever & chat visibility powered by Pinecone + OpenRouter.",
 ];
 
 export default function LandingPage() {
@@ -69,7 +69,7 @@ export default function LandingPage() {
               className="glass-panel flex flex-col gap-3 rounded-2xl p-5 text-left"
             >
               <div className="flex items-center justify-between text-sm text-slate-400">
-                <span>{String(index + 1).padStart(2, '0')}</span>
+                <span>{String(index + 1).padStart(2, "0")}</span>
                 <step.icon className="h-4 w-4 text-violet-300" />
               </div>
               <p className="text-base font-semibold text-white">{step.label}</p>
@@ -104,10 +104,10 @@ export default function LandingPage() {
             </div>
             <div className="mt-6 space-y-4">
               {[
-                { label: 'Model', value: 'openai/gpt-oss-120b' },
-                { label: 'Chunks streamed', value: '12 @ 4.5k ctx' },
-                { label: 'Tool invoked', value: 'pinecone_query' },
-                { label: 'Latency', value: '1.2s ingest · 450ms retrieval' },
+                { label: "Model", value: "openai/gpt-oss-120b" },
+                { label: "Chunks streamed", value: "12 @ 4.5k ctx" },
+                { label: "Tool invoked", value: "pinecone_query" },
+                { label: "Latency", value: "1.2s ingest · 450ms retrieval" },
               ].map((metric) => (
                 <div
                   key={metric.label}

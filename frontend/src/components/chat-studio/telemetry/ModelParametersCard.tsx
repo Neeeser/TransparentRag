@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
 import type {
   ModelParameterKey,
   ParameterDefinition,
   ParameterOverrides,
-} from '@/lib/chat-parameters';
-import type { Collection, ModelInfo } from '@/lib/types';
+} from "@/lib/chat-parameters";
+import type { Collection, ModelInfo } from "@/lib/types";
 
 interface ModelParametersCardProps {
   collection: Collection | null;
@@ -14,7 +14,11 @@ interface ModelParametersCardProps {
   parameterOverrides: ParameterOverrides;
   activeParameterCount: number;
   resetAllParameters: () => void;
-  handleNumberParameterChange: (key: ModelParameterKey, rawValue: string, asInteger?: boolean) => void;
+  handleNumberParameterChange: (
+    key: ModelParameterKey,
+    rawValue: string,
+    asInteger?: boolean,
+  ) => void;
   handleBooleanParameterChange: (key: ModelParameterKey, checked: boolean) => void;
   handleTextParameterChange: (key: ModelParameterKey, value: string) => void;
   handleSelectParameterChange: (key: ModelParameterKey, value: string) => void;
@@ -40,7 +44,7 @@ export const ModelParametersCard = ({
   modelsError,
   modelsLoading,
 }: ModelParametersCardProps) => {
-  const selectedModelLabel = currentModelInfo?.id || collection?.chat_model || 'the selected model';
+  const selectedModelLabel = currentModelInfo?.id || collection?.chat_model || "the selected model";
 
   if (modelsError) {
     return <p className="text-sm text-rose-300">{modelsError}</p>;
@@ -54,7 +58,8 @@ export const ModelParametersCard = ({
   if (!currentModelInfo) {
     return (
       <p className="text-sm text-slate-400">
-        Unable to find OpenRouter metadata for <span className="text-white">{selectedModelLabel}</span>.
+        Unable to find OpenRouter metadata for{" "}
+        <span className="text-white">{selectedModelLabel}</span>.
       </p>
     );
   }
@@ -67,7 +72,7 @@ export const ModelParametersCard = ({
   }
 
   const inputClasses =
-    'w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400';
+    "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400";
 
   const renderParameterControl = (definition: ParameterDefinition) => {
     const hasOverride = Object.prototype.hasOwnProperty.call(parameterOverrides, definition.key);
@@ -75,26 +80,26 @@ export const ModelParametersCard = ({
     const defaultDisplay = formatDefaultParameter(definition.key);
 
     let control: React.ReactNode;
-    if (definition.input === 'number' || definition.input === 'integer') {
+    if (definition.input === "number" || definition.input === "integer") {
       control = (
         <input
           type="number"
           min={definition.min}
           max={definition.max}
-          step={definition.step ?? (definition.input === 'integer' ? 1 : 0.05)}
+          step={definition.step ?? (definition.input === "integer" ? 1 : 0.05)}
           className={inputClasses}
           placeholder={definition.placeholder}
-          value={typeof currentValue === 'number' ? currentValue : ''}
+          value={typeof currentValue === "number" ? currentValue : ""}
           onChange={(event) =>
             handleNumberParameterChange(
               definition.key,
               event.target.value,
-              definition.input === 'integer',
+              definition.input === "integer",
             )
           }
         />
       );
-    } else if (definition.input === 'boolean') {
+    } else if (definition.input === "boolean") {
       control = (
         <label className="flex items-center gap-3 text-sm text-slate-200">
           <input
@@ -106,11 +111,11 @@ export const ModelParametersCard = ({
           <span>Enable</span>
         </label>
       );
-    } else if (definition.input === 'select') {
+    } else if (definition.input === "select") {
       control = (
         <select
           className={inputClasses}
-          value={typeof currentValue === 'string' ? currentValue : ''}
+          value={typeof currentValue === "string" ? currentValue : ""}
           onChange={(event) => handleSelectParameterChange(definition.key, event.target.value)}
         >
           {(definition.options ?? []).map((option) => (
@@ -126,7 +131,7 @@ export const ModelParametersCard = ({
           className={`${inputClasses} h-auto`}
           rows={definition.rows ?? 2}
           placeholder={definition.placeholder}
-          value={typeof currentValue === 'string' ? currentValue : ''}
+          value={typeof currentValue === "string" ? currentValue : ""}
           onChange={(event) => handleTextParameterChange(definition.key, event.target.value)}
         />
       );

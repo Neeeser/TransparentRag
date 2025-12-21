@@ -1,24 +1,25 @@
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono } from "next/font/google";
 
-import { AuthProvider } from '@/providers/auth-provider';
+import { AuthProvider } from "@/providers/auth-provider";
 
-import './globals.css';
+import "./globals.css";
 
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 
 const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: 'TransparentRAG Control Room',
-  description: 'Observe every chunk, embedding, and token in your Retrieval-Augmented Generation stack.',
+  title: "TransparentRAG Control Room",
+  description:
+    "Observe every chunk, embedding, and token in your Retrieval-Augmented Generation stack.",
 };
 
 export default function RootLayout({

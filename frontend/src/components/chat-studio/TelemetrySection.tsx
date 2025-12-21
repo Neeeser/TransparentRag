@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from "lucide-react";
 
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
 interface TelemetrySectionProps {
   title: string;
@@ -32,9 +32,7 @@ export const TelemetrySection = ({
         {icon && <span className="text-slate-300">{icon}</span>}
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{title}</p>
-          {description && (
-            <p className="text-[11px] text-slate-300">{description}</p>
-          )}
+          {description && <p className="text-[11px] text-slate-300">{description}</p>}
         </div>
       </div>
       {isOpen ? (

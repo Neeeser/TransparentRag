@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 
-import type { UsageBreakdown } from '@/lib/types';
+import type { UsageBreakdown } from "@/lib/types";
 
 const usageMetrics: { key: keyof UsageBreakdown; label: string }[] = [
-  { key: 'prompt_tokens', label: 'Prompt tokens' },
-  { key: 'completion_tokens', label: 'Completion tokens' },
-  { key: 'total_tokens', label: 'Total tokens' },
-  { key: 'reasoning_tokens', label: 'Reasoning tokens' },
+  { key: "prompt_tokens", label: "Prompt tokens" },
+  { key: "completion_tokens", label: "Completion tokens" },
+  { key: "total_tokens", label: "Total tokens" },
+  { key: "reasoning_tokens", label: "Reasoning tokens" },
 ];
 
 interface UsageCardProps {
@@ -18,19 +18,14 @@ interface UsageCardProps {
   onExport: () => void;
 }
 
-export const UsageCard = ({
-  usage,
-  contextWindow,
-  contextConsumed,
-  onExport,
-}: UsageCardProps) => {
+export const UsageCard = ({ usage, contextWindow, contextConsumed, onExport }: UsageCardProps) => {
   const usageCostLabel =
     usage?.cost != null
       ? `$${usage.cost.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 6,
-      })}`
-      : '—';
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 6,
+        })}`
+      : "—";
 
   const usageDescription = contextWindow
     ? `${contextConsumed.toLocaleString()} / ${contextWindow.toLocaleString()} tokens`
@@ -62,16 +57,13 @@ export const UsageCard = ({
         </div>
         {usageMetrics.map((metric) => {
           const metricValue = usage?.[metric.key];
-          const formattedValue =
-            metricValue != null ? metricValue.toLocaleString() : '—';
+          const formattedValue = metricValue != null ? metricValue.toLocaleString() : "—";
           return (
             <div
               key={`${metric.key}`}
               className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                {metric.label}
-              </p>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{metric.label}</p>
               <p className="mt-2 text-2xl font-semibold text-white">{formattedValue}</p>
             </div>
           );
