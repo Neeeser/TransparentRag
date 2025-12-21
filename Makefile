@@ -1,4 +1,4 @@
-.PHONY: help env env-backend env-frontend server frontend run test
+.PHONY: help env env-backend env-frontend server frontend run test coverage coverage-report coverage-open
 
 UV ?= uv
 NPM ?= npm
@@ -20,6 +20,9 @@ help:
 	@echo "  make frontend  - run Next.js dev server"
 	@echo "  make run       - run server + frontend together"
 	@echo "  make test      - run pytest"
+	@echo "  make coverage  - pytest + missing lines + html report"
+	@echo "  make coverage-report - same, but never fails"
+	@echo "  make coverage-open - open htmlcov/index.html"
 
 env: env-backend env-frontend
 
@@ -40,3 +43,12 @@ run:
 
 test: env-backend
 	$(UV) run pytest
+
+coverage: env-backend
+	$(UV) run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html --cov-report=xml
+
+coverage-report: env-backend
+	-$(UV) run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html --cov-report=xml
+
+coverage-open:
+	@test -f htmlcov/index.html && open htmlcov/index.html || (echo "No report found. Run: make coverage" && exit 1)
