@@ -1,9 +1,10 @@
+"""Ingestion service for uploaded documents."""
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
-from uuid import UUID
+from typing import List
 
 from fastapi import UploadFile
 from pinecone import Pinecone
@@ -29,8 +30,11 @@ from app.utils.time import utc_now
 logger = logging.getLogger(__name__)
 
 
-class IngestionService:
+class IngestionService:  # pylint: disable=too-few-public-methods
+    """Service for ingesting and indexing uploaded documents."""
+
     def __init__(self, session: Session) -> None:
+        """Initialize the ingestion service with shared clients."""
         self.session = session
         self.settings = get_settings()
         self.storage = FileStorage()
@@ -40,11 +44,13 @@ class IngestionService:
         self.chunks = ChunkRepository(session)
 
     def _select_parser(self, content_type: str) -> DocumentParser:
+        """Select a parser based on the upload content type."""
         if "pdf" in (content_type or ""):
             return PdfToTextParser()
         return TxtDocumentParser()
 
     def _build_metadata(self, document: models.Document) -> DocumentMetadata:
+        """Build metadata payload for the retriever document."""
         return DocumentMetadata(
             data={
                 "collection_id": str(document.collection_id),
@@ -53,23 +59,15 @@ class IngestionService:
             }
         )
 
-    def _document_to_schema(self, document: models.Document) -> DocumentRead:
-        return DocumentRead(
-            id=document.id,
-            collection_id=document.collection_id,
-            name=document.name,
-            content_type=document.content_type,
-            status=document.status,
-            num_chunks=document.num_chunks,
-            num_tokens=document.num_tokens,
-            chunk_size=document.chunk_size,
-            chunk_overlap=document.chunk_overlap,
-            chunk_strategy=document.chunk_strategy,
-            created_at=document.created_at,
-            updated_at=document.updated_at,
-        )
-
-    def ingest_upload(self, *, user: models.User, collection: models.Collection, upload: UploadFile) -> IngestionResponse:
+    # pylint: disable=too-many-locals
+    def ingest_upload(
+        self,
+        *,
+        user: models.User,
+        collection: models.Collection,
+        upload: UploadFile,
+    ) -> IngestionResponse:
+        """Ingest a document upload and index its chunks."""
         document = models.Document(
             collection_id=collection.id,
             user_id=user.id,
@@ -103,7 +101,11 @@ class IngestionService:
             )
             parsed: RetrievalDocument = parser.parse(source)  # type: ignore[assignment]
             parsed_text = (parsed.text or "").strip()
-            snippet = (parsed_text[:200] + ("..." if len(parsed_text) > 200 else "")) if parsed_text else ""
+            snippet = (
+                parsed_text[:200] + ("..." if len(parsed_text) > 200 else "")
+                if parsed_text
+                else ""
+            )
             logger.info(
                 "Parsed uploaded document %s (%s) content_type=%s chars=%s snippet=%r",
                 document.id,
@@ -112,7 +114,11 @@ class IngestionService:
                 len(parsed_text),
                 snippet,
             )
-            chunker = build_chunker(collection.chunk_strategy, collection.chunk_size, collection.chunk_overlap)
+            chunker = build_chunker(
+                collection.chunk_strategy,
+                collection.chunk_size,
+                collection.chunk_overlap,
+            )
             logger.info(
                 "Constructed chunker=%s strategy=%s size=%s overlap=%s for document %s",
                 chunker.__class__.__name__,
@@ -135,7 +141,10 @@ class IngestionService:
                 index_config=index_config,
             )
             indexer.ensure_index()
-            enriched_chunks = indexer.index_document(document=parsed, namespace=collection.pinecone_namespace)
+            enriched_chunks = indexer.index_document(
+                document=parsed,
+                namespace=collection.pinecone_namespace,
+            )
 
             chunk_records: List[models.DocumentChunkRecord] = []
             for chunk in enriched_chunks:
@@ -161,21 +170,23 @@ class IngestionService:
             document.source_path = str(path)
             document.updated_at = utc_now()
             usage = embedder.usage or {}
-            self.session.add(models.IngestionEvent(
-                document_id=document.id,
-                collection_id=collection.id,
-                event_type="ingestion_complete",
-                status="success",
-                details={
-                    "chunks": len(chunk_records),
-                    "embedding_model": collection.embedding_model,
-                    "usage": usage,
-                },
-            ))
+            self.session.add(
+                models.IngestionEvent(
+                    document_id=document.id,
+                    collection_id=collection.id,
+                    event_type="ingestion_complete",
+                    status="success",
+                    details={
+                        "chunks": len(chunk_records),
+                        "embedding_model": collection.embedding_model,
+                        "usage": usage,
+                    },
+                )
+            )
             self.session.commit()
 
             return IngestionResponse(
-                document=self._document_to_schema(document),
+                document=DocumentRead.from_model(document),
                 chunk_count=len(chunk_records),
                 pinecone_namespace=collection.pinecone_namespace,
                 embedding_model=collection.embedding_model,
@@ -184,12 +195,14 @@ class IngestionService:
         except Exception as exc:
             document.status = models.DocumentStatus.FAILED
             document.updated_at = utc_now()
-            self.session.add(models.IngestionEvent(
-                document_id=document.id,
-                collection_id=collection.id,
-                event_type="ingestion_failed",
-                status="error",
-                details={"error": str(exc)},
-            ))
+            self.session.add(
+                models.IngestionEvent(
+                    document_id=document.id,
+                    collection_id=collection.id,
+                    event_type="ingestion_failed",
+                    status="error",
+                    details={"error": str(exc)},
+                )
+            )
             self.session.commit()
             raise

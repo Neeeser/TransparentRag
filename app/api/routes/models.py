@@ -1,3 +1,5 @@
+"""Model catalog API routes."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
@@ -9,12 +11,19 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 
 
 @router.get("", response_model=list[ModelInfo])
-def list_models(refresh: bool = Query(False, description="Force refresh of the OpenRouter model catalog")) -> list[ModelInfo]:
+def list_models(
+    refresh: bool = Query(
+        False,
+        description="Force refresh of the OpenRouter model catalog",
+    )
+) -> list[ModelInfo]:
+    """List available OpenRouter models."""
     client = get_openrouter_client()
     return client.list_models(force_refresh=refresh)
 
 
 @router.get("/{author}/{slug}/endpoints", response_model=EndpointsListResponse)
 def list_model_endpoints(author: str, slug: str) -> EndpointsListResponse:
+    """List endpoints for a specific OpenRouter model."""
     client = get_openrouter_client()
     return client.list_model_endpoints(author, slug)

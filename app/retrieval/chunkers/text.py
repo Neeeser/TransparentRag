@@ -1,3 +1,5 @@
+"""Fixed-size text chunker implementation."""
+
 from __future__ import annotations
 
 from typing import Sequence
@@ -6,10 +8,11 @@ from .base import DocumentChunker
 from ..models import Document, DocumentChunk
 
 
-class FixedSizeTextChunker(DocumentChunker):
+class FixedSizeTextChunker(DocumentChunker):  # pylint: disable=too-few-public-methods
     """Simple whitespace tokenizer with overlap handling."""
 
     def __init__(self, chunk_size: int = 200, overlap: int = 40) -> None:
+        """Initialize chunk sizes and overlap values."""
         if chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
         if overlap < 0:
@@ -20,6 +23,7 @@ class FixedSizeTextChunker(DocumentChunker):
         self.overlap = overlap
 
     def chunk(self, document: Document) -> Sequence[DocumentChunk]:
+        """Split a document into fixed-size chunks with overlap."""
         words = document.text.split()
         if not words:
             return []
@@ -43,4 +47,3 @@ class FixedSizeTextChunker(DocumentChunker):
             chunks.append(chunk)
 
         return chunks
-

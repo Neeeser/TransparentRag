@@ -1,3 +1,5 @@
+"""Indexing workflow for documents, chunks, and sources."""
+
 from __future__ import annotations
 
 import logging
@@ -15,6 +17,7 @@ logger = logging.getLogger(__name__)
 class DocumentIndexer:
     """Coordinates chunking, embedding, and upserting documents into a vector index."""
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         chunker: DocumentChunker,
@@ -23,6 +26,7 @@ class DocumentIndexer:
         index_config: VectorIndexConfig,
         parser: Optional[DocumentParser] = None,
     ) -> None:
+        """Initialize the document indexer pipeline."""
         self._chunker = chunker
         self._embedder = embedder
         self._indexer = indexer
@@ -30,6 +34,7 @@ class DocumentIndexer:
         self._parser = parser
 
     def ensure_index(self) -> None:
+        """Ensure the target index exists for the configured backend."""
         self._indexer.ensure_index(self._index_config)
 
     def index_document(
@@ -38,6 +43,7 @@ class DocumentIndexer:
         namespace: Optional[str] = None,
         ensure_index: bool = True,
     ) -> Sequence[DocumentChunk]:
+        """Chunk, embed, and index a single document."""
         if ensure_index:
             self.ensure_index()
 
@@ -98,6 +104,7 @@ class DocumentIndexer:
         namespace: Optional[str] = None,
         ensure_index: bool = True,
     ) -> Sequence[DocumentChunk]:
+        """Parse and index a single source using the configured parser."""
         if self._parser is None:
             raise ValueError("Document parser is not configured for this indexer.")
         document = self._parser.parse(source)
@@ -113,6 +120,7 @@ class DocumentIndexer:
         namespace: Optional[str] = None,
         ensure_index: bool = True,
     ) -> list[DocumentChunk]:
+        """Index a batch of documents sequentially."""
         combined: list[DocumentChunk] = []
         for document in documents:
             combined.extend(
@@ -131,6 +139,7 @@ class DocumentIndexer:
         namespace: Optional[str] = None,
         ensure_index: bool = True,
     ) -> list[DocumentChunk]:
+        """Parse and index a batch of sources sequentially."""
         if self._parser is None:
             raise ValueError("Document parser is not configured for this indexer.")
 

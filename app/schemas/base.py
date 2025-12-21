@@ -1,3 +1,5 @@
+"""Shared schema configuration for Pydantic models."""
+
 from __future__ import annotations
 
 from pydantic import ConfigDict
@@ -5,7 +7,7 @@ from pydantic import ConfigDict
 from app.utils.time import DEFAULT_DATETIME_ENCODERS
 
 
-class DateTimeConfigMixin:
+class DateTimeConfigMixin:  # pylint: disable=too-few-public-methods
     """Mixin for schemas that need UTC-inclusive datetime serialization."""
 
     model_config = ConfigDict(json_encoders=DEFAULT_DATETIME_ENCODERS)

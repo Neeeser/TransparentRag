@@ -27,3 +27,17 @@ def test_sanitize_provider_preferences_normalizes_aliases() -> None:
     assert sanitized["data_collection"] == "deny"
     assert sanitized["sort"] == "latency"
     assert sanitized["max_price"] == {"prompt": 0.002}
+
+
+def test_sanitize_provider_preferences_returns_none_for_unknown_keys() -> None:
+    assert ChatService._sanitize_provider_preferences({"unsupported": "value"}) is None
+
+
+def test_coerce_string_list_handles_tuple_values() -> None:
+    assert ChatService._coerce_string_list(("a", " ", 2)) == ["a", "2"]
+
+
+def test_provider_preference_helpers_reject_invalid_values() -> None:
+    assert ChatService._coerce_provider_sort("speed") is None
+    assert ChatService._coerce_data_collection("maybe") is None
+    assert ChatService._coerce_max_price("0.1") is None

@@ -1,6 +1,7 @@
+"""Pinecone-backed retrieval implementation."""
+
 from __future__ import annotations
 
-import os
 from typing import Any, Optional, Sequence
 
 from pinecone import Pinecone
@@ -8,13 +9,15 @@ from pinecone import Pinecone
 from ..embedders.base import Embedder
 from ..indexers.pinecone_indexer import PineconeIndexConfig
 from ..models import DocumentChunk, DocumentMetadata, QueryRequest, RetrievalResponse, ScoredChunk
+from ..pinecone import get_pinecone_client
 from ..rerankers.base import Reranker
 from .base import Retriever
 
 
-class PineconeRetriever(Retriever):
+class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
     """Retriever backed by Pinecone with optional reranking."""
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         index_config: PineconeIndexConfig,
@@ -23,18 +26,15 @@ class PineconeRetriever(Retriever):
         api_key: Optional[str] = None,
         reranker: Optional[Reranker] = None,
     ) -> None:
-        resolved_api_key = api_key or os.getenv("PINECONE_API_KEY")
-        if client is None:
-            if not resolved_api_key:
-                raise ValueError("Pinecone API key must be provided via argument or PINECONE_API_KEY env var.")
-            client = Pinecone(api_key=resolved_api_key)
-        self._client = client
+        """Initialize the retriever and Pinecone index handle."""
+        self._client = get_pinecone_client(client=client, api_key=api_key)
         self._index_config = index_config
         self._embedder = embedder
         self._reranker = reranker
         self._index = self._client.Index(index_config.name)
 
     def retrieve(self, request: QueryRequest) -> RetrievalResponse:
+        """Retrieve the most relevant chunks for the query."""
         query_vector = self._embedder.embed_query(request.text)
         namespace = request.namespace or self._index_config.namespace
 
@@ -60,6 +60,7 @@ class PineconeRetriever(Retriever):
         return RetrievalResponse(matches=scored_chunks)
 
     def _convert_matches(self, matches: Sequence[Any]) -> list[ScoredChunk]:
+        """Convert Pinecone match results into scored chunks."""
         scored: list[ScoredChunk] = []
         for match in matches:
             metadata_dict = dict(match.metadata or {})
@@ -75,4 +76,3 @@ class PineconeRetriever(Retriever):
             )
             scored.append(ScoredChunk(chunk=chunk, score=float(match.score)))
         return scored
-

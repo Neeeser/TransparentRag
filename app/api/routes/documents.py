@@ -1,48 +1,40 @@
+"""Document ingestion and listing API routes."""
+
 from __future__ import annotations
 
 from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
 from app.db import models
-from app.db.repositories import ChunkRepository, CollectionRepository, DocumentRepository
+from app.db.repositories import ChunkRepository, DocumentRepository
 from app.schemas.documents import ChunkRead, ChunkVisualization, DocumentRead, IngestionResponse
 from app.services.ingestion import IngestionService
+from app.api.routes.utils import get_collection_or_404
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
 
-def _document_to_schema(document: models.Document) -> DocumentRead:
-    return DocumentRead(
-        id=document.id,
-        collection_id=document.collection_id,
-        name=document.name,
-        content_type=document.content_type,
-        status=document.status,
-        num_chunks=document.num_chunks,
-        num_tokens=document.num_tokens,
-        chunk_size=document.chunk_size,
-        chunk_overlap=document.chunk_overlap,
-        chunk_strategy=document.chunk_strategy,
-        created_at=document.created_at,
-        updated_at=document.updated_at,
-    )
-
-
-@router.post("/collections/{collection_id}/documents", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/collections/{collection_id}/documents",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_document(
     collection_id: UUID,
     file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> IngestionResponse:
-    collection_repo = CollectionRepository(session)
-    collection = collection_repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """Upload and ingest a document into a collection."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
 
     ingestion_service = IngestionService(session)
     return ingestion_service.ingest_upload(user=current_user, collection=collection, upload=file)
@@ -54,14 +46,16 @@ def list_documents(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> List[DocumentRead]:
-    collection_repo = CollectionRepository(session)
-    collection = collection_repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """List documents for a collection."""
+    get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
 
     repo = DocumentRepository(session)
     documents = repo.list_for_collection(collection_id)
-    return [_document_to_schema(doc) for doc in documents]
+    return [DocumentRead.from_model(doc) for doc in documents]
 
 
 @router.get("/documents/{document_id}/chunks", response_model=ChunkVisualization)
@@ -70,9 +64,13 @@ def get_document_chunks(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ChunkVisualization:
+    """Return chunk visualization data for a document."""
     document = session.get(models.Document, document_id)
     if not document or document.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
 
     chunk_repo = ChunkRepository(session)
     chunks = chunk_repo.list_for_document(document_id)
@@ -89,4 +87,4 @@ def get_document_chunks(
         )
         for chunk in chunks
     ]
-    return ChunkVisualization(document=_document_to_schema(document), chunks=chunk_schemas)
+    return ChunkVisualization(document=DocumentRead.from_model(document), chunks=chunk_schemas)

@@ -1,3 +1,5 @@
+"""Chat schema models for sessions and messages."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -6,11 +8,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.db import models
 from app.db.models import ChatMode, ChatRole
 from app.schemas.base import DateTimeConfigMixin
 
 
 class ToolCallTrace(BaseModel):
+    """Trace details for tool calls executed during chat."""
+
     id: str
     name: str
     arguments: Dict[str, Any]
@@ -19,6 +24,8 @@ class ToolCallTrace(BaseModel):
 
 
 class ChatMessageRead(DateTimeConfigMixin, BaseModel):
+    """Message record returned to clients."""
+
     id: UUID
     session_id: UUID
     role: ChatRole
@@ -33,8 +40,29 @@ class ChatMessageRead(DateTimeConfigMixin, BaseModel):
     usage: Optional[Dict[str, Any]] = None
     created_at: datetime
 
+    @classmethod
+    def from_model(cls, message: models.ChatMessage) -> "ChatMessageRead":
+        """Build a schema instance from a chat message model."""
+        return cls(
+            id=message.id,
+            session_id=message.session_id,
+            role=message.role,
+            content=message.content,
+            model=message.model,
+            tool_name=message.tool_name,
+            tool_payload=message.tool_payload,
+            tool_call_id=message.tool_call_id,
+            reasoning_trace=message.reasoning_trace,
+            prompt_tokens=message.prompt_tokens,
+            completion_tokens=message.completion_tokens,
+            usage=message.usage,
+            created_at=message.created_at,
+        )
+
 
 class ChatSessionRead(DateTimeConfigMixin, BaseModel):
+    """Chat session record returned to clients."""
+
     id: UUID
     collection_id: UUID
     user_id: UUID
@@ -45,8 +73,25 @@ class ChatSessionRead(DateTimeConfigMixin, BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @classmethod
+    def from_model(cls, session: models.ChatSession) -> "ChatSessionRead":
+        """Build a schema instance from a chat session model."""
+        return cls(
+            id=session.id,
+            collection_id=session.collection_id,
+            user_id=session.user_id,
+            title=session.title,
+            mode=session.mode,
+            chat_model=session.chat_model,
+            context_tokens=session.context_tokens,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+        )
+
 
 class ChatMessageCreate(BaseModel):
+    """Payload for creating or editing chat messages."""
+
     session_id: Optional[UUID] = None
     content: str
     mode: ChatMode = ChatMode.CHAT
@@ -59,6 +104,8 @@ class ChatMessageCreate(BaseModel):
 
 
 class ChatCompletionResponse(BaseModel):
+    """Response payload for chat completions."""
+
     session: ChatSessionRead
     messages: List[ChatMessageRead]
     tool_traces: List[ToolCallTrace] = Field(default_factory=list)

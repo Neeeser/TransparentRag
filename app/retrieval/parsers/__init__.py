@@ -1,3 +1,5 @@
+"""Document parsers for ingestion."""
+
 from .base import DocumentParser, DocumentSource
 from .pdf import PdfToTextParser
 from .txt import TxtDocumentParser
@@ -8,4 +10,3 @@ __all__ = [
     "PdfToTextParser",
     "TxtDocumentParser",
 ]
-

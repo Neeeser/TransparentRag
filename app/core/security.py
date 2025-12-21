@@ -1,3 +1,5 @@
+"""Security helpers for hashing passwords and issuing JWTs."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -13,14 +15,17 @@ settings = get_settings()
 
 
 def hash_password(password: str) -> str:
+    """Hash a plaintext password using the configured context."""
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Compare a plaintext password to a stored hash."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(subject: str, expires_minutes: Optional[int] = None, **extra: Any) -> str:
+    """Create a JWT access token for the provided subject."""
     expire_delta = timedelta(minutes=expires_minutes or settings.access_token_expire_minutes)
     expire = datetime.now(timezone.utc) + expire_delta
     payload: dict[str, Any] = {"sub": subject, "exp": expire}

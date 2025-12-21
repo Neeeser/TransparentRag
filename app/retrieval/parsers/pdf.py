@@ -1,3 +1,5 @@
+"""PDF document parser."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -5,13 +7,14 @@ from pathlib import Path
 from pypdf import PdfReader
 
 from ..models import Document
-from .base import DocumentParser, DocumentSource
+from .base import DocumentParser, DocumentSource, build_document_from_source
 
 
-class PdfToTextParser(DocumentParser):
+class PdfToTextParser(DocumentParser):  # pylint: disable=too-few-public-methods
     """Extract native text content from PDF documents."""
 
     def parse(self, source: DocumentSource) -> Document:
+        """Parse a PDF file into a document."""
         path = Path(source.path)
         if not path.exists():
             raise FileNotFoundError(f"PDF file not found: {path}")
@@ -24,10 +27,4 @@ class PdfToTextParser(DocumentParser):
                 text_fragments.append(page_text.strip())
 
         text = "\n\n".join(text_fragments)
-        metadata = source.metadata.model_copy(deep=True)
-        return Document(
-            document_id=source.document_id,
-            text=text,
-            metadata=metadata,
-        )
-
+        return build_document_from_source(source, text)

@@ -29,6 +29,15 @@ def test_build_openrouter_body_with_no_reasoning_options_still_includes_usage() 
     assert body == {"usage": {"include": True}}
 
 
+def test_build_openrouter_body_includes_provider_options() -> None:
+    body = ChatService._build_openrouter_body(
+        {"reasoning": {"effort": "low"}},
+        provider_options={"order": ["provider-a"]},
+    )
+
+    assert body["provider"] == {"order": ["provider-a"]}
+
+
 def test_extract_reasoning_tokens_from_usage_nested_details() -> None:
     usage = {"completion_tokens_details": {"reasoning_tokens": "8"}}
 

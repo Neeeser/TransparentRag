@@ -1,3 +1,5 @@
+"""Schema models for OpenRouter model metadata."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -6,12 +8,16 @@ from pydantic import BaseModel, Field
 
 
 class ModelPricing(BaseModel):
+    """Pricing details for a model."""
+
     prompt: Optional[str] = None
     completion: Optional[str] = None
     request: Optional[str] = None
 
 
 class ModelInfo(BaseModel):
+    """Metadata about a model available from OpenRouter."""
+
     id: str
     canonical_slug: Optional[str] = None
     name: str
@@ -28,6 +34,8 @@ NumberLike = float | str
 
 
 class ProviderEndpointPricing(BaseModel):
+    """Per-endpoint pricing data reported by a provider."""
+
     prompt: Optional[NumberLike] = None
     completion: Optional[NumberLike] = None
     request: Optional[NumberLike] = None
@@ -43,6 +51,8 @@ class ProviderEndpointPricing(BaseModel):
 
 
 class PublicEndpoint(BaseModel):
+    """Public endpoint listing with pricing and status metadata."""
+
     name: str
     model_name: Optional[str] = None
     context_length: Optional[float] = None
@@ -59,6 +69,8 @@ class PublicEndpoint(BaseModel):
 
 
 class ListEndpointsResponse(BaseModel):
+    """Envelope for list endpoints API response."""
+
     id: str
     name: str
     created: Optional[float] = None
@@ -68,4 +80,6 @@ class ListEndpointsResponse(BaseModel):
 
 
 class EndpointsListResponse(BaseModel):
+    """Top-level response for endpoints list."""
+
     data: ListEndpointsResponse

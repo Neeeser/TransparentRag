@@ -6,6 +6,7 @@ import pytest
 
 from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig, PineconeIndexer
 from app.retrieval.indexers import pinecone_indexer as pinecone_module
+from app.retrieval import pinecone as pinecone_client_module
 from app.retrieval.models import DocumentChunk, DocumentMetadata
 
 
@@ -172,7 +173,7 @@ def test_init_uses_api_key_when_client_missing(monkeypatch) -> None:
         def __init__(self, api_key: str) -> None:
             captured["api_key"] = api_key
 
-    monkeypatch.setattr(pinecone_module, "Pinecone", _StubPineconeClient)
+    monkeypatch.setattr(pinecone_client_module, "Pinecone", _StubPineconeClient)
 
     indexer = PineconeIndexer(client=None, api_key="unit-key")
 

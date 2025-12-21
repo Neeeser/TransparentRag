@@ -1,3 +1,5 @@
+"""FastAPI application entrypoint."""
+
 from __future__ import annotations
 
 import logging
@@ -11,9 +13,9 @@ from app.api.routes import auth, chat, collections, documents, health, models, s
 from app.db.session import init_db
 
 settings = get_settings()
-log_level_name = (settings.log_level or "").strip().upper()
-if log_level_name:
-    log_level = getattr(logging, log_level_name, logging.INFO)
+LOG_LEVEL_NAME = (settings.log_level or "").strip().upper()
+if LOG_LEVEL_NAME:
+    log_level = getattr(logging, LOG_LEVEL_NAME, logging.INFO)
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -27,6 +29,7 @@ if log_level_name:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Initialize application resources on startup."""
     init_db()
     yield
 

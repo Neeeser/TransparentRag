@@ -1,3 +1,5 @@
+"""Schema models for OpenRouter chat and embeddings responses."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -8,6 +10,8 @@ NumberLike = int | float | str
 
 
 class OpenRouterUsage(BaseModel):
+    """Usage details returned by OpenRouter."""
+
     model_config = ConfigDict(extra="allow")
 
     prompt_tokens: Optional[NumberLike] = None
@@ -20,6 +24,8 @@ class OpenRouterUsage(BaseModel):
 
 
 class OpenRouterFunctionCall(BaseModel):
+    """Function call data returned by OpenRouter."""
+
     model_config = ConfigDict(extra="allow")
 
     name: Optional[str] = None
@@ -28,6 +34,8 @@ class OpenRouterFunctionCall(BaseModel):
 
 
 class OpenRouterToolCall(BaseModel):
+    """Tool call entry returned by OpenRouter."""
+
     model_config = ConfigDict(extra="allow")
 
     id: Optional[str] = None
@@ -37,6 +45,8 @@ class OpenRouterToolCall(BaseModel):
 
 
 class OpenRouterAssistantMessage(BaseModel):
+    """Assistant message in chat responses."""
+
     model_config = ConfigDict(extra="allow")
 
     content: Optional[Any] = None
@@ -46,6 +56,8 @@ class OpenRouterAssistantMessage(BaseModel):
 
 
 class OpenRouterChatChoice(BaseModel):
+    """Choice entry in chat responses."""
+
     model_config = ConfigDict(extra="allow")
 
     index: Optional[int] = None
@@ -54,6 +66,8 @@ class OpenRouterChatChoice(BaseModel):
 
 
 class OpenRouterChatResponse(BaseModel):
+    """Top-level chat response from OpenRouter."""
+
     model_config = ConfigDict(extra="allow")
 
     id: Optional[str] = None
@@ -64,6 +78,8 @@ class OpenRouterChatResponse(BaseModel):
 
 
 class OpenRouterStreamDelta(BaseModel):
+    """Stream delta message from OpenRouter."""
+
     model_config = ConfigDict(extra="allow")
 
     content: Optional[Any] = None
@@ -72,6 +88,8 @@ class OpenRouterStreamDelta(BaseModel):
 
 
 class OpenRouterStreamChoice(BaseModel):
+    """Choice item for streaming responses."""
+
     model_config = ConfigDict(extra="allow")
 
     index: Optional[int] = None
@@ -80,6 +98,8 @@ class OpenRouterStreamChoice(BaseModel):
 
 
 class OpenRouterStreamChunk(BaseModel):
+    """Stream chunk payload for chat responses."""
+
     model_config = ConfigDict(extra="allow")
 
     choices: List[OpenRouterStreamChoice] = Field(default_factory=list)
@@ -89,6 +109,8 @@ class OpenRouterStreamChunk(BaseModel):
 
 
 class OpenRouterEmbeddingItem(BaseModel):
+    """Embedding item in embeddings response."""
+
     model_config = ConfigDict(extra="allow")
 
     object: Optional[str] = None
@@ -97,6 +119,8 @@ class OpenRouterEmbeddingItem(BaseModel):
 
 
 class OpenRouterEmbeddingsResponse(BaseModel):
+    """Top-level embeddings response from OpenRouter."""
+
     model_config = ConfigDict(extra="allow")
 
     id: Optional[str] = None

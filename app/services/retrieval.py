@@ -1,3 +1,5 @@
+"""Retrieval service for collection queries."""
+
 from __future__ import annotations
 
 from typing import List
@@ -14,13 +16,22 @@ from app.schemas.retrieval import CollectionQueryResponse, RetrievedChunk
 from app.services.openrouter import get_openrouter_client
 
 
-class RetrievalService:
+class RetrievalService:  # pylint: disable=too-few-public-methods
+    """Service for querying a collection's vector index."""
+
     def __init__(self) -> None:
+        """Initialize retrieval dependencies."""
         self.settings = get_settings()
         self._pinecone = Pinecone(api_key=self.settings.pinecone_api_key)
         self.openrouter = get_openrouter_client()
 
-    def query_collection(self, collection: Collection, query: str, top_k: int = 5) -> CollectionQueryResponse:
+    def query_collection(
+        self,
+        collection: Collection,
+        query: str,
+        top_k: int = 5,
+    ) -> CollectionQueryResponse:
+        """Run a query against a collection and return scored chunks."""
         embedder = OpenRouterEmbedder(self.openrouter, collection.embedding_model)
         config = PineconeIndexConfig(
             name=collection.pinecone_index,
@@ -33,7 +44,11 @@ class RetrievalService:
             embedder=embedder,
             client=self._pinecone,
         )
-        request = QueryRequest(text=query, top_k=top_k, namespace=collection.pinecone_namespace)
+        request = QueryRequest(
+            text=query,
+            top_k=top_k,
+            namespace=collection.pinecone_namespace,
+        )
         response = retriever.retrieve(request)
         chunks: List[RetrievedChunk] = []
         for scored in response.matches:

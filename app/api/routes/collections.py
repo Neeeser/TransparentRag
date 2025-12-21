@@ -1,9 +1,11 @@
+"""Collection management API routes."""
+
 from __future__ import annotations
 
 from typing import List
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pinecone import Pinecone
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
@@ -30,6 +32,7 @@ from app.services.prompts import (
     prompt_variables_payload,
     system_prompt_context,
 )
+from app.api.routes.utils import get_collection_or_404
 from app.utils.file_storage import FileStorage
 from app.utils.time import utc_now
 
@@ -37,6 +40,7 @@ router = APIRouter(prefix="/api/collections", tags=["collections"])
 
 
 def _to_schema(collection: models.Collection) -> CollectionRead:
+    """Convert a collection model into a response schema."""
     return CollectionRead(
         id=collection.id,
         user_id=collection.user_id,
@@ -59,6 +63,7 @@ def _to_schema(collection: models.Collection) -> CollectionRead:
 
 
 def _prompt_read(collection: models.Collection, user: models.User) -> CollectionPromptRead:
+    """Render prompt data for a collection and user."""
     template = get_system_prompt_template(collection)
     context = system_prompt_context(collection, user)
     rendered = apply_prompt_template(template, context)
@@ -75,6 +80,7 @@ def list_collections(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> List[CollectionRead]:
+    """List collections owned by the current user."""
     repo = CollectionRepository(session)
     return [_to_schema(col) for col in repo.list_for_user(current_user.id)]
 
@@ -85,10 +91,12 @@ def get_collection(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CollectionRead:
-    repo = CollectionRepository(session)
-    collection = repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """Return a collection by id."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
     return _to_schema(collection)
 
 
@@ -98,19 +106,23 @@ def get_collection_prompt(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CollectionPromptRead:
-    repo = CollectionRepository(session)
-    collection = repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """Return the rendered system prompt for a collection."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
     return _prompt_read(collection, current_user)
 
 
 @router.post("", response_model=CollectionRead, status_code=status.HTTP_201_CREATED)
+# pylint: disable=too-many-locals
 def create_collection(
     payload: CollectionCreate,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CollectionRead:
+    """Create a new collection for the current user."""
     settings = get_settings()
     repo = CollectionRepository(session)
     openrouter = get_openrouter_client()
@@ -135,10 +147,16 @@ def create_collection(
     dimension_probe = openrouter.embed(["dimension probe"], model=embedding_model)
     probe_data = dimension_probe.get("data", [])
     if not probe_data:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to probe embedding dimension from OpenRouter.")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to probe embedding dimension from OpenRouter.",
+        )
     embedding_dimension = len(probe_data[0].get("embedding", []))
     if embedding_dimension == 0:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Embedding dimension returned empty vector.")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Embedding dimension returned empty vector.",
+        )
 
     namespace = payload.pinecone_namespace or f"col-{uuid4().hex[:12]}"
     collection = models.Collection(
@@ -182,10 +200,12 @@ def update_collection(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CollectionRead:
-    repo = CollectionRepository(session)
-    collection = repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """Update collection metadata for the current user."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
 
     if payload.name is not None:
         collection.name = payload.name
@@ -216,10 +236,12 @@ def update_collection_prompt(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CollectionPromptRead:
-    repo = CollectionRepository(session)
-    collection = repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """Update the system prompt template for a collection."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
 
     template_value = (payload.template or "").replace("\r\n", "\n")
     if template_value.strip():
@@ -243,10 +265,12 @@ def delete_collection(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CollectionDeleteResponse:
-    repo = CollectionRepository(session)
-    collection = repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """Delete a collection and associated data."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
 
     settings = get_settings()
     pinecone_client = Pinecone(api_key=settings.pinecone_api_key)
@@ -275,15 +299,39 @@ def delete_collection(
         storage.delete_path(doc.source_path)
 
     session.exec(
-        sa_delete(models.DocumentChunkRecord).where(models.DocumentChunkRecord.collection_id == collection.id)
+        sa_delete(models.DocumentChunkRecord).where(
+            models.DocumentChunkRecord.collection_id == collection.id,
+        )
     )
-    session.exec(sa_delete(models.IngestionEvent).where(models.IngestionEvent.collection_id == collection.id))
-    session.exec(sa_delete(models.QueryEvent).where(models.QueryEvent.collection_id == collection.id))
+    session.exec(
+        sa_delete(models.IngestionEvent).where(
+            models.IngestionEvent.collection_id == collection.id,
+        )
+    )
+    session.exec(
+        sa_delete(models.QueryEvent).where(
+            models.QueryEvent.collection_id == collection.id,
+        )
+    )
     if doc_ids:
-        session.exec(sa_delete(models.Document).where(models.Document.id.in_(doc_ids)))
+        session.exec(
+            sa_delete(models.Document).where(
+                models.Document.id.in_(doc_ids)  # pylint: disable=no-member
+            )
+        )
     if session_ids:
-        session.exec(sa_delete(models.ChatMessage).where(models.ChatMessage.session_id.in_(session_ids)))
-    session.exec(sa_delete(models.ChatSession).where(models.ChatSession.collection_id == collection.id))
+        session.exec(
+            sa_delete(models.ChatMessage).where(
+                models.ChatMessage.session_id.in_(  # pylint: disable=no-member
+                    session_ids
+                ),
+            )
+        )
+    session.exec(
+        sa_delete(models.ChatSession).where(
+            models.ChatSession.collection_id == collection.id,
+        )
+    )
 
     session.delete(collection)
     session.commit()

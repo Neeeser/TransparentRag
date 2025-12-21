@@ -1,3 +1,5 @@
+"""Cross-encoder based reranking implementation."""
+
 from __future__ import annotations
 
 from typing import Sequence
@@ -8,7 +10,7 @@ from ..models import ScoredChunk
 from .base import Reranker
 
 
-class CrossEncoderReranker(Reranker):
+class CrossEncoderReranker(Reranker):  # pylint: disable=too-few-public-methods
     """Cross-encoder reranker that scores candidate chunks against the query."""
 
     def __init__(
@@ -16,6 +18,7 @@ class CrossEncoderReranker(Reranker):
         model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
         **model_kwargs: object,
     ) -> None:
+        """Initialize the reranker with the given model name."""
         self._model = CrossEncoder(model_name, **model_kwargs)
 
     def rerank(
@@ -24,6 +27,7 @@ class CrossEncoderReranker(Reranker):
         candidates: Sequence[ScoredChunk],
         top_k: int | None = None,
     ) -> Sequence[ScoredChunk]:
+        """Return reranked chunks scored by the cross-encoder."""
         if not candidates:
             return []
 
@@ -37,4 +41,3 @@ class CrossEncoderReranker(Reranker):
         if top_k is not None:
             return reranked[:top_k]
         return reranked
-

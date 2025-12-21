@@ -1,4 +1,8 @@
+"""Chat service orchestration for sessions, tools, and streaming."""
+
 from __future__ import annotations
+
+# pylint: disable=too-many-lines
 
 import json
 import math
@@ -8,6 +12,7 @@ from uuid import UUID, uuid4
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
+from sqlalchemy import asc
 from sqlmodel import Session, select
 
 from app.api.config import get_settings
@@ -28,6 +33,8 @@ from app.utils.time import utc_now
 
 
 class ChatService:
+    """Manage chat sessions, tool calls, and OpenRouter interactions."""
+
     PARAMETER_TYPE_HINTS: Dict[str, str] = {
         "temperature": "float",
         "top_p": "float",
@@ -78,6 +85,7 @@ class ChatService:
     PROVIDER_DATA_COLLECTION_OPTIONS = {"allow", "deny"}
 
     def __init__(self, session: Session) -> None:
+        """Initialize the chat service with database and OpenRouter clients."""
         self.session = session
         self.settings = get_settings()
         self.chat_repo = ChatRepository(session)
@@ -88,6 +96,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_usage_value(value: object) -> Optional[int]:
+        """Coerce usage values into integer token counts when possible."""
         if value is None:
             return None
         if isinstance(value, (int, float)):
@@ -110,6 +119,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_float_value(value: object) -> Optional[float]:
+        """Coerce numeric-like values into floats when possible."""
         if value is None:
             return None
         if isinstance(value, (int, float)):
@@ -123,12 +133,14 @@ class ChatService:
 
     @staticmethod
     def _add_usage_value(aggregate: Dict[str, float], key: str, value: Optional[float]) -> None:
+        """Accumulate usage metrics into the aggregate bucket."""
         if value is None:
             return
         aggregate[key] = aggregate.get(key, 0) + value
 
     @staticmethod
     def _extract_reasoning_tokens_from_usage(usage: Dict[str, Any]) -> Optional[int]:
+        """Extract reasoning token counts from a usage payload."""
         if not usage:
             return None
         direct = ChatService._coerce_usage_value(usage.get("reasoning_tokens"))
@@ -142,7 +154,10 @@ class ChatService:
         return None
 
     @staticmethod
-    def _normalize_reasoning_segments(raw_reasoning: Any) -> List[Dict[str, Any]]:
+    def _normalize_reasoning_segments(  # pylint: disable=too-many-return-statements
+        raw_reasoning: Any,
+    ) -> List[Dict[str, Any]]:
+        """Normalize reasoning payloads into a list of segment dicts."""
         if raw_reasoning is None:
             return []
         if isinstance(raw_reasoning, str):
@@ -173,6 +188,7 @@ class ChatService:
 
     @staticmethod
     def _merge_reasoning_segment_list(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Merge a list of reasoning segments into normalized entries."""
         merged: List[Dict[str, Any]] = []
         ChatService._extend_reasoning_segments(merged, segments)
         return merged
@@ -182,12 +198,14 @@ class ChatService:
         destination: List[Dict[str, Any]],
         additions: List[Dict[str, Any]],
     ) -> None:
+        """Append reasoning segments into a destination list."""
         for addition in additions:
             if isinstance(addition, dict):
                 ChatService._append_reasoning_segment(destination, dict(addition))
 
     @staticmethod
     def _append_reasoning_segment(target: List[Dict[str, Any]], segment: Dict[str, Any]) -> None:
+        """Append or merge a reasoning segment into a target list."""
         if not segment:
             return
         entry = dict(segment)
@@ -230,6 +248,7 @@ class ChatService:
 
     @staticmethod
     def _join_text_with_spacing(left: str, right: str) -> str:
+        """Join two text fragments with consistent spacing."""
         if not left:
             return right
         if not right:
@@ -238,6 +257,7 @@ class ChatService:
 
     @staticmethod
     def _ensure_arguments_string(arguments: Any) -> str:
+        """Ensure tool arguments are encoded as a JSON string."""
         if isinstance(arguments, str):
             stripped = arguments.strip()
             if not stripped:
@@ -253,6 +273,7 @@ class ChatService:
 
     @staticmethod
     def _decode_tool_arguments(arguments: Any) -> Dict[str, Any]:
+        """Parse tool arguments into a dictionary payload."""
         if isinstance(arguments, dict):
             return arguments
         if isinstance(arguments, str):
@@ -272,6 +293,7 @@ class ChatService:
         supported_parameters: Optional[List[str]],
         effort: Optional[str],
     ) -> Dict[str, Any]:
+        """Build reasoning options compatible with the selected model."""
         selected_effort = ChatService._normalize_reasoning_effort(effort) or "medium"
         options: Dict[str, Any] = {}
 
@@ -295,6 +317,7 @@ class ChatService:
         reasoning_options: Optional[Dict[str, Any]],
         provider_options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        """Build the OpenRouter extra_body payload for chat requests."""
         body: Dict[str, Any] = dict(reasoning_options) if reasoning_options else {}
         usage_config = body.get("usage")
         if isinstance(usage_config, dict):
@@ -309,6 +332,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_numeric_parameter(value: Any) -> Optional[float]:
+        """Coerce numeric parameter values into floats."""
         if value is None:
             return None
         if isinstance(value, (int, float)):
@@ -329,6 +353,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_bool_parameter(value: Any) -> Optional[bool]:
+        """Coerce parameter values into booleans when possible."""
         if isinstance(value, bool):
             return value
         if isinstance(value, (int, float)):
@@ -343,6 +368,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_dict_parameter(value: Any) -> Optional[Dict[str, Any]]:
+        """Coerce parameter values into dictionaries when possible."""
         if value is None:
             return None
         if isinstance(value, dict):
@@ -361,6 +387,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_list_parameter(value: Any) -> Optional[List[str]]:
+        """Coerce parameter values into a list of strings."""
         if value is None:
             return None
         items: List[str] = []
@@ -386,6 +413,7 @@ class ChatService:
 
     @staticmethod
     def _normalize_reasoning_effort(value: Any) -> Optional[str]:
+        """Normalize reasoning effort strings to allowed values."""
         if not value:
             return None
         if isinstance(value, str):
@@ -396,6 +424,7 @@ class ChatService:
 
     @classmethod
     def _prepare_reasoning_override(cls, raw: Any) -> Optional[Dict[str, Any]]:
+        """Prepare a reasoning override payload from raw input."""
         if raw is None:
             return None
         payload: Dict[str, Any]
@@ -424,7 +453,12 @@ class ChatService:
         return prepared or None
 
     @classmethod
-    def _coerce_parameter_value(cls, key: str, value: Any) -> Optional[Any]:
+    def _coerce_parameter_value(  # pylint: disable=too-many-return-statements
+        cls,
+        key: str,
+        value: Any,
+    ) -> Optional[Any]:
+        """Coerce parameter values based on declared type hints."""
         hint = cls.PARAMETER_TYPE_HINTS.get(key)
         if hint is None:
             return None
@@ -453,6 +487,7 @@ class ChatService:
         raw: Optional[Dict[str, Any]],
         supported_parameters: Optional[List[str]],
     ) -> Dict[str, Any]:
+        """Validate and sanitize parameter overrides."""
         if not raw or not supported_parameters:
             return {}
         supported_lookup = {param.lower(): param for param in supported_parameters}
@@ -470,6 +505,7 @@ class ChatService:
 
     @classmethod
     def _normalize_provider_key(cls, key: str) -> Optional[str]:
+        """Normalize provider option keys to accepted names."""
         normalized = key.strip().lower().replace("-", "_")
         if normalized in cls.PROVIDER_ALLOWED_KEYS:
             return normalized
@@ -477,6 +513,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_string_list(value: Any) -> Optional[List[str]]:
+        """Normalize string lists from various input formats."""
         if value is None:
             return None
         items: List[str] = []
@@ -497,6 +534,7 @@ class ChatService:
 
     @classmethod
     def _coerce_provider_sort(cls, value: Any) -> Optional[str]:
+        """Validate provider sort options."""
         if value is None:
             return None
         candidate = str(value).strip().lower()
@@ -506,6 +544,7 @@ class ChatService:
 
     @classmethod
     def _coerce_data_collection(cls, value: Any) -> Optional[str]:
+        """Validate provider data collection preferences."""
         if value is None:
             return None
         candidate = str(value).strip().lower()
@@ -515,6 +554,7 @@ class ChatService:
 
     @classmethod
     def _coerce_max_price(cls, value: Any) -> Optional[Dict[str, float]]:
+        """Normalize max price configurations for providers."""
         if not isinstance(value, dict):
             return None
         parsed: Dict[str, float] = {}
@@ -528,7 +568,11 @@ class ChatService:
         return parsed or None
 
     @classmethod
-    def _sanitize_provider_preferences(cls, raw: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _sanitize_provider_preferences(
+        cls,
+        raw: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Sanitize provider preference payloads."""
         if not raw:
             return None
         normalized_input: Dict[str, Any] = {}
@@ -546,7 +590,12 @@ class ChatService:
             parsed_list = cls._coerce_string_list(normalized_input.get(list_key))
             if parsed_list:
                 sanitized[list_key] = parsed_list
-        for bool_key in ("allow_fallbacks", "require_parameters", "zdr", "enforce_distillable_text"):
+        for bool_key in (
+            "allow_fallbacks",
+            "require_parameters",
+            "zdr",
+            "enforce_distillable_text",
+        ):
             bool_value = cls._coerce_bool_parameter(normalized_input.get(bool_key))
             if bool_value is not None:
                 sanitized[bool_key] = bool_value
@@ -571,6 +620,7 @@ class ChatService:
         model_info: Optional["ModelInfo"] = None,
         reasoning_override: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        """Build reasoning options for the given model."""
         info = model_info or self.openrouter.get_model(model_name)
         supported = info.supported_parameters if info else []
         override_effort = reasoning_override.get("effort") if reasoning_override else None
@@ -584,6 +634,7 @@ class ChatService:
         tool_calls: List[Dict[str, Any]],
         processed_ids: Set[str],
     ) -> List[Dict[str, Any]]:
+        """Normalize tool call payloads and deduplicate ids."""
         normalized: List[Dict[str, Any]] = []
         for call in tool_calls:
             function_payload = call.get("function") or {}
@@ -605,10 +656,12 @@ class ChatService:
         return normalized
 
     @staticmethod
+    # pylint: disable=too-many-locals
     def _extract_reasoning_tool_calls(
         reasoning_segments: List[Dict[str, Any]],
         processed_ids: Set[str],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
+        """Extract tool calls from reasoning segments."""
         tool_calls: List[Dict[str, Any]] = []
         context: Dict[str, Dict[str, Any]] = {}
         residual_segments: List[Dict[str, Any]] = []
@@ -674,6 +727,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_stream_text(content: Any) -> Optional[str]:
+        """Extract text content from streamed delta payloads."""
         if content is None:
             return None
         if isinstance(content, str):
@@ -699,6 +753,7 @@ class ChatService:
         accumulator: Dict[int, Dict[str, Any]],
         updates: List[Dict[str, Any]],
     ) -> None:
+        """Accumulate tool call deltas into a consolidated mapping."""
         for update in updates:
             if not isinstance(update, dict):
                 continue
@@ -730,6 +785,8 @@ class ChatService:
                 prior_arguments = function_block.get("arguments") or ""
                 function_block["arguments"] = prior_arguments + arguments_fragment
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def _stream_model_completion(
         self,
         *,
@@ -738,7 +795,12 @@ class ChatService:
         model: str,
         extra_body: Optional[Dict[str, Any]],
         parameters: Optional[Dict[str, Any]],
-    ) -> Generator[Dict[str, str], None, Tuple[Dict[str, Any], Dict[str, Any], str, Optional[str], Optional[str]]]:
+    ) -> Generator[
+        Dict[str, str],
+        None,
+        Tuple[Dict[str, Any], Dict[str, Any], str, Optional[str], Optional[str]],
+    ]:
+        """Stream a chat completion and yield token/tool events."""
         stream = self.openrouter.chat_stream(
             messages=messages,
             tools=tools,
@@ -852,20 +914,25 @@ class ChatService:
 
         return message, latest_usage, provider, finish_reason, response_model
 
-    def _tool_spec(self, collection: models.Collection) -> List[Dict[str, object]]:
+    def _tool_spec(self, _collection: models.Collection) -> List[Dict[str, object]]:
+        """Return tool schemas for chat completion requests."""
         return [
             {
                 "type": "function",
                 "function": {
                     "name": "pinecone_query",
                     "description": (
-                        "Search the Pinecone namespace for this collection to gather grounded context. "
-                        "Always call this tool before answering user questions about the documents."
+                        "Search the Pinecone namespace for this collection to gather grounded "
+                        "context. Always call this tool before answering user questions about "
+                        "the documents."
                     ),
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "query": {"type": "string", "description": "Natural language search query."},
+                            "query": {
+                                "type": "string",
+                                "description": "Natural language search query.",
+                            },
                             "top_k": {
                                 "type": "integer",
                                 "description": "How many chunks to retrieve (max 10).",
@@ -887,6 +954,7 @@ class ChatService:
         collection: models.Collection,
         payload: ChatMessageCreate,
     ) -> models.ChatSession:
+        """Find or create a chat session for the payload."""
         if payload.session_id:
             existing = self.chat_repo.get_session(payload.session_id, user_id=user.id)
             if existing:
@@ -909,6 +977,7 @@ class ChatService:
         payload: ChatMessageCreate,
         session_id: Optional[UUID] = None,
     ) -> models.ChatSession:
+        """Create and persist a new chat session."""
         base_title = payload.title or (payload.content[:60] if payload.content else None)
         fallback_title = f"Chat {utc_now().strftime('%H:%M:%S')}"
         preferred_model = (payload.chat_model or "").strip() or collection.chat_model
@@ -925,13 +994,17 @@ class ChatService:
         return session_model
 
     def _serialize_message(self, message: models.ChatMessage) -> Dict[str, object]:
+        """Serialize stored chat messages for OpenRouter."""
         if message.role == models.ChatRole.TOOL:
             return {
                 "role": "tool",
                 "tool_call_id": message.tool_call_id,
                 "content": message.content,
             }
-        role_value = message.role.value if isinstance(message.role, models.ChatRole) else str(message.role)
+        if isinstance(message.role, models.ChatRole):
+            role_value = message.role.value
+        else:
+            role_value = str(message.role)
         serialized: Dict[str, object] = {"role": role_value, "content": message.content}
         tool_payload = message.tool_payload
         if (
@@ -949,6 +1022,7 @@ class ChatService:
         content: str,
         tool_calls: List[Dict[str, Any]],
     ) -> None:
+        """Persist assistant tool-call messages to the database."""
         if not tool_calls:
             return
         tool_call_payload = {"tool_calls": deepcopy(tool_calls)}
@@ -975,6 +1049,7 @@ class ChatService:
         reasoning: Optional[Dict[str, object]] = None,
         usage: Optional[Dict[str, int]] = None,
     ) -> models.ChatMessage:
+        """Persist a chat message and return it."""
         usage_payload = usage or {}
         message = models.ChatMessage(
             session_id=session_id,
@@ -1003,6 +1078,7 @@ class ChatService:
         reasoning_segments: Optional[List[Dict[str, Any]]],
         model: Optional[str],
     ) -> None:
+        """Persist a partial assistant response when streaming closes."""
         trimmed_content = (content or "").strip()
         has_reasoning = bool(reasoning_segments)
         if not trimmed_content and not has_reasoning:
@@ -1026,6 +1102,7 @@ class ChatService:
         target_message: models.ChatMessage,
         new_content: Optional[str],
     ) -> None:
+        """Apply edits to a message and prune dependent history."""
         if target_message.session_id != session_model.id:
             raise ValueError("Message does not belong to this session.")
 
@@ -1057,11 +1134,14 @@ class ChatService:
                     models.ChatMessage.created_at >= user_threshold,
                     models.ChatMessage.role != models.ChatRole.USER,
                 )
-                .order_by(models.ChatMessage.created_at.asc())
+                .order_by(asc(models.ChatMessage.created_at))
                 .limit(1)
             )
             anchor_message = self.session.exec(anchor_statement).first()
-            anchor_created_at = anchor_message.created_at if anchor_message else target_message.created_at
+            if anchor_message:
+                anchor_created_at = anchor_message.created_at
+            else:
+                anchor_created_at = target_message.created_at
             self.chat_repo.delete_tool_messages_since(
                 session_id=session_model.id,
                 since=user_threshold,
@@ -1076,38 +1156,15 @@ class ChatService:
         self.session.flush()
 
     def _convert_session(self, session_model: models.ChatSession) -> ChatSessionRead:
-        return ChatSessionRead(
-            id=session_model.id,
-            collection_id=session_model.collection_id,
-            user_id=session_model.user_id,
-            title=session_model.title,
-            mode=session_model.mode,
-            chat_model=session_model.chat_model,
-            context_tokens=session_model.context_tokens,
-            created_at=session_model.created_at,
-            updated_at=session_model.updated_at,
-        )
+        """Convert a session model into a response schema."""
+        return ChatSessionRead.from_model(session_model)
 
     def _convert_messages(self, session_id: UUID) -> List[ChatMessageRead]:
+        """Convert stored messages into response schemas."""
         messages = self.chat_repo.list_messages(session_id)
-        return [
-            ChatMessageRead(
-                id=msg.id,
-                session_id=msg.session_id,
-                role=msg.role,
-                content=msg.content,
-                model=msg.model,
-                tool_name=msg.tool_name,
-                tool_payload=msg.tool_payload,
-                tool_call_id=msg.tool_call_id,
-                reasoning_trace=msg.reasoning_trace,
-                prompt_tokens=msg.prompt_tokens,
-                completion_tokens=msg.completion_tokens,
-                created_at=msg.created_at,
-            )
-            for msg in messages
-        ]
+        return [ChatMessageRead.from_model(msg) for msg in messages]
 
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def stream_message(
         self,
         *,
@@ -1115,6 +1172,7 @@ class ChatService:
         collection: models.Collection,
         payload: ChatMessageCreate,
     ) -> Generator[Dict[str, Any], None, None]:
+        """Stream a chat response while yielding intermediate events."""
         edit_target: Optional[models.ChatMessage] = None
         if payload.edit_message_id:
             edit_target = self.chat_repo.get_message(payload.edit_message_id, user_id=user.id)
@@ -1171,12 +1229,17 @@ class ChatService:
         model_info = self.openrouter.get_model(active_model_name)
         if not model_info:
             raise ValueError("Selected model is not available on OpenRouter.")
-        supported_parameters = model_info.supported_parameters if model_info.supported_parameters else []
+        supported_parameters = model_info.supported_parameters or []
         tool_supported = any(param.lower() == "tools" for param in supported_parameters)
         if not tool_supported:
             raise ValueError("Selected model does not support tool calls required for retrieval.")
-        parameter_overrides = self._sanitize_parameter_overrides(payload.parameters, supported_parameters)
-        reasoning_override = self._prepare_reasoning_override(parameter_overrides.pop("reasoning", None))
+        parameter_overrides = self._sanitize_parameter_overrides(
+            payload.parameters,
+            supported_parameters,
+        )
+        reasoning_override = self._prepare_reasoning_override(
+            parameter_overrides.pop("reasoning", None),
+        )
         reasoning_options = self._reasoning_request_options(
             active_model_name,
             model_info,
@@ -1196,7 +1259,12 @@ class ChatService:
                 "reasoning_segments": [],
             }
 
-            def intercept_stream() -> Generator[Dict[str, Any], None, Tuple[Dict[str, Any], Dict[str, Any], str, Optional[str], Optional[str]]]:
+            def intercept_stream() -> Generator[
+                Dict[str, Any],
+                None,
+                Tuple[Dict[str, Any], Dict[str, Any], str, Optional[str], Optional[str]],
+            ]:
+                """Capture streaming events and return the final response payload."""
                 stream = self._stream_model_completion(
                     messages=messages,
                     tools=tools,
@@ -1255,7 +1323,10 @@ class ChatService:
 
             reasoning_content = message.get("reasoning") or message.get("reasoning_content")
             reasoning_segments = self._normalize_reasoning_segments(reasoning_content)
-            base_tool_calls = self._normalize_tool_calls(message.get("tool_calls") or [], processed_reasoning_calls)
+            base_tool_calls = self._normalize_tool_calls(
+                message.get("tool_calls") or [],
+                processed_reasoning_calls,
+            )
             (
                 reasoning_tool_calls,
                 reasoning_context,
@@ -1308,7 +1379,11 @@ class ChatService:
                         "arguments": arguments,
                         "reasoning": reasoning_entry,
                     }
-                    retrieval_response = self.retrieval.query_collection(collection, query_text, top_k=top_k)
+                    retrieval_response = self.retrieval.query_collection(
+                        collection,
+                        query_text,
+                        top_k=top_k,
+                    )
                     response_payload = jsonable_encoder(retrieval_response)
                     tool_payload = {
                         "arguments": arguments,
@@ -1370,7 +1445,13 @@ class ChatService:
             final_usage: Dict[str, Any] = dict(latest_usage_payload or usage or {})
             if usage_aggregate:
                 final_usage = dict(final_usage) if final_usage else {}
-                final_usage.update({key: value for key, value in usage_aggregate.items() if value is not None})
+                final_usage.update(
+                    {
+                        key: value
+                        for key, value in usage_aggregate.items()
+                        if value is not None
+                    }
+                )
             assistant_msg = self._record_message(
                 session_id=session_model.id,
                 role=models.ChatRole.ASSISTANT,
@@ -1403,6 +1484,7 @@ class ChatService:
 
         raise RuntimeError("LLM did not complete within the allowed tool iteration limit.")
 
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def send_message(
         self,
         *,
@@ -1410,6 +1492,7 @@ class ChatService:
         collection: models.Collection,
         payload: ChatMessageCreate,
     ) -> ChatCompletionResponse:
+        """Send a chat message and return the final response."""
         edit_target: Optional[models.ChatMessage] = None
         if payload.edit_message_id:
             edit_target = self.chat_repo.get_message(payload.edit_message_id, user_id=user.id)
@@ -1466,12 +1549,17 @@ class ChatService:
         model_info = self.openrouter.get_model(active_model_name)
         if not model_info:
             raise ValueError("Selected model is not available on OpenRouter.")
-        supported_parameters = model_info.supported_parameters if model_info.supported_parameters else []
+        supported_parameters = model_info.supported_parameters or []
         tool_supported = any(param.lower() == "tools" for param in supported_parameters)
         if not tool_supported:
             raise ValueError("Selected model does not support tool calls required for retrieval.")
-        parameter_overrides = self._sanitize_parameter_overrides(payload.parameters, supported_parameters)
-        reasoning_override = self._prepare_reasoning_override(parameter_overrides.pop("reasoning", None))
+        parameter_overrides = self._sanitize_parameter_overrides(
+            payload.parameters,
+            supported_parameters,
+        )
+        reasoning_override = self._prepare_reasoning_override(
+            parameter_overrides.pop("reasoning", None),
+        )
         reasoning_options = self._reasoning_request_options(
             active_model_name,
             model_info,
@@ -1482,8 +1570,6 @@ class ChatService:
 
         max_iterations = 48
         iteration = 0
-        final_response: Optional[Dict[str, object]] = None
-
         while iteration < max_iterations:
             iteration += 1
             extra_body = self._build_openrouter_body(reasoning_options, provider_preferences)
@@ -1495,12 +1581,14 @@ class ChatService:
                 extra_body=extra_body,
                 parameters=parameter_overrides or None,
             )
-            final_response = response
             parsed_response = OpenRouterChatResponse.model_validate(response)
             choice = parsed_response.choices[0]
             message = choice.message.model_dump(exclude_none=True) if choice.message else {}
-            finish_reason = choice.finish_reason
-            usage = parsed_response.usage.model_dump(exclude_none=True) if parsed_response.usage else {}
+            usage = (
+                parsed_response.usage.model_dump(exclude_none=True)
+                if parsed_response.usage
+                else {}
+            )
             provider = parsed_response.provider or provider
             response_model_name = parsed_response.model
 
@@ -1522,14 +1610,19 @@ class ChatService:
             if not reasoning_content:
                 # Fallback to reasoning_content for backwards compatibility
                 reasoning_content = message.get("reasoning_content")
-            
+
             reasoning_segments = self._normalize_reasoning_segments(reasoning_content)
             base_tool_calls = self._normalize_tool_calls(
                 message.get("tool_calls") or [],
                 processed_reasoning_calls,
             )
-            reasoning_tool_calls, reasoning_context, residual_reasoning = self._extract_reasoning_tool_calls(
-                reasoning_segments, processed_reasoning_calls
+            (
+                reasoning_tool_calls,
+                reasoning_context,
+                residual_reasoning,
+            ) = self._extract_reasoning_tool_calls(
+                reasoning_segments,
+                processed_reasoning_calls,
             )
             if base_tool_calls:
                 pending_tool_calls = base_tool_calls
@@ -1571,7 +1664,11 @@ class ChatService:
                     except (TypeError, ValueError):
                         top_k = 5
                     top_k = max(1, min(10, top_k))
-                    retrieval_response = self.retrieval.query_collection(collection, query_text, top_k=top_k)
+                    retrieval_response = self.retrieval.query_collection(
+                        collection,
+                        query_text,
+                        top_k=top_k,
+                    )
                     response_payload = jsonable_encoder(retrieval_response)
                     tool_payload = {
                         "arguments": arguments,
@@ -1626,8 +1723,14 @@ class ChatService:
             final_usage: Dict[str, Any] = dict(latest_usage_payload or usage or {})
             if usage_aggregate:
                 final_usage = dict(final_usage) if final_usage else {}
-                final_usage.update({key: value for key, value in usage_aggregate.items() if value is not None})
-            assistant_msg = self._record_message(
+                final_usage.update(
+                    {
+                        key: value
+                        for key, value in usage_aggregate.items()
+                        if value is not None
+                    }
+                )
+            self._record_message(
                 session_id=session_model.id,
                 role=models.ChatRole.ASSISTANT,
                 content=content,

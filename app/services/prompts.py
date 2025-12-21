@@ -1,3 +1,5 @@
+"""Prompt templates and rendering helpers."""
+
 from __future__ import annotations
 
 import json
@@ -13,6 +15,8 @@ SYSTEM_PROMPT_METADATA_KEY = "system_prompt_template"
 
 @dataclass(frozen=True)
 class PromptVariableDefinition:
+    """Definition for prompt template variables."""
+
     name: str
     description: str
     example: Optional[str] = None
@@ -110,34 +114,36 @@ PROMPT_VARIABLES: List[PromptVariableDefinition] = [
     ),
 ]
 
-DEFAULT_SYSTEM_PROMPT_TEMPLATE = """You are TransparentRAG, a Retrieval-Augmented assistant focused on transparency and grounded answers.
-
-Use the pinecone_query tool whenever you need fresh context, cite the chunks you rely on, and clearly explain providers, parameters, and trade-offs.
-
-## Dataset metadata
-- Collection: {{collection.name}}
-- Description: {{collection.description}}
-- Embedding model: {{collection.embedding_model}}
-- Chat model: {{collection.chat_model}}
-- Chunking: {{collection.chunk.strategy}} ({{collection.chunk.size}}/{{collection.chunk.overlap}})
-- Context window: {{collection.context_window}} tokens
-- Pinecone index: {{collection.pinecone.index}} • Namespace: {{collection.pinecone.namespace}}
-- Embedding dimension: {{metadata.embedding_dimension}}
-
-## Session context
-- User: {{user.full_name}} ({{user.email}})
-- Generated at: {{datetime.iso}}
-
-## Guardrails
-1. Cite every retrieved chunk you rely on.
-2. Call pinecone_query before answering grounded questions.
-3. Reflect on uncertainties, trade-offs, and missing context.
-"""
+DEFAULT_SYSTEM_PROMPT_TEMPLATE = (
+    "You are TransparentRAG, a Retrieval-Augmented assistant focused on transparency "
+    "and grounded answers.\n\n"
+    "Use the pinecone_query tool whenever you need fresh context, cite the chunks you "
+    "rely on, and clearly explain providers, parameters, and trade-offs.\n\n"
+    "## Dataset metadata\n"
+    "- Collection: {{collection.name}}\n"
+    "- Description: {{collection.description}}\n"
+    "- Embedding model: {{collection.embedding_model}}\n"
+    "- Chat model: {{collection.chat_model}}\n"
+    "- Chunking: {{collection.chunk.strategy}} "
+    "({{collection.chunk.size}}/{{collection.chunk.overlap}})\n"
+    "- Context window: {{collection.context_window}} tokens\n"
+    "- Pinecone index: {{collection.pinecone.index}}\n"
+    "- Namespace: {{collection.pinecone.namespace}}\n"
+    "- Embedding dimension: {{metadata.embedding_dimension}}\n\n"
+    "## Session context\n"
+    "- User: {{user.full_name}} ({{user.email}})\n"
+    "- Generated at: {{datetime.iso}}\n\n"
+    "## Guardrails\n"
+    "1. Cite every retrieved chunk you rely on.\n"
+    "2. Call pinecone_query before answering grounded questions.\n"
+    "3. Reflect on uncertainties, trade-offs, and missing context.\n"
+)
 
 _PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}")
 
 
 def _stringify(value: object, default: str = "N/A") -> str:
+    """Coerce values into string representations for prompt templates."""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -153,7 +159,11 @@ def _stringify(value: object, default: str = "N/A") -> str:
         return default
 
 
-def system_prompt_context(collection: models.Collection, user: Optional[models.User]) -> Dict[str, str]:
+def system_prompt_context(
+    collection: models.Collection,
+    user: Optional[models.User],
+) -> Dict[str, str]:
+    """Build the rendering context for system prompt templates."""
     now = utc_now()
     chunk_strategy = (
         collection.chunk_strategy.value
@@ -161,6 +171,7 @@ def system_prompt_context(collection: models.Collection, user: Optional[models.U
         else str(collection.chunk_strategy)
     )
     metadata = collection.extra_metadata or {}
+    user_display_name = getattr(user, "full_name", None) or getattr(user, "email", None)
 
     context: Dict[str, str] = {
         "collection.id": str(collection.id),
@@ -175,7 +186,7 @@ def system_prompt_context(collection: models.Collection, user: Optional[models.U
         "collection.pinecone.index": _stringify(collection.pinecone_index),
         "collection.pinecone.namespace": _stringify(collection.pinecone_namespace),
         "metadata.embedding_dimension": _stringify(metadata.get("embedding_dimension")),
-        "user.full_name": _stringify(getattr(user, "full_name", None) or getattr(user, "email", None), "Anonymous user"),
+        "user.full_name": _stringify(user_display_name, "Anonymous user"),
         "user.email": _stringify(getattr(user, "email", None), "unknown@example.com"),
         "user.id": _stringify(getattr(user, "id", None)),
         "datetime.iso": now.isoformat(),
@@ -191,6 +202,7 @@ def system_prompt_context(collection: models.Collection, user: Optional[models.U
 
 
 def get_system_prompt_template(collection: models.Collection) -> str:
+    """Return the system prompt template for a collection."""
     metadata = collection.extra_metadata or {}
     stored_value = metadata.get(SYSTEM_PROMPT_METADATA_KEY)
     if isinstance(stored_value, str):
@@ -201,7 +213,9 @@ def get_system_prompt_template(collection: models.Collection) -> str:
 
 
 def apply_prompt_template(template: str, context: Dict[str, str]) -> str:
+    """Apply context variables to a prompt template."""
     def _replace(match: re.Match[str]) -> str:
+        """Replace template placeholders with context values."""
         key = match.group(1)
         return context.get(key, match.group(0))
 
@@ -209,12 +223,14 @@ def apply_prompt_template(template: str, context: Dict[str, str]) -> str:
 
 
 def render_system_prompt(collection: models.Collection, user: Optional[models.User]) -> str:
+    """Render the final system prompt for a collection and user."""
     template = get_system_prompt_template(collection)
     context = system_prompt_context(collection, user)
     return apply_prompt_template(template, context)
 
 
 def prompt_variables_payload() -> List[Dict[str, Optional[str]]]:
+    """Return prompt variable definitions for API clients."""
     return [
         {
             "name": variable.name,

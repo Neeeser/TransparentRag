@@ -34,3 +34,22 @@ def test_sanitize_parameter_overrides_coerces_and_filters() -> None:
     assert sanitized["response_format"] == {"type": "json_object"}
     assert sanitized["reasoning"] == {"effort": "high"}
     assert "unknown" not in sanitized
+
+
+def test_sanitize_parameter_overrides_skips_invalid_values() -> None:
+    supported = ["temperature", "verbosity", "stop", "response_format"]
+    overrides = {
+        "temperature": "nan",
+        "verbosity": "louder",
+        "stop": "",
+        "response_format": "not-json",
+    }
+
+    sanitized = ChatService._sanitize_parameter_overrides(overrides, supported)
+
+    assert sanitized == {}
+
+
+def test_coerce_dict_parameter_parses_json_string() -> None:
+    assert ChatService._coerce_dict_parameter('{"type":"json_object"}') == {"type": "json_object"}
+    assert ChatService._coerce_dict_parameter(" ") is None

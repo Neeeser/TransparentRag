@@ -1,3 +1,5 @@
+"""Sentence-transformer embedder implementation."""
+
 from __future__ import annotations
 
 from typing import Sequence
@@ -17,11 +19,13 @@ class SentenceTransformerEmbedder(Embedder):
         normalize_embeddings: bool = True,
         **model_kwargs: object,
     ) -> None:
+        """Initialize the transformer model for embeddings."""
         self.model_name = model_name
         self._normalize = normalize_embeddings
         self._model = SentenceTransformer(model_name, **model_kwargs)
 
     def embed_documents(self, chunks: Sequence[DocumentChunk]) -> Sequence[EmbeddingVector]:
+        """Embed document chunks as vectors."""
         if not chunks:
             return []
 
@@ -35,6 +39,7 @@ class SentenceTransformerEmbedder(Embedder):
         return [embedding.astype(float).tolist() for embedding in embeddings]
 
     def embed_query(self, query: str) -> EmbeddingVector:
+        """Embed a query string as a vector."""
         embedding = self._model.encode(
             query,
             convert_to_numpy=True,
@@ -42,4 +47,3 @@ class SentenceTransformerEmbedder(Embedder):
             show_progress_bar=False,
         )
         return embedding.astype(float).tolist()
-

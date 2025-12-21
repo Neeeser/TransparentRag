@@ -1,3 +1,5 @@
+"""Database models for TransparentRAG."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,12 +13,16 @@ from sqlmodel import Field, SQLModel
 from app.utils.time import utc_now
 
 
-class TimestampMixin:
+class TimestampMixin:  # pylint: disable=too-few-public-methods
+    """Shared timestamp fields for SQLModel tables."""
+
     created_at: datetime = Field(default_factory=utc_now, nullable=False)
     updated_at: datetime = Field(default_factory=utc_now, nullable=False)
 
 
 class ChunkStrategy(str, Enum):
+    """Chunking strategies for documents."""
+
     TOKEN = "token"
     SENTENCE = "sentence"
     PARAGRAPH = "paragraph"
@@ -24,6 +30,8 @@ class ChunkStrategy(str, Enum):
 
 
 class DocumentStatus(str, Enum):
+    """Status values for document processing."""
+
     PENDING = "pending"
     PROCESSING = "processing"
     READY = "ready"
@@ -31,11 +39,15 @@ class DocumentStatus(str, Enum):
 
 
 class ChatMode(str, Enum):
+    """Chat mode selections."""
+
     QUERY = "query"
     CHAT = "chat"
 
 
 class ChatRole(str, Enum):
+    """Roles assigned to chat messages."""
+
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
@@ -43,6 +55,8 @@ class ChatRole(str, Enum):
 
 
 class User(SQLModel, TimestampMixin, table=True):
+    """User account record."""
+
     __tablename__ = "users"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -53,6 +67,8 @@ class User(SQLModel, TimestampMixin, table=True):
 
 
 class Collection(SQLModel, TimestampMixin, table=True):
+    """Collection metadata stored for retrieval."""
+
     __tablename__ = "collections"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -77,6 +93,8 @@ class Collection(SQLModel, TimestampMixin, table=True):
 
 
 class Document(SQLModel, TimestampMixin, table=True):
+    """Document metadata stored for ingestion."""
+
     __tablename__ = "documents"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -101,6 +119,8 @@ class Document(SQLModel, TimestampMixin, table=True):
 
 
 class DocumentChunkRecord(SQLModel, TimestampMixin, table=True):
+    """Stored chunk content and embeddings."""
+
     __tablename__ = "document_chunks"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -124,6 +144,8 @@ class DocumentChunkRecord(SQLModel, TimestampMixin, table=True):
 
 
 class IngestionEvent(SQLModel, TimestampMixin, table=True):
+    """Ingestion event audit record."""
+
     __tablename__ = "ingestion_events"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -135,6 +157,8 @@ class IngestionEvent(SQLModel, TimestampMixin, table=True):
 
 
 class ChatSession(SQLModel, TimestampMixin, table=True):
+    """Chat session metadata."""
+
     __tablename__ = "chat_sessions"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -147,6 +171,8 @@ class ChatSession(SQLModel, TimestampMixin, table=True):
 
 
 class ChatMessage(SQLModel, TimestampMixin, table=True):
+    """Chat message stored in the database."""
+
     __tablename__ = "chat_messages"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -173,6 +199,8 @@ class ChatMessage(SQLModel, TimestampMixin, table=True):
 
 
 class QueryEvent(SQLModel, TimestampMixin, table=True):
+    """Query audit record for retrieval events."""
+
     __tablename__ = "query_events"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -182,4 +210,7 @@ class QueryEvent(SQLModel, TimestampMixin, table=True):
     top_k: int = Field(default=5, nullable=False)
     model: str = Field(sa_column=Column(String, nullable=False))
     context_tokens: int = Field(default=0, nullable=False)
-    response_payload: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    response_payload: Dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )

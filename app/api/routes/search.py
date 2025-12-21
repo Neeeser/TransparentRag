@@ -1,13 +1,15 @@
+"""Search API routes for retrieval queries."""
+
 from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
 from app.db import models
-from app.db.repositories import CollectionRepository
+from app.api.routes.utils import get_collection_or_404
 from app.schemas.retrieval import CollectionQueryRequest, CollectionQueryResponse
 from app.services.retrieval import RetrievalService
 
@@ -21,9 +23,15 @@ def run_collection_query(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CollectionQueryResponse:
-    repo = CollectionRepository(session)
-    collection = repo.get(collection_id, user_id=current_user.id)
-    if not collection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    """Run a retrieval query against a collection."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
     retrieval_service = RetrievalService()
-    return retrieval_service.query_collection(collection, query=payload.query, top_k=payload.top_k)
+    return retrieval_service.query_collection(
+        collection,
+        query=payload.query,
+        top_k=payload.top_k,
+    )

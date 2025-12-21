@@ -29,6 +29,10 @@ def test_decode_tool_arguments_handles_strings_and_dicts() -> None:
     assert ChatService._decode_tool_arguments("{not-json}") == {"query": "{not-json}"}
 
 
+def test_decode_tool_arguments_handles_other_types() -> None:
+    assert ChatService._decode_tool_arguments(["value"]) == {}
+
+
 def test_normalize_tool_calls_filters_missing_names() -> None:
     processed_ids: set[str] = set()
     tool_calls = [
@@ -45,6 +49,19 @@ def test_normalize_tool_calls_filters_missing_names() -> None:
         "query": "docs"
     }
     assert processed_ids == {"call-1"}
+
+
+def test_normalize_tool_calls_skips_invalid_function_payload() -> None:
+    processed_ids: set[str] = set()
+    tool_calls = [
+        {"id": "bad-call", "function": "not-a-dict"},
+        {"id": "call-1", "function": {"name": "pinecone_query", "arguments": {"query": "docs"}}},
+    ]
+
+    normalized = ChatService._normalize_tool_calls(tool_calls, processed_ids)
+
+    assert len(normalized) == 1
+    assert normalized[0]["id"] == "call-1"
 
 
 def test_coerce_stream_text_handles_various_shapes() -> None:
@@ -79,3 +96,17 @@ def test_accumulate_stream_tool_calls_concatenates_arguments() -> None:
     assert entry["type"] == "function"
     assert function_block["name"] == "pinecone_query"
     assert function_block["arguments"] == '{"query":"docs"}'
+
+
+def test_accumulate_stream_tool_calls_handles_invalid_updates() -> None:
+    accumulator: dict[int, dict[str, object]] = {}
+    updates = [
+        "bad",
+        {"index": "oops", "function": "not-a-dict"},
+        {"index": 1, "type": "function", "function": {"name": "tool", "arguments": 123}},
+    ]
+
+    ChatService._accumulate_stream_tool_calls(accumulator, updates)
+
+    assert 0 in accumulator
+    assert accumulator[1]["function"]["arguments"] == ""

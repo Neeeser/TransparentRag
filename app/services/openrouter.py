@@ -1,3 +1,5 @@
+"""OpenRouter client wrapper and helpers."""
+
 from __future__ import annotations
 
 import time
@@ -16,6 +18,7 @@ class OpenRouterClient:
     """Wrapper around the OpenRouter HTTP + OpenAI-compatible SDK."""
 
     def __init__(self) -> None:
+        """Initialize HTTP and SDK clients for OpenRouter."""
         self.settings = get_settings()
         self._app_headers = self._build_app_headers()
         default_headers = {"Authorization": f"Bearer {self.settings.openrouter_api_key}"}
@@ -33,12 +36,14 @@ class OpenRouterClient:
         self._model_cache: dict[str, Any] = {"ts": 0.0, "data": []}
 
     def _build_app_headers(self) -> Dict[str, str]:
+        """Build static headers required by OpenRouter."""
         headers = {"X-Title": self.settings.openrouter_site_name or "TransparentRag"}
         if self.settings.openrouter_site_url:
             headers["HTTP-Referer"] = self.settings.openrouter_site_url
         return headers
 
     def _merge_extra_headers(self, extra_headers: Optional[Dict[str, str]]) -> Dict[str, str]:
+        """Merge dynamic headers with the default app headers."""
         if extra_headers:
             merged = dict(self._app_headers)
             merged.update(extra_headers)
@@ -46,8 +51,13 @@ class OpenRouterClient:
         return dict(self._app_headers)
 
     def list_models(self, force_refresh: bool = False) -> List[ModelInfo]:
+        """Return available models, caching for a short period."""
         now = time.time()
-        if not force_refresh and now - self._model_cache["ts"] < 300 and self._model_cache["data"]:
+        if (
+            not force_refresh
+            and now - self._model_cache["ts"] < 300
+            and self._model_cache["data"]
+        ):
             return self._model_cache["data"]
         response = self._http.get("/models")
         response.raise_for_status()
@@ -57,16 +67,21 @@ class OpenRouterClient:
         return models
 
     def get_model(self, model_id: str) -> Optional[ModelInfo]:
+        """Find a model by id or canonical slug."""
         if not model_id:
             return None
 
         def _match(models: List[ModelInfo]) -> Optional[ModelInfo]:
+            """Return the first model that matches by id or slug."""
             for model in models:
-                if model.id == model_id or model.canonical_slug == model_id:
+                if model_id in (model.id, model.canonical_slug):
                     return model
             normalized = model_id.lower()
             for model in models:
-                if model.id.lower() == normalized or (model.canonical_slug and model.canonical_slug.lower() == normalized):
+                canonical = model.canonical_slug
+                if model.id.lower() == normalized or (
+                    canonical and canonical.lower() == normalized
+                ):
                     return model
             return None
 
@@ -78,6 +93,7 @@ class OpenRouterClient:
         return _match(refreshed)
 
     def list_model_endpoints(self, author: str, slug: str) -> EndpointsListResponse:
+        """Return endpoint listings for a given model author/slug."""
         author_segment = quote(author, safe="")
         slug_segment = quote(slug, safe="")
         response = self._http.get(f"/models/{author_segment}/{slug_segment}/endpoints")
@@ -91,6 +107,7 @@ class OpenRouterClient:
         model: Optional[str] = None,
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> dict[str, Any]:
+        """Create embeddings for the provided texts."""
         headers = self._merge_extra_headers(extra_headers)
         embeddings = self._client.embeddings.create(
             model=model or self.settings.default_embedding_model,
@@ -100,6 +117,7 @@ class OpenRouterClient:
         )
         return embeddings.model_dump()
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def chat(
         self,
         messages: List[Dict[str, Any]],
@@ -111,7 +129,11 @@ class OpenRouterClient:
         extra_body: Optional[Dict[str, Any]] = None,
         parameters: Optional[Dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        kwargs: Dict[str, Any] = {"messages": messages, "model": model or self.settings.default_chat_model}
+        """Create a chat completion with optional tools and parameters."""
+        kwargs: Dict[str, Any] = {
+            "messages": messages,
+            "model": model or self.settings.default_chat_model,
+        }
         if tools:
             kwargs["tools"] = tools
         if tool_choice:
@@ -128,6 +150,7 @@ class OpenRouterClient:
         response = self._client.chat.completions.create(**kwargs)
         return response.model_dump()
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def chat_stream(
         self,
         messages: List[Dict[str, Any]],
@@ -139,7 +162,11 @@ class OpenRouterClient:
         extra_body: Optional[Dict[str, Any]] = None,
         parameters: Optional[Dict[str, Any]] = None,
     ):
-        kwargs: Dict[str, Any] = {"messages": messages, "model": model or self.settings.default_chat_model}
+        """Yield streaming chat completion chunks."""
+        kwargs: Dict[str, Any] = {
+            "messages": messages,
+            "model": model or self.settings.default_chat_model,
+        }
         if tools:
             kwargs["tools"] = tools
         if tool_choice:
@@ -161,4 +188,5 @@ class OpenRouterClient:
 
 @lru_cache(maxsize=1)
 def get_openrouter_client() -> OpenRouterClient:
+    """Return a cached OpenRouter client instance."""
     return OpenRouterClient()

@@ -240,7 +240,7 @@ class PineconeRetrieverTests(unittest.TestCase):
                     embedder=self.embedder,
                 )
 
-    @patch("app.retrieval.retrievers.pinecone_retriever.Pinecone")
+    @patch("app.retrieval.pinecone.Pinecone")
     def test_init_with_api_key_instantiates_pinecone_client(self, pinecone_cls: Any) -> None:
         fake_index = FakeIndex([])
         pinecone_instance = pinecone_cls.return_value

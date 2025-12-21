@@ -6,8 +6,10 @@ from typing import Any, Dict, List, Tuple
 from unittest.mock import Mock
 
 import pytest
+from pydantic import ValidationError
 
 from app.schemas.chat import ChatMessageCreate
+from app.services import chat as chat_module
 from app.services.chat import ChatService
 
 
@@ -186,6 +188,94 @@ def test_stream_model_completion_orders_tool_calls_by_index() -> None:
     assert finish_reason == "stop"
     assert response_model == "openrouter/second"
     assert usage == {"total_tokens": 3}
+
+
+def test_stream_model_completion_falls_back_on_invalid_chunks(monkeypatch) -> None:
+    def _raise_validation(_chunk: object):
+        raise ValidationError.from_exception_data("OpenRouterStreamChunk", [])
+
+    monkeypatch.setattr(chat_module.OpenRouterStreamChunk, "model_validate", _raise_validation)
+
+    chunks = [
+        "skip",
+        {"choices": []},
+        {
+            "provider": "router-c",
+            "model": "fallback-model",
+            "choices": [
+                {
+                    "delta": {
+                        "content": "Hi",
+                        "reasoning": [{"type": "text", "content": "fallback"}],
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call-1",
+                                "function": {
+                                    "name": "pinecone_query",
+                                    "arguments": '{"query":"docs"}',
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"total_tokens": 2},
+        },
+    ]
+    stub = _StubOpenRouter(chunks)
+    service = ChatService.__new__(ChatService)  # type: ignore[call-arg]
+    service.openrouter = stub  # type: ignore[attr-defined]
+
+    gen = service._stream_model_completion(  # type: ignore[attr-defined]
+        messages=[],
+        tools=[],
+        model="fallback-model",
+        extra_body={},
+        parameters=None,
+    )
+    events, result = _collect_stream_results(gen)
+    message, usage, provider, finish_reason, response_model = result
+
+    assert any(event["type"] == "reasoning" for event in events)
+    assert message["content"] == "Hi"
+    assert message["tool_calls"][0]["function"]["name"] == "pinecone_query"
+    assert usage == {"total_tokens": 2}
+    assert provider == "router-c"
+    assert finish_reason == "stop"
+    assert response_model == "fallback-model"
+
+
+def test_stream_model_completion_skips_tool_calls_without_name() -> None:
+    chunks = [
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {"index": 0, "function": {"arguments": '{"query":"docs"}'}},
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+    stub = _StubOpenRouter(chunks)
+    service = ChatService.__new__(ChatService)  # type: ignore[call-arg]
+    service.openrouter = stub  # type: ignore[attr-defined]
+
+    gen = service._stream_model_completion(  # type: ignore[attr-defined]
+        messages=[],
+        tools=[],
+        model="test-model",
+        extra_body={},
+        parameters=None,
+    )
+    _events, result = _collect_stream_results(gen)
+    message, _usage, _provider, _finish_reason, _response_model = result
+
+    assert "tool_calls" not in message
 
 
 class _StubChatRepo:

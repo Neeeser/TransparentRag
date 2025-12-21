@@ -1,8 +1,10 @@
+"""Application configuration settings."""
+
 from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -76,12 +78,17 @@ class Settings(BaseSettings):
     log_level: Optional[str] = Field(
         default=None,
         validation_alias="LOG_LEVEL",
-        description="Python logging level for application logs. Leave unset to use default FastAPI/uvicorn logging.",
+        description=(
+            "Python logging level for application logs. Leave unset to use default "
+            "FastAPI/uvicorn logging."
+        ),
     )
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    """Return cached application settings."""
     settings = Settings()
-    settings.storage_path.mkdir(parents=True, exist_ok=True)
+    storage_path = cast(Path, settings.storage_path)
+    storage_path.mkdir(parents=True, exist_ok=True)  # pylint: disable=no-member
     return settings

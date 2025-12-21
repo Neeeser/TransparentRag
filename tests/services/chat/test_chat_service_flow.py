@@ -345,3 +345,45 @@ def test_stream_message_handles_tool_calls_and_final(monkeypatch) -> None:
     assert any(event.get("type") == "tool_result" for event in events if isinstance(event, dict))
     assert events[-1]["type"] == "final"
     assert retrieval_calls[0]["top_k"] == 2
+
+
+def test_send_message_uses_reasoning_content_fallback_and_list_content(monkeypatch) -> None:
+    session = _session()
+    user = _create_user(session)
+    collection = _create_collection(session, user, chat_model="test-model")
+
+    model_info = ModelInfo(
+        id="test-model",
+        name="Test Model",
+        context_length=1024,
+        supported_parameters=["tools"],
+    )
+    response = {
+        "id": "resp-1",
+        "provider": "openrouter",
+        "model": "test-model",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "content": [{"text": "Hello"}],
+                    "reasoning_content": "because",
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"total_tokens": 2},
+    }
+    openrouter = _StubOpenRouter(model_info=model_info, response=response)
+
+    monkeypatch.setattr(chat_module, "get_settings", lambda: _StubSettings())
+    monkeypatch.setattr(chat_module, "get_openrouter_client", lambda: openrouter)
+    monkeypatch.setattr(chat_module, "RetrievalService", _StubRetrievalService)
+
+    service = ChatService(session)
+    payload = ChatMessageCreate(content="hello")
+
+    result = service.send_message(user=user, collection=collection, payload=payload)
+
+    assert result.messages[-1].content == '[{"text": "Hello"}]'
+    assert result.usage["total_tokens"] == 2

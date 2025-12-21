@@ -13,7 +13,7 @@ from app.api.routes import chat as chat_routes
 from app.db import models
 from app.db.models import ChatRole, ChunkStrategy
 from app.db.repositories import ChatRepository, CollectionRepository, UserRepository
-from app.schemas.chat import ChatCompletionResponse, ChatMessageCreate
+from app.schemas.chat import ChatCompletionResponse, ChatMessageCreate, ChatMessageRead, ChatSessionRead
 
 
 class _DummyRequest:
@@ -132,8 +132,8 @@ def test_chat_with_collection_returns_response(monkeypatch) -> None:
     message = _add_message(session, chat_session, ChatRole.USER, "hi")
 
     response = ChatCompletionResponse(
-        session=chat_routes._session_to_schema(chat_session),
-        messages=[chat_routes._message_to_schema(message)],
+        session=ChatSessionRead.from_model(chat_session),
+        messages=[ChatMessageRead.from_model(message)],
         tool_traces=[],
         usage={"prompt_tokens": 1},
         provider="openrouter",
@@ -213,15 +213,8 @@ def test_stream_chat_with_collection_yields_events(monkeypatch) -> None:
             yield {"type": "token", "content": "hi"}
             yield {"type": "final", "payload": {"ok": True}}
 
-    class _StubCollectionRepo:
-        def __init__(self, _session: Session) -> None:
-            return None
-
-        def get(self, _collection_id, user_id=None):
-            return collection
-
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "CollectionRepository", _StubCollectionRepo)
+    monkeypatch.setattr(chat_routes, "get_collection_or_404", lambda **_kwargs: collection)
     monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
 
     response = chat_routes.stream_chat_with_collection(
@@ -254,15 +247,8 @@ def test_stream_chat_with_collection_handles_errors(monkeypatch) -> None:
             yield {"type": "token", "content": "hi"}
             raise RuntimeError("boom")
 
-    class _StubCollectionRepo:
-        def __init__(self, _session: Session) -> None:
-            return None
-
-        def get(self, _collection_id, user_id=None):
-            return collection
-
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "CollectionRepository", _StubCollectionRepo)
+    monkeypatch.setattr(chat_routes, "get_collection_or_404", lambda **_kwargs: collection)
     monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
 
     response = chat_routes.stream_chat_with_collection(
@@ -288,15 +274,11 @@ def test_stream_chat_with_collection_rejects_missing_collection(monkeypatch) -> 
         def __init__(self, _session: Session) -> None:
             return None
 
-    class _StubCollectionRepo:
-        def __init__(self, _session: Session) -> None:
-            return None
-
-        def get(self, _collection_id, user_id=None):
-            return None
-
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "CollectionRepository", _StubCollectionRepo)
+    def _missing_collection(**_kwargs):
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    monkeypatch.setattr(chat_routes, "get_collection_or_404", _missing_collection)
     monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
 
     with pytest.raises(HTTPException) as excinfo:
@@ -331,15 +313,8 @@ def test_stream_chat_with_collection_closes_on_disconnect(monkeypatch) -> None:
         def stream_message(self, **_kwargs):
             yield {"type": "token", "content": "hi"}
 
-    class _StubCollectionRepo:
-        def __init__(self, _session: Session) -> None:
-            return None
-
-        def get(self, _collection_id, user_id=None):
-            return collection
-
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "CollectionRepository", _StubCollectionRepo)
+    monkeypatch.setattr(chat_routes, "get_collection_or_404", lambda **_kwargs: collection)
     monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
 
     response = chat_routes.stream_chat_with_collection(

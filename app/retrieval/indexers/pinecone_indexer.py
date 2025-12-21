@@ -1,16 +1,20 @@
+"""Pinecone-based indexer implementation."""
+
 from __future__ import annotations
 
 import inspect
-import os
 from typing import Any, Dict, Optional, Sequence
 
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone, ServerlessSpec  # pylint: disable=no-name-in-module
 
 from ..models import DocumentChunk
+from ..pinecone import get_pinecone_client
 from .base import Indexer, VectorIndexConfig
 
 
 class PineconeIndexConfig(VectorIndexConfig):
+    """Pinecone-specific index configuration."""
+
     dimension: int = 384
     metric: str = "cosine"
     cloud: str = "aws"
@@ -24,16 +28,17 @@ class PineconeIndexConfig(VectorIndexConfig):
 class PineconeIndexer(Indexer):
     """Indexer implementation backed by Pinecone."""
 
-    def __init__(self, client: Optional[Pinecone] = None, api_key: Optional[str] = None) -> None:
-        resolved_api_key = api_key or os.getenv("PINECONE_API_KEY")
-        if client is None:
-            if not resolved_api_key:
-                raise ValueError("Pinecone API key must be provided via argument or PINECONE_API_KEY env var.")
-            client = Pinecone(api_key=resolved_api_key)
-        self._client = client
+    def __init__(
+        self,
+        client: Optional[Pinecone] = None,
+        api_key: Optional[str] = None,
+    ) -> None:
+        """Initialize the Pinecone client wrapper."""
+        self._client = get_pinecone_client(client=client, api_key=api_key)
         self._indexes: dict[str, Any] = {}
 
     def ensure_index(self, config: PineconeIndexConfig) -> None:
+        """Create the Pinecone index if it does not already exist."""
         if self._client.has_index(config.name):
             return
 
@@ -42,13 +47,13 @@ class PineconeIndexer(Indexer):
         spec_kwargs.setdefault("region", config.region)
         spec = ServerlessSpec(**spec_kwargs)
 
-        create_kwargs = dict(
-            name=config.name,
-            dimension=config.dimension,
-            metric=config.metric,
-            spec=spec,
-            deletion_protection=config.deletion_protection,
-        )
+        create_kwargs = {
+            "name": config.name,
+            "dimension": config.dimension,
+            "metric": config.metric,
+            "spec": spec,
+            "deletion_protection": config.deletion_protection,
+        }
         # Pinecone>=7 dropped the metadata_config kwarg, so only pass it when supported.
         if config.metadata_config:
             try:
@@ -66,6 +71,7 @@ class PineconeIndexer(Indexer):
         chunks: Sequence[DocumentChunk],
         namespace: Optional[str] = None,
     ) -> None:
+        """Upsert chunk vectors into Pinecone."""
         if not chunks:
             return
 
@@ -91,11 +97,13 @@ class PineconeIndexer(Indexer):
         index.upsert(vectors=vectors, namespace=namespace)
 
     def delete_index(self, name: str) -> None:
+        """Delete an index by name and evict cached handles."""
         if self._client.has_index(name):
             self._client.delete_index(name)
         self._indexes.pop(name, None)
 
     def _get_index(self, name: str) -> Any:
+        """Return a cached index handle."""
         if name not in self._indexes:
             self._indexes[name] = self._client.Index(name)
         return self._indexes[name]
