@@ -1,4 +1,4 @@
-.PHONY: help env env-backend env-frontend server frontend run test test-verbose coverage coverage-report coverage-open
+.PHONY: help env env-backend env-frontend server frontend run test test-verbose coverage coverage-report coverage-open lint
 
 UV ?= uv
 NPM ?= npm
@@ -24,6 +24,7 @@ help:
 	@echo "  make coverage  - pytest + missing lines + html report"
 	@echo "  make coverage-report - same, but never fails"
 	@echo "  make coverage-open - open htmlcov/index.html"
+	@echo "  make lint      - run pylint on backend code"
 
 env: env-backend env-frontend
 
@@ -56,3 +57,6 @@ coverage-report: env-backend
 
 coverage-open:
 	@test -f htmlcov/index.html && open htmlcov/index.html || (echo "No report found. Run: make coverage" && exit 1)
+
+lint: env-backend
+	$(UV) run pylint --score=y app

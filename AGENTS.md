@@ -46,8 +46,13 @@ to ensure the most up-to-date behavior and feature availability.
 ## Backend Tests and Coverage
 
 - Always add/adjust tests alongside new backend code.
-- Before finishing your work on a backend change:
+- Before finishing your work on a backend change that modifies backend code:
   - Run `make test` (or `make coverage-report` while iterating)
   - Run `make coverage` and review the terminal `term-missing` output
   - Always run these before sending your final response
 - Check for untested code and add tests as needed.
+
+## Backend Linting
+
+- Always run pylint on backend code you change (use `make lint`).
+- Fix lint warnings/errors you introduce before sending your final response.
