@@ -56,3 +56,15 @@ to ensure the most up-to-date behavior and feature availability.
 
 - Always run pylint on backend code you change (use `make lint`).
 - Fix lint warnings/errors you introduce before sending your final response.
+
+# Frontend Coding Guidelines
+
+## Frontend Linting
+
+- Always run ESLint on frontend code you change (use `make lint-frontend`).
+- Fix lint warnings/errors you introduce before sending your final response.
+
+## Frontend Formatting
+
+- Always run Prettier on frontend code you change (use `make format-frontend`).
+- Ensure CI-friendly formatting checks pass (use `make format-check-frontend`).

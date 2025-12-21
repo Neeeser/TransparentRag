@@ -1,4 +1,4 @@
-.PHONY: help env env-backend env-frontend postgres server frontend run test test-verbose coverage coverage-report coverage-open lint
+.PHONY: help env env-backend env-frontend postgres server frontend run test test-verbose coverage coverage-report coverage-open lint lint-frontend format-frontend format-check-frontend
 
 UV ?= uv
 NPM ?= npm
@@ -26,6 +26,9 @@ help:
 	@echo "  make coverage-report - same, but never fails"
 	@echo "  make coverage-open - open htmlcov/index.html"
 	@echo "  make lint      - run pylint on backend code"
+	@echo "  make lint-frontend - run eslint on frontend code"
+	@echo "  make format-frontend - run prettier on frontend code"
+	@echo "  make format-check-frontend - check prettier formatting on frontend code"
 
 env: env-backend env-frontend
 
@@ -64,3 +67,12 @@ coverage-open:
 
 lint: env-backend
 	$(UV) run pylint --score=y app
+
+lint-frontend: env-frontend
+	$(NPM) --prefix frontend run lint
+
+format-frontend: env-frontend
+	$(NPM) --prefix frontend run format
+
+format-check-frontend: env-frontend
+	$(NPM) --prefix frontend run format:check
