@@ -10,8 +10,9 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { User } from '@/lib/types';
 import { getProfile, loginRequest } from '@/lib/api';
+
+import type { User } from '@/lib/types';
 
 const STORAGE_KEY = 'transparentrag.jwt';
 

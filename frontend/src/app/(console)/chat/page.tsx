@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ArrowRight, ChevronDown, MessageSquare, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { GlassCard } from '@/components/ui/panel';
 import { Loader } from '@/components/ui/loader';
+import { GlassCard } from '@/components/ui/panel';
 import { fetchCollections, fetchDocuments, listChatSessions } from '@/lib/api';
-import type { ChatSession, Collection, Document } from '@/lib/types';
 import { cn, timeAgo } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+
+import type { ChatSession, Collection, Document } from '@/lib/types';
 
 interface CollectionSummary {
   documents: number;
@@ -19,6 +20,8 @@ interface CollectionSummary {
 }
 
 type SummaryMap = Record<string, CollectionSummary>;
+
+const COLLECTIONS_ROUTE = '/collections';
 
 export default function ChatStudioLanding() {
   const router = useRouter();
@@ -110,7 +113,11 @@ export default function ChatStudioLanding() {
           <h1 className="text-3xl font-semibold text-white">A focused workspace for multi-turn chats.</h1>
           <p className="mt-2 text-sm text-slate-400">{headline}</p>
         </div>
-        <Button variant="secondary" className="px-6 py-3" onClick={() => router.push('/collections')}>
+        <Button
+          variant="secondary"
+          className="px-6 py-3"
+          onClick={() => router.push(COLLECTIONS_ROUTE)}
+        >
           Manage collections
         </Button>
       </div>
@@ -131,7 +138,7 @@ export default function ChatStudioLanding() {
             You don&apos;t have any collections yet. Ingest documents on the collections page to unlock the
             chat studio.
           </p>
-          <Button className="mt-4" onClick={() => router.push('/collections')}>
+          <Button className="mt-4" onClick={() => router.push(COLLECTIONS_ROUTE)}>
             Create a collection
           </Button>
         </GlassCard>
@@ -209,7 +216,7 @@ export default function ChatStudioLanding() {
                       <Button
                         variant="ghost"
                         className="w-full justify-center"
-                        onClick={() => router.push('/collections')}
+                        onClick={() => router.push(COLLECTIONS_ROUTE)}
                       >
                         <MessageSquare className="mr-2 h-4 w-4" />
                         Manage

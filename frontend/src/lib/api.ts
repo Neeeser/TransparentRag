@@ -20,6 +20,7 @@ import type {
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
+const STREAMING_REQUEST_FAILED_MESSAGE = 'Streaming request failed.';
 
 interface LoginResponse {
   access_token: string;
@@ -30,8 +31,7 @@ type FetchOptions = RequestInit & { token?: string; signal?: AbortSignal };
 
 async function parseError(response: Response) {
   try {
-    const data = await response.json();
-    return data;
+    return await response.json();
   } catch {
     return {};
   }
@@ -268,7 +268,7 @@ export async function streamChatWithCollection(
 
   if (!response.ok) {
     const errorData = await parseError(response);
-    const detail = errorData?.detail || response.statusText || 'Streaming request failed.';
+    const detail = errorData?.detail || response.statusText || STREAMING_REQUEST_FAILED_MESSAGE;
     const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
     throw new Error(message);
   }
@@ -343,7 +343,7 @@ export async function streamChatWithCollection(
           const message =
             typeof parsed.message === 'string' && parsed.message.trim()
               ? parsed.message
-              : 'Streaming request failed.';
+              : STREAMING_REQUEST_FAILED_MESSAGE;
           handlers?.onError?.(message);
           emittedError = true;
           throw new Error(message);
@@ -356,7 +356,7 @@ export async function streamChatWithCollection(
         if (error instanceof Error) {
           handlers?.onError?.(error.message);
         } else {
-          handlers?.onError?.('Streaming request failed.');
+          handlers?.onError?.(STREAMING_REQUEST_FAILED_MESSAGE);
         }
       }
     throw error;

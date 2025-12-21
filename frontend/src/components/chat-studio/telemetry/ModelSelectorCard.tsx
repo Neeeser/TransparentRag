@@ -3,6 +3,7 @@
 import { Check, Loader, Search } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+
 import type { ModelInfo } from '@/lib/types';
 
 interface ModelSelectorCardProps {

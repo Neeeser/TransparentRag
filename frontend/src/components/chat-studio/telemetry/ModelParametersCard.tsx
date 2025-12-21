@@ -1,12 +1,11 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import type { Collection, ModelInfo } from '@/lib/types';
 import type {
   ModelParameterKey,
   ParameterDefinition,
   ParameterOverrides,
 } from '@/lib/chat-parameters';
+import type { Collection, ModelInfo } from '@/lib/types';
 
 interface ModelParametersCardProps {
   collection: Collection | null;

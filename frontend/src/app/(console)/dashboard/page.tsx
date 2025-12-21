@@ -1,20 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Activity, Database, Layers, Sparkles, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { GlassCard } from '@/components/ui/panel';
 import { Loader } from '@/components/ui/loader';
+import { GlassCard } from '@/components/ui/panel';
 import {
   fetchCollections,
   fetchDocuments,
   listChatSessions,
 } from '@/lib/api';
-import type { ChatSession, Collection, Document } from '@/lib/types';
 import { cn, timeAgo } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+
+import type { ChatSession, Collection, Document } from '@/lib/types';
 
 export default function DashboardPage() {
   const { token, user } = useAuth();

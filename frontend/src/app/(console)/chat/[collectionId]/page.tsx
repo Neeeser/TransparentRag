@@ -1,13 +1,16 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
 import { ArrowDown, ArrowLeft, PanelLeftOpen, PanelRightOpen, PlusCircle } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { GlassCard } from '@/components/ui/panel';
-import { Loader } from '@/components/ui/loader';
+import { ChatInput, PromptEditorOverlay } from '@/components/chat-studio';
 import { HistoryPanel } from '@/components/chat-studio/HistoryPanel';
+import { TelemetryPanel } from '@/components/chat-studio/telemetry/TelemetryPanel';
+import { formatToolLabel } from '@/components/chat-studio/Tooling';
+import { Button } from '@/components/ui/button';
+import { Loader } from '@/components/ui/loader';
+import { GlassCard } from '@/components/ui/panel';
 import {
   chatWithCollection,
   deleteChatSession,
@@ -21,6 +24,28 @@ import {
   streamChatWithCollection,
   updateCollectionPrompt,
 } from '@/lib/api';
+import { PARAMETER_DEFINITIONS } from '@/lib/chat-parameters';
+import { useAuth } from '@/providers/auth-provider';
+
+import {
+  coerceRecord,
+  markdownComponents,
+  normalizeReasoningSegments,
+  parsePriceInput,
+  sanitizeFileName,
+  sanitizeModelSlug,
+  safeParseJSON,
+} from './chat-utils';
+import { ChatTimeline } from './components/ChatTimeline';
+
+import type { ChatEntry } from './chat-types';
+import type { ProviderFormState } from '@/components/chat-studio/types';
+import type {
+  ModelParameterKey,
+  ParameterDefinition,
+  ParameterOverrides,
+  ParameterValue,
+} from '@/lib/chat-parameters';
 import type {
   ChatCompletionPayload,
   ChatMessage,
@@ -36,29 +61,6 @@ import type {
   ToolCallTrace,
   UsageBreakdown,
 } from '@/lib/types';
-import { useAuth } from '@/providers/auth-provider';
-import { ChatInput, PromptEditorOverlay } from '@/components/chat-studio';
-import { TelemetryPanel } from '@/components/chat-studio/telemetry/TelemetryPanel';
-import { formatToolLabel } from '@/components/chat-studio/Tooling';
-import { ChatTimeline } from './components/ChatTimeline';
-import {
-  coerceRecord,
-  markdownComponents,
-  normalizeReasoningSegments,
-  parsePriceInput,
-  sanitizeFileName,
-  sanitizeModelSlug,
-  safeParseJSON,
-} from './chat-utils';
-import type { ChatEntry } from './chat-types';
-import type {
-  ModelParameterKey,
-  ParameterDefinition,
-  ParameterOverrides,
-  ParameterValue,
-} from '@/lib/chat-parameters';
-import { PARAMETER_DEFINITIONS } from '@/lib/chat-parameters';
-import type { ProviderFormState } from '@/components/chat-studio/types';
 
 const samplePrompts = [
   'Give me the latest ingestion summary with citations.',

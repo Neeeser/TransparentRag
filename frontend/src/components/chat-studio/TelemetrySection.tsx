@@ -1,7 +1,8 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+
+import type { ReactNode } from 'react';
 
 interface TelemetrySectionProps {
   title: string;

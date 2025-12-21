@@ -2,11 +2,12 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { NotebookPen } from 'lucide-react';
-import type { Components } from 'react-markdown';
+
 
 import { Button } from '@/components/ui/button';
+
 import type { CollectionPromptDetails } from '@/lib/types';
+import type { Components } from 'react-markdown';
 
 interface SystemPromptCardProps {
   promptDetails: CollectionPromptDetails | null;

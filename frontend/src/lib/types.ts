@@ -49,6 +49,7 @@ export interface CollectionPromptDetails {
   rendered: string;
   context: Record<string, string>;
   variables: PromptVariable[];
+  is_custom: boolean;
 }
 
 export interface ModelPricing {

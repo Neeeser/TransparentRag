@@ -1,6 +1,7 @@
 'use client';
 
 import { type RefObject } from 'react';
+
 import { Button } from '@/components/ui/button';
 
 const CHAT_INPUT_MIN_HEIGHT = 40;

@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Loader, Search } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
 import type { ProviderFormState, ProviderSelectionField } from '@/components/chat-studio/types';
 import type { ModelEndpointDirectory, ProviderEndpoint } from '@/lib/types';
 

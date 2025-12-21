@@ -1,12 +1,14 @@
 'use client';
 
-import { type RefObject } from 'react';
 import { X } from 'lucide-react';
+import { type RefObject } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Components } from 'react-markdown';
+
 import { Button } from '@/components/ui/button';
+
 import type { CollectionPromptDetails } from '@/lib/types';
+import type { Components } from 'react-markdown';
 
 interface PromptEditorOverlayProps {
     isOpen: boolean;
@@ -107,7 +109,7 @@ export const PromptEditorOverlay = ({
                             <div className="flex items-center justify-between">
                                 <p className="text-sm font-semibold text-white">Rendered preview</p>
                                 <span className="text-xs text-slate-500">
-                                    {(promptDetails as any).is_custom ? 'Custom template' : 'Default template'}
+                                    {promptDetails.is_custom ? 'Custom template' : 'Default template'}
                                 </span>
                             </div>
                             <div className="mt-3 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-4">

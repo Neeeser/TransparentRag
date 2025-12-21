@@ -1,11 +1,11 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { FilePlus, FolderKanban, Search, UploadCloud } from 'lucide-react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { GlassCard } from '@/components/ui/panel';
 import { Loader } from '@/components/ui/loader';
+import { GlassCard } from '@/components/ui/panel';
 import {
   createCollection,
   fetchCollections,
@@ -14,9 +14,10 @@ import {
   runCollectionQuery,
   uploadDocument,
 } from '@/lib/api';
-import type { Chunk, Collection, CollectionQueryResult, Document } from '@/lib/types';
 import { cn, truncate } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+
+import type { Chunk, Collection, CollectionQueryResult, Document } from '@/lib/types';
 
 const chunkStrategies = ['token', 'sentence', 'paragraph', 'semantic'] as const;
 

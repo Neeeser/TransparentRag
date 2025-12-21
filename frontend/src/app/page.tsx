@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   ArrowRight,
   BarChart3,
@@ -8,6 +7,7 @@ import {
   Sparkles,
   Workflow,
 } from 'lucide-react';
+import Link from 'next/link';
 
 const pipeline = [
   { label: 'Parse', description: 'Ingest PDFs & text via FastAPI or CLI', icon: Layers },

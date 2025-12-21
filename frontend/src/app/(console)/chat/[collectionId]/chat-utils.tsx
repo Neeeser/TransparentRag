@@ -1,7 +1,8 @@
-import type { Components } from 'react-markdown';
+import { cn } from '@/lib/utils';
 
 import type { ReasoningTraceSegment } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import type { Components } from 'react-markdown';
+
 
 const joinTextWithSpacing = (left: string, right: string): string => {
   if (!left) return right;

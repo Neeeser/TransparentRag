@@ -4,6 +4,7 @@ import { PanelLeftClose, PlusCircle, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn, timeAgo } from '@/lib/utils';
+
 import type { ChatSession } from '@/lib/types';
 
 interface HistoryPanelProps {

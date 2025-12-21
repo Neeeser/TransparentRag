@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+
 import type { HTMLAttributes } from 'react';
 
 export function GlassCard({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

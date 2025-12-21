@@ -1,13 +1,13 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
 import { Bot, FolderTree, Home, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
-import { useAuth } from '@/providers/auth-provider';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/providers/auth-provider';
 
 const navLinks = [
   { href: '/dashboard', label: 'Overview', icon: Home },

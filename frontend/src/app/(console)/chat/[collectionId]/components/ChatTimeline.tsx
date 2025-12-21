@@ -1,17 +1,18 @@
+import { Edit3, RotateCcw } from 'lucide-react';
 import React, { Fragment, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Edit3, RotateCcw } from 'lucide-react';
 
-import { CollapsibleReasoning } from '@/components/ui/collapsible-reasoning';
-import { TypingAnimation } from '@/components/ui/typing-animation';
 import { ToolCallBubble } from '@/components/chat-studio/Tooling';
 import { Button } from '@/components/ui/button';
+import { CollapsibleReasoning } from '@/components/ui/collapsible-reasoning';
+import { TypingAnimation } from '@/components/ui/typing-animation';
 import { cn } from '@/lib/utils';
+
+import type { ChatEntry } from '../chat-types';
 import type { ReasoningTraceSegment, ToolCallTrace } from '@/lib/types';
 import type { Components } from 'react-markdown';
 
-import type { ChatEntry } from '../chat-types';
 
 const TOOL_REASONING_TYPES = new Set(['tool_call', 'tool_use', 'tool_request', 'call_tool', 'function_call']);
 
