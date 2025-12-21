@@ -4,6 +4,12 @@ TransparentRAG is a FastAPI backend (`app/`) with a Next.js frontend (`frontend/
 The goal of this project is to provide an easy to use RAG interface for power users.
 It's backbones are pinecone for vector storage and Openrouter for Embeddings and LLMs.
 
+# External API Documentation
+
+For Pinecone and OpenRouter changes, read the locally downloaded docs in
+`external_api_documentation/pinecone-docs/` and `external_api_documentation/openrouter-docs/`
+to ensure the most up-to-date behavior and feature availability.
+
 # Make Commands
 
 - `make env`: install backend deps via `uv` and frontend deps via `npm`

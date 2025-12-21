@@ -68,3 +68,7 @@ frontend/.turbo/
 frontend/out/
 frontend/.vercel/
 frontend/.cache/
+
+# External API documentation downloads
+external_api_documentation/openrouter-docs/
+external_api_documentation/pinecone-docs/

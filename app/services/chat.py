@@ -7,6 +7,7 @@ from typing import Any, Dict, Generator, List, Optional, Set, Tuple
 from uuid import UUID, uuid4
 
 from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from app.api.config import get_settings
@@ -19,6 +20,7 @@ from app.schemas.chat import (
     ChatSessionRead,
     ToolCallTrace,
 )
+from app.schemas.openrouter import OpenRouterChatResponse, OpenRouterStreamChunk
 from app.services.openrouter import get_openrouter_client
 from app.services.prompts import render_system_prompt
 from app.services.retrieval import RetrievalService
@@ -756,33 +758,72 @@ class ChatService:
         for chunk in stream:
             if not isinstance(chunk, dict):
                 continue
-            provider = chunk.get("provider", provider)
-            response_model = chunk.get("model", response_model)
-            choices = chunk.get("choices") or []
+            parsed_chunk: Optional[OpenRouterStreamChunk]
+            try:
+                parsed_chunk = OpenRouterStreamChunk.model_validate(chunk)
+            except ValidationError:
+                parsed_chunk = None
+
+            if parsed_chunk:
+                provider = parsed_chunk.provider or provider
+                response_model = parsed_chunk.model or response_model
+                choices = parsed_chunk.choices
+            else:
+                provider = chunk.get("provider", provider)
+                response_model = chunk.get("model", response_model)
+                choices = chunk.get("choices") or []
+
             if not choices:
                 continue
+
             choice = choices[0]
-            finish_reason = choice.get("finish_reason") or finish_reason
-            delta = choice.get("delta") or {}
-            token_text = self._coerce_stream_text(delta.get("content"))
-            if token_text:
-                content_parts.append(token_text)
-                yield {"type": "token", "content": token_text}
-            tool_call_updates = delta.get("tool_calls")
-            if isinstance(tool_call_updates, list) and tool_call_updates:
-                self._accumulate_stream_tool_calls(tool_call_fragments, tool_call_updates)
-            reasoning_delta = delta.get("reasoning")
-            if reasoning_delta:
-                reasoning_update = self._normalize_reasoning_segments(reasoning_delta)
-                if reasoning_update:
-                    self._extend_reasoning_segments(reasoning_chunks, reasoning_update)
-                    yield {
-                        "type": "reasoning",
-                        "segments": [dict(segment) for segment in reasoning_chunks],
-                    }
-            chunk_usage = chunk.get("usage")
-            if chunk_usage:
-                latest_usage = chunk_usage
+            if parsed_chunk:
+                finish_reason = choice.finish_reason or finish_reason
+                delta = choice.delta
+                token_text = self._coerce_stream_text(delta.content) if delta else None
+                if token_text:
+                    content_parts.append(token_text)
+                    yield {"type": "token", "content": token_text}
+                tool_call_updates = delta.tool_calls if delta else None
+                if tool_call_updates:
+                    tool_call_payloads = [
+                        call.model_dump(exclude_none=True) for call in tool_call_updates
+                    ]
+                    self._accumulate_stream_tool_calls(tool_call_fragments, tool_call_payloads)
+                reasoning_delta = delta.reasoning if delta else None
+                if reasoning_delta:
+                    reasoning_update = self._normalize_reasoning_segments(reasoning_delta)
+                    if reasoning_update:
+                        self._extend_reasoning_segments(reasoning_chunks, reasoning_update)
+                        yield {
+                            "type": "reasoning",
+                            "segments": [dict(segment) for segment in reasoning_chunks],
+                        }
+                chunk_usage = parsed_chunk.usage
+                if chunk_usage:
+                    latest_usage = chunk_usage.model_dump(exclude_none=True)
+            else:
+                finish_reason = choice.get("finish_reason") or finish_reason
+                delta = choice.get("delta") or {}
+                token_text = self._coerce_stream_text(delta.get("content"))
+                if token_text:
+                    content_parts.append(token_text)
+                    yield {"type": "token", "content": token_text}
+                tool_call_updates = delta.get("tool_calls")
+                if isinstance(tool_call_updates, list) and tool_call_updates:
+                    self._accumulate_stream_tool_calls(tool_call_fragments, tool_call_updates)
+                reasoning_delta = delta.get("reasoning")
+                if reasoning_delta:
+                    reasoning_update = self._normalize_reasoning_segments(reasoning_delta)
+                    if reasoning_update:
+                        self._extend_reasoning_segments(reasoning_chunks, reasoning_update)
+                        yield {
+                            "type": "reasoning",
+                            "segments": [dict(segment) for segment in reasoning_chunks],
+                        }
+                chunk_usage = chunk.get("usage")
+                if chunk_usage:
+                    latest_usage = chunk_usage
 
         tool_calls: List[Dict[str, Any]] = []
         for index in sorted(tool_call_fragments.keys()):
@@ -1455,11 +1496,13 @@ class ChatService:
                 parameters=parameter_overrides or None,
             )
             final_response = response
-            choice = response["choices"][0]
-            message = choice.get("message", {})
-            finish_reason = choice.get("finish_reason")
-            usage = response.get("usage") or {}
-            provider = response.get("provider", provider)
+            parsed_response = OpenRouterChatResponse.model_validate(response)
+            choice = parsed_response.choices[0]
+            message = choice.message.model_dump(exclude_none=True) if choice.message else {}
+            finish_reason = choice.finish_reason
+            usage = parsed_response.usage.model_dump(exclude_none=True) if parsed_response.usage else {}
+            provider = parsed_response.provider or provider
+            response_model_name = parsed_response.model
 
             if usage:
                 latest_usage_payload = usage
@@ -1588,7 +1631,7 @@ class ChatService:
                 session_id=session_model.id,
                 role=models.ChatRole.ASSISTANT,
                 content=content,
-                model=response.get("model"),
+                model=response_model_name,
                 reasoning=reasoning_payload,
                 usage=final_usage,
             )
