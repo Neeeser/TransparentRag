@@ -90,7 +90,7 @@ class ChatService:
         self.settings = get_settings()
         self.chat_repo = ChatRepository(session)
         self.openrouter = get_openrouter_client()
-        self.retrieval = RetrievalService()
+        self.retrieval = RetrievalService(session)
         effort_value = (self.settings.openrouter_reasoning_effort or "").strip()
         self.reasoning_effort: Optional[str] = effort_value or None
 
@@ -1380,6 +1380,7 @@ class ChatService:
                         "reasoning": reasoning_entry,
                     }
                     retrieval_response = self.retrieval.query_collection(
+                        user,
                         collection,
                         query_text,
                         top_k=top_k,
@@ -1665,6 +1666,7 @@ class ChatService:
                         top_k = 5
                     top_k = max(1, min(10, top_k))
                     retrieval_response = self.retrieval.query_collection(
+                        user,
                         collection,
                         query_text,
                         top_k=top_k,

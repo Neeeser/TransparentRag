@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, FolderTree, Home, MessageSquare } from "lucide-react";
+import { Bot, FolderTree, GitBranch, Home, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -13,6 +13,7 @@ const navLinks = [
   { href: "/dashboard", label: "Overview", icon: Home },
   { href: "/collections", label: "Collections", icon: FolderTree },
   { href: "/chat", label: "Chat Studio", icon: MessageSquare },
+  { href: "/pipelines", label: "Pipelines", icon: GitBranch },
 ];
 
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {

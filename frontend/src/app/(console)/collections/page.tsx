@@ -11,13 +11,22 @@ import {
   fetchCollections,
   fetchDocumentChunks,
   fetchDocuments,
+  fetchPipelines,
   runCollectionQuery,
+  updateCollection,
   uploadDocument,
 } from "@/lib/api";
 import { cn, truncate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
-import type { Chunk, Collection, CollectionQueryResult, Document } from "@/lib/types";
+import type {
+  Chunk,
+  Collection,
+  CollectionCreatePayload,
+  CollectionQueryResult,
+  Document,
+  Pipeline,
+} from "@/lib/types";
 
 const chunkStrategies = ["token", "sentence", "paragraph", "semantic"] as const;
 
@@ -29,10 +38,17 @@ export default function CollectionsPage() {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [chunkView, setChunkView] = useState<Chunk[]>([]);
   const [queryResult, setQueryResult] = useState<CollectionQueryResult | null>(null);
+  const [ingestionPipelines, setIngestionPipelines] = useState<Pipeline[]>([]);
+  const [retrievalPipelines, setRetrievalPipelines] = useState<Pipeline[]>([]);
+  const [pipelineBindings, setPipelineBindings] = useState({
+    ingestion: "",
+    retrieval: "",
+  });
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [binding, setBinding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [form, setForm] = useState<{
     name: string;
@@ -40,12 +56,16 @@ export default function CollectionsPage() {
     chunk_size: number;
     chunk_overlap: number;
     chunk_strategy: (typeof chunkStrategies)[number];
+    ingestion_pipeline_id: string;
+    retrieval_pipeline_id: string;
   }>({
     name: "",
     description: "",
     chunk_size: 1024,
     chunk_overlap: 200,
     chunk_strategy: "token",
+    ingestion_pipeline_id: "",
+    retrieval_pipeline_id: "",
   });
   const [query, setQuery] = useState("What does TransparentRAG do?");
   const [topK, setTopK] = useState(4);
@@ -75,6 +95,38 @@ export default function CollectionsPage() {
     }
 
     loadCollections();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    const authToken = token ?? "";
+    if (!authToken) return;
+    let cancelled = false;
+
+    async function loadPipelines() {
+      try {
+        const [ingestion, retrieval] = await Promise.all([
+          fetchPipelines(authToken, "ingestion"),
+          fetchPipelines(authToken, "retrieval"),
+        ]);
+        if (cancelled) return;
+        setIngestionPipelines(ingestion);
+        setRetrievalPipelines(retrieval);
+        setForm((prev) => ({
+          ...prev,
+          ingestion_pipeline_id: prev.ingestion_pipeline_id || ingestion[0]?.id || "",
+          retrieval_pipeline_id: prev.retrieval_pipeline_id || retrieval[0]?.id || "",
+        }));
+      } catch (err) {
+        if (!cancelled) {
+          setMessage(err instanceof Error ? err.message : "Unable to load pipelines.");
+        }
+      }
+    }
+
+    loadPipelines();
     return () => {
       cancelled = true;
     };
@@ -118,6 +170,17 @@ export default function CollectionsPage() {
   }, [selectedCollection, token]);
 
   useEffect(() => {
+    if (!selectedCollection) {
+      setPipelineBindings({ ingestion: "", retrieval: "" });
+      return;
+    }
+    setPipelineBindings({
+      ingestion: selectedCollection.ingestion_pipeline_id ?? ingestionPipelines[0]?.id ?? "",
+      retrieval: selectedCollection.retrieval_pipeline_id ?? retrievalPipelines[0]?.id ?? "",
+    });
+  }, [selectedCollection, ingestionPipelines, retrievalPipelines]);
+
+  useEffect(() => {
     const authToken = token ?? "";
     const document = selectedDocument;
     if (!authToken || !document) {
@@ -150,7 +213,7 @@ export default function CollectionsPage() {
     setCreating(true);
     setMessage(null);
     try {
-      const payload = {
+      const payload: CollectionCreatePayload = {
         name: form.name,
         description: form.description,
         chunk_settings: {
@@ -159,6 +222,12 @@ export default function CollectionsPage() {
           strategy: form.chunk_strategy,
         },
       };
+      if (form.ingestion_pipeline_id) {
+        payload.ingestion_pipeline_id = form.ingestion_pipeline_id;
+      }
+      if (form.retrieval_pipeline_id) {
+        payload.retrieval_pipeline_id = form.retrieval_pipeline_id;
+      }
       const newCollection = await createCollection(authToken, payload);
       setCollections((prev) => [newCollection, ...prev]);
       setSelectedCollection(newCollection);
@@ -168,6 +237,8 @@ export default function CollectionsPage() {
         chunk_size: 1024,
         chunk_overlap: 200,
         chunk_strategy: "token",
+        ingestion_pipeline_id: ingestionPipelines[0]?.id || "",
+        retrieval_pipeline_id: retrievalPipelines[0]?.id || "",
       });
       setMessage("Collection created. Configure documents below.");
     } catch (error) {
@@ -217,6 +288,27 @@ export default function CollectionsPage() {
       setMessage(error instanceof Error ? error.message : "Query failed.");
     } finally {
       setWorking(false);
+    }
+  };
+
+  const handleUpdatePipelines = async () => {
+    const authToken = token ?? "";
+    const collection = selectedCollection;
+    if (!authToken || !collection) return;
+    setBinding(true);
+    setMessage(null);
+    try {
+      const updated = await updateCollection(collection.id, authToken, {
+        ingestion_pipeline_id: pipelineBindings.ingestion || null,
+        retrieval_pipeline_id: pipelineBindings.retrieval || null,
+      });
+      setCollections((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setSelectedCollection(updated);
+      setMessage("Pipeline bindings updated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to update pipelines.");
+    } finally {
+      setBinding(false);
     }
   };
 
@@ -359,6 +451,56 @@ export default function CollectionsPage() {
                     </option>
                   ))}
                 </select>
+                <div className="grid gap-3">
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                      Ingestion pipeline
+                    </label>
+                    <select
+                      className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                      value={form.ingestion_pipeline_id}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          ingestion_pipeline_id: event.target.value,
+                        }))
+                      }
+                    >
+                      {ingestionPipelines.length === 0 && (
+                        <option value="">Loading pipelines...</option>
+                      )}
+                      {ingestionPipelines.map((pipeline) => (
+                        <option key={pipeline.id} value={pipeline.id}>
+                          {pipeline.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                      Retrieval pipeline
+                    </label>
+                    <select
+                      className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                      value={form.retrieval_pipeline_id}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          retrieval_pipeline_id: event.target.value,
+                        }))
+                      }
+                    >
+                      {retrievalPipelines.length === 0 && (
+                        <option value="">Loading pipelines...</option>
+                      )}
+                      {retrievalPipelines.map((pipeline) => (
+                        <option key={pipeline.id} value={pipeline.id}>
+                          {pipeline.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <Button type="submit" loading={creating} className="w-full">
                   Create collection
                 </Button>
@@ -412,6 +554,69 @@ export default function CollectionsPage() {
                       </div>
                     ))}
                   </dl>
+                </GlassCard>
+
+                <GlassCard className="rounded-3xl p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.35em] text-slate-400">
+                        Pipelines
+                      </p>
+                      <h2 className="text-2xl font-semibold">Collection bindings</h2>
+                      <p className="text-sm text-slate-400">
+                        Swap ingestion or retrieval flows without reconfiguring the collection.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Ingestion pipeline
+                      </label>
+                      <select
+                        className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                        value={pipelineBindings.ingestion}
+                        onChange={(event) =>
+                          setPipelineBindings((prev) => ({
+                            ...prev,
+                            ingestion: event.target.value,
+                          }))
+                        }
+                      >
+                        {ingestionPipelines.map((pipeline) => (
+                          <option key={pipeline.id} value={pipeline.id}>
+                            {pipeline.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                        Retrieval pipeline
+                      </label>
+                      <select
+                        className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                        value={pipelineBindings.retrieval}
+                        onChange={(event) =>
+                          setPipelineBindings((prev) => ({
+                            ...prev,
+                            retrieval: event.target.value,
+                          }))
+                        }
+                      >
+                        {retrievalPipelines.map((pipeline) => (
+                          <option key={pipeline.id} value={pipeline.id}>
+                            {pipeline.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <Button onClick={handleUpdatePipelines} loading={binding}>
+                      Apply pipelines
+                    </Button>
+                  </div>
                 </GlassCard>
 
                 <GlassCard className="rounded-3xl p-6">

@@ -25,6 +25,7 @@ from app.schemas.collections import (
     CollectionUpdate,
 )
 from app.services.openrouter import get_openrouter_client
+from app.services.pipelines import PipelineService
 from app.services.prompts import (
     SYSTEM_PROMPT_METADATA_KEY,
     apply_prompt_template,
@@ -50,6 +51,8 @@ def _to_schema(collection: models.Collection) -> CollectionRead:
         chat_model=collection.chat_model,
         pinecone_index=collection.pinecone_index,
         pinecone_namespace=collection.pinecone_namespace,
+        ingestion_pipeline_id=collection.ingestion_pipeline_id,
+        retrieval_pipeline_id=collection.retrieval_pipeline_id,
         context_window=collection.context_window,
         created_at=collection.created_at,
         updated_at=collection.updated_at,
@@ -125,6 +128,7 @@ def create_collection(
     """Create a new collection for the current user."""
     settings = get_settings()
     repo = CollectionRepository(session)
+    pipeline_service = PipelineService(session)
     openrouter = get_openrouter_client()
 
     embedding_model = payload.embedding_model or settings.default_embedding_model
@@ -159,6 +163,23 @@ def create_collection(
         )
 
     namespace = payload.pinecone_namespace or f"col-{uuid4().hex[:12]}"
+    defaults = pipeline_service.ensure_default_pipelines(current_user)
+    ingestion_pipeline_id = payload.ingestion_pipeline_id or defaults.ingestion.id
+    retrieval_pipeline_id = payload.retrieval_pipeline_id or defaults.retrieval.id
+    if payload.ingestion_pipeline_id:
+        pipeline = pipeline_service.get_pipeline(payload.ingestion_pipeline_id, current_user.id)
+        if not pipeline or pipeline.kind != models.PipelineKind.INGESTION:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid ingestion pipeline selection.",
+            )
+    if payload.retrieval_pipeline_id:
+        pipeline = pipeline_service.get_pipeline(payload.retrieval_pipeline_id, current_user.id)
+        if not pipeline or pipeline.kind != models.PipelineKind.RETRIEVAL:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid retrieval pipeline selection.",
+            )
     collection = models.Collection(
         id=uuid4(),
         user_id=current_user.id,
@@ -172,6 +193,8 @@ def create_collection(
         chunk_strategy=chunk_strategy,
         pinecone_index=settings.pinecone_index_name,
         pinecone_namespace=namespace,
+        ingestion_pipeline_id=ingestion_pipeline_id,
+        retrieval_pipeline_id=retrieval_pipeline_id,
         extra_metadata={**payload.metadata, "embedding_dimension": embedding_dimension},
     )
     repo.add(collection)
@@ -194,7 +217,7 @@ def create_collection(
 
 
 @router.patch("/{collection_id}", response_model=CollectionRead)
-def update_collection(
+def update_collection(  # pylint: disable=too-many-branches
     collection_id: UUID,
     payload: CollectionUpdate,
     current_user: models.User = Depends(get_current_user),
@@ -206,6 +229,7 @@ def update_collection(
         user_id=current_user.id,
         session=session,
     )
+    pipeline_service = PipelineService(session)
 
     if payload.name is not None:
         collection.name = payload.name
@@ -222,6 +246,30 @@ def update_collection(
             collection.chunk_overlap = settings_obj.chunk_overlap
         if "strategy" in fields_set:
             collection.chunk_strategy = settings_obj.strategy
+    if payload.ingestion_pipeline_id is not None:
+        if payload.ingestion_pipeline_id:
+            pipeline = pipeline_service.get_pipeline(
+                payload.ingestion_pipeline_id,
+                current_user.id,
+            )
+            if not pipeline or pipeline.kind != models.PipelineKind.INGESTION:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid ingestion pipeline selection.",
+                )
+        collection.ingestion_pipeline_id = payload.ingestion_pipeline_id
+    if payload.retrieval_pipeline_id is not None:
+        if payload.retrieval_pipeline_id:
+            pipeline = pipeline_service.get_pipeline(
+                payload.retrieval_pipeline_id,
+                current_user.id,
+            )
+            if not pipeline or pipeline.kind != models.PipelineKind.RETRIEVAL:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid retrieval pipeline selection.",
+                )
+        collection.retrieval_pipeline_id = payload.retrieval_pipeline_id
     collection.updated_at = utc_now()
     session.add(collection)
     session.commit()

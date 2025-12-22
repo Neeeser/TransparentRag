@@ -21,7 +21,16 @@ class _StubSettings:
 
 
 class _StubRetrievalService:
-    def query_collection(self, _collection: models.Collection, _query: str, top_k: int = 5):
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+    def query_collection(
+        self,
+        _user: models.User,
+        _collection: models.Collection,
+        _query: str,
+        top_k: int = 5,
+    ):
         return {"chunks": [], "top_k": top_k}
 
 
@@ -233,7 +242,13 @@ def test_send_message_handles_tool_calls(monkeypatch, session: Session) -> None:
         def __init__(self) -> None:
             self.calls: list[dict[str, Any]] = []
 
-        def query_collection(self, collection: models.Collection, query: str, top_k: int = 5):
+        def query_collection(
+            self,
+            _user: models.User,
+            collection: models.Collection,
+            query: str,
+            top_k: int = 5,
+        ):
             self.calls.append({"collection": collection, "query": query, "top_k": top_k})
             return {"chunks": [], "top_k": top_k}
 
@@ -241,7 +256,7 @@ def test_send_message_handles_tool_calls(monkeypatch, session: Session) -> None:
 
     monkeypatch.setattr(chat_module, "get_settings", lambda: _StubSettings())
     monkeypatch.setattr(chat_module, "get_openrouter_client", lambda: openrouter)
-    monkeypatch.setattr(chat_module, "RetrievalService", lambda: retrieval)
+    monkeypatch.setattr(chat_module, "RetrievalService", lambda *_args, **_kwargs: retrieval)
 
     service = ChatService(session)
 
@@ -266,7 +281,13 @@ def test_stream_message_handles_tool_calls_and_final(monkeypatch, session: Sessi
     retrieval_calls: list[dict[str, Any]] = []
 
     class _TrackingRetrievalService(_StubRetrievalService):
-        def query_collection(self, collection: models.Collection, query: str, top_k: int = 5):
+        def query_collection(
+            self,
+            _user: models.User,
+            collection: models.Collection,
+            query: str,
+            top_k: int = 5,
+        ):
             retrieval_calls.append({"collection": collection, "query": query, "top_k": top_k})
             return {"chunks": [], "top_k": top_k}
 

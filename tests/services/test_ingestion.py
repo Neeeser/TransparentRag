@@ -53,18 +53,21 @@ def test_ingest_upload_marks_document_failed_on_exception(monkeypatch, session, 
         def __init__(self, api_key: str) -> None:
             self.api_key = api_key
 
-    class _FailingParser:
-        def parse(self, _source: object) -> None:
+    class _FailingExecutor:
+        def __init__(self, _registry: object) -> None:
+            self.registry = _registry
+
+        def execute(self, _definition: object, _context: object) -> None:
             raise RuntimeError("parse failed")
 
     monkeypatch.setattr(ingestion_module, "FileStorage", _StubStorage)
     monkeypatch.setattr(ingestion_module, "Pinecone", _StubPinecone)
     monkeypatch.setattr(ingestion_module, "get_openrouter_client", lambda: object())
+    monkeypatch.setattr(ingestion_module, "PipelineExecutor", _FailingExecutor)
 
     user = _create_user(session)
     collection = _create_collection(session, user)
     service = IngestionService(session)
-    monkeypatch.setattr(service, "_select_parser", lambda _content_type: _FailingParser())
 
     upload = UploadFile(filename="doc.txt", file=io.BytesIO(b"content"))
 

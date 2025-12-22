@@ -29,6 +29,8 @@ class CollectionBase(BaseModel):
     chat_model: Optional[str] = None
     chunk_settings: ChunkSettings = Field(default_factory=ChunkSettings)
     pinecone_namespace: Optional[str] = None
+    ingestion_pipeline_id: Optional[UUID] = None
+    retrieval_pipeline_id: Optional[UUID] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -43,6 +45,8 @@ class CollectionUpdate(BaseModel):
     description: Optional[str] = None
     chunk_settings: Optional[ChunkSettings] = None
     metadata: Optional[Dict[str, Any]] = None
+    ingestion_pipeline_id: Optional[UUID] = None
+    retrieval_pipeline_id: Optional[UUID] = None
 
 
 class CollectionRead(DateTimeConfigMixin, CollectionBase):

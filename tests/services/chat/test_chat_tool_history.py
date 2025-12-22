@@ -57,6 +57,7 @@ class _StubChatRepository:
 class _StubRetrieval:
     def query_collection(
         self,
+        _user: Any,
         collection: Any,
         query_text: str,
         top_k: int,
