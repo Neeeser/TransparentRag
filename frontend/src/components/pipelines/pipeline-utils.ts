@@ -1,3 +1,5 @@
+import { resolveNodeDescription, resolveNodeExample } from "./node-content";
+
 import type { PipelineNodeData } from "./PipelineNode";
 import type { NodeSpec, PipelineDefinition, PipelineKind } from "@/lib/types";
 import type { Edge, Node } from "@xyflow/react";
@@ -173,11 +175,12 @@ export const toFlowNodes = (
       data: {
         label: node.name,
         nodeType: node.type,
-        description: spec?.description,
-        example: spec?.example,
+        description: spec ? resolveNodeDescription(spec) : undefined,
+        example: spec ? resolveNodeExample(spec) : undefined,
         inputs: spec?.input_ports ?? [],
         outputs: spec?.output_ports ?? [],
         config: node.config ?? {},
+        configSchema: spec?.config_schema ?? {},
       },
     };
   });

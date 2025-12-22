@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 
+import { resolveNodeDescription, resolveNodeExample } from "./node-content";
 import {
   buildDefaultDefinition,
   buildNodeCatalog,
@@ -47,7 +48,7 @@ export function PipelineBuilder() {
   const [nodes, setNodes, onNodesChange] = useNodesState<PipelineNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [configDraft, setConfigDraft] = useState("");
+  const [configDraft, setConfigDraft] = useState<Record<string, unknown>>({});
   const [changeSummary, setChangeSummary] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,10 +129,10 @@ export function PipelineBuilder() {
 
   useEffect(() => {
     if (!selectedNode) {
-      setConfigDraft("");
+      setConfigDraft({});
       return;
     }
-    setConfigDraft(JSON.stringify(selectedNode.data.config ?? {}, null, 2));
+    setConfigDraft({ ...(selectedNode.data.config ?? {}) });
   }, [selectedNode]);
 
   const handleConnect = (connection: Connection) => {
@@ -149,6 +150,8 @@ export function PipelineBuilder() {
 
   const handleAddNode = (spec: NodeSpec) => {
     const nodeId = createId();
+    const description = resolveNodeDescription(spec);
+    const example = resolveNodeExample(spec);
     const newNode: Node<PipelineNodeData> = {
       id: nodeId,
       type: "pipelineNode",
@@ -156,10 +159,12 @@ export function PipelineBuilder() {
       data: {
         label: spec.label,
         nodeType: spec.type,
-        description: spec.description,
+        description,
+        example,
         inputs: spec.input_ports,
         outputs: spec.output_ports,
         config: spec.default_config ?? {},
+        configSchema: spec.config_schema ?? {},
       },
     };
     setNodes((prev) => [...prev, newNode]);
@@ -168,17 +173,15 @@ export function PipelineBuilder() {
 
   const handleApplyConfig = () => {
     if (!selectedNode) return;
-    try {
-      const parsed = JSON.parse(configDraft || "{}");
-      setNodes((prev) =>
-        prev.map((node) =>
-          node.id === selectedNode.id ? { ...node, data: { ...node.data, config: parsed } } : node,
-        ),
-      );
-      setMessage("Node configuration updated.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Invalid JSON configuration.");
-    }
+    const nextConfig = { ...configDraft };
+    setNodes((prev) =>
+      prev.map((node) =>
+        node.id === selectedNode.id
+          ? { ...node, data: { ...node.data, config: nextConfig } }
+          : node,
+      ),
+    );
+    setMessage("Node configuration updated.");
   };
 
   const handleSavePipeline = async () => {

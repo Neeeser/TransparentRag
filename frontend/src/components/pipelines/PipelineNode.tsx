@@ -5,14 +5,20 @@ import { Handle, Position } from "@xyflow/react";
 import type { NodeSpec } from "@/lib/types";
 import type { NodeProps } from "@xyflow/react";
 
+export type PipelineNodeExample = {
+  input: string;
+  output: string;
+};
+
 export type PipelineNodeData = {
   label: string;
   nodeType: string;
   description?: string;
-  example?: string;
+  example?: PipelineNodeExample;
   inputs: NodeSpec["input_ports"];
   outputs: NodeSpec["output_ports"];
   config: Record<string, unknown>;
+  configSchema?: Record<string, unknown>;
 };
 
 const portLeftPercent = (index: number, total: number) => `${((index + 1) / (total + 1)) * 100}%`;
