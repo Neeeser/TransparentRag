@@ -37,7 +37,8 @@ class NodeSpec(BaseModel):
     type: str
     label: str
     category: str
-    description: str
+    description: str = Field(min_length=1)
+    example: str = Field(min_length=1)
     input_ports: List[NodePort] = Field(default_factory=list)
     output_ports: List[NodePort] = Field(default_factory=list)
     config_schema: Dict[str, object] = Field(default_factory=dict)
@@ -54,7 +55,8 @@ class PipelineNodeBase:
     type: str = "base"
     label: str = "Base Node"
     category: str = "utility"
-    description: str = "Base pipeline node."
+    description: str = ""
+    example: str = ""
     input_ports: Sequence[NodePort] = ()
     output_ports: Sequence[NodePort] = ()
     config_model: Type[BaseModel] = EmptyConfig
@@ -74,6 +76,10 @@ class PipelineNodeBase:
     @classmethod
     def spec(cls) -> NodeSpec:
         """Return the registry spec for this node type."""
+        if not cls.description or not cls.description.strip():
+            raise ValueError(f"Node {cls.type} must define a description.")
+        if not cls.example or not cls.example.strip():
+            raise ValueError(f"Node {cls.type} must define an example.")
         schema = cls.config_model.model_json_schema()
         default_config = cls.config_model().model_dump()
         return NodeSpec(
@@ -81,6 +87,7 @@ class PipelineNodeBase:
             label=cls.label,
             category=cls.category,
             description=cls.description,
+            example=cls.example,
             input_ports=list(cls.input_ports),
             output_ports=list(cls.output_ports),
             config_schema=schema,

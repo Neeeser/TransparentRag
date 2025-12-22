@@ -316,6 +316,7 @@ export interface NodeSpec {
   label: string;
   category: string;
   description: string;
+  example: string;
   input_ports: NodePort[];
   output_ports: NodePort[];
   config_schema: Record<string, unknown>;

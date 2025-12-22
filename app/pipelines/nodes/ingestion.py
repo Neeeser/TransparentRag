@@ -41,6 +41,11 @@ class IngestionInputNode(PipelineNodeBase):
     label = "Ingestion Input"
     category = "ingestion"
     description = "Build a document source from the uploaded file."
+    example = (
+        "Context(document='file.pdf') -> "
+        "SourcePayload(document_id='123', path='/tmp/file.pdf', "
+        "content_type='application/pdf')."
+    )
     input_ports = []
     output_ports = [NodePort(key="source", label="Source", data_type="document_source")]
     config_model = IngestionInputConfig
@@ -81,6 +86,10 @@ class DocumentParserNode(PipelineNodeBase):
     label = "Document Parser"
     category = "ingestion"
     description = "Extract text from a document source."
+    example = (
+        "SourcePayload(content_type='application/pdf') -> "
+        "ParsedDocumentPayload(text='Invoice #42 ...')."
+    )
     input_ports = [NodePort(key="source", label="Source", data_type="document_source")]
     output_ports = [NodePort(key="document", label="Document", data_type="document")]
     config_model = ParserConfig
@@ -126,6 +135,10 @@ class FileTypeRouterNode(PipelineNodeBase):
     label = "File Type Router"
     category = "ingestion"
     description = "Branch the pipeline based on the file content type."
+    example = (
+        "SourcePayload(content_type='application/pdf') -> "
+        "{pdf: SourcePayload(...)}."
+    )
     input_ports = [NodePort(key="source", label="Source", data_type="document_source")]
     output_ports = [
         NodePort(key="pdf", label="PDF", data_type="document_source", required=False),
@@ -162,6 +175,10 @@ class ChunkerNode(PipelineNodeBase):
     label = "Chunker"
     category = "ingestion"
     description = "Chunk documents using collection defaults or overrides."
+    example = (
+        "ParsedDocumentPayload(text='Hello world') -> "
+        "ChunkPayload(chunks=['Hello', 'world'])."
+    )
     input_ports = [NodePort(key="document", label="Document", data_type="document")]
     output_ports = [NodePort(key="chunks", label="Chunks", data_type="chunk_batch")]
     config_model = ChunkerConfig
@@ -212,6 +229,10 @@ class EmbedderNode(PipelineNodeBase):
     label = "Embedder"
     category = "ingestion"
     description = "Embed chunks using OpenRouter."
+    example = (
+        "ChunkPayload(chunks=['hello']) -> "
+        "EmbeddingPayload(embeddings=[[0.12, 0.03, ...]])."
+    )
     input_ports = [NodePort(key="chunks", label="Chunks", data_type="chunk_batch")]
     output_ports = [NodePort(key="embedded", label="Embedded", data_type="embedded_batch")]
     config_model = EmbedderConfig
@@ -263,6 +284,10 @@ class IndexerNode(PipelineNodeBase):
     label = "Indexer"
     category = "ingestion"
     description = "Upsert embeddings into Pinecone."
+    example = (
+        "EmbeddingPayload(chunks=2) -> "
+        "IndexingPayload(chunks=2, index='pinecone')."
+    )
     input_ports = [NodePort(key="embedded", label="Embedded", data_type="embedded_batch")]
     output_ports = [NodePort(key="indexed", label="Indexed", data_type="indexed_batch")]
     config_model = IndexerConfig
@@ -322,6 +347,10 @@ class IngestionOutputNode(PipelineNodeBase):
     label = "Ingestion Output"
     category = "ingestion"
     description = "Emit the indexed chunks for persistence."
+    example = (
+        "IndexingPayload(chunks=2) -> "
+        "Result(IndexingPayload(chunks=2))."
+    )
     input_ports = [NodePort(key="indexed", label="Indexed", data_type="indexed_batch")]
     output_ports = [NodePort(key="result", label="Result", data_type="indexed_batch")]
     config_model = IngestionOutputConfig

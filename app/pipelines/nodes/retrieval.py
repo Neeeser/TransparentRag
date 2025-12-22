@@ -31,6 +31,7 @@ class RetrievalInputNode(PipelineNodeBase):
     label = "Retrieval Input"
     category = "retrieval"
     description = "Provide the query payload for retrieval."
+    example = "Query='coffee', top_k=3 -> QueryRequest(text='coffee', top_k=3)."
     input_ports = []
     output_ports = [NodePort(key="request", label="Request", data_type="query_request")]
     config_model = RetrievalInputConfig
@@ -66,6 +67,10 @@ class PineconeRetrieverNode(PipelineNodeBase):
     label = "Pinecone Retriever"
     category = "retrieval"
     description = "Retrieve chunks from Pinecone using embeddings."
+    example = (
+        "QueryRequest(text='coffee') -> "
+        "RetrievalPayload(matches=[chunk_a, chunk_b])."
+    )
     input_ports = [NodePort(key="request", label="Request", data_type="query_request")]
     output_ports = [NodePort(key="results", label="Results", data_type="retrieval_results")]
     config_model = RetrieverConfig
@@ -140,6 +145,10 @@ class RerankerNode(PipelineNodeBase):
     label = "Cross-Encoder Reranker"
     category = "retrieval"
     description = "Re-score retrieved chunks with a cross-encoder."
+    example = (
+        "RetrievalPayload([chunk_b, chunk_a]) -> "
+        "RetrievalPayload([chunk_a, chunk_b])."
+    )
     input_ports = [NodePort(key="results", label="Results", data_type="retrieval_results")]
     output_ports = [NodePort(key="results", label="Results", data_type="retrieval_results")]
     config_model = RerankerConfig
@@ -173,6 +182,10 @@ class RetrievalOutputNode(PipelineNodeBase):
     label = "Retrieval Output"
     category = "retrieval"
     description = "Emit retrieval results for the API."
+    example = (
+        "RetrievalPayload(matches=2) -> "
+        "Result(RetrievalPayload(matches=2))."
+    )
     input_ports = [NodePort(key="results", label="Results", data_type="retrieval_results")]
     output_ports = [NodePort(key="result", label="Result", data_type="retrieval_results")]
     config_model = RetrievalOutputConfig

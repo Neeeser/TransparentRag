@@ -95,12 +95,24 @@ def _build_document(user: models.User, collection: models.Collection, source_pat
     )
 
 
+def test_pipeline_registry_specs_include_examples() -> None:
+    registry = build_default_registry()
+    specs = registry.specs()
+    assert specs
+    for spec in specs:
+        assert spec.description
+        assert spec.example
+        if spec.input_ports and spec.output_ports:
+            assert "->" in spec.example
+
+
 def test_pipeline_executor_skips_unreached_branch(session: Session) -> None:
     class _InputNode(PipelineNodeBase):
         type = "test.input"
         label = "Input"
         category = "test"
         description = "Test input"
+        example = "Input -> Output."
         input_ports = []
         output_ports = [NodePort(key="payload", label="Payload", data_type="text")]
 
@@ -112,6 +124,7 @@ def test_pipeline_executor_skips_unreached_branch(session: Session) -> None:
         label = "Router"
         category = "test"
         description = "Test router"
+        example = "Input -> {alpha: payload}."
         input_ports = [NodePort(key="payload", label="Payload", data_type="text")]
         output_ports = [
             NodePort(key="alpha", label="Alpha", data_type="text", required=False),
@@ -126,6 +139,7 @@ def test_pipeline_executor_skips_unreached_branch(session: Session) -> None:
         label = "Sink"
         category = "test"
         description = "Test sink"
+        example = "Input -> Result."
         input_ports = [NodePort(key="payload", label="Payload", data_type="text")]
         output_ports = [NodePort(key="result", label="Result", data_type="text")]
 
