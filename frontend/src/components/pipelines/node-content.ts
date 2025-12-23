@@ -34,7 +34,7 @@ const NODE_CONTENT: Record<string, NodeContent> = {
   },
   "chunker.collection": {
     description:
-      "Splits the parsed document into smaller chunks using collection defaults or overrides for strategy, size, and overlap. Each chunk keeps metadata so it can be traced back to the document.",
+      "Splits the parsed document into smaller chunks using the node's configured strategy, size, and overlap. Each chunk keeps metadata so it can be traced back to the document.",
     example: {
       input: 'Parsed document text: "Hello world!"',
       output: 'Chunk batch\n- "Hello"\n- "world!"',
@@ -74,10 +74,18 @@ const NODE_CONTENT: Record<string, NodeContent> = {
   },
   "retriever.pinecone": {
     description:
-      "Embeds the query, queries Pinecone for nearest neighbors, and returns scored matches with usage. Honors collection defaults or per-node overrides.",
+      "Embeds the query, queries Pinecone for nearest neighbors, and returns scored matches with usage using the node configuration.",
     example: {
       input: 'Query request: "coffee grinders"',
       output: "Retrieval results\n- chunk A (score 0.82)\n- chunk B (score 0.79)\n- ...",
+    },
+  },
+  "chat.settings": {
+    description:
+      "Stores the chat model and context window configuration used for generation alongside retrieval.",
+    example: {
+      input: "Chat settings configured",
+      output: "No runtime output (configuration only)",
     },
   },
   "reranker.cross_encoder": {

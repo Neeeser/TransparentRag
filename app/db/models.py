@@ -82,17 +82,6 @@ class Collection(SQLModel, TimestampMixin, table=True):
     user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
     name: str = Field(sa_column=Column(String, nullable=False))
     description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    embedding_model: str = Field(sa_column=Column(String, nullable=False))
-    chat_model: str = Field(sa_column=Column(String, nullable=False))
-    context_window: int = Field(default=8192, nullable=False)
-    chunk_size: int = Field(default=1024, nullable=False)
-    chunk_overlap: int = Field(default=200, nullable=False)
-    chunk_strategy: ChunkStrategy = Field(
-        default=ChunkStrategy.TOKEN,
-        sa_column=Column(String, nullable=False),
-    )
-    pinecone_index: str = Field(sa_column=Column(String, nullable=False))
-    pinecone_namespace: str = Field(sa_column=Column(String, nullable=False))
     ingestion_pipeline_id: Optional[UUID] = Field(
         default=None,
         foreign_key="pipelines.id",

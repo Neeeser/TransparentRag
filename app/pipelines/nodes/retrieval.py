@@ -7,8 +7,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.api.config import get_settings
 from app.pipelines.payloads import RetrievalPayload, RetrievalRequestPayload
 from app.pipelines.runtime import NodePort, PipelineNodeBase, PipelineRunContext
 from app.retrieval.embedders.openrouter_embedder import OpenRouterEmbedder
@@ -16,8 +17,10 @@ from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig
 from app.retrieval.models import QueryRequest
 from app.retrieval.rerankers.cross_encoder import CrossEncoderReranker
 from app.retrieval.retrievers.pinecone_retriever import PineconeRetriever
+from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 class RetrievalInputConfig(BaseModel):
@@ -44,7 +47,7 @@ class RetrievalInputNode(PipelineNodeBase):
         request = QueryRequest(
             text=context.query,
             top_k=top_k,
-            namespace=context.collection.pinecone_namespace,
+            namespace=None,
         )
         return {"request": RetrievalRequestPayload(request=request)}
 
@@ -52,11 +55,10 @@ class RetrievalInputNode(PipelineNodeBase):
 class RetrieverConfig(BaseModel):
     """Configuration for Pinecone retriever nodes."""
 
-    use_collection_defaults: bool = True
-    embedding_model: Optional[str] = None
-    index_name: Optional[str] = None
-    namespace: Optional[str] = None
-    dimension: Optional[int] = None
+    embedding_model: str = Field(default_factory=lambda: settings.default_embedding_model)
+    index_name: str = Field(default_factory=lambda: settings.pinecone_index_name)
+    namespace: str = Field(default=DEFAULT_NAMESPACE_TEMPLATE)
+    dimension: Optional[int] = Field(default=None, gt=0)
     metric: str = "cosine"
 
 
@@ -80,30 +82,11 @@ class PineconeRetrieverNode(PipelineNodeBase):
         payload = RetrievalRequestPayload.model_validate(inputs.get("request"))
         request = payload.request
 
-        collection = context.collection
-        if self.config.use_collection_defaults:
-            embedding_model = self.config.embedding_model or collection.embedding_model
-            index_name = self.config.index_name or collection.pinecone_index
-            namespace = self.config.namespace or collection.pinecone_namespace
-            dimension = self.config.dimension or collection.extra_metadata.get(
-                "embedding_dimension",
-                1536,
-            )
-        else:
-            if not self.config.embedding_model:
-                raise ValueError("Embedding model must be set when defaults are disabled.")
-            if not self.config.index_name:
-                raise ValueError("Index name must be set when defaults are disabled.")
-            if not self.config.namespace:
-                raise ValueError("Namespace must be set when defaults are disabled.")
-            if self.config.dimension is None:
-                raise ValueError("Dimension must be set when defaults are disabled.")
-            embedding_model = self.config.embedding_model
-            index_name = self.config.index_name
-            namespace = self.config.namespace
-            dimension = self.config.dimension
+        namespace = resolve_collection_template(self.config.namespace, context.collection)
+        index_name = resolve_collection_template(self.config.index_name, context.collection)
+        dimension = self.config.dimension or 1
 
-        embedder = OpenRouterEmbedder(context.openrouter, embedding_model)
+        embedder = OpenRouterEmbedder(context.openrouter, self.config.embedding_model)
         index_config = PineconeIndexConfig(
             name=index_name,
             namespace=namespace,
@@ -194,3 +177,27 @@ class RetrievalOutputNode(PipelineNodeBase):
         """Return the retrieval payload."""
         payload = RetrievalPayload.model_validate(inputs.get("results"))
         return {"result": payload}
+
+
+class ChatSettingsConfig(BaseModel):
+    """Configuration for chat model settings."""
+
+    chat_model: str = Field(default_factory=lambda: settings.default_chat_model)
+    context_window: int = Field(default=8192, gt=0)
+
+
+class ChatSettingsNode(PipelineNodeBase):
+    """Configure chat model settings for the retrieval pipeline."""
+
+    type = "chat.settings"
+    label = "Chat Settings"
+    category = "retrieval"
+    description = "Configure the chat model and context window used for generation."
+    example = "chat_model='openai/gpt-oss-120b', context_window=8192."
+    input_ports = []
+    output_ports = []
+    config_model = ChatSettingsConfig
+
+    def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
+        """No-op node used to store chat configuration."""
+        return {}

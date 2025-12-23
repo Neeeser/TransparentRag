@@ -164,6 +164,10 @@ export async function fetchPipelines(token: string, kind?: PipelineKind): Promis
   return apiFetch<Pipeline[]>(`/api/pipelines${params}`, { token });
 }
 
+export async function fetchPipeline(pipelineId: string, token: string): Promise<Pipeline> {
+  return apiFetch<Pipeline>(`/api/pipelines/${pipelineId}`, { token });
+}
+
 export async function fetchPipelineNodes(token: string): Promise<NodeSpec[]> {
   const response = await apiFetch<{ nodes: NodeSpec[] }>("/api/pipelines/nodes", { token });
   return response.nodes;

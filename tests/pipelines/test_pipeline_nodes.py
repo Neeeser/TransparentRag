@@ -67,15 +67,7 @@ def _build_collection(user: models.User) -> models.Collection:
         user_id=user.id,
         name="Pipeline Collection",
         description="",
-        embedding_model="embed-model",
-        chat_model="chat-model",
-        context_window=1024,
-        chunk_size=4,
-        chunk_overlap=1,
-        chunk_strategy=ChunkStrategy.TOKEN,
-        pinecone_index="unit-index",
-        pinecone_namespace="unit-namespace",
-        extra_metadata={"embedding_dimension": 2},
+        extra_metadata={},
     )
 
 
@@ -87,10 +79,10 @@ def _build_document(user: models.User, collection: models.Collection, source_pat
         name=source_path.name,
         content_type="text/plain",
         status=models.DocumentStatus.PROCESSING,
-        chunk_size=collection.chunk_size,
-        chunk_overlap=collection.chunk_overlap,
-        chunk_strategy=collection.chunk_strategy,
-        embedding_model=collection.embedding_model,
+        chunk_size=4,
+        chunk_overlap=1,
+        chunk_strategy=ChunkStrategy.TOKEN,
+        embedding_model="embed-model",
         source_path=str(source_path),
     )
 
@@ -231,8 +223,10 @@ def test_default_ingestion_pipeline_executes(monkeypatch, session: Session, tmp_
     definition = build_default_ingestion_pipeline()
     executor = PipelineExecutor(build_default_registry())
     result = executor.execute(definition, context)
-    payload = IndexingPayload.model_validate(
-        next(iter(result.terminal_outputs.values()))["result"]
+    payload = next(
+        IndexingPayload.model_validate(outputs["result"])
+        for outputs in result.terminal_outputs.values()
+        if "result" in outputs
     )
 
     assert payload.chunks
@@ -276,7 +270,11 @@ def test_default_retrieval_pipeline_executes(monkeypatch, session: Session) -> N
     definition = build_default_retrieval_pipeline()
     executor = PipelineExecutor(build_default_registry())
     result = executor.execute(definition, context)
-    payload = RetrievalPayload.model_validate(next(iter(result.terminal_outputs.values()))["result"])
+    payload = next(
+        RetrievalPayload.model_validate(outputs["result"])
+        for outputs in result.terminal_outputs.values()
+        if "result" in outputs
+    )
 
     assert payload.response.matches
     assert payload.usage == {"prompt_tokens": 2}

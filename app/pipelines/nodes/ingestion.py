@@ -10,6 +10,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.api.config import get_settings
 from app.db.models import ChunkStrategy
 from app.pipelines.payloads import (
     ChunkPayload,
@@ -26,8 +27,10 @@ from app.retrieval.parsers.base import DocumentParser, DocumentSource
 from app.retrieval.parsers.pdf import PdfToTextParser
 from app.retrieval.parsers.txt import TxtDocumentParser
 from app.services.chunking import build_chunker
+from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 class IngestionInputConfig(BaseModel):
@@ -162,10 +165,9 @@ class FileTypeRouterNode(PipelineNodeBase):
 class ChunkerConfig(BaseModel):
     """Configuration for chunking documents."""
 
-    use_collection_defaults: bool = True
-    strategy: Optional[ChunkStrategy] = None
-    chunk_size: Optional[int] = Field(default=None, gt=0)
-    chunk_overlap: Optional[int] = Field(default=None, ge=0)
+    strategy: ChunkStrategy = ChunkStrategy.TOKEN
+    chunk_size: int = Field(default=1024, gt=0)
+    chunk_overlap: int = Field(default=200, ge=0)
 
 
 class ChunkerNode(PipelineNodeBase):
@@ -174,7 +176,7 @@ class ChunkerNode(PipelineNodeBase):
     type = "chunker.collection"
     label = "Chunker"
     category = "ingestion"
-    description = "Chunk documents using collection defaults or overrides."
+    description = "Chunk documents using the node configuration."
     example = (
         "ParsedDocumentPayload(text='Hello world') -> "
         "ChunkPayload(chunks=['Hello', 'world'])."
@@ -188,23 +190,11 @@ class ChunkerNode(PipelineNodeBase):
         payload = ParsedDocumentPayload.model_validate(inputs.get("document"))
         document = payload.document
 
-        collection = context.collection
-        if self.config.use_collection_defaults:
-            strategy = self.config.strategy or collection.chunk_strategy
-            chunk_size = self.config.chunk_size or collection.chunk_size
-            chunk_overlap = self.config.chunk_overlap or collection.chunk_overlap
-        else:
-            if self.config.strategy is None:
-                raise ValueError("Chunker strategy must be set when defaults are disabled.")
-            if self.config.chunk_size is None:
-                raise ValueError("Chunker size must be set when defaults are disabled.")
-            if self.config.chunk_overlap is None:
-                raise ValueError("Chunker overlap must be set when defaults are disabled.")
-            strategy = self.config.strategy
-            chunk_size = self.config.chunk_size
-            chunk_overlap = self.config.chunk_overlap
-
-        chunker = build_chunker(strategy, chunk_size, chunk_overlap)
+        chunker = build_chunker(
+            self.config.strategy,
+            self.config.chunk_size,
+            self.config.chunk_overlap,
+        )
         chunks = list(chunker.chunk(document))
         logger.info(
             "Pipeline chunker=%s produced %s chunks for document %s",
@@ -218,8 +208,7 @@ class ChunkerNode(PipelineNodeBase):
 class EmbedderConfig(BaseModel):
     """Configuration for embedding nodes."""
 
-    use_collection_defaults: bool = True
-    model_name: Optional[str] = None
+    model_name: str = Field(default_factory=lambda: settings.default_embedding_model)
 
 
 class EmbedderNode(PipelineNodeBase):
@@ -243,12 +232,7 @@ class EmbedderNode(PipelineNodeBase):
         document = payload.document
         chunks = payload.chunks
 
-        model_name = (
-            context.collection.embedding_model
-            if self.config.use_collection_defaults or not self.config.model_name
-            else self.config.model_name
-        )
-        embedder = OpenRouterEmbedder(context.openrouter, model_name)
+        embedder = OpenRouterEmbedder(context.openrouter, self.config.model_name)
         embeddings = embedder.embed_documents(chunks)
         if len(embeddings) != len(chunks):
             raise ValueError("Embedder returned mismatched embeddings.")
@@ -269,10 +253,9 @@ class EmbedderNode(PipelineNodeBase):
 class IndexerConfig(BaseModel):
     """Configuration for indexing nodes."""
 
-    use_collection_defaults: bool = True
-    index_name: Optional[str] = None
-    namespace: Optional[str] = None
-    dimension: Optional[int] = None
+    index_name: str = Field(default_factory=lambda: settings.pinecone_index_name)
+    namespace: str = Field(default=DEFAULT_NAMESPACE_TEMPLATE)
+    dimension: Optional[int] = Field(default=None, gt=0)
     metric: str = "cosine"
     ensure_index: bool = True
 
@@ -298,24 +281,13 @@ class IndexerNode(PipelineNodeBase):
         document = payload.document
         chunks = payload.chunks
 
-        collection = context.collection
-        if self.config.use_collection_defaults:
-            index_name = self.config.index_name or collection.pinecone_index
-            namespace = self.config.namespace or collection.pinecone_namespace
-            dimension = self.config.dimension or collection.extra_metadata.get(
-                "embedding_dimension",
-                1536,
-            )
-        else:
-            if not self.config.index_name:
-                raise ValueError("Indexer name must be set when defaults are disabled.")
-            if not self.config.namespace:
-                raise ValueError("Indexer namespace must be set when defaults are disabled.")
-            if self.config.dimension is None:
-                raise ValueError("Indexer dimension must be set when defaults are disabled.")
-            index_name = self.config.index_name
-            namespace = self.config.namespace
-            dimension = self.config.dimension
+        dimension = self.config.dimension
+        if dimension is None:
+            if not chunks or chunks[0].embedding is None:
+                raise ValueError("Indexer dimension could not be inferred from embeddings.")
+            dimension = len(chunks[0].embedding)
+        namespace = resolve_collection_template(self.config.namespace, context.collection)
+        index_name = resolve_collection_template(self.config.index_name, context.collection)
 
         index_config = PineconeIndexConfig(
             name=index_name,

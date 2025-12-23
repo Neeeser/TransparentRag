@@ -12,6 +12,7 @@ from app.pipelines.nodes.ingestion import (
     IndexerNode,
 )
 from app.pipelines.nodes.retrieval import (
+    ChatSettingsNode,
     PineconeRetrieverNode,
     RetrievalInputNode,
     RetrievalOutputNode,
@@ -35,5 +36,6 @@ def build_default_registry() -> NodeRegistry:
             PineconeRetrieverNode,
             RerankerNode,
             RetrievalOutputNode,
+            ChatSettingsNode,
         ]
     )

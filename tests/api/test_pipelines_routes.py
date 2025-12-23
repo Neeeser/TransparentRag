@@ -8,7 +8,6 @@ from sqlmodel import Session, select
 
 from app.api.routes import pipelines as pipelines_routes
 from app.db import models
-from app.db.models import ChunkStrategy
 from app.db.repositories import UserRepository
 from app.pipelines.defaults import build_default_ingestion_pipeline
 from app.services.pipelines import PipelineService
@@ -47,17 +46,9 @@ def _create_collection(
         user_id=user.id,
         name="Collection",
         description="",
-        embedding_model="embed-model",
-        chat_model="chat-model",
-        context_window=1024,
-        chunk_size=128,
-        chunk_overlap=16,
-        chunk_strategy=ChunkStrategy.TOKEN,
-        pinecone_index="idx",
-        pinecone_namespace=f"ns-{uuid4().hex[:6]}",
         ingestion_pipeline_id=ingestion_pipeline_id,
         retrieval_pipeline_id=retrieval_pipeline_id,
-        extra_metadata={"embedding_dimension": 128},
+        extra_metadata={},
     )
     session.add(collection)
     session.commit()

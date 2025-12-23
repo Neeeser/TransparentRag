@@ -7,7 +7,7 @@ from fastapi import UploadFile
 from sqlmodel import Session, select
 
 from app.db import models
-from app.db.models import ChunkStrategy, DocumentStatus
+from app.db.models import DocumentStatus
 from app.services import ingestion as ingestion_module
 from app.services.ingestion import IngestionService
 
@@ -25,15 +25,7 @@ def _create_collection(session: Session, user: models.User) -> models.Collection
         user_id=user.id,
         name="Collection",
         description="",
-        embedding_model="embed",
-        chat_model="chat",
-        context_window=1024,
-        chunk_size=128,
-        chunk_overlap=8,
-        chunk_strategy=ChunkStrategy.TOKEN,
-        pinecone_index="idx",
-        pinecone_namespace="ns",
-        extra_metadata={"embedding_dimension": 128},
+        extra_metadata={},
     )
     session.add(collection)
     session.commit()

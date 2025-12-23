@@ -12,6 +12,7 @@ from sqlmodel import Session
 from app.api.config import get_settings
 from app.db import models
 from app.db.repositories import ChunkRepository
+from app.pipelines.config import resolve_ingestion_settings
 from app.pipelines.payloads import IndexingPayload
 from app.pipelines.registry import build_default_registry
 from app.pipelines.runtime import PipelineExecutor, PipelineRunContext
@@ -45,16 +46,26 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         upload: UploadFile,
     ) -> IngestionResponse:
         """Ingest a document upload and index its chunks."""
+        pipeline_service = PipelineService(self.session)
+        defaults = pipeline_service.ensure_default_pipelines(user)
+        pipeline_service.ensure_collection_pipelines(collection, defaults)
+        pipeline_id = collection.ingestion_pipeline_id or defaults.ingestion.id
+        pipeline = pipeline_service.get_pipeline(pipeline_id, user.id)
+        if not pipeline or pipeline.kind != models.PipelineKind.INGESTION:
+            raise ValueError("Ingestion pipeline could not be resolved.")
+        definition = pipeline_service.get_definition(pipeline)
+        resolved = resolve_ingestion_settings(definition, collection)
+
         document = models.Document(
             collection_id=collection.id,
             user_id=user.id,
             name=upload.filename or "uploaded-document",
             content_type=upload.content_type or "text/plain",
             status=models.DocumentStatus.PROCESSING,
-            chunk_size=collection.chunk_size,
-            chunk_overlap=collection.chunk_overlap,
-            chunk_strategy=collection.chunk_strategy,
-            embedding_model=collection.embedding_model,
+            chunk_size=resolved.chunk_size,
+            chunk_overlap=resolved.chunk_overlap,
+            chunk_strategy=resolved.chunk_strategy,
+            embedding_model=resolved.embedding_model,
         )
         self.session.add(document)
         self.session.flush()
@@ -65,14 +76,6 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         self.session.add(document)
 
         try:
-            pipeline_service = PipelineService(self.session)
-            defaults = pipeline_service.ensure_default_pipelines(user)
-            pipeline_service.ensure_collection_pipelines(collection, defaults)
-            pipeline_id = collection.ingestion_pipeline_id or defaults.ingestion.id
-            pipeline = pipeline_service.get_pipeline(pipeline_id, user.id)
-            if not pipeline or pipeline.kind != models.PipelineKind.INGESTION:
-                raise ValueError("Ingestion pipeline could not be resolved.")
-            definition = pipeline_service.get_definition(pipeline)
             executor = PipelineExecutor(build_default_registry())
             context = PipelineRunContext(
                 session=self.session,
@@ -100,10 +103,10 @@ class IngestionService:  # pylint: disable=too-few-public-methods
                         text=chunk.text,
                         embedding=chunk.embedding or [],
                         chunk_metadata=chunk.metadata.data,
-                        chunk_size=collection.chunk_size,
-                        chunk_overlap=collection.chunk_overlap,
-                        chunk_strategy=collection.chunk_strategy,
-                        embedding_model=collection.embedding_model,
+                        chunk_size=resolved.chunk_size,
+                        chunk_overlap=resolved.chunk_overlap,
+                        chunk_strategy=resolved.chunk_strategy,
+                        embedding_model=resolved.embedding_model,
                     )
                 )
             self.chunks.add_many(chunk_records)
@@ -121,7 +124,7 @@ class IngestionService:  # pylint: disable=too-few-public-methods
                     status="success",
                     details={
                         "chunks": len(chunk_records),
-                        "embedding_model": collection.embedding_model,
+                        "embedding_model": resolved.embedding_model,
                         "usage": usage,
                     },
                 )
@@ -131,8 +134,8 @@ class IngestionService:  # pylint: disable=too-few-public-methods
             return IngestionResponse(
                 document=DocumentRead.from_model(document),
                 chunk_count=len(chunk_records),
-                pinecone_namespace=collection.pinecone_namespace,
-                embedding_model=collection.embedding_model,
+                pinecone_namespace=resolved.namespace or "",
+                embedding_model=resolved.embedding_model,
                 usage=usage,
             )
         except Exception as exc:

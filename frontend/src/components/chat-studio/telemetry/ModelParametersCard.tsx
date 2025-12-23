@@ -46,7 +46,7 @@ export const ModelParametersCard = ({
   modelsError,
   modelsLoading,
 }: ModelParametersCardProps) => {
-  const selectedModelLabel = currentModelInfo?.id || collection?.chat_model || "the selected model";
+  const selectedModelLabel = currentModelInfo?.id || "the selected model";
 
   if (modelsError) {
     return <p className="text-sm text-rose-300">{modelsError}</p>;

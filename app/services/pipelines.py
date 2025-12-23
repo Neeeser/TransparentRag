@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 """Pipeline services for managing definitions and defaults."""
 
 from __future__ import annotations

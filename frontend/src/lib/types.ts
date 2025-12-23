@@ -17,26 +17,14 @@ export interface User {
   updated_at: string;
 }
 
-export interface ChunkSettings {
-  strategy: ChunkStrategy;
-  chunk_size: number;
-  chunk_overlap: number;
-}
-
 export interface Collection {
   id: UUID;
   user_id: UUID;
   name: string;
   description?: string | null;
-  embedding_model: string;
-  chat_model: string;
-  pinecone_index: string;
-  pinecone_namespace: string;
   ingestion_pipeline_id?: UUID | null;
   retrieval_pipeline_id?: UUID | null;
-  context_window: number;
   metadata?: Record<string, unknown>;
-  chunk_settings: ChunkSettings;
   created_at: string;
   updated_at: string;
 }
@@ -76,22 +64,28 @@ export interface ModelInfo {
 export interface CollectionCreatePayload {
   name: string;
   description?: string;
-  chunk_settings?: Partial<ChunkSettings>;
   metadata?: Record<string, unknown>;
-  embedding_model?: string;
-  chat_model?: string;
-  pinecone_namespace?: string;
   ingestion_pipeline_id?: UUID | null;
   retrieval_pipeline_id?: UUID | null;
+  pipeline_overrides?: CollectionPipelineOverrides;
 }
 
 export interface CollectionUpdatePayload {
   name?: string;
   description?: string;
-  chunk_settings?: Partial<ChunkSettings>;
   metadata?: Record<string, unknown>;
   ingestion_pipeline_id?: UUID | null;
   retrieval_pipeline_id?: UUID | null;
+}
+
+export interface PipelineNodeOverride {
+  node_id: string;
+  config: Record<string, unknown>;
+}
+
+export interface CollectionPipelineOverrides {
+  ingestion?: PipelineNodeOverride[];
+  retrieval?: PipelineNodeOverride[];
 }
 
 export interface Document {

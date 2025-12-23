@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from app.api.config import get_settings
 from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
+from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
+
+settings = get_settings()
 
 
 def build_default_ingestion_pipeline() -> PipelineDefinition:
@@ -25,18 +29,30 @@ def build_default_ingestion_pipeline() -> PipelineDefinition:
             type="chunker.collection",
             name="Chunker",
             position={"x": 480, "y": 0},
+            config={
+                "strategy": "token",
+                "chunk_size": 1024,
+                "chunk_overlap": 200,
+            },
         ),
         PipelineNodeDefinition(
             id="embed-chunks",
             type="embedder.openrouter",
             name="Embedder",
             position={"x": 720, "y": 0},
+            config={"model_name": settings.default_embedding_model},
         ),
         PipelineNodeDefinition(
             id="index-chunks",
             type="indexer.pinecone",
             name="Indexer",
             position={"x": 960, "y": 0},
+            config={
+                "index_name": settings.pinecone_index_name,
+                "namespace": DEFAULT_NAMESPACE_TEMPLATE,
+                "metric": "cosine",
+                "ensure_index": True,
+            },
         ),
         PipelineNodeDefinition(
             id="ingest-output",
@@ -99,6 +115,22 @@ def build_default_retrieval_pipeline() -> PipelineDefinition:
             type="retriever.pinecone",
             name="Pinecone Retriever",
             position={"x": 280, "y": 0},
+            config={
+                "embedding_model": settings.default_embedding_model,
+                "index_name": settings.pinecone_index_name,
+                "namespace": DEFAULT_NAMESPACE_TEMPLATE,
+                "metric": "cosine",
+            },
+        ),
+        PipelineNodeDefinition(
+            id="chat-settings",
+            type="chat.settings",
+            name="Chat Settings",
+            position={"x": 280, "y": 120},
+            config={
+                "chat_model": settings.default_chat_model,
+                "context_window": 8192,
+            },
         ),
         PipelineNodeDefinition(
             id="retrieval-output",
