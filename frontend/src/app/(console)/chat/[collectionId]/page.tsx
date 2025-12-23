@@ -18,6 +18,7 @@ import { TelemetryPanel } from "@/components/chat-studio/telemetry/TelemetryPane
 import { formatToolLabel } from "@/components/chat-studio/Tooling";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
+import { Notification } from "@/components/ui/notification";
 import { GlassCard } from "@/components/ui/panel";
 import {
   chatWithCollection,
@@ -2136,9 +2137,12 @@ export default function ChatStudioExperience() {
     <Fragment>
       <div className="flex h-full flex-col gap-4">
         {status && (
-          <GlassCard className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-100">
-            {status}
-          </GlassCard>
+          <Notification
+            title="Action required"
+            message={status}
+            onDismiss={() => setStatus(null)}
+            autoDismissMs={0}
+          />
         )}
 
         <div className="flex flex-1 flex-col min-h-0">

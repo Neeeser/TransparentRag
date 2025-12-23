@@ -4,6 +4,7 @@ import { Cloud, KeyRound, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Notification } from "@/components/ui/notification";
 import { GlassCard } from "@/components/ui/panel";
 import { updateUserSettings, validateUserKeys } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -169,9 +170,12 @@ export default function SettingsPage() {
       </div>
 
       {message && (
-        <GlassCard className="rounded-3xl border border-white/10 p-4 text-sm text-slate-200">
-          {message}
-        </GlassCard>
+        <Notification
+          title="Settings"
+          message={message}
+          onDismiss={() => setMessage(null)}
+          className="rounded-3xl"
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
