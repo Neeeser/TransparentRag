@@ -16,6 +16,7 @@ from app.pipelines.runtime import PipelineValidator
 from app.schemas.pipelines import (
     PipelineActivateRequest,
     PipelineCreate,
+    PipelineDeleteResponse,
     PipelineNodesResponse,
     PipelineRead,
     PipelineUpdate,
@@ -202,3 +203,24 @@ def activate_pipeline_version(
     session.refresh(pipeline)
     definition = service.get_definition(pipeline)
     return _to_pipeline_read(pipeline, definition)
+
+
+@router.delete("/{pipeline_id}", response_model=PipelineDeleteResponse)
+def delete_pipeline(
+    pipeline_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> PipelineDeleteResponse:
+    """Delete a pipeline when it is not referenced by collections."""
+    service = PipelineService(session)
+    pipeline = service.get_pipeline(pipeline_id, current_user.id)
+    if not pipeline:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
+    if service.pipeline_in_use(pipeline.id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Pipeline is in use by one or more collections.",
+        )
+    service.delete_pipeline(pipeline)
+    session.commit()
+    return PipelineDeleteResponse()

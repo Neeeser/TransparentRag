@@ -4,11 +4,14 @@ import { addEdge, useEdgesState, useNodesState } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useState } from "react";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";
 import {
   activatePipelineVersion,
   createPipeline,
+  deletePipeline,
+  fetchCollections,
   fetchPipelineNodes,
   fetchPipelines,
   listPipelineVersions,
@@ -36,12 +39,13 @@ import { PipelineSavePanel } from "./PipelineSavePanel";
 import { PipelineSidebar } from "./PipelineSidebar";
 
 import type { PipelineNodeData } from "./PipelineNode";
-import type { NodeSpec, Pipeline, PipelineKind, PipelineVersion } from "@/lib/types";
+import type { Collection, NodeSpec, Pipeline, PipelineKind, PipelineVersion } from "@/lib/types";
 import type { Connection, Edge, Node } from "@xyflow/react";
 
 export function PipelineBuilder() {
   const { token } = useAuth();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [nodeSpecs, setNodeSpecs] = useState<NodeSpec[]>([]);
   const [versions, setVersions] = useState<PipelineVersion[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
@@ -54,6 +58,7 @@ export function PipelineBuilder() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -68,13 +73,15 @@ export function PipelineBuilder() {
     async function load() {
       setLoading(true);
       try {
-        const [pipelinesResponse, nodesResponse] = await Promise.all([
+        const [pipelinesResponse, nodesResponse, collectionsResponse] = await Promise.all([
           fetchPipelines(authToken),
           fetchPipelineNodes(authToken),
+          fetchCollections(authToken),
         ]);
         if (cancelled) return;
         setPipelines(pipelinesResponse);
         setNodeSpecs(nodesResponse);
+        setCollections(collectionsResponse);
         setSelectedPipeline(pipelinesResponse[0] ?? null);
       } catch (error) {
         if (!cancelled) {
@@ -261,6 +268,55 @@ export function PipelineBuilder() {
     }
   };
 
+  const pipelineUsage = useMemo(() => {
+    const usage = new Set<string>();
+    collections.forEach((collection) => {
+      if (collection.ingestion_pipeline_id) {
+        usage.add(collection.ingestion_pipeline_id);
+      }
+      if (collection.retrieval_pipeline_id) {
+        usage.add(collection.retrieval_pipeline_id);
+      }
+    });
+    return usage;
+  }, [collections]);
+
+  const handleDeletePipeline = async (pipeline: Pipeline) => {
+    const authToken = token ?? "";
+    if (!authToken) return;
+    if (pipelineUsage.has(pipeline.id)) {
+      setMessage("This pipeline is used by a collection and cannot be deleted.");
+      return;
+    }
+    setDeleteTarget(pipeline);
+  };
+
+  const handleConfirmDelete = async () => {
+    const authToken = token ?? "";
+    if (!authToken || !deleteTarget) return;
+    if (pipelineUsage.has(deleteTarget.id)) {
+      setMessage("This pipeline is used by a collection and cannot be deleted.");
+      setDeleteTarget(null);
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      await deletePipeline(deleteTarget.id, authToken);
+      const nextPipelines = pipelines.filter((item) => item.id !== deleteTarget.id);
+      setPipelines(nextPipelines);
+      if (selectedPipeline?.id === deleteTarget.id) {
+        setSelectedPipeline(nextPipelines[0] ?? null);
+      }
+      setMessage("Pipeline deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to delete pipeline.");
+    } finally {
+      setSaving(false);
+      setDeleteTarget(null);
+    }
+  };
+
   const handleLabelChange = (label: string) => {
     if (!selectedNode) return;
     setNodes((prev) =>
@@ -273,24 +329,44 @@ export function PipelineBuilder() {
   const catalogByCategory = useMemo(() => buildNodeCatalog(nodeSpecs), [nodeSpecs]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full flex-col gap-6">
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete pipeline?"
+        description={
+          deleteTarget
+            ? `This will remove "${deleteTarget.name}" and all of its versions. This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete pipeline"
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
       <PipelineHeader onCreatePipeline={handleCreatePipeline} />
 
       {message && <PipelineNotice message={message} />}
 
       {loading ? (
-        <GlassCard className="flex items-center justify-center rounded-3xl p-10">
-          <Loader className="h-6 w-6" />
-        </GlassCard>
+        <div className="flex flex-1 items-center justify-center">
+          <GlassCard className="flex items-center justify-center rounded-3xl p-10">
+            <Loader className="h-6 w-6" />
+          </GlassCard>
+        </div>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[280px_1fr_320px]">
-          <PipelineSidebar
-            pipelines={pipelines}
-            selectedPipelineId={selectedPipeline?.id}
-            catalog={catalogByCategory}
-            onSelectPipeline={setSelectedPipeline}
-            onAddNode={handleAddNode}
-          />
+        <div className="grid flex-1 min-h-0 gap-6 xl:grid-cols-[280px_1fr_320px]">
+          <div className="min-h-0">
+            <PipelineSidebar
+              pipelines={pipelines}
+              selectedPipelineId={selectedPipeline?.id}
+              catalog={catalogByCategory}
+              onSelectPipeline={setSelectedPipeline}
+              onDeletePipeline={handleDeletePipeline}
+              pipelineUsage={pipelineUsage}
+              onAddNode={handleAddNode}
+            />
+          </div>
 
           <PipelineCanvas
             nodes={nodes}
@@ -302,7 +378,7 @@ export function PipelineBuilder() {
             onNodeSelect={setSelectedNodeId}
           />
 
-          <div className="space-y-6">
+          <div className="flex min-h-0 flex-col gap-6 xl:overflow-y-auto">
             <PipelineInspector
               selectedNode={selectedNode}
               configDraft={configDraft}

@@ -74,3 +74,9 @@ class PipelineActivateRequest(BaseModel):
     """Payload to activate a pipeline version."""
 
     version: int
+
+
+class PipelineDeleteResponse(BaseModel):
+    """Response payload for pipeline deletion."""
+
+    status: str = "deleted"

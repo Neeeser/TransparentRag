@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 from uuid import UUID
 
+from sqlalchemy import delete as sa_delete, or_
 from sqlmodel import Session, select
 
 from app.db import models
@@ -122,6 +123,30 @@ class PipelineService:
     def list_versions(self, pipeline: models.Pipeline) -> Iterable[models.PipelineVersion]:
         """List versions for a pipeline."""
         return self._versions.list_for_pipeline(pipeline.id)
+
+    def pipeline_in_use(self, pipeline_id: UUID) -> bool:
+        """Return True if any collection references the pipeline."""
+        statement = (
+            select(models.Collection.id)
+            .where(
+                or_(
+                    models.Collection.ingestion_pipeline_id == pipeline_id,
+                    models.Collection.retrieval_pipeline_id == pipeline_id,
+                )
+            )
+            .limit(1)
+        )
+        return self.session.exec(statement).first() is not None
+
+    def delete_pipeline(self, pipeline: models.Pipeline) -> None:
+        """Delete a pipeline and its versions."""
+        self.session.exec(
+            sa_delete(models.PipelineVersion).where(
+                models.PipelineVersion.pipeline_id == pipeline.id,
+            )
+        )
+        self.session.delete(pipeline)
+        self.session.flush()
 
     def activate_version(self, pipeline: models.Pipeline, version: int) -> models.Pipeline:
         """Set the pipeline's active version."""

@@ -214,6 +214,16 @@ export async function updatePipeline(
   });
 }
 
+export async function deletePipeline(
+  pipelineId: string,
+  token: string,
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/pipelines/${pipelineId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
 export async function listPipelineVersions(
   pipelineId: string,
   token: string,

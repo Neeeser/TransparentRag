@@ -31,7 +31,7 @@ export function PipelineCanvas({
   onNodeSelect,
 }: PipelineCanvasProps) {
   return (
-    <GlassCard className="relative min-h-[520px] overflow-hidden rounded-3xl border border-white/5 bg-slate-950/80">
+    <GlassCard className="relative min-h-[520px] overflow-hidden rounded-3xl border border-white/5 bg-slate-950/80 xl:h-full xl:min-h-0">
       <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2 rounded-full border border-white/10 bg-slate-950/80 px-4 py-2 text-xs text-slate-300">
         <ClipboardCheck className="h-4 w-4 text-cyan-300" />
         {selectedPipeline ? (
@@ -48,7 +48,7 @@ export function PipelineCanvas({
           {nodes.length} nodes • {edges.length} edges
         </span>
       </div>
-      <div className="h-full min-h-[520px]">
+      <div className="h-full min-h-[520px] xl:min-h-0">
         <ReactFlow
           nodes={nodes}
           edges={edges}
