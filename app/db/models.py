@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Column, String, Text
+from sqlalchemy import JSON, Column, Float, String, Text
 from sqlmodel import Field, SQLModel
 
 from app.utils.time import utc_now
@@ -258,6 +258,7 @@ class QueryEvent(SQLModel, TimestampMixin, table=True):
     top_k: int = Field(default=5, nullable=False)
     model: str = Field(sa_column=Column(String, nullable=False))
     context_tokens: int = Field(default=0, nullable=False)
+    latency_ms: float = Field(default=0.0, sa_column=Column(Float, nullable=False))
     response_payload: Dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False),

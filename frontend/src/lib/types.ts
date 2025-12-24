@@ -42,6 +42,14 @@ export interface Collection {
   updated_at: string;
 }
 
+export interface CollectionStats {
+  collection_id: UUID;
+  document_count: number;
+  chunk_count: number;
+  average_latency_ms?: number | null;
+  last_used_at?: string | null;
+}
+
 export interface PromptVariable {
   name: string;
   description: string;

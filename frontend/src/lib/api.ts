@@ -8,6 +8,7 @@ import type {
   Collection,
   CollectionCreatePayload,
   CollectionUpdatePayload,
+  CollectionStats,
   CollectionPromptDetails,
   CollectionQueryResult,
   Document,
@@ -136,6 +137,21 @@ export async function fetchCollections(token: string): Promise<Collection[]> {
   return apiFetch<Collection[]>("/api/collections", { token });
 }
 
+export async function fetchCollection(collectionId: string, token: string): Promise<Collection> {
+  return apiFetch<Collection>(`/api/collections/${collectionId}`, { token });
+}
+
+export async function fetchCollectionStats(token: string): Promise<CollectionStats[]> {
+  return apiFetch<CollectionStats[]>("/api/collections/stats", { token });
+}
+
+export async function fetchCollectionStatsById(
+  collectionId: string,
+  token: string,
+): Promise<CollectionStats> {
+  return apiFetch<CollectionStats>(`/api/collections/${collectionId}/stats`, { token });
+}
+
 export async function getCollectionPrompt(
   collectionId: string,
   token: string,
@@ -175,6 +191,16 @@ export async function updateCollection(
     method: "PATCH",
     token,
     body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCollection(
+  collectionId: string,
+  token: string,
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/collections/${collectionId}`, {
+    method: "DELETE",
+    token,
   });
 }
 

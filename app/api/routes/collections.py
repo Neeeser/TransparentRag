@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
-from typing import List
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete as sa_delete
+from sqlalchemy import delete as sa_delete, func
 from sqlmodel import Session, select
 
 from app.api.dependencies import get_session, require_user_api_keys
@@ -20,6 +21,7 @@ from app.schemas.collections import (
     CollectionPromptRead,
     CollectionPromptUpdate,
     CollectionRead,
+    CollectionStatsRead,
     CollectionUpdate,
 )
 from app.services.pipelines import PipelineService
@@ -93,6 +95,65 @@ def _prompt_read(  # pylint: disable=too-many-locals
     )
 
 
+def _is_missing_pinecone_namespace(error: Exception) -> bool:
+    """Return True when the Pinecone delete error indicates a missing namespace."""
+    message = str(error).lower()
+    if "namespace not found" in message:
+        return True
+    status_code = getattr(error, "status_code", None) or getattr(error, "status", None)
+    if status_code == 404 and "namespace" in message:
+        return True
+    response = getattr(error, "response", None)
+    response_status = getattr(response, "status_code", None) if response else None
+    return response_status == 404 and "namespace" in message
+
+
+def _build_collection_stats(
+    session: Session,
+    user_id: UUID,
+    collection_ids: List[UUID],
+) -> Dict[UUID, CollectionStatsRead]:
+    """Return aggregated stats for the given collections."""
+    if not collection_ids:
+        return {}
+    doc_rows: List[Tuple[UUID, int, int]] = session.exec(  # pylint: disable=not-callable
+        select(
+            models.Document.collection_id,
+            func.count(models.Document.id),  # pylint: disable=not-callable
+            func.coalesce(func.sum(models.Document.num_chunks), 0),
+        ).where(
+            models.Document.user_id == user_id,
+            models.Document.collection_id.in_(collection_ids),  # pylint: disable=no-member
+        ).group_by(models.Document.collection_id)
+    ).all()
+    doc_map = {row[0]: (int(row[1]), int(row[2])) for row in doc_rows}
+
+    query_rows: List[Tuple[UUID, Optional[float], Optional[datetime]]] = session.exec(
+        select(
+            models.QueryEvent.collection_id,
+            func.avg(models.QueryEvent.latency_ms),
+            func.max(models.QueryEvent.created_at),
+        ).where(
+            models.QueryEvent.user_id == user_id,
+            models.QueryEvent.collection_id.in_(collection_ids),  # pylint: disable=no-member
+        ).group_by(models.QueryEvent.collection_id)
+    ).all()
+    query_map = {row[0]: (row[1], row[2]) for row in query_rows}
+
+    stats: Dict[UUID, CollectionStatsRead] = {}
+    for collection_id in collection_ids:
+        doc_count, chunk_count = doc_map.get(collection_id, (0, 0))
+        avg_latency, last_used = query_map.get(collection_id, (None, None))
+        stats[collection_id] = CollectionStatsRead(
+            collection_id=collection_id,
+            document_count=doc_count,
+            chunk_count=chunk_count,
+            average_latency_ms=float(avg_latency) if avg_latency is not None else None,
+            last_used_at=last_used,
+        )
+    return stats
+
+
 @router.get("", response_model=List[CollectionRead])
 def list_collections(
     current_user: models.User = Depends(require_user_api_keys),
@@ -101,6 +162,38 @@ def list_collections(
     """List collections owned by the current user."""
     repo = CollectionRepository(session)
     return [_to_schema(col) for col in repo.list_for_user(current_user.id)]
+
+
+@router.get("/stats", response_model=List[CollectionStatsRead])
+def list_collection_stats(
+    current_user: models.User = Depends(require_user_api_keys),
+    session: Session = Depends(get_session),
+) -> List[CollectionStatsRead]:
+    """Return aggregated stats for all collections."""
+    repo = CollectionRepository(session)
+    collections = list(repo.list_for_user(current_user.id))
+    stats_map = _build_collection_stats(
+        session,
+        current_user.id,
+        [collection.id for collection in collections],
+    )
+    return [stats_map[collection.id] for collection in collections]
+
+
+@router.get("/{collection_id}/stats", response_model=CollectionStatsRead)
+def get_collection_stats(
+    collection_id: UUID,
+    current_user: models.User = Depends(require_user_api_keys),
+    session: Session = Depends(get_session),
+) -> CollectionStatsRead:
+    """Return aggregated stats for a single collection."""
+    collection = get_collection_or_404(
+        collection_id=collection_id,
+        user_id=current_user.id,
+        session=session,
+    )
+    stats_map = _build_collection_stats(session, current_user.id, [collection.id])
+    return stats_map[collection.id]
 
 
 @router.get("/{collection_id}", response_model=CollectionRead)
@@ -348,11 +441,12 @@ def delete_collection(  # pylint: disable=too-many-locals
     try:
         index = pinecone_client.Index(ingestion_settings.index_name)
         index.delete(namespace=ingestion_settings.namespace, delete_all=True)
-    except Exception as exc:  # pragma: no cover - surfaced via API response
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to purge Pinecone namespace: {exc}",
-        ) from exc
+    except Exception as exc:  # pragma: no cover - surfaced via API response  # pylint: disable=broad-exception-caught
+        if not _is_missing_pinecone_namespace(exc):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to purge Pinecone namespace: {exc}",
+            ) from exc
 
     for doc in documents:
         storage.delete_path(doc.source_path)
