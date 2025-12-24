@@ -88,3 +88,13 @@ class CollectionPromptUpdate(BaseModel):
     """Payload for updating a collection prompt."""
 
     template: Optional[str] = None
+
+
+class CollectionStatsRead(BaseModel):
+    """Aggregate stats for a collection."""
+
+    collection_id: UUID
+    document_count: int
+    chunk_count: int
+    average_latency_ms: Optional[float] = None
+    last_used_at: Optional[datetime] = None

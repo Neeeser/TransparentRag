@@ -30,6 +30,23 @@ class _StubPinecone:
         return SimpleNamespace(delete=lambda **_kwargs: None)
 
 
+class _NamespaceNotFoundError(Exception):
+    def __init__(self, message: str = "Namespace not found") -> None:
+        super().__init__(message)
+        self.status_code = 404
+
+
+class _StubPineconeMissingNamespace:
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
+
+    def Index(self, _name: str):
+        def _raise(**_kwargs):
+            raise _NamespaceNotFoundError()
+
+        return SimpleNamespace(delete=_raise)
+
+
 class _StubFileStorage:
     def __init__(self) -> None:
         self.deleted: list[str | None] = []
@@ -258,3 +275,97 @@ def test_delete_collection_removes_records(monkeypatch, session: Session) -> Non
     assert response.status == "deleted"
     assert storage.deleted == ["/tmp/doc.txt"]
     assert session.get(models.Collection, collection.id) is None
+
+
+def test_delete_collection_ignores_missing_namespace(monkeypatch, session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+
+    storage = _StubFileStorage()
+    monkeypatch.setattr(
+        collections_routes,
+        "get_pinecone_client",
+        lambda **_kwargs: _StubPineconeMissingNamespace(api_key="key"),
+    )
+    monkeypatch.setattr(collections_routes, "FileStorage", lambda: storage)
+
+    response = collections_routes.delete_collection(collection.id, current_user=user, session=session)
+
+    assert response.status == "deleted"
+    assert session.get(models.Collection, collection.id) is None
+
+
+def test_collection_stats_include_query_latency(session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+
+    session.add_all(
+        [
+            models.Document(
+                collection_id=collection.id,
+                user_id=user.id,
+                name="doc-a.txt",
+                content_type="text/plain",
+                status=models.DocumentStatus.READY,
+                num_chunks=3,
+                num_tokens=120,
+                chunk_size=128,
+                chunk_overlap=8,
+                chunk_strategy=models.ChunkStrategy.TOKEN,
+                embedding_model="embed-model",
+            ),
+            models.Document(
+                collection_id=collection.id,
+                user_id=user.id,
+                name="doc-b.txt",
+                content_type="text/plain",
+                status=models.DocumentStatus.READY,
+                num_chunks=5,
+                num_tokens=240,
+                chunk_size=128,
+                chunk_overlap=8,
+                chunk_strategy=models.ChunkStrategy.TOKEN,
+                embedding_model="embed-model",
+            ),
+        ]
+    )
+
+    session.add_all(
+        [
+            models.QueryEvent(
+                user_id=user.id,
+                collection_id=collection.id,
+                query_text="query a",
+                top_k=3,
+                model="embed-model",
+                context_tokens=12,
+                latency_ms=120.0,
+                response_payload={"match_count": 3},
+            ),
+            models.QueryEvent(
+                user_id=user.id,
+                collection_id=collection.id,
+                query_text="query b",
+                top_k=3,
+                model="embed-model",
+                context_tokens=14,
+                latency_ms=180.0,
+                response_payload={"match_count": 2},
+            ),
+        ]
+    )
+    session.commit()
+
+    stats = collections_routes.get_collection_stats(
+        collection.id,
+        current_user=user,
+        session=session,
+    )
+    assert stats.document_count == 2
+    assert stats.chunk_count == 8
+    assert stats.average_latency_ms == pytest.approx(150.0, rel=1e-3)
+    assert stats.last_used_at is not None
+
+    stats_list = collections_routes.list_collection_stats(current_user=user, session=session)
+    stats_map = {entry.collection_id: entry for entry in stats_list}
+    assert stats_map[collection.id].chunk_count == 8
