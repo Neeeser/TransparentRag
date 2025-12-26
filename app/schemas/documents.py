@@ -25,6 +25,7 @@ class DocumentRead(DateTimeConfigMixin, BaseModel):
     chunk_size: int
     chunk_overlap: int
     chunk_strategy: ChunkStrategy
+    ingestion_run_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -42,6 +43,7 @@ class DocumentRead(DateTimeConfigMixin, BaseModel):
             chunk_size=document.chunk_size,
             chunk_overlap=document.chunk_overlap,
             chunk_strategy=document.chunk_strategy,
+            ingestion_run_id=document.ingestion_run_id,
             created_at=document.created_at,
             updated_at=document.updated_at,
         )

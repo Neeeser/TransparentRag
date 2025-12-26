@@ -61,6 +61,21 @@ class PipelineKind(str, Enum):
     RETRIEVAL = "retrieval"
 
 
+class PipelineRunStatus(str, Enum):
+    """Execution status values for pipeline runs."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class PipelineIOType(str, Enum):
+    """Direction of pipeline node input/output payloads."""
+
+    INPUT = "input"
+    OUTPUT = "output"
+
+
 class User(SQLModel, TimestampMixin, table=True):
     """User account record."""
 
@@ -140,6 +155,78 @@ class PipelineVersion(SQLModel, TimestampMixin, table=True):
     )
 
 
+class PipelineRun(SQLModel, TimestampMixin, table=True):
+    """Recorded pipeline execution trace metadata."""
+
+    __tablename__ = "pipeline_runs"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    pipeline_id: UUID = Field(foreign_key="pipelines.id", nullable=False, index=True)
+    pipeline_version_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="pipeline_versions.id",
+        nullable=True,
+        index=True,
+    )
+    pipeline_version: Optional[int] = Field(default=None, nullable=True)
+    kind: PipelineKind = Field(sa_column=Column(String, nullable=False, index=True))
+    user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    collection_id: UUID = Field(foreign_key="collections.id", nullable=False, index=True)
+    status: PipelineRunStatus = Field(
+        default=PipelineRunStatus.RUNNING,
+        sa_column=Column(String, nullable=False),
+    )
+    error_message: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    started_at: datetime = Field(default_factory=utc_now, nullable=False)
+    completed_at: Optional[datetime] = Field(default=None, nullable=True)
+
+
+class PipelineNodeRun(SQLModel, TimestampMixin, table=True):
+    """Recorded execution details for a pipeline node."""
+
+    __tablename__ = "pipeline_node_runs"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    run_id: UUID = Field(foreign_key="pipeline_runs.id", nullable=False, index=True)
+    node_id: str = Field(sa_column=Column(String, nullable=False, index=True))
+    node_type: str = Field(sa_column=Column(String, nullable=False))
+    node_name: str = Field(sa_column=Column(String, nullable=False))
+    sequence_index: int = Field(nullable=False, index=True)
+    status: PipelineRunStatus = Field(
+        default=PipelineRunStatus.RUNNING,
+        sa_column=Column(String, nullable=False),
+    )
+    error_message: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    summary: Dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
+    started_at: datetime = Field(default_factory=utc_now, nullable=False)
+    completed_at: Optional[datetime] = Field(default=None, nullable=True)
+    duration_ms: Optional[float] = Field(default=None, sa_column=Column(Float, nullable=True))
+
+
+class PipelineNodeIO(SQLModel, TimestampMixin, table=True):
+    """Input/output payloads captured for pipeline node executions."""
+
+    __tablename__ = "pipeline_node_io"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    run_id: UUID = Field(foreign_key="pipeline_runs.id", nullable=False, index=True)
+    node_run_id: UUID = Field(
+        foreign_key="pipeline_node_runs.id",
+        nullable=False,
+        index=True,
+    )
+    node_id: str = Field(sa_column=Column(String, nullable=False, index=True))
+    io_type: PipelineIOType = Field(sa_column=Column(String, nullable=False, index=True))
+    port: str = Field(sa_column=Column(String, nullable=False))
+    payload: Dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
+
+
 class Document(SQLModel, TimestampMixin, table=True):
     """Document metadata stored for ingestion."""
 
@@ -164,6 +251,12 @@ class Document(SQLModel, TimestampMixin, table=True):
         sa_column=Column(String, nullable=False),
     )
     embedding_model: str = Field(sa_column=Column(String, nullable=False))
+    ingestion_run_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="pipeline_runs.id",
+        nullable=True,
+        index=True,
+    )
 
 
 class DocumentChunkRecord(SQLModel, TimestampMixin, table=True):
@@ -262,4 +355,10 @@ class QueryEvent(SQLModel, TimestampMixin, table=True):
     response_payload: Dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False),
+    )
+    pipeline_run_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="pipeline_runs.id",
+        nullable=True,
+        index=True,
     )

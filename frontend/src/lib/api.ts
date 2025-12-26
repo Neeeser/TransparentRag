@@ -25,6 +25,7 @@ import type {
   PipelineVersion,
   NodeSpec,
   UserKeyValidation,
+  PipelineTraceResponse,
 } from "@/lib/types";
 
 const API_BASE_URL =
@@ -327,6 +328,27 @@ export async function runCollectionQuery(
     body: JSON.stringify(payload),
     token,
   });
+}
+
+export async function fetchPipelineRunTrace(
+  runId: string,
+  token: string,
+): Promise<PipelineTraceResponse> {
+  return apiFetch<PipelineTraceResponse>(`/api/pipeline-runs/${runId}`, { token });
+}
+
+export async function fetchDocumentTrace(
+  documentId: string,
+  token: string,
+): Promise<PipelineTraceResponse> {
+  return apiFetch<PipelineTraceResponse>(`/api/documents/${documentId}/trace`, { token });
+}
+
+export async function fetchQueryEventTrace(
+  queryEventId: string,
+  token: string,
+): Promise<PipelineTraceResponse> {
+  return apiFetch<PipelineTraceResponse>(`/api/query-events/${queryEventId}/trace`, { token });
 }
 
 export async function listChatSessions(

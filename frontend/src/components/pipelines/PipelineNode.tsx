@@ -2,7 +2,9 @@
 
 import { Handle, Position } from "@xyflow/react";
 
-import type { NodeSpec } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+import type { NodeSpec, PipelineRunStatus } from "@/lib/types";
 import type { NodeProps } from "@xyflow/react";
 
 export type PipelineNodeExample = {
@@ -19,13 +21,20 @@ export type PipelineNodeData = {
   outputs: NodeSpec["output_ports"];
   config: Record<string, unknown>;
   configSchema?: Record<string, unknown>;
+  status?: PipelineRunStatus;
+  active?: boolean;
 };
 
 const portLeftPercent = (index: number, total: number) => `${((index + 1) / (total + 1)) * 100}%`;
 
 export function PipelineNode({ data }: NodeProps<PipelineNodeData>) {
   return (
-    <div className="relative min-w-[180px] rounded-2xl border border-white/10 bg-slate-900/90 px-3 py-3 text-xs text-slate-200 shadow-lg">
+    <div
+      className={cn(
+        "relative min-w-[180px] rounded-2xl border border-white/10 bg-slate-900/90 px-3 py-3 text-xs text-slate-200 shadow-lg",
+        data.active && "ring-2 ring-cyan-300/70",
+      )}
+    >
       {data.inputs.map((port, index) => (
         <Handle
           key={`input-${port.key}`}
@@ -52,6 +61,9 @@ export function PipelineNode({ data }: NodeProps<PipelineNodeData>) {
           {data.nodeType}
         </span>
       </div>
+      {data.status && (
+        <p className="mt-2 text-[10px] uppercase tracking-[0.3em] text-slate-400">{data.status}</p>
+      )}
       <div className="mt-2 space-y-1">
         {data.inputs.map((port) => (
           <div key={port.key} className="flex items-center justify-between text-[10px]">

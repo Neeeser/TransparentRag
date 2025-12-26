@@ -247,6 +247,39 @@ class QueryRepository:  # pylint: disable=too-few-public-methods
         return event
 
 
+class PipelineRunRepository:  # pylint: disable=too-few-public-methods
+    """Data access helpers for pipeline trace runs."""
+
+    def __init__(self, session: Session) -> None:
+        """Initialize the repository with a database session."""
+        self.session = session
+
+    def get(self, run_id: UUID, user_id: Optional[UUID] = None) -> Optional[models.PipelineRun]:
+        """Return a pipeline run by id, optionally scoped to a user."""
+        statement = select(models.PipelineRun).where(models.PipelineRun.id == run_id)
+        if user_id:
+            statement = statement.where(models.PipelineRun.user_id == user_id)
+        return self.session.exec(statement).first()
+
+    def list_node_runs(self, run_id: UUID) -> Iterable[models.PipelineNodeRun]:
+        """List node run records for a pipeline run."""
+        statement = (
+            select(models.PipelineNodeRun)
+            .where(models.PipelineNodeRun.run_id == run_id)
+            .order_by(asc(models.PipelineNodeRun.sequence_index))
+        )
+        return self.session.exec(statement).all()
+
+    def list_node_io(self, run_id: UUID) -> Iterable[models.PipelineNodeIO]:
+        """List node input/output records for a pipeline run."""
+        statement = (
+            select(models.PipelineNodeIO)
+            .where(models.PipelineNodeIO.run_id == run_id)
+            .order_by(asc(models.PipelineNodeIO.created_at))
+        )
+        return self.session.exec(statement).all()
+
+
 class PipelineRepository:
     """Data access helpers for pipelines."""
 

@@ -3,12 +3,13 @@
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { PipelineTraceViewer } from "@/components/traces/PipelineTraceViewer";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/panel";
-import { runCollectionQuery } from "@/lib/api";
+import { fetchQueryEventTrace, runCollectionQuery } from "@/lib/api";
 import { truncate } from "@/lib/utils";
 
-import type { CollectionQueryResult } from "@/lib/types";
+import type { CollectionQueryResult, PipelineTraceResponse } from "@/lib/types";
 import type { FormEvent } from "react";
 
 type CollectionSearchProps = {
@@ -22,6 +23,10 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
   const [queryResult, setQueryResult] = useState<CollectionQueryResult | null>(null);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [trace, setTrace] = useState<PipelineTraceResponse | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [traceChunkId, setTraceChunkId] = useState<string | null>(null);
+  const [traceOpen, setTraceOpen] = useState(false);
 
   const handleQuery = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -31,10 +36,32 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     try {
       const result = await runCollectionQuery(collectionId, { query, top_k: topK }, token);
       setQueryResult(result);
+      setTrace(null);
+      setTraceChunkId(null);
+      setTraceOpen(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Query failed.");
     } finally {
       setWorking(false);
+    }
+  };
+
+  const loadTrace = async (chunkId?: string | null) => {
+    if (!queryResult?.query_event_id) {
+      setMessage("Trace is not available for this query.");
+      return;
+    }
+    setTraceLoading(true);
+    setMessage(null);
+    try {
+      const payload = await fetchQueryEventTrace(queryResult.query_event_id, token);
+      setTrace(payload);
+      setTraceChunkId(chunkId ?? null);
+      setTraceOpen(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to load trace.");
+    } finally {
+      setTraceLoading(false);
     }
   };
 
@@ -99,15 +126,41 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
 
         <div className="mt-6 space-y-4">
           {!queryResult && <p className="text-sm text-slate-400">No queries yet.</p>}
+          {queryResult && (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={traceLoading}
+                onClick={() => loadTrace()}
+              >
+                {trace ? "Refresh trace" : "View retrieval trace"}
+              </Button>
+              {queryResult.query_event_id && (
+                <span className="text-xs text-slate-400">
+                  Query event: {queryResult.query_event_id}
+                </span>
+              )}
+            </div>
+          )}
           {queryResult?.chunks?.map((chunk) => (
             <div
-              key={`${chunk.id}-${chunk.chunk_index}-${chunk.score}`}
+              key={`${chunk.chunk_id ?? chunk.id}-${chunk.chunk_index}-${chunk.score}`}
               className="rounded-2xl border border-white/5 p-4"
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
                   score {(chunk.score ?? 0).toFixed(3)}
                 </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => loadTrace((chunk.chunk_id ?? chunk.id) as string)}
+                >
+                  Trace result
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="h-2 w-32 rounded-full bg-white/5">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
@@ -130,6 +183,14 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
           ))}
         </div>
       </GlassCard>
+      <PipelineTraceViewer
+        key={trace?.run.id ?? "trace"}
+        trace={trace}
+        token={token}
+        isOpen={traceOpen}
+        onClose={() => setTraceOpen(false)}
+        highlightChunkId={traceChunkId}
+      />
     </div>
   );
 }

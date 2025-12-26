@@ -3,7 +3,13 @@
 import { ChevronDown } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { PipelineTraceViewer } from "@/components/traces/PipelineTraceViewer";
+import { Button } from "@/components/ui/button";
+import { fetchPipelineRunTrace, fetchQueryEventTrace } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
+
+import type { PipelineTraceResponse } from "@/lib/types";
 
 export const JsonBlock = ({
   data,
@@ -178,9 +184,11 @@ export const ToolPayloadSection = ({
 
 interface ToolChunkListProps {
   chunks: unknown[];
+  activeChunkId?: string | null;
+  onSelectChunk?: (chunkId: string) => void;
 }
 
-export const ToolChunkList = ({ chunks }: ToolChunkListProps) => {
+export const ToolChunkList = ({ chunks, activeChunkId, onSelectChunk }: ToolChunkListProps) => {
   const normalized = chunks
     .map((chunk) =>
       chunk && typeof chunk === "object" ? (chunk as Record<string, unknown>) : null,
@@ -212,7 +220,10 @@ export const ToolChunkList = ({ chunks }: ToolChunkListProps) => {
         return (
           <article
             key={`${chunkId}-${index}`}
-            className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
+            className={cn(
+              "rounded-2xl border border-white/10 bg-slate-950/40 p-4",
+              activeChunkId && activeChunkId === chunkId && "border-cyan-400/60 bg-cyan-500/10",
+            )}
           >
             <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-slate-400">
               <span>Chunk {index + 1}</span>
@@ -220,6 +231,15 @@ export const ToolChunkList = ({ chunks }: ToolChunkListProps) => {
                 <span className="font-mono text-cyan-200">Score {Number(score).toFixed(3)}</span>
               )}
             </div>
+            {onSelectChunk && chunkId && (
+              <button
+                type="button"
+                onClick={() => onSelectChunk(chunkId)}
+                className="mt-2 rounded-full border border-cyan-400/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-cyan-200 hover:border-cyan-300/80"
+              >
+                Trace chunk
+              </button>
+            )}
             {textValue && <p className="mt-2 text-sm text-slate-100">{truncateText(textValue)}</p>}
             <dl className="mt-3 grid gap-3 text-xs text-slate-300 sm:grid-cols-2">
               {documentId && (
@@ -295,6 +315,11 @@ export const ToolCallBubble = ({
   className,
   status = "complete",
 }: ToolCallBubbleProps) => {
+  const { token } = useAuth();
+  const [trace, setTrace] = useState<PipelineTraceResponse | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [traceChunkId, setTraceChunkId] = useState<string | null>(null);
+  const [traceOpen, setTraceOpen] = useState(false);
   const responseMeta: Record<string, unknown> = { ...response };
   const rawChunks = responseMeta.chunks;
   if (Object.prototype.hasOwnProperty.call(responseMeta, "chunks")) {
@@ -321,6 +346,31 @@ export const ToolCallBubble = ({
     status === "pending"
       ? "border-amber-300/60 text-amber-100"
       : "border-cyan-300/40 text-cyan-200";
+  const queryEventId =
+    typeof response.query_event_id === "string" ? response.query_event_id : undefined;
+  const pipelineRunId =
+    typeof response.pipeline_run_id === "string" ? response.pipeline_run_id : undefined;
+  const traceAvailable = Boolean(queryEventId || pipelineRunId);
+
+  const loadTrace = async (chunkId?: string | null) => {
+    if (!token) {
+      return;
+    }
+    if (!traceAvailable) {
+      return;
+    }
+    setTraceLoading(true);
+    try {
+      const payload = queryEventId
+        ? await fetchQueryEventTrace(queryEventId, token)
+        : await fetchPipelineRunTrace(pipelineRunId as string, token);
+      setTrace(payload);
+      setTraceChunkId(chunkId ?? null);
+      setTraceOpen(true);
+    } finally {
+      setTraceLoading(false);
+    }
+  };
 
   return (
     <div className="flex justify-start">
@@ -372,11 +422,38 @@ export const ToolCallBubble = ({
                   collapsible
                   defaultOpen={false}
                 >
-                  <ToolChunkList chunks={chunkList} />
+                  <ToolChunkList
+                    chunks={chunkList}
+                    activeChunkId={traceChunkId}
+                    onSelectChunk={(chunkId) => loadTrace(chunkId)}
+                  />
                 </ToolPayloadSection>
                 {hasResponseMeta && (
                   <ToolPayloadSection title="Response metadata" collapsible defaultOpen={false}>
                     <ToolKeyValueGrid data={responseMeta} emptyLabel="No metadata returned." />
+                  </ToolPayloadSection>
+                )}
+                {traceAvailable && (
+                  <ToolPayloadSection
+                    title="Retrieval trace"
+                    description="Replay the retrieval pipeline for this tool call."
+                    collapsible
+                    defaultOpen={false}
+                  >
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={traceLoading}
+                      onClick={() => loadTrace()}
+                      className="mb-3"
+                    >
+                      {trace ? "Refresh trace" : "Open trace"}
+                    </Button>
+                    {!trace && (
+                      <p className="text-xs text-slate-400">
+                        Load the trace to inspect node inputs and outputs.
+                      </p>
+                    )}
                   </ToolPayloadSection>
                 )}
               </>
@@ -397,6 +474,14 @@ export const ToolCallBubble = ({
           </div>
         )}
       </div>
+      <PipelineTraceViewer
+        key={trace?.run.id ?? "trace"}
+        trace={trace}
+        token={token ?? ""}
+        isOpen={traceOpen}
+        onClose={() => setTraceOpen(false)}
+        highlightChunkId={traceChunkId}
+      />
     </div>
   );
 };

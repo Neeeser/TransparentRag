@@ -11,10 +11,13 @@ from sqlmodel import Session
 from app.api.config import get_settings
 from app.db import models
 from app.db.repositories import ChunkRepository
-from app.pipelines.config import resolve_ingestion_settings
+from app.pipelines.config import IngestionPipelineSettings, resolve_ingestion_settings
+from app.pipelines.models import PipelineDefinition
 from app.pipelines.payloads import IndexingPayload
 from app.pipelines.registry import build_default_registry
 from app.pipelines.runtime import PipelineExecutor, PipelineRunContext
+from app.pipelines.tracing import PipelineTraceRecorder
+from app.retrieval.models import DocumentChunk
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.documents import DocumentRead, IngestionResponse
 from app.services.openrouter import get_openrouter_client
@@ -44,6 +47,79 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         upload: UploadFile,
     ) -> IngestionResponse:
         """Ingest a document upload and index its chunks."""
+        (
+            pipeline_service,
+            pipeline,
+            definition,
+            resolved,
+        ) = self._resolve_ingestion_pipeline(user, collection)
+        document = self._create_document_record(user, collection, upload, resolved)
+        self._save_document_upload(collection, document, upload)
+        run: models.PipelineRun | None = None
+        try:
+            openrouter = get_openrouter_client(user.openrouter_api_key or "")
+            pinecone = get_pinecone_client(api_key=user.pinecone_api_key)
+            run, trace = self._start_trace_run(
+                pipeline_service,
+                pipeline,
+                definition,
+                document,
+            )
+            executor = PipelineExecutor(build_default_registry())
+            context = PipelineRunContext(
+                session=self.session,
+                user=user,
+                collection=collection,
+                document=document,
+                query=None,
+                top_k=None,
+                openrouter=openrouter,
+                pinecone=pinecone,
+                storage=self.storage,
+                settings=self.settings,
+                trace=trace,
+            )
+            result = executor.execute(definition, context)
+            payload = self._extract_indexing_payload(result.terminal_outputs)
+            enriched_chunks = payload.chunks
+            usage = payload.usage or {}
+            chunk_records = self._persist_chunks(
+                document,
+                collection,
+                enriched_chunks,
+                resolved,
+            )
+            self._record_success(
+                document,
+                resolved.embedding_model,
+                usage,
+                chunk_records,
+            )
+            self.session.commit()
+
+            return IngestionResponse(
+                document=DocumentRead.from_model(document),
+                chunk_count=len(chunk_records),
+                pinecone_namespace=resolved.namespace or "",
+                embedding_model=resolved.embedding_model,
+                usage=usage,
+            )
+        except Exception as exc:
+            self._record_failure(document, run, exc)
+            self.session.commit()
+            raise
+
+    def _resolve_ingestion_pipeline(
+        self,
+        user: models.User,
+        collection: models.Collection,
+    ) -> tuple[
+        PipelineService,
+        models.Pipeline,
+        PipelineDefinition,
+        IngestionPipelineSettings,
+    ]:
+        """Resolve ingestion pipeline definition and settings."""
         pipeline_service = PipelineService(self.session)
         defaults = pipeline_service.ensure_default_pipelines(user)
         pipeline_service.ensure_collection_pipelines(collection, defaults)
@@ -53,7 +129,16 @@ class IngestionService:  # pylint: disable=too-few-public-methods
             raise ValueError("Ingestion pipeline could not be resolved.")
         definition = pipeline_service.get_definition(pipeline)
         resolved = resolve_ingestion_settings(definition, collection)
+        return pipeline_service, pipeline, definition, resolved
 
+    def _create_document_record(
+        self,
+        user: models.User,
+        collection: models.Collection,
+        upload: UploadFile,
+        resolved: IngestionPipelineSettings,
+    ) -> models.Document:
+        """Create and persist a document record for ingestion."""
         document = models.Document(
             collection_id=collection.id,
             user_id=user.id,
@@ -67,91 +152,123 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         )
         self.session.add(document)
         self.session.flush()
+        return document
 
+    def _save_document_upload(
+        self,
+        collection: models.Collection,
+        document: models.Document,
+        upload: UploadFile,
+    ) -> None:
+        """Persist the uploaded file to storage."""
         relative_path = f"collections/{collection.id}/documents/{document.id}/{document.name}"
         path = self.storage.save_upload(upload, relative_path)
         document.source_path = str(path)
         self.session.add(document)
 
-        try:
-            openrouter = get_openrouter_client(user.openrouter_api_key or "")
-            pinecone = get_pinecone_client(api_key=user.pinecone_api_key)
-            executor = PipelineExecutor(build_default_registry())
-            context = PipelineRunContext(
-                session=self.session,
-                user=user,
-                collection=collection,
-                document=document,
-                query=None,
-                top_k=None,
-                openrouter=openrouter,
-                pinecone=pinecone,
-                storage=self.storage,
-                settings=self.settings,
-            )
-            result = executor.execute(definition, context)
-            payload = self._extract_indexing_payload(result.terminal_outputs)
-            enriched_chunks = payload.chunks
+    def _start_trace_run(
+        self,
+        pipeline_service: PipelineService,
+        pipeline: models.Pipeline,
+        definition: PipelineDefinition,
+        document: models.Document,
+    ) -> tuple[models.PipelineRun, PipelineTraceRecorder]:
+        """Create a pipeline run and trace recorder."""
+        version = pipeline_service.get_current_version(pipeline)
+        run = models.PipelineRun(
+            pipeline_id=pipeline.id,
+            pipeline_version_id=version.id,
+            pipeline_version=version.version,
+            kind=models.PipelineKind.INGESTION,
+            user_id=document.user_id,
+            collection_id=document.collection_id,
+            status=models.PipelineRunStatus.RUNNING,
+            started_at=utc_now(),
+        )
+        self.session.add(run)
+        self.session.flush()
+        document.ingestion_run_id = run.id
+        self.session.add(document)
+        trace = PipelineTraceRecorder(self.session, run, definition)
+        return run, trace
 
-            chunk_records: List[models.DocumentChunkRecord] = []
-            for chunk in enriched_chunks:
-                chunk_records.append(
-                    models.DocumentChunkRecord(
-                        document_id=document.id,
-                        collection_id=collection.id,
-                        chunk_index=chunk.order,
-                        text=chunk.text,
-                        embedding=chunk.embedding or [],
-                        chunk_metadata=chunk.metadata.data,
-                        chunk_size=resolved.chunk_size,
-                        chunk_overlap=resolved.chunk_overlap,
-                        chunk_strategy=resolved.chunk_strategy,
-                        embedding_model=resolved.embedding_model,
-                    )
-                )
-            self.chunks.add_many(chunk_records)
-
-            document.status = models.DocumentStatus.READY
-            document.num_chunks = len(chunk_records)
-            document.num_tokens = sum(len(chunk.text.split()) for chunk in enriched_chunks)
-            document.updated_at = utc_now()
-            usage = payload.usage or {}
-            self.session.add(
-                models.IngestionEvent(
+    def _persist_chunks(
+        self,
+        document: models.Document,
+        collection: models.Collection,
+        enriched_chunks: List[DocumentChunk],
+        resolved: IngestionPipelineSettings,
+    ) -> List[models.DocumentChunkRecord]:
+        """Persist embedded chunks and update document metadata."""
+        chunk_records: List[models.DocumentChunkRecord] = []
+        for chunk in enriched_chunks:
+            chunk_records.append(
+                models.DocumentChunkRecord(
                     document_id=document.id,
                     collection_id=collection.id,
-                    event_type="ingestion_complete",
-                    status="success",
-                    details={
-                        "chunks": len(chunk_records),
-                        "embedding_model": resolved.embedding_model,
-                        "usage": usage,
-                    },
+                    chunk_index=chunk.order,
+                    text=chunk.text,
+                    embedding=chunk.embedding or [],
+                    chunk_metadata=chunk.metadata.data,
+                    chunk_size=resolved.chunk_size,
+                    chunk_overlap=resolved.chunk_overlap,
+                    chunk_strategy=resolved.chunk_strategy,
+                    embedding_model=resolved.embedding_model,
                 )
             )
-            self.session.commit()
+        self.chunks.add_many(chunk_records)
 
-            return IngestionResponse(
-                document=DocumentRead.from_model(document),
-                chunk_count=len(chunk_records),
-                pinecone_namespace=resolved.namespace or "",
-                embedding_model=resolved.embedding_model,
-                usage=usage,
+        document.status = models.DocumentStatus.READY
+        document.num_chunks = len(chunk_records)
+        document.num_tokens = sum(len(chunk.text.split()) for chunk in enriched_chunks)
+        document.updated_at = utc_now()
+        return chunk_records
+
+    def _record_success(
+        self,
+        document: models.Document,
+        embedding_model: str,
+        usage: dict[str, int],
+        chunk_records: List[models.DocumentChunkRecord],
+    ) -> None:
+        """Record a successful ingestion event."""
+        self.session.add(
+            models.IngestionEvent(
+                document_id=document.id,
+                collection_id=document.collection_id,
+                event_type="ingestion_complete",
+                status="success",
+                details={
+                    "chunks": len(chunk_records),
+                    "embedding_model": embedding_model,
+                    "usage": usage,
+                },
             )
-        except Exception as exc:
-            document.status = models.DocumentStatus.FAILED
-            document.updated_at = utc_now()
-            self.session.add(
-                models.IngestionEvent(
-                    document_id=document.id,
-                    collection_id=collection.id,
-                    event_type="ingestion_failed",
-                    status="error",
-                    details={"error": str(exc)},
-                )
+        )
+
+    def _record_failure(
+        self,
+        document: models.Document,
+        run: models.PipelineRun | None,
+        exc: Exception,
+    ) -> None:
+        """Record ingestion failure metadata."""
+        document.status = models.DocumentStatus.FAILED
+        document.updated_at = utc_now()
+        if run and run.status != models.PipelineRunStatus.FAILED:
+            run.status = models.PipelineRunStatus.FAILED
+            run.error_message = str(exc)
+            run.completed_at = utc_now()
+            self.session.add(run)
+        self.session.add(
+            models.IngestionEvent(
+                document_id=document.id,
+                collection_id=document.collection_id,
+                event_type="ingestion_failed",
+                status="error",
+                details={"error": str(exc)},
             )
-            self.session.commit()
-            raise
+        )
 
     @staticmethod
     def _extract_indexing_payload(

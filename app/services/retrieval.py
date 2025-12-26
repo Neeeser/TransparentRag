@@ -16,11 +16,13 @@ from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.config import resolve_retrieval_settings
 from app.pipelines.registry import build_default_registry
 from app.pipelines.runtime import PipelineExecutor, PipelineRunContext
+from app.pipelines.tracing import PipelineTraceRecorder
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.retrieval import CollectionQueryResponse, RetrievedChunk
 from app.services.openrouter import get_openrouter_client
 from app.services.pipelines import PipelineService
 from app.utils.file_storage import FileStorage
+from app.utils.time import utc_now
 
 
 class RetrievalService:  # pylint: disable=too-few-public-methods
@@ -51,6 +53,19 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
         retrieval_settings = resolve_retrieval_settings(definition, collection)
         openrouter = get_openrouter_client(user.openrouter_api_key or "")
         pinecone = get_pinecone_client(api_key=user.pinecone_api_key)
+        version = pipeline_service.get_current_version(pipeline)
+        run = models.PipelineRun(
+            pipeline_id=pipeline.id,
+            pipeline_version_id=version.id,
+            pipeline_version=version.version,
+            kind=models.PipelineKind.RETRIEVAL,
+            user_id=user.id,
+            collection_id=collection.id,
+            status=models.PipelineRunStatus.RUNNING,
+        )
+        self.session.add(run)
+        self.session.flush()
+        trace = PipelineTraceRecorder(self.session, run, definition)
         executor = PipelineExecutor(build_default_registry())
         context = PipelineRunContext(
             session=self.session,
@@ -63,47 +78,65 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
             pinecone=pinecone,
             storage=FileStorage(),
             settings=self.settings,
+            trace=trace,
         )
-        result = executor.execute(definition, context)
-        payload = self._extract_retrieval_payload(result.terminal_outputs)
-        response = payload.response
-        chunks: List[RetrievedChunk] = []
-        for scored in response.matches:
-            chunks.append(
-                RetrievedChunk(
-                    chunk_id=scored.chunk.chunk_id,
-                    document_id=scored.chunk.document_id,
-                    score=scored.score,
-                    text=scored.chunk.text,
-                    metadata=scored.chunk.metadata.data,
+        try:
+            result = executor.execute(definition, context)
+            payload = self._extract_retrieval_payload(result.terminal_outputs)
+            response = payload.response
+            chunks: List[RetrievedChunk] = []
+            for scored in response.matches:
+                chunks.append(
+                    RetrievedChunk(
+                        chunk_id=scored.chunk.chunk_id,
+                        document_id=scored.chunk.document_id,
+                        score=scored.score,
+                        text=scored.chunk.text,
+                        metadata=scored.chunk.metadata.data,
+                    )
+                )
+            latency_ms = (perf_counter() - start_time) * 1000
+            usage = payload.usage or {}
+            event = QueryRepository(self.session).add_event(
+                models.QueryEvent(
+                    user_id=user.id,
+                    collection_id=collection.id,
+                    query_text=query,
+                    top_k=top_k,
+                    model=retrieval_settings.embedding_model,
+                    context_tokens=self._usage_tokens(usage),
+                    latency_ms=latency_ms,
+                    response_payload={
+                        "match_count": len(response.matches),
+                        "max_score": max(
+                            (match.score for match in response.matches),
+                            default=0.0,
+                        ),
+                        "min_score": min(
+                            (match.score for match in response.matches),
+                            default=0.0,
+                        ),
+                        "pipeline_id": str(pipeline.id),
+                        "usage": usage,
+                    },
+                    pipeline_run_id=run.id,
                 )
             )
-        latency_ms = (perf_counter() - start_time) * 1000
-        usage = payload.usage or {}
-        QueryRepository(self.session).add_event(
-            models.QueryEvent(
-                user_id=user.id,
-                collection_id=collection.id,
-                query_text=query,
+            return CollectionQueryResponse(
+                query=query,
                 top_k=top_k,
-                model=retrieval_settings.embedding_model,
-                context_tokens=self._usage_tokens(usage),
-                latency_ms=latency_ms,
-                response_payload={
-                    "match_count": len(response.matches),
-                    "max_score": max((match.score for match in response.matches), default=0.0),
-                    "min_score": min((match.score for match in response.matches), default=0.0),
-                    "pipeline_id": str(pipeline.id),
-                    "usage": usage,
-                },
+                chunks=chunks,
+                usage=usage,
+                query_event_id=event.id,
+                pipeline_run_id=run.id,
             )
-        )
-        return CollectionQueryResponse(
-            query=query,
-            top_k=top_k,
-            chunks=chunks,
-            usage=usage,
-        )
+        except Exception as exc:
+            if run.status != models.PipelineRunStatus.FAILED:
+                run.status = models.PipelineRunStatus.FAILED
+                run.error_message = str(exc)
+                run.completed_at = utc_now()
+                self.session.add(run)
+            raise
 
     @staticmethod
     def _extract_retrieval_payload(
