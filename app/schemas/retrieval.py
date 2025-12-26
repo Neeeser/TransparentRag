@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -31,3 +32,5 @@ class CollectionQueryResponse(BaseModel):
     top_k: int
     chunks: List[RetrievedChunk]
     usage: Dict[str, Any]
+    query_event_id: UUID | None = None
+    pipeline_run_id: UUID | None = None

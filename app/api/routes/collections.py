@@ -472,6 +472,31 @@ def delete_collection(  # pylint: disable=too-many-locals
                 models.Document.id.in_(doc_ids)  # pylint: disable=no-member
             )
         )
+    run_ids = session.exec(
+        select(models.PipelineRun.id).where(
+            models.PipelineRun.collection_id == collection.id,
+        )
+    ).all()
+    if run_ids:
+        session.exec(
+            sa_delete(models.PipelineNodeIO).where(
+                models.PipelineNodeIO.run_id.in_(  # pylint: disable=no-member
+                    run_ids
+                )
+            )
+        )
+        session.exec(
+            sa_delete(models.PipelineNodeRun).where(
+                models.PipelineNodeRun.run_id.in_(  # pylint: disable=no-member
+                    run_ids
+                )
+            )
+        )
+        session.exec(
+            sa_delete(models.PipelineRun).where(
+                models.PipelineRun.id.in_(run_ids)  # pylint: disable=no-member
+            )
+        )
     if session_ids:
         session.exec(
             sa_delete(models.ChatMessage).where(

@@ -14,6 +14,7 @@ from sqlmodel import Session
 from app.api.config import Settings
 from app.db import models
 from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.tracing import NodeTraceSummary, PipelineTraceRecorder
 from app.services.openrouter import OpenRouterClient
 from app.utils.file_storage import FileStorage
 
@@ -71,6 +72,14 @@ class PipelineNodeBase:
         context: "PipelineRunContext",
     ) -> Dict[str, object]:
         """Execute the node and return outputs by port key."""
+        raise NotImplementedError
+
+    def summarize_io(
+        self,
+        inputs: Dict[str, object],
+        outputs: Dict[str, object],
+    ) -> NodeTraceSummary:
+        """Return a summary of the node's key inputs and outputs."""
         raise NotImplementedError
 
     @classmethod
@@ -149,6 +158,7 @@ class PipelineRunContext:  # pylint: disable=too-many-instance-attributes
     pinecone: Pinecone
     storage: FileStorage
     settings: Settings
+    trace: Optional[PipelineTraceRecorder] = None
 
 
 @dataclass
@@ -265,8 +275,28 @@ class PipelineExecutor:  # pylint: disable=too-few-public-methods
         """Execute the pipeline definition and return outputs."""
         validation = self._validator.validate(definition)
         if not validation.valid:
-            raise PipelineExecutionError("; ".join(validation.errors))
+            error = PipelineExecutionError("; ".join(validation.errors))
+            if context.trace:
+                context.trace.mark_run_failed(error)
+            raise error
 
+        try:
+            outputs, terminal_outputs = self._execute_nodes(definition, context)
+        except Exception as exc:
+            if context.trace:
+                context.trace.mark_run_failed(exc)
+            raise
+
+        if context.trace:
+            context.trace.mark_run_completed()
+        return PipelineExecutionResult(outputs_by_node=outputs, terminal_outputs=terminal_outputs)
+
+    def _execute_nodes(
+        self,
+        definition: PipelineDefinition,
+        context: PipelineRunContext,
+    ) -> tuple[Dict[str, Dict[str, object]], Dict[str, Dict[str, object]]]:
+        """Run nodes for a pipeline definition and return outputs."""
         node_map = definition.node_map()
         outgoing = definition.outgoing_edges()
         inputs: Dict[str, Dict[str, object]] = {node_id: {} for node_id in node_map}
@@ -290,7 +320,25 @@ class PipelineExecutor:  # pylint: disable=too-few-public-methods
 
                 node = self._registry.create(node_def)
                 logger.debug("Executing pipeline node %s (%s)", node_id, node_def.type)
-                node_outputs = node.run(available_inputs, context)
+                node_run = (
+                    context.trace.start_node(node_def, available_inputs)
+                    if context.trace
+                    else None
+                )
+                try:
+                    node_outputs = node.run(available_inputs, context)
+                    summary = (
+                        node.summarize_io(available_inputs, node_outputs)
+                        if context.trace and node_run
+                        else None
+                    )
+                except Exception as exc:
+                    if context.trace and node_run:
+                        context.trace.fail_node(node_run, exc)
+                        context.trace.mark_run_failed(exc)
+                    raise
+                if context.trace and node_run and summary is not None:
+                    context.trace.finish_node(node_run, node_outputs, summary)
                 outputs[node_id] = node_outputs
                 pending.remove(node_id)
                 progressed = True
@@ -322,4 +370,4 @@ class PipelineExecutor:  # pylint: disable=too-few-public-methods
             for node_id, node_outputs in outputs.items()
             if node_id not in outgoing
         }
-        return PipelineExecutionResult(outputs_by_node=outputs, terminal_outputs=terminal_outputs)
+        return outputs, terminal_outputs

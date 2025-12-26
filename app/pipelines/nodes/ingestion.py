@@ -19,7 +19,14 @@ from app.pipelines.payloads import (
     ParsedDocumentPayload,
     SourcePayload,
 )
+from app.pipelines.nodes.trace_utils import (
+    summarize_chunks,
+    summarize_embeddings,
+    summarize_source,
+    summarize_text,
+)
 from app.pipelines.runtime import NodePort, PipelineNodeBase, PipelineRunContext
+from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.retrieval.embedders.openrouter_embedder import OpenRouterEmbedder
 from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig, PineconeIndexer
 from app.retrieval.models import DocumentMetadata
@@ -74,6 +81,22 @@ class IngestionInputNode(PipelineNodeBase):
         )
         return {"source": SourcePayload(source=source)}
 
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize the ingestion source payload."""
+        payload = SourcePayload.model_validate(outputs.get("source"))
+        return NodeTraceSummary(
+            outputs=[
+                NodeTraceValue(
+                    label="Source",
+                    value=summarize_source(payload.source),
+                )
+            ]
+        )
+
 
 class ParserConfig(BaseModel):
     """Configuration for document parsing."""
@@ -111,6 +134,30 @@ class DocumentParserNode(PipelineNodeBase):
         )
         document = parser.parse(source)
         return {"document": ParsedDocumentPayload(document=document)}
+
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize document parsing inputs and outputs."""
+        source_payload = SourcePayload.model_validate(inputs.get("source"))
+        document_payload = ParsedDocumentPayload.model_validate(outputs.get("document"))
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Source",
+                    value=summarize_source(source_payload.source),
+                )
+            ],
+            outputs=[
+                NodeTraceValue(
+                    label="Text",
+                    value=summarize_text(document_payload.document.text),
+                    kind="text",
+                )
+            ],
+        )
 
     def _resolve_parser(self, content_type: Optional[str]) -> DocumentParser:
         """Select a parser based on configuration and content type."""
@@ -161,6 +208,24 @@ class FileTypeRouterNode(PipelineNodeBase):
             return {"text": payload}
         return {"other": payload}
 
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize how the document was routed."""
+        source_payload = SourcePayload.model_validate(inputs.get("source"))
+        route = next(iter(outputs.keys()), "unknown")
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Source",
+                    value=summarize_source(source_payload.source),
+                )
+            ],
+            outputs=[NodeTraceValue(label="Route", value=route)],
+        )
+
 
 class ChunkerConfig(BaseModel):
     """Configuration for chunking documents."""
@@ -203,6 +268,30 @@ class ChunkerNode(PipelineNodeBase):
             document.document_id,
         )
         return {"chunks": ChunkPayload(document=document, chunks=chunks)}
+
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize chunking inputs and outputs."""
+        input_payload = ParsedDocumentPayload.model_validate(inputs.get("document"))
+        output_payload = ChunkPayload.model_validate(outputs.get("chunks"))
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Document",
+                    value=summarize_text(input_payload.document.text),
+                    kind="text",
+                )
+            ],
+            outputs=[
+                NodeTraceValue(
+                    label="Chunks",
+                    value=summarize_chunks(output_payload.chunks),
+                )
+            ],
+        )
 
 
 class EmbedderConfig(BaseModel):
@@ -248,6 +337,30 @@ class EmbedderNode(PipelineNodeBase):
                 usage=usage,
             )
         }
+
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize embedding inputs and outputs."""
+        input_payload = ChunkPayload.model_validate(inputs.get("chunks"))
+        output_payload = EmbeddingPayload.model_validate(outputs.get("embedded"))
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Chunk text",
+                    value=summarize_chunks(input_payload.chunks),
+                )
+            ],
+            outputs=[
+                NodeTraceValue(
+                    label="Embeddings",
+                    value=summarize_embeddings(output_payload.chunks),
+                    kind="embedding",
+                )
+            ],
+        )
 
 
 class IndexerConfig(BaseModel):
@@ -307,6 +420,30 @@ class IndexerNode(PipelineNodeBase):
             )
         }
 
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize indexer inputs and outputs."""
+        input_payload = EmbeddingPayload.model_validate(inputs.get("embedded"))
+        output_payload = IndexingPayload.model_validate(outputs.get("indexed"))
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Embeddings",
+                    value=summarize_embeddings(input_payload.chunks),
+                    kind="embedding",
+                )
+            ],
+            outputs=[
+                NodeTraceValue(
+                    label="Indexed chunks",
+                    value={"count": len(output_payload.chunks)},
+                )
+            ],
+        )
+
 
 class IngestionOutputConfig(BaseModel):
     """Configuration for ingestion output nodes."""
@@ -331,3 +468,25 @@ class IngestionOutputNode(PipelineNodeBase):
         """Pass through indexed payloads."""
         payload = IndexingPayload.model_validate(inputs.get("indexed"))
         return {"result": payload}
+
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize ingestion output payloads."""
+        payload = IndexingPayload.model_validate(inputs.get("indexed"))
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Indexed chunks",
+                    value={"count": len(payload.chunks)},
+                )
+            ],
+            outputs=[
+                NodeTraceValue(
+                    label="Result",
+                    value={"count": len(payload.chunks)},
+                )
+            ],
+        )

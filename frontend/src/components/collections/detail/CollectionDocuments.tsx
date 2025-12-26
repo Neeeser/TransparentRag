@@ -3,13 +3,14 @@
 import { ChevronDown, ChevronRight, UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { PipelineTraceViewer } from "@/components/traces/PipelineTraceViewer";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";
-import { fetchDocumentChunks, fetchDocuments, uploadDocument } from "@/lib/api";
+import { fetchDocumentChunks, fetchDocuments, fetchDocumentTrace, uploadDocument } from "@/lib/api";
 import { cn, prettyJson, truncate } from "@/lib/utils";
 
-import type { Chunk, Document } from "@/lib/types";
+import type { Chunk, Document, PipelineTraceResponse } from "@/lib/types";
 import type { ChangeEvent } from "react";
 
 type CollectionDocumentsProps = {
@@ -25,7 +26,12 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
   const [working, setWorking] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [traceByDocument, setTraceByDocument] = useState<Record<string, PipelineTraceResponse>>({});
+  const [traceLoading, setTraceLoading] = useState<Record<string, boolean>>({});
+  const [activeTraceDocumentId, setActiveTraceDocumentId] = useState<string | null>(null);
+  const [activeTraceChunkId, setActiveTraceChunkId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const activeTrace = activeTraceDocumentId ? traceByDocument[activeTraceDocumentId] : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +102,21 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
     }
   };
 
+  const loadTrace = async (documentId: string, chunkId?: string | null) => {
+    setTraceLoading((prev) => ({ ...prev, [documentId]: true }));
+    setMessage(null);
+    try {
+      const trace = await fetchDocumentTrace(documentId, token);
+      setTraceByDocument((prev) => ({ ...prev, [documentId]: trace }));
+      setActiveTraceDocumentId(documentId);
+      setActiveTraceChunkId(chunkId ?? null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to load trace.");
+    } finally {
+      setTraceLoading((prev) => ({ ...prev, [documentId]: false }));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <GlassCard className="rounded-3xl p-6">
@@ -139,6 +160,8 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
             const isOpen = expanded[doc.id];
             const chunks = chunksByDocument[doc.id] ?? [];
             const isLoadingChunks = working[doc.id];
+            const trace = traceByDocument[doc.id];
+            const isTraceLoading = traceLoading[doc.id];
             return (
               <GlassCard key={doc.id} className="rounded-3xl border border-white/10 p-4">
                 <button
@@ -185,6 +208,19 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
                         </div>
                       ))}
                     </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={isTraceLoading}
+                        onClick={() => loadTrace(doc.id)}
+                      >
+                        {trace ? "Refresh trace" : "View ingestion trace"}
+                      </Button>
+                      {doc.ingestion_run_id && (
+                        <p className="text-xs text-slate-400">Trace run: {doc.ingestion_run_id}</p>
+                      )}
+                    </div>
 
                     {isLoadingChunks ? (
                       <div className="flex items-center gap-2 text-sm text-slate-400">
@@ -220,6 +256,13 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
                                   {prettyJson(chunk.metadata)}
                                 </pre>
                               </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => loadTrace(doc.id, chunk.id)}
+                              >
+                                Trace this chunk
+                              </Button>
                             </div>
                           </details>
                         ))}
@@ -232,6 +275,17 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
           })}
         </div>
       )}
+      <PipelineTraceViewer
+        key={activeTrace?.run.id ?? activeTraceDocumentId ?? "trace"}
+        trace={activeTrace}
+        token={token}
+        isOpen={Boolean(activeTraceDocumentId)}
+        onClose={() => {
+          setActiveTraceDocumentId(null);
+          setActiveTraceChunkId(null);
+        }}
+        highlightChunkId={activeTraceChunkId}
+      />
     </div>
   );
 }

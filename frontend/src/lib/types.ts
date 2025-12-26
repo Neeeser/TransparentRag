@@ -7,6 +7,8 @@ export type ChunkStrategy = "token" | "sentence" | "paragraph" | "semantic";
 export type ChatMode = "query" | "chat";
 export type ChatRole = "system" | "user" | "assistant" | "tool";
 export type PipelineKind = "ingestion" | "retrieval";
+export type PipelineRunStatus = "running" | "completed" | "failed";
+export type PipelineIOType = "input" | "output";
 
 export interface User {
   id: UUID;
@@ -120,6 +122,7 @@ export interface Document {
   chunk_size: number;
   chunk_overlap: number;
   chunk_strategy: ChunkStrategy;
+  ingestion_run_id?: UUID | null;
   created_at: string;
   updated_at: string;
 }
@@ -309,6 +312,69 @@ export interface Pipeline {
   definition: PipelineDefinition;
 }
 
+export interface PipelineRunTrace {
+  id: UUID;
+  pipeline_id: UUID;
+  pipeline_version_id?: UUID | null;
+  pipeline_version?: number | null;
+  kind: PipelineKind;
+  user_id: UUID;
+  collection_id: UUID;
+  status: PipelineRunStatus;
+  error_message?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PipelineNodeRunTrace {
+  id: UUID;
+  run_id: UUID;
+  node_id: string;
+  node_type: string;
+  node_name: string;
+  sequence_index: number;
+  status: PipelineRunStatus;
+  error_message?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  duration_ms?: number | null;
+  summary: PipelineNodeSummary;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PipelineNodeSummaryValue {
+  label: string;
+  value: unknown;
+  kind?: string;
+}
+
+export interface PipelineNodeSummary {
+  inputs: PipelineNodeSummaryValue[];
+  outputs: PipelineNodeSummaryValue[];
+}
+
+export interface PipelineNodeIOTrace {
+  id: UUID;
+  run_id: UUID;
+  node_run_id: UUID;
+  node_id: string;
+  io_type: PipelineIOType;
+  port: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PipelineTraceResponse {
+  run: PipelineRunTrace;
+  definition: PipelineDefinition;
+  node_runs: PipelineNodeRunTrace[];
+  node_io: PipelineNodeIOTrace[];
+}
+
 export interface PipelineVersion {
   id: UUID;
   pipeline_id: UUID;
@@ -381,6 +447,8 @@ export interface ChatCompletionPayload {
 
 export interface QueryChunk {
   id?: UUID;
+  chunk_id?: string;
+  document_id?: string;
   text?: string;
   score?: number;
   metadata?: Record<string, unknown>;
@@ -393,6 +461,8 @@ export interface CollectionQueryResult {
   top_k: number;
   chunks: QueryChunk[];
   usage: UsageBreakdown;
+  query_event_id?: UUID;
+  pipeline_run_id?: UUID;
 }
 
 export interface IngestionResponse {

@@ -10,8 +10,10 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.api.config import get_settings
+from app.pipelines.nodes.trace_utils import summarize_match_order, summarize_matches, summarize_text
 from app.pipelines.payloads import RetrievalPayload, RetrievalRequestPayload
 from app.pipelines.runtime import NodePort, PipelineNodeBase, PipelineRunContext
+from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.retrieval.embedders.openrouter_embedder import OpenRouterEmbedder
 from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig
 from app.retrieval.models import QueryRequest
@@ -50,6 +52,28 @@ class RetrievalInputNode(PipelineNodeBase):
             namespace=None,
         )
         return {"request": RetrievalRequestPayload(request=request)}
+
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize the query request inputs and outputs."""
+        payload = RetrievalRequestPayload.model_validate(outputs.get("request"))
+        request = payload.request
+        return NodeTraceSummary(
+            outputs=[
+                NodeTraceValue(
+                    label="Query",
+                    value=summarize_text(request.text, 200),
+                    kind="text",
+                ),
+                NodeTraceValue(
+                    label="Top K",
+                    value=request.top_k,
+                ),
+            ]
+        )
 
 
 class RetrieverConfig(BaseModel):
@@ -113,6 +137,34 @@ class PineconeRetrieverNode(PipelineNodeBase):
         )
         return {"results": RetrievalPayload(response=response, usage=usage)}
 
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize retrieval inputs and outputs."""
+        input_payload = RetrievalRequestPayload.model_validate(inputs.get("request"))
+        output_payload = RetrievalPayload.model_validate(outputs.get("results"))
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Query",
+                    value=summarize_text(input_payload.request.text, 200),
+                    kind="text",
+                ),
+                NodeTraceValue(
+                    label="Top K",
+                    value=input_payload.request.top_k,
+                ),
+            ],
+            outputs=[
+                NodeTraceValue(
+                    label="Matches",
+                    value=summarize_matches(output_payload.response.matches),
+                )
+            ],
+        )
+
 
 class RerankerConfig(BaseModel):
     """Configuration for reranking nodes."""
@@ -153,6 +205,34 @@ class RerankerNode(PipelineNodeBase):
         response = payload.response.model_copy(update={"matches": list(reranked)})
         return {"results": RetrievalPayload(response=response, usage=payload.usage)}
 
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize reranking inputs and outputs."""
+        input_payload = RetrievalPayload.model_validate(inputs.get("results"))
+        output_payload = RetrievalPayload.model_validate(outputs.get("results"))
+        reranker_info = {
+            "enabled": self.config.enabled,
+            "model": self.config.model_name,
+        }
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Original order",
+                    value=summarize_match_order(input_payload.response.matches),
+                )
+            ],
+            outputs=[
+                NodeTraceValue(label="Reranker", value=reranker_info),
+                NodeTraceValue(
+                    label="Reranked order",
+                    value=summarize_match_order(output_payload.response.matches),
+                ),
+            ],
+        )
+
 
 class RetrievalOutputConfig(BaseModel):
     """Configuration for retrieval output nodes."""
@@ -178,6 +258,28 @@ class RetrievalOutputNode(PipelineNodeBase):
         payload = RetrievalPayload.model_validate(inputs.get("results"))
         return {"result": payload}
 
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize retrieval output payloads."""
+        payload = RetrievalPayload.model_validate(inputs.get("results"))
+        return NodeTraceSummary(
+            inputs=[
+                NodeTraceValue(
+                    label="Matches",
+                    value=summarize_matches(payload.response.matches),
+                )
+            ],
+            outputs=[
+                NodeTraceValue(
+                    label="Result",
+                    value=summarize_matches(payload.response.matches),
+                )
+            ],
+        )
+
 
 class ChatSettingsConfig(BaseModel):
     """Configuration for chat model settings."""
@@ -201,3 +303,21 @@ class ChatSettingsNode(PipelineNodeBase):
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
         """No-op node for storing chat settings in pipeline definitions."""
         return {}
+
+    def summarize_io(
+        self,
+        inputs: dict[str, object],
+        outputs: dict[str, object],
+    ) -> NodeTraceSummary:
+        """Summarize chat settings configuration."""
+        return NodeTraceSummary(
+            outputs=[
+                NodeTraceValue(
+                    label="Chat settings",
+                    value={
+                        "chat_model": self.config.chat_model,
+                        "context_window": self.config.context_window,
+                    },
+                )
+            ]
+        )
