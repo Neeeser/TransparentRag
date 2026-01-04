@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -12,6 +12,8 @@ from app.api.routes import documents as documents_routes
 from app.api.routes import visualizations as visualizations_routes
 from app.db import models
 from app.schemas.visualization import UmapComputeRequest
+from app.visualization.umap.repository import ChunkEmbeddingRow
+from app.visualization.umap import service as umap_service
 
 
 def _create_user(session: Session) -> models.User:
@@ -97,6 +99,22 @@ def _create_chunks(
     for chunk in chunks:
         session.refresh(chunk)
     return chunks
+
+
+def _fake_chunk_rows(embeddings: list[list[float] | None]) -> list[ChunkEmbeddingRow]:
+    """Build chunk rows without persisting database records."""
+    rows: list[ChunkEmbeddingRow] = []
+    for index, embedding in enumerate(embeddings):
+        rows.append(
+            ChunkEmbeddingRow(
+                chunk_id=uuid4(),
+                document_id=uuid4(),
+                chunk_index=index,
+                embedding=embedding,
+                embedding_model="test-embed",
+            )
+        )
+    return rows
 
 
 def test_get_collection_umap_missing_projection(session: Session) -> None:
@@ -186,6 +204,93 @@ def test_compute_collection_umap_rejects_inconsistent_embeddings(session: Sessio
         collection,
         embeddings=[[0.0, 1.0, 2.0], [1.0, 2.0], [2.0, 3.0, 4.0]],
     )
+
+    payload = UmapComputeRequest(n_neighbors=2)
+    with pytest.raises(HTTPException) as excinfo:
+        visualizations_routes.compute_collection_umap(
+            collection.id,
+            payload,
+            current_user=user,
+            session=session,
+        )
+
+    assert excinfo.value.status_code == 400
+
+
+def test_compute_collection_umap_rejects_missing_embeddings(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure UMAP computation rejects missing embeddings."""
+    user = _create_user(session)
+    collection = _create_collection(session, user.id)
+
+    rows = _fake_chunk_rows([[0.0, 1.0], None, [1.0, 2.0]])
+    monkeypatch.setattr(
+        umap_service.UmapRepository,
+        "list_chunk_embeddings",
+        lambda _self, _collection_id: rows,
+    )
+
+    payload = UmapComputeRequest(n_neighbors=2)
+    with pytest.raises(HTTPException) as excinfo:
+        visualizations_routes.compute_collection_umap(
+            collection.id,
+            payload,
+            current_user=user,
+            session=session,
+        )
+
+    assert excinfo.value.status_code == 400
+
+
+def test_compute_collection_umap_rejects_empty_embeddings(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure UMAP computation rejects empty embeddings."""
+    user = _create_user(session)
+    collection = _create_collection(session, user.id)
+
+    rows = _fake_chunk_rows([[], [], []])
+    monkeypatch.setattr(
+        umap_service.UmapRepository,
+        "list_chunk_embeddings",
+        lambda _self, _collection_id: rows,
+    )
+
+    payload = UmapComputeRequest(n_neighbors=2)
+    with pytest.raises(HTTPException) as excinfo:
+        visualizations_routes.compute_collection_umap(
+            collection.id,
+            payload,
+            current_user=user,
+            session=session,
+        )
+
+    assert excinfo.value.status_code == 400
+
+
+def test_compute_collection_umap_rejects_nonfinite_coordinates(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure UMAP computation rejects non-finite coordinates."""
+    user = _create_user(session)
+    collection = _create_collection(session, user.id)
+
+    rows = _fake_chunk_rows([[0.0, 1.0], [1.0, 2.0], [2.0, 3.0]])
+    monkeypatch.setattr(
+        umap_service.UmapRepository,
+        "list_chunk_embeddings",
+        lambda _self, _collection_id: rows,
+    )
+
+    class _StubUmap:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        def fit_transform(self, _array):
+            return [[0.0, 0.0], [float("nan"), 1.0], [1.0, 2.0]]
+
+    monkeypatch.setattr(umap_service, "UMAP", _StubUmap)
 
     payload = UmapComputeRequest(n_neighbors=2)
     with pytest.raises(HTTPException) as excinfo:

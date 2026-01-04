@@ -54,7 +54,7 @@ class UmapService:
         if len(chunk_rows) < 3:
             raise ValueError("At least three chunks are required to compute UMAP.")
 
-        embeddings = [row.embedding for row in chunk_rows if row.embedding]
+        embeddings = [row.embedding for row in chunk_rows if row.embedding is not None]
         if len(embeddings) != len(chunk_rows):
             raise ValueError("One or more chunks are missing embeddings.")
 

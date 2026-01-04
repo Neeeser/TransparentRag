@@ -1,9 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ChunkPreviewOverlay } from "@/components/chunks/ChunkPreviewOverlay";
 import { ChunkDetailPanel } from "@/components/collections/detail/visualize/ChunkDetailPanel";
-import { UmapCanvas } from "@/components/collections/detail/visualize/UmapCanvas";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";
@@ -11,6 +12,19 @@ import { computeCollectionUmap, fetchChunkDetail, fetchCollectionUmap } from "@/
 import { timeAgo } from "@/lib/utils";
 
 import type { ChunkDetail, UmapPoint, UmapVisualization } from "@/lib/types";
+
+const UmapCanvas = dynamic(
+  () =>
+    import("@/components/collections/detail/visualize/UmapCanvas").then((mod) => mod.UmapCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center">
+        <Loader className="h-6 w-6" />
+      </div>
+    ),
+  },
+);
 
 type CollectionVisualizationProps = {
   collectionId: string;
@@ -26,6 +40,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
   const [chunkDetail, setChunkDetail] = useState<ChunkDetail | null>(null);
   const [chunkLoading, setChunkLoading] = useState(false);
   const [chunkError, setChunkError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const projectionId = visualization?.projection.id ?? null;
 
@@ -62,6 +77,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
     setSelectedPoint(null);
     setChunkDetail(null);
     setChunkError(null);
+    setPreviewOpen(false);
   }, [projectionId]);
 
   const handleCompute = useCallback(async () => {
@@ -106,7 +122,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-[calc(100vh-240px)] flex-col gap-6">
       <GlassCard className="rounded-3xl border border-white/10 p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -134,13 +150,14 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
       </GlassCard>
 
       {visualization ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <GlassCard className="relative h-[520px] rounded-3xl border border-white/10">
+        <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <GlassCard className="relative h-full min-h-[420px] rounded-3xl border border-white/10">
             <UmapCanvas
+              key={projectionId ?? "empty"}
               points={visualization.points}
               selectedPointId={selectedPoint?.id}
+              selectedPoint={selectedPoint}
               onSelectPoint={handleSelectPoint}
-              resetKey={projectionId ?? undefined}
             />
           </GlassCard>
           <ChunkDetailPanel
@@ -148,6 +165,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
             loading={chunkLoading}
             selectedPoint={selectedPoint}
             errorMessage={chunkError}
+            onExpand={chunkDetail ? () => setPreviewOpen(true) : undefined}
           />
         </div>
       ) : (
@@ -155,6 +173,12 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
           Upload documents and compute a projection to explore the collection.
         </GlassCard>
       )}
+      <ChunkPreviewOverlay
+        key={`${chunkDetail?.chunk.id ?? "empty"}-${previewOpen ? "open" : "closed"}`}
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        detail={chunkDetail}
+      />
     </div>
   );
 }

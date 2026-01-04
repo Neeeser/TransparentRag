@@ -11,6 +11,7 @@ type ChunkDetailPanelProps = {
   loading: boolean;
   selectedPoint: UmapPoint | null;
   errorMessage: string | null;
+  onExpand?: () => void;
 };
 
 export function ChunkDetailPanel({
@@ -18,6 +19,7 @@ export function ChunkDetailPanel({
   loading,
   selectedPoint,
   errorMessage,
+  onExpand,
 }: ChunkDetailPanelProps) {
   if (!selectedPoint) {
     return (
@@ -56,10 +58,21 @@ export function ChunkDetailPanel({
   return (
     <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-slate-200">
       <div className="space-y-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Document</p>
-          <p className="mt-2 text-base font-semibold text-white">{document.name}</p>
-          <p className="text-xs text-slate-400">Indexed {timeAgo(chunk.created_at)}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Document</p>
+            <p className="mt-2 text-base font-semibold text-white">{document.name}</p>
+            <p className="text-xs text-slate-400">Indexed {timeAgo(chunk.created_at)}</p>
+          </div>
+          {onExpand ? (
+            <button
+              type="button"
+              onClick={onExpand}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 transition hover:border-white/30 hover:bg-white/10"
+            >
+              Expand
+            </button>
+          ) : null}
         </div>
         <div className="grid gap-2 text-xs text-slate-300">
           <div className="flex items-center justify-between">
