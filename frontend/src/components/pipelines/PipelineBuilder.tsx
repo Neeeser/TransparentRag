@@ -2,7 +2,7 @@
 
 import { addEdge, useEdgesState, useNodesState } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Loader } from "@/components/ui/loader";
@@ -41,13 +41,14 @@ import { PipelineSidebar } from "./PipelineSidebar";
 
 import type { PipelineNodeData } from "./PipelineNode";
 import type { Collection, NodeSpec, Pipeline, PipelineKind, PipelineVersion } from "@/lib/types";
-import type { Connection, Edge, Node } from "@xyflow/react";
+import type { Connection, Edge, Node, ReactFlowInstance } from "@xyflow/react";
 
 type PipelineBuilderProps = {
   kind: PipelineKind;
 };
 
 const HIDDEN_NODE_TYPES = new Set(["chunker.collection"]);
+const PREVIEW_NODE_SIZE = { width: 180, height: 72 };
 
 export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const { token } = useAuth();
@@ -59,6 +60,12 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<PipelineNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [previewSpec, setPreviewSpec] = useState<NodeSpec | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [dropPreviewPosition, setDropPreviewPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [dropPreviewLabel, setDropPreviewLabel] = useState<string | null>(null);
   const [configDraft, setConfigDraft] = useState<Record<string, unknown>>({});
   const [changeSummary, setChangeSummary] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -71,6 +78,45 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
   );
+  const previewNode = useMemo(() => {
+    if (!previewSpec) return null;
+    const description = resolveNodeDescription(previewSpec);
+    const example = resolveNodeExample(previewSpec);
+    const node: Node<PipelineNodeData> = {
+      id: `preview-${previewSpec.type}`,
+      type: "pipelineNode",
+      position: { x: 0, y: 0 },
+      data: {
+        label: previewSpec.label,
+        nodeType: previewSpec.type,
+        description,
+        example,
+        inputs: previewSpec.input_ports,
+        outputs: previewSpec.output_ports,
+        config: previewSpec.default_config ?? {},
+        configSchema: previewSpec.config_schema ?? {},
+      },
+    };
+    return node;
+  }, [previewSpec]);
+  const inspectedNode = previewNode ?? selectedNode;
+  const isPreview = Boolean(previewNode);
+  const nodesWithPreview = useMemo(() => {
+    if (!dropPreviewPosition) return nodes;
+    return [
+      ...nodes,
+      {
+        id: "drop-preview",
+        type: "dropPreview",
+        position: dropPreviewPosition,
+        data: { label: dropPreviewLabel ?? "Drop here" },
+        selectable: false,
+        draggable: false,
+        connectable: false,
+        focusable: false,
+      } satisfies Node,
+    ];
+  }, [dropPreviewLabel, dropPreviewPosition, nodes]);
 
   useEffect(() => {
     const authToken = token ?? "";
@@ -119,6 +165,9 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     setNodes(toFlowNodes(selectedPipeline.definition, nodeSpecs));
     setEdges(toFlowEdges(selectedPipeline.definition));
     setSelectedNodeId(null);
+    setPreviewSpec(null);
+    setDropPreviewPosition(null);
+    setDropPreviewLabel(null);
   }, [selectedPipeline, nodeSpecs, setNodes, setEdges]);
 
   useEffect(() => {
@@ -147,12 +196,12 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   }, [selectedPipeline, token]);
 
   useEffect(() => {
-    if (!selectedNode) {
+    if (!inspectedNode) {
       setConfigDraft({});
       return;
     }
-    setConfigDraft({ ...(selectedNode.data.config ?? {}) });
-  }, [selectedNode]);
+    setConfigDraft({ ...(inspectedNode.data.config ?? {}) });
+  }, [inspectedNode]);
 
   const validateConnection = (connection: Connection) =>
     validatePipelineConnection(connection, nodes);
@@ -175,14 +224,14 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     );
   };
 
-  const handleAddNode = (spec: NodeSpec) => {
+  const handleAddNode = (spec: NodeSpec, position?: { x: number; y: number }) => {
     const nodeId = createId();
     const description = resolveNodeDescription(spec);
     const example = resolveNodeExample(spec);
     const newNode: Node<PipelineNodeData> = {
       id: nodeId,
       type: "pipelineNode",
-      position: createDefaultNodePosition(nodes.length),
+      position: position ?? createDefaultNodePosition(nodes.length),
       data: {
         label: spec.label,
         nodeType: spec.type,
@@ -196,6 +245,9 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     };
     setNodes((prev) => [...prev, newNode]);
     setSelectedNodeId(nodeId);
+    setPreviewSpec(null);
+    setDropPreviewPosition(null);
+    setDropPreviewLabel(null);
   };
 
   const handleApplyConfig = () => {
@@ -352,6 +404,71 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   );
   const catalogByFamily = useMemo(() => buildNodeCatalog(catalogSpecs), [catalogSpecs]);
 
+  const handlePreviewNode = (spec: NodeSpec) => {
+    setPreviewSpec(spec);
+    setSelectedNodeId(null);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const type = event.dataTransfer.getData("application/transparentrag-node");
+    if (!type) {
+      setDropPreviewPosition(null);
+      setDropPreviewLabel(null);
+      return;
+    }
+    const spec = catalogSpecs.find((item) => item.type === type);
+    if (!spec || !reactFlowInstance) {
+      setDropPreviewPosition(null);
+      setDropPreviewLabel(null);
+      return;
+    }
+    const point = {
+      x: event.clientX - PREVIEW_NODE_SIZE.width / 2,
+      y: event.clientY - PREVIEW_NODE_SIZE.height / 2,
+    };
+    const position =
+      "screenToFlowPosition" in reactFlowInstance
+        ? reactFlowInstance.screenToFlowPosition(point)
+        : reactFlowInstance.project(point);
+    setDropPreviewPosition(position);
+    setDropPreviewLabel(spec.label);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const type = event.dataTransfer.getData("application/transparentrag-node");
+    if (!type) return;
+    const spec = catalogSpecs.find((item) => item.type === type);
+    if (!spec) {
+      setMessage("Unable to add node: unknown type.");
+      return;
+    }
+    if (dropPreviewPosition) {
+      handleAddNode(spec, dropPreviewPosition);
+      return;
+    }
+    if (!reactFlowInstance) {
+      handleAddNode(spec);
+      return;
+    }
+    const point = {
+      x: event.clientX - PREVIEW_NODE_SIZE.width / 2,
+      y: event.clientY - PREVIEW_NODE_SIZE.height / 2,
+    };
+    const position =
+      "screenToFlowPosition" in reactFlowInstance
+        ? reactFlowInstance.screenToFlowPosition(point)
+        : reactFlowInstance.project(point);
+    handleAddNode(spec, position);
+  };
+
+  const handleDragLeave = () => {
+    setDropPreviewPosition(null);
+    setDropPreviewLabel(null);
+  };
+
   return (
     <div className="flex h-full flex-col gap-6">
       <ConfirmDialog
@@ -386,12 +503,12 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
               onSelectPipeline={setSelectedPipeline}
               onDeletePipeline={handleDeletePipeline}
               pipelineUsage={pipelineUsage}
-              onAddNode={handleAddNode}
+              onPreviewNode={handlePreviewNode}
             />
           </div>
 
           <PipelineCanvas
-            nodes={nodes}
+            nodes={nodesWithPreview}
             edges={edges}
             selectedPipeline={selectedPipeline}
             notice={message}
@@ -400,16 +517,24 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
             isValidConnection={(connection) => validateConnection(connection).valid}
-            onNodeSelect={setSelectedNodeId}
+            onNodeSelect={(nodeId) => {
+              setSelectedNodeId(nodeId);
+              setPreviewSpec(null);
+            }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onInit={setReactFlowInstance}
           />
 
           <div className="flex min-h-0 flex-col gap-6 xl:overflow-y-auto">
             <PipelineInspector
-              selectedNode={selectedNode}
+              selectedNode={inspectedNode}
               configDraft={configDraft}
-              onConfigDraftChange={setConfigDraft}
-              onLabelChange={handleLabelChange}
-              onApplyConfig={handleApplyConfig}
+              onConfigDraftChange={isPreview ? () => undefined : setConfigDraft}
+              onLabelChange={isPreview ? () => undefined : handleLabelChange}
+              onApplyConfig={isPreview ? () => undefined : handleApplyConfig}
+              isPreview={isPreview}
             />
 
             <PipelineSavePanel

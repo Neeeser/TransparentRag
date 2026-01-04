@@ -18,6 +18,7 @@ type PipelineInspectorProps = {
   onConfigDraftChange: (value: Record<string, unknown>) => void;
   onLabelChange: (value: string) => void;
   onApplyConfig: () => void;
+  isPreview?: boolean;
 };
 
 const getInputValue = (field: PipelineConfigField, draft: Record<string, unknown>) => {
@@ -33,6 +34,7 @@ export function PipelineInspector({
   onConfigDraftChange,
   onLabelChange,
   onApplyConfig,
+  isPreview = false,
 }: PipelineInspectorProps) {
   const fields = selectedNode?.data.configSchema
     ? buildPipelineConfigFields(selectedNode.data.configSchema)
@@ -75,12 +77,18 @@ export function PipelineInspector({
       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Inspector</p>
       {selectedNode ? (
         <div className="mt-4 space-y-3 text-sm">
+          {isPreview ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+              Preview only. Drag this node into the canvas to add it.
+            </div>
+          ) : null}
           <div>
             <p className="text-xs text-slate-400">Node label</p>
             <input
               className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-400"
               value={selectedNode.data.label}
               onChange={(event) => onLabelChange(event.target.value)}
+              readOnly={isPreview}
             />
           </div>
           <div>
@@ -147,6 +155,7 @@ export function PipelineInspector({
                         step={field.step}
                         placeholder={field.placeholder}
                         options={field.options}
+                        disabled={isPreview}
                         onChange={(nextValue) => handleConfigChange(field, nextValue)}
                       />
                     </ParameterFieldCard>
@@ -159,9 +168,11 @@ export function PipelineInspector({
               </p>
             )}
           </div>
-          <Button variant="secondary" onClick={onApplyConfig}>
-            Apply config
-          </Button>
+          {!isPreview ? (
+            <Button variant="secondary" onClick={onApplyConfig}>
+              Apply config
+            </Button>
+          ) : null}
         </div>
       ) : (
         <p className="mt-3 text-sm text-slate-400">

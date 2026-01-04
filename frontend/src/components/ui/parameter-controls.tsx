@@ -69,11 +69,12 @@ type ParameterInputProps = {
   options?: ParameterSelectOption[];
   rows?: number;
   booleanLabel?: string;
+  disabled?: boolean;
   onChange: (value: string | boolean) => void;
 };
 
 const inputClasses =
-  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400";
+  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function ParameterInput({
   input,
@@ -85,6 +86,7 @@ export function ParameterInput({
   options,
   rows,
   booleanLabel = "Enable",
+  disabled,
   onChange,
 }: ParameterInputProps) {
   if (input === "number" || input === "integer") {
@@ -97,6 +99,7 @@ export function ParameterInput({
         className={inputClasses}
         placeholder={placeholder}
         value={typeof value === "number" ? value : ""}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     );
@@ -109,6 +112,7 @@ export function ParameterInput({
           type="checkbox"
           className="h-4 w-4 rounded border-white/30 bg-transparent"
           checked={value === true}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
         <span>{booleanLabel}</span>
@@ -121,6 +125,7 @@ export function ParameterInput({
       <select
         className={inputClasses}
         value={typeof value === "string" ? value : ""}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       >
         {(options ?? []).map((option) => (
@@ -140,6 +145,7 @@ export function ParameterInput({
         rows={rows ?? 2}
         placeholder={placeholder}
         value={typeof value === "string" ? value : ""}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     );
@@ -151,6 +157,7 @@ export function ParameterInput({
       className={inputClasses}
       placeholder={placeholder}
       value={typeof value === "string" ? value : ""}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     />
   );

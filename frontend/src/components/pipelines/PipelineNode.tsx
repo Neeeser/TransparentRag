@@ -14,6 +14,10 @@ export type PipelineNodeExample = {
   output: string;
 };
 
+export type DropPreviewNodeData = {
+  label?: string;
+};
+
 export type PipelineNodeData = {
   label: string;
   nodeType: string;
@@ -122,6 +126,15 @@ export function PipelineNode({ data }: NodeProps<PipelineNodeData>) {
   );
 }
 
+export function DropPreviewNode({ data }: NodeProps<DropPreviewNodeData>) {
+  return (
+    <div className="pointer-events-none flex min-w-[180px] items-center justify-center rounded-2xl border border-dashed border-slate-400/60 bg-slate-900/40 px-3 py-6 text-xs uppercase tracking-[0.3em] text-slate-300">
+      {data.label ?? "Drop here"}
+    </div>
+  );
+}
+
 export const pipelineNodeTypes = {
   pipelineNode: PipelineNode,
+  dropPreview: DropPreviewNode,
 };
