@@ -6,12 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import require_openrouter_key
 from app.db import models
-from app.schemas.models import (
-    EmbeddingDimensionResponse,
-    EmbeddingModelInfo,
-    EndpointsListResponse,
-    ModelInfo,
-)
+from app.schemas.models import EmbeddingModelInfo, EndpointsListResponse, ModelInfo
 from app.services.openrouter import get_openrouter_client
 
 router = APIRouter(prefix="/api/models", tags=["models"])
@@ -67,17 +62,7 @@ def list_embedding_models(
                 description=item.get("description"),
                 context_length=item.get("context_length"),
                 pricing=item.get("pricing"),
+                dimension=item.get("dimension"),
             )
         )
     return models_list
-
-
-@router.get("/embeddings/dimension", response_model=EmbeddingDimensionResponse)
-def get_embedding_dimension(
-    model: str = Query(..., description="Embedding model id"),
-    current_user: models.User = Depends(require_openrouter_key),
-) -> EmbeddingDimensionResponse:
-    """Return the embedding dimension for a model."""
-    client = get_openrouter_client(current_user.openrouter_api_key or "")
-    dimension = client.get_embedding_dimension(model)
-    return EmbeddingDimensionResponse(model=model, dimension=dimension)

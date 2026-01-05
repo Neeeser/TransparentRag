@@ -38,13 +38,7 @@ class EmbeddingModelInfo(BaseModel):
     description: Optional[str] = None
     context_length: Optional[float] = None
     pricing: Optional[ModelPricing] = None
-
-
-class EmbeddingDimensionResponse(BaseModel):
-    """Embedding dimension for a model."""
-
-    model: str
-    dimension: int
+    dimension: Optional[int] = None
 
 
 NumberLike = float | str

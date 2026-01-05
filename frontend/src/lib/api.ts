@@ -18,7 +18,6 @@ import type {
   ChunkDetail,
   ModelInfo,
   ListModelEndpointsResponse,
-  EmbeddingDimensionResponse,
   EmbeddingModelInfo,
   ReasoningTraceSegment,
   Pipeline,
@@ -230,16 +229,6 @@ export async function fetchEmbeddingModels(
 ): Promise<EmbeddingModelInfo[]> {
   const params = refresh ? "?refresh=true" : "";
   return apiFetch<EmbeddingModelInfo[]>(`/api/models/embeddings${params}`, { token });
-}
-
-export async function fetchEmbeddingDimension(
-  token: string,
-  model: string,
-): Promise<EmbeddingDimensionResponse> {
-  const params = new URLSearchParams({ model });
-  return apiFetch<EmbeddingDimensionResponse>(`/api/models/embeddings/dimension?${params}`, {
-    token,
-  });
 }
 
 export async function validatePipeline(

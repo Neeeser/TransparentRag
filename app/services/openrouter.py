@@ -38,7 +38,11 @@ class OpenRouterClient:
             api_key=self.api_key,
         )
         self._model_cache: dict[str, Any] = {"ts": 0.0, "data": []}
-        self._embedding_model_cache: dict[str, Any] = {"ts": 0.0, "data": []}
+        self._embedding_model_cache: dict[str, Any] = {
+            "ts": 0.0,
+            "data": [],
+            "dimensions": {},
+        }
 
     def _build_app_headers(self) -> Dict[str, str]:
         """Build static headers required by OpenRouter."""
@@ -86,8 +90,29 @@ class OpenRouterClient:
         models = payload.get("data") or []
         if not isinstance(models, list):
             models = []
-        self._embedding_model_cache = {"ts": now, "data": models}
-        return models
+        enriched: list[dict[str, Any]] = []
+        dimension_cache = self._embedding_model_cache.get("dimensions") or {}
+        for model in models:
+            if not isinstance(model, dict):
+                continue
+            model_id = model.get("id")
+            if not model_id:
+                enriched.append(model)
+                continue
+            dimension = dimension_cache.get(str(model_id))
+            if dimension is None:
+                try:
+                    dimension = self.get_embedding_dimension(str(model_id))
+                    dimension_cache[str(model_id)] = dimension
+                except ValueError:
+                    dimension = None
+            enriched.append({**model, "dimension": dimension})
+        self._embedding_model_cache = {
+            "ts": now,
+            "data": enriched,
+            "dimensions": dimension_cache,
+        }
+        return enriched
 
     def get_embedding_dimension(self, model_id: str) -> int:
         """Return embedding dimension for the requested model."""

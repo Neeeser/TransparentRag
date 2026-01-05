@@ -11,6 +11,7 @@ import { buildPipelineConfigFields, formatConfigValue } from "./pipeline-config"
 
 import type { PipelineConfigField } from "./pipeline-config";
 import type { PipelineNodeData } from "./PipelineNode";
+import type { EmbeddingModelSortOption } from "@/lib/model-sorting";
 import type { EmbeddingModelInfo } from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
@@ -28,10 +29,10 @@ type PipelineInspectorProps = {
   embeddingModelSearchTerm?: string;
   embeddingModelsLoading?: boolean;
   embeddingModelsError?: string | null;
-  embeddingDimension?: number | null;
-  embeddingDimensionLoading?: boolean;
   onEmbeddingSearchChange?: (value: string) => void;
   onSelectEmbeddingModel?: (modelId: string) => void;
+  embeddingModelSortOption?: EmbeddingModelSortOption;
+  onEmbeddingModelSortChange?: (value: EmbeddingModelSortOption) => void;
 };
 
 const getInputValue = (field: PipelineConfigField, draft: Record<string, unknown>) => {
@@ -55,10 +56,10 @@ export function PipelineInspector({
   embeddingModelSearchTerm = "",
   embeddingModelsLoading = false,
   embeddingModelsError = null,
-  embeddingDimension = null,
-  embeddingDimensionLoading = false,
   onEmbeddingSearchChange,
   onSelectEmbeddingModel,
+  embeddingModelSortOption = "price",
+  onEmbeddingModelSortChange,
 }: PipelineInspectorProps) {
   const isEmbedder = selectedNode?.data.nodeType === "embedder.openrouter";
   const fields = selectedNode?.data.configSchema
@@ -173,8 +174,8 @@ export function PipelineInspector({
                   modelsLoading={embeddingModelsLoading}
                   modelsError={embeddingModelsError}
                   onSelectModel={onSelectEmbeddingModel ?? (() => undefined)}
-                  dimension={embeddingDimension}
-                  dimensionLoading={embeddingDimensionLoading}
+                  sortOption={embeddingModelSortOption}
+                  onSortChange={onEmbeddingModelSortChange ?? (() => undefined)}
                 />
               </div>
             ) : null}

@@ -4,6 +4,7 @@ import { Check, Loader, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+import type { ChatModelSortOption } from "@/lib/model-sorting";
 import type { ModelInfo } from "@/lib/types";
 
 interface ModelSelectorCardProps {
@@ -13,6 +14,8 @@ interface ModelSelectorCardProps {
   filteredModelCatalog: ModelInfo[];
   modelSearchTerm: string;
   onSearchChange: (value: string) => void;
+  sortOption: ChatModelSortOption;
+  onSortChange: (value: ChatModelSortOption) => void;
   modelsLoading: boolean;
   modelsError: string | null;
   onSelectModel: (id: string) => void;
@@ -83,6 +86,8 @@ export const ModelSelectorCard = ({
   filteredModelCatalog,
   modelSearchTerm,
   onSearchChange,
+  sortOption,
+  onSortChange,
   modelsLoading,
   modelsError,
   onSelectModel,
@@ -115,15 +120,27 @@ export const ModelSelectorCard = ({
         Only models with OpenAI-compatible tool calling are available. Pick any option to apply it
         to the current or next turn.
       </p>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-        <input
-          type="search"
-          className="w-full rounded-2xl border border-white/10 bg-black/40 py-2 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-violet-400"
-          placeholder="Search OpenRouter models…"
-          value={modelSearchTerm}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            type="search"
+            className="w-full rounded-2xl border border-white/10 bg-black/40 py-2 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-violet-400"
+            placeholder="Search OpenRouter models…"
+            value={modelSearchTerm}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </div>
+        <div className="min-w-[160px]">
+          <select
+            className="w-full rounded-2xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-slate-200 outline-none focus:border-violet-400"
+            value={sortOption}
+            onChange={(event) => onSortChange(event.target.value as ChatModelSortOption)}
+          >
+            <option value="default">Default order</option>
+            <option value="price">Sort by price</option>
+          </select>
+        </div>
       </div>
       {modelsError && <p className="text-sm text-rose-300">{modelsError}</p>}
       <div className="max-h-64 space-y-2 overflow-y-auto pr-1">

@@ -4,6 +4,7 @@ import { Check, Loader, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+import type { EmbeddingModelSortOption } from "@/lib/model-sorting";
 import type { EmbeddingModelInfo } from "@/lib/types";
 
 type EmbeddingModelSelectorCardProps = {
@@ -15,8 +16,8 @@ type EmbeddingModelSelectorCardProps = {
   modelsLoading: boolean;
   modelsError: string | null;
   onSelectModel: (id: string) => void;
-  dimension?: number | null;
-  dimensionLoading?: boolean;
+  sortOption: EmbeddingModelSortOption;
+  onSortChange: (value: EmbeddingModelSortOption) => void;
 };
 
 const formatPricePerMillion = (value?: number | string | null): string | null => {
@@ -86,8 +87,8 @@ export function EmbeddingModelSelectorCard({
   modelsLoading,
   modelsError,
   onSelectModel,
-  dimension,
-  dimensionLoading,
+  sortOption,
+  onSortChange,
 }: EmbeddingModelSelectorCardProps) {
   const visibleModels = filteredModelCatalog.slice(0, 50);
   const formatCost = (value?: number | string | null) => formatPricePerMillion(value);
@@ -126,19 +127,26 @@ export function EmbeddingModelSelectorCard({
         />
       </div>
       {modelsError && <p className="text-sm text-rose-300">{modelsError}</p>}
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] uppercase tracking-[0.3em] text-slate-400">
-            Dimension
-          </span>
-          {dimensionLoading ? (
-            <span className="inline-flex items-center gap-1 text-slate-300">
-              <Loader className="h-3.5 w-3.5" />
-              Resolving
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Dimension</span>
+            <span>
+              {currentModelInfo?.dimension
+                ? currentModelInfo.dimension.toLocaleString()
+                : "Select a model"}
             </span>
-          ) : (
-            <span>{dimension ? dimension.toLocaleString() : "Select a model"}</span>
-          )}
+          </div>
+        </div>
+        <div className="min-w-[160px]">
+          <select
+            className="w-full rounded-2xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-slate-200 outline-none focus:border-violet-400"
+            value={sortOption}
+            onChange={(event) => onSortChange(event.target.value as EmbeddingModelSortOption)}
+          >
+            <option value="price">Sort by price</option>
+            <option value="dimension">Sort by dimension</option>
+          </select>
         </div>
       </div>
       <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -156,8 +164,15 @@ export function EmbeddingModelSelectorCard({
             const contextLabel = model.context_length
               ? `${Math.round(model.context_length).toLocaleString()} ctx`
               : null;
+            const dimensionLabel = model.dimension
+              ? `Dim ${model.dimension.toLocaleString()}`
+              : null;
             const promptLabel = formatCost(model.pricing?.prompt);
             const completionLabel = formatCost(model.pricing?.completion);
+            const description =
+              model.description && model.description.length > 160
+                ? `${model.description.slice(0, 157)}...`
+                : model.description;
             return (
               <button
                 key={model.id}
@@ -177,11 +192,10 @@ export function EmbeddingModelSelectorCard({
                   </div>
                   {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-violet-300" />}
                 </div>
-                {model.description && (
-                  <p className="mt-2 text-xs text-slate-400">{model.description}</p>
-                )}
+                {description && <p className="mt-2 text-xs text-slate-400">{description}</p>}
                 <div className="mt-2 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.3em] text-slate-500">
                   {contextLabel && <span>{contextLabel}</span>}
+                  {dimensionLabel && <span>{dimensionLabel}</span>}
                   {promptLabel && <span>Prompt {promptLabel}</span>}
                   {completionLabel && <span>Completion {completionLabel}</span>}
                 </div>

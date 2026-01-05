@@ -90,11 +90,7 @@ export interface EmbeddingModelInfo {
   description?: string | null;
   context_length?: number | null;
   pricing?: ModelPricing | null;
-}
-
-export interface EmbeddingDimensionResponse {
-  model: string;
-  dimension: number;
+  dimension?: number | null;
 }
 
 export interface CollectionCreatePayload {
