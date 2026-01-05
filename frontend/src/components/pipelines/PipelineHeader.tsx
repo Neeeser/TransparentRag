@@ -13,9 +13,10 @@ import type { PipelineKind } from "@/lib/types";
 type PipelineHeaderProps = {
   kind: PipelineKind;
   onCreatePipeline: () => void;
+  onManageIndexes: () => void;
 };
 
-export function PipelineHeader({ kind, onCreatePipeline }: PipelineHeaderProps) {
+export function PipelineHeader({ kind, onCreatePipeline, onManageIndexes }: PipelineHeaderProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div>
@@ -41,6 +42,9 @@ export function PipelineHeader({ kind, onCreatePipeline }: PipelineHeaderProps) 
         </div>
       </div>
       <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" onClick={onManageIndexes}>
+          Manage indexes
+        </Button>
         <Button onClick={onCreatePipeline}>
           <Plus className="h-4 w-4" />
           {kind === "ingestion" ? "New ingestion pipeline" : "New retrieval pipeline"}

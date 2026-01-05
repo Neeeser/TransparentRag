@@ -31,7 +31,10 @@ export const createId = () => {
   return `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 };
 
-export const buildDefaultDefinition = (kind: PipelineKind): PipelineDefinition => {
+export const buildDefaultDefinition = (
+  kind: PipelineKind,
+  indexName?: string,
+): PipelineDefinition => {
   if (kind === "retrieval") {
     return {
       nodes: [
@@ -46,7 +49,7 @@ export const buildDefaultDefinition = (kind: PipelineKind): PipelineDefinition =
           id: NODE_PINECONE_RETRIEVER,
           type: "retriever.pinecone",
           name: "Pinecone Retriever",
-          config: {},
+          config: indexName ? { index_name: indexName } : {},
           position: { x: DEFAULT_NODE_X, y: DEFAULT_NODE_Y_SPACING },
         },
         {
@@ -114,7 +117,7 @@ export const buildDefaultDefinition = (kind: PipelineKind): PipelineDefinition =
         id: NODE_INDEX_CHUNKS,
         type: "indexer.pinecone",
         name: "Indexer",
-        config: {},
+        config: indexName ? { index_name: indexName } : {},
         position: { x: DEFAULT_NODE_X, y: DEFAULT_NODE_Y_SPACING * 4 },
       },
       {

@@ -376,7 +376,7 @@ def test_pipeline_validator_warns_when_dimension_missing() -> None:
                 id="indexer",
                 type="indexer.pinecone",
                 name="Indexer",
-                config={},
+                config={"index_name": "test-index"},
             ),
         ],
         edges=[

@@ -15,6 +15,7 @@ from app.api.routes import (
     collections,
     documents,
     health,
+    indexes,
     models,
     pipelines,
     search,
@@ -67,6 +68,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(models.router)
 app.include_router(pipelines.router)
+app.include_router(indexes.router)
 app.include_router(collections.router)
 app.include_router(documents.router)
 app.include_router(search.router)

@@ -527,6 +527,14 @@ class IndexerNode(PipelineNodeBase):
     ) -> list[PipelineValidationIssue]:
         """Validate embedder/indexer dimension compatibility."""
         issues: list[PipelineValidationIssue] = []
+        index_name = (node.config or {}).get("index_name", "")
+        if not isinstance(index_name, str) or not index_name.strip():
+            issues.append(
+                PipelineValidationIssue(
+                    message=f"Indexer node '{node.id}' must specify a Pinecone index.",
+                    severity="error",
+                )
+            )
         incoming_edges = definition.incoming_edges().get(node.id, [])
         if not incoming_edges:
             return issues

@@ -9,12 +9,12 @@ import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";
 import {
   activatePipelineVersion,
-  createPipeline,
   deletePipeline,
   fetchCollections,
   fetchPipelineNodes,
   fetchPipelines,
   fetchEmbeddingModels,
+  listPineconeIndexes,
   listPipelineVersions,
   updatePipeline,
   validatePipeline,
@@ -22,11 +22,16 @@ import {
 import { sortEmbeddingModels, type EmbeddingModelSortOption } from "@/lib/model-sorting";
 import { useAuth } from "@/providers/auth-provider";
 
+import { CreatePipelineWizard } from "./CreatePipelineWizard";
+import { IndexManagerModal } from "./index-manager/IndexManagerModal";
 import { resolveNodeDescription, resolveNodeExample } from "./node-content";
-import { validatePipelineConnection, validatePipelineEdges } from "./pipeline-io";
+import {
+  validatePipelineConfig,
+  validatePipelineConnection,
+  validatePipelineEdges,
+} from "./pipeline-io";
 import { PIPELINE_KIND_STORAGE_KEY } from "./pipeline-kinds";
 import {
-  buildDefaultDefinition,
   buildNodeCatalog,
   createDefaultNodePosition,
   createId,
@@ -49,6 +54,7 @@ import type {
   Pipeline,
   PipelineKind,
   PipelineVersion,
+  PineconeIndex,
 } from "@/lib/types";
 import type { Connection, Edge, Node, ReactFlowInstance } from "@xyflow/react";
 
@@ -70,6 +76,9 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const [embeddingModelSearchTerm, setEmbeddingModelSearchTerm] = useState("");
   const [embeddingModelSortOption, setEmbeddingModelSortOption] =
     useState<EmbeddingModelSortOption>("price");
+  const [indexes, setIndexes] = useState<PineconeIndex[]>([]);
+  const [indexesLoading, setIndexesLoading] = useState(false);
+  const [indexesError, setIndexesError] = useState<string | null>(null);
   const [versions, setVersions] = useState<PipelineVersion[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<PipelineNodeData>([]);
@@ -88,6 +97,9 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null);
+  const [showIndexManager, setShowIndexManager] = useState(false);
+  const [showCreatePipeline, setShowCreatePipeline] = useState(false);
+  const [returnToPipelineWizard, setReturnToPipelineWizard] = useState(false);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -194,6 +206,45 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     };
   }, [token]);
 
+  const refreshIndexes = async (authToken: string) => {
+    setIndexesLoading(true);
+    setIndexesError(null);
+    try {
+      const data = await listPineconeIndexes(authToken);
+      setIndexes(data);
+    } catch (error) {
+      setIndexesError(error instanceof Error ? error.message : "Unable to load indexes.");
+    } finally {
+      setIndexesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const authToken = token ?? "";
+    if (!authToken) return;
+    let cancelled = false;
+    async function loadIndexes() {
+      setIndexesLoading(true);
+      setIndexesError(null);
+      try {
+        const data = await listPineconeIndexes(authToken);
+        if (!cancelled) {
+          setIndexes(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setIndexesError(error instanceof Error ? error.message : "Unable to load indexes.");
+        }
+      } finally {
+        if (!cancelled) setIndexesLoading(false);
+      }
+    }
+    loadIndexes();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem(PIPELINE_KIND_STORAGE_KEY, kind);
@@ -251,10 +302,15 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     return { [selectedNode.id]: configDraft };
   }, [selectedNode, configDraft]);
 
-  const { edgeErrors, nodeErrors } = useMemo(
-    () => validatePipelineEdges(nodes, edges, configOverrides),
-    [nodes, edges, configOverrides],
-  );
+  const { edgeErrors, nodeErrors } = useMemo(() => {
+    const edgeValidation = validatePipelineEdges(nodes, edges, configOverrides);
+    const configValidation = validatePipelineConfig(nodes, configOverrides);
+    const mergedNodeErrors: Record<string, string[]> = { ...edgeValidation.nodeErrors };
+    Object.entries(configValidation.nodeErrors).forEach(([nodeId, errors]) => {
+      mergedNodeErrors[nodeId] = [...(mergedNodeErrors[nodeId] ?? []), ...errors];
+    });
+    return { edgeErrors: edgeValidation.edgeErrors, nodeErrors: mergedNodeErrors };
+  }, [nodes, edges, configOverrides]);
 
   const validateConnection = (connection: Connection) =>
     validatePipelineConnection(connection, nodes, configOverrides);
@@ -324,6 +380,11 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const handleSavePipeline = async () => {
     const authToken = token ?? "";
     if (!authToken || !selectedPipeline) return;
+    const validationErrors = Object.values(nodeErrors).flat();
+    if (validationErrors.length > 0) {
+      setMessage(validationErrors[0]);
+      return;
+    }
     setValidating(true);
     setMessage(null);
     try {
@@ -359,27 +420,14 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     }
   };
 
-  const handleCreatePipeline = async () => {
-    const authToken = token ?? "";
-    if (!authToken) return;
-    setSaving(true);
-    setMessage(null);
-    try {
-      const definition = buildDefaultDefinition(kind);
-      const created = await createPipeline(authToken, {
-        name: `New ${kind === "ingestion" ? "Ingestion" : "Retrieval"} Pipeline`,
-        kind,
-        definition,
-        change_summary: "Initial pipeline scaffold.",
-      });
-      setPipelines((prev) => [created, ...prev]);
-      setSelectedPipeline(created);
-      setChangeSummary("");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to create pipeline.");
-    } finally {
-      setSaving(false);
-    }
+  const handleCreatePipeline = () => {
+    setShowCreatePipeline(true);
+  };
+
+  const handlePipelineCreated = (created: Pipeline) => {
+    setPipelines((prev) => [created, ...prev]);
+    setSelectedPipeline(created);
+    setChangeSummary("");
   };
 
   const handleActivateVersion = async (version: PipelineVersion) => {
@@ -461,6 +509,19 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         node.id === selectedNode.id ? { ...node, data: { ...node.data, label } } : node,
       ),
     );
+  };
+
+  const handleOpenIndexManager = (returnToWizard?: boolean) => {
+    setShowIndexManager(true);
+    if (returnToWizard) {
+      setReturnToPipelineWizard(true);
+    }
+  };
+
+  const handleRefreshIndexes = () => {
+    const authToken = token ?? "";
+    if (!authToken) return;
+    refreshIndexes(authToken);
   };
 
   const filteredEmbeddingModels = useMemo(() => {
@@ -599,7 +660,38 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-      <PipelineHeader kind={kind} onCreatePipeline={handleCreatePipeline} />
+      <CreatePipelineWizard
+        open={showCreatePipeline}
+        token={token ?? ""}
+        kind={kind}
+        indexes={indexes}
+        onClose={() => setShowCreatePipeline(false)}
+        onCreated={handlePipelineCreated}
+        onOpenIndexManager={() => {
+          setShowCreatePipeline(false);
+          handleOpenIndexManager(true);
+        }}
+      />
+      <IndexManagerModal
+        open={showIndexManager}
+        token={token ?? ""}
+        indexes={indexes}
+        loading={indexesLoading}
+        error={indexesError}
+        onClose={() => {
+          setShowIndexManager(false);
+          if (returnToPipelineWizard) {
+            setShowCreatePipeline(true);
+            setReturnToPipelineWizard(false);
+          }
+        }}
+        onRefresh={handleRefreshIndexes}
+      />
+      <PipelineHeader
+        kind={kind}
+        onCreatePipeline={handleCreatePipeline}
+        onManageIndexes={() => handleOpenIndexManager()}
+      />
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -651,6 +743,8 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
               isPreview={isPreview}
               validationErrors={selectedNodeErrors}
               applyDisabled={applyDisabled}
+              pineconeIndexes={indexes}
+              onOpenIndexManager={handleOpenIndexManager}
               embeddingModels={embeddingModels}
               filteredEmbeddingModels={sortedEmbeddingModels}
               embeddingModelSearchTerm={embeddingModelSearchTerm}

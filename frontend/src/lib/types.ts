@@ -93,6 +93,30 @@ export interface EmbeddingModelInfo {
   dimension?: number | null;
 }
 
+export interface PineconeIndex {
+  name: string;
+  vector_type?: string | null;
+  metric?: string | null;
+  dimension?: number | null;
+  status?: Record<string, unknown> | null;
+  host?: string | null;
+  spec?: Record<string, unknown> | null;
+  deletion_protection?: string | null;
+  tags?: Record<string, string> | null;
+  embed?: Record<string, unknown> | null;
+}
+
+export interface PineconeIndexCreatePayload {
+  name: string;
+  vector_type?: string;
+  dimension?: number;
+  metric?: string;
+  cloud?: string;
+  region?: string;
+  deletion_protection?: string;
+  tags?: Record<string, string>;
+}
+
 export interface CollectionCreatePayload {
   name: string;
   description?: string;

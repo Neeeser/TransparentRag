@@ -12,7 +12,7 @@ import { buildPipelineConfigFields, formatConfigValue } from "./pipeline-config"
 import type { PipelineConfigField } from "./pipeline-config";
 import type { PipelineNodeData } from "./PipelineNode";
 import type { EmbeddingModelSortOption } from "@/lib/model-sorting";
-import type { EmbeddingModelInfo } from "@/lib/types";
+import type { EmbeddingModelInfo, PineconeIndex } from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
 type PipelineInspectorProps = {
@@ -24,6 +24,8 @@ type PipelineInspectorProps = {
   isPreview?: boolean;
   validationErrors?: string[];
   applyDisabled?: boolean;
+  pineconeIndexes?: PineconeIndex[];
+  onOpenIndexManager?: () => void;
   embeddingModels?: EmbeddingModelInfo[];
   filteredEmbeddingModels?: EmbeddingModelInfo[];
   embeddingModelSearchTerm?: string;
@@ -56,23 +58,32 @@ export function PipelineInspector({
   embeddingModelSearchTerm = "",
   embeddingModelsLoading = false,
   embeddingModelsError = null,
+  pineconeIndexes = [],
+  onOpenIndexManager,
   onEmbeddingSearchChange,
   onSelectEmbeddingModel,
   embeddingModelSortOption = "price",
   onEmbeddingModelSortChange,
 }: PipelineInspectorProps) {
   const isEmbedder = selectedNode?.data.nodeType === "embedder.openrouter";
+  const isIndexNode =
+    selectedNode?.data.nodeType === "indexer.pinecone" ||
+    selectedNode?.data.nodeType === "retriever.pinecone";
   const fields = selectedNode?.data.configSchema
     ? buildPipelineConfigFields(selectedNode.data.configSchema)
     : [];
-  const filteredFields = isEmbedder
-    ? fields.filter((field) => !["model_name", "dimension"].includes(field.key))
-    : fields;
+  const filteredFields = fields.filter((field) => {
+    const embedderHidden = isEmbedder && ["model_name", "dimension"].includes(field.key);
+    const indexHidden = isIndexNode && field.key === "index_name";
+    return !(embedderHidden || indexHidden);
+  });
   const selectedEmbeddingModelKey =
     typeof configDraft.model_name === "string" ? configDraft.model_name : "";
   const selectedEmbeddingModel =
     embeddingModels.find((model) => model.id === selectedEmbeddingModelKey) ?? null;
   const visibleEmbeddingModels = filteredEmbeddingModels ?? embeddingModels;
+  const sortedIndexes = [...pineconeIndexes].sort((a, b) => a.name.localeCompare(b.name));
+  const indexValue = typeof configDraft.index_name === "string" ? configDraft.index_name : "";
 
   const handleConfigChange = (field: PipelineConfigField, rawValue: string | boolean) => {
     let nextValue: unknown = rawValue;
@@ -102,6 +113,20 @@ export function PipelineInspector({
       delete nextDraft[field.key];
     } else {
       nextDraft[field.key] = nextValue;
+    }
+    onConfigDraftChange(nextDraft);
+  };
+
+  const handleIndexChange = (value: string) => {
+    if (value === "__create__") {
+      onOpenIndexManager?.();
+      return;
+    }
+    const nextDraft = { ...configDraft };
+    if (!value) {
+      delete nextDraft.index_name;
+    } else {
+      nextDraft.index_name = value;
     }
     onConfigDraftChange(nextDraft);
   };
@@ -177,6 +202,33 @@ export function PipelineInspector({
                   sortOption={embeddingModelSortOption}
                   onSortChange={onEmbeddingModelSortChange ?? (() => undefined)}
                 />
+              </div>
+            ) : null}
+            {isIndexNode ? (
+              <div className="mt-2 space-y-3">
+                <ParameterFieldCard
+                  label="Pinecone index"
+                  description="Select an index to target for retrieval or ingestion."
+                  helper={indexValue ? undefined : "Required"}
+                  actionLabel="Manage"
+                  actionDisabled={isPreview}
+                  onAction={onOpenIndexManager}
+                >
+                  <select
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                    value={indexValue}
+                    onChange={(event) => handleIndexChange(event.target.value)}
+                    disabled={isPreview}
+                  >
+                    <option value="">Select an index</option>
+                    {sortedIndexes.map((index) => (
+                      <option key={index.name} value={index.name}>
+                        {index.name}
+                      </option>
+                    ))}
+                    <option value="__create__">+ Add new index...</option>
+                  </select>
+                </ParameterFieldCard>
               </div>
             ) : null}
             {filteredFields.length > 0 ? (

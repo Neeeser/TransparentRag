@@ -115,3 +115,28 @@ export const validatePipelineEdges = (
 
   return { edgeErrors, nodeErrors };
 };
+
+const resolveIndexName = (config: Record<string, unknown>) => {
+  const value = config.index_name;
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  return "";
+};
+
+export const validatePipelineConfig = (
+  nodes: Node<PipelineNodeData>[],
+  configOverrides?: Record<string, Record<string, unknown>>,
+) => {
+  const nodeErrors: Record<string, string[]> = {};
+  nodes.forEach((node) => {
+    if (!["indexer.pinecone", "retriever.pinecone"].includes(node.data.nodeType)) {
+      return;
+    }
+    const config = resolveNodeConfig(node, configOverrides);
+    if (!resolveIndexName(config)) {
+      nodeErrors[node.id] = ["Pinecone index is required. Select an index or create a new one."];
+    }
+  });
+  return { nodeErrors };
+};
