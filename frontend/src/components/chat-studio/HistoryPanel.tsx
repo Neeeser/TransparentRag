@@ -102,7 +102,7 @@ export const HistoryPanel = ({
               {filterActive ? `Filter (${filterCount})` : "Filter"}
             </button>
             {filterOpen && (
-              <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-white/10 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-xl">
+              <div className="absolute left-0 z-30 mt-2 w-72 rounded-2xl border border-white/10 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-xl">
                 {filterActive && (
                   <div className="mb-3 flex flex-wrap gap-2">
                     {filterCollectionIds.map((collectionId) => (
