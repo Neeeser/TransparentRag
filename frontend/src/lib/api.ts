@@ -18,6 +18,9 @@ import type {
   ChunkDetail,
   ModelInfo,
   ListModelEndpointsResponse,
+  EmbeddingModelInfo,
+  PineconeIndex,
+  PineconeIndexCreatePayload,
   ReasoningTraceSegment,
   Pipeline,
   PipelineDefinition,
@@ -220,6 +223,47 @@ export async function fetchPipeline(pipelineId: string, token: string): Promise<
 export async function fetchPipelineNodes(token: string): Promise<NodeSpec[]> {
   const response = await apiFetch<{ nodes: NodeSpec[] }>("/api/pipelines/nodes", { token });
   return response.nodes;
+}
+
+export async function fetchEmbeddingModels(
+  token: string,
+  refresh?: boolean,
+): Promise<EmbeddingModelInfo[]> {
+  const params = refresh ? "?refresh=true" : "";
+  return apiFetch<EmbeddingModelInfo[]>(`/api/models/embeddings${params}`, { token });
+}
+
+export async function listPineconeIndexes(token: string): Promise<PineconeIndex[]> {
+  const response = await apiFetch<{ indexes: PineconeIndex[] }>("/api/indexes", { token });
+  return response.indexes ?? [];
+}
+
+export async function describePineconeIndex(
+  indexName: string,
+  token: string,
+): Promise<PineconeIndex> {
+  return apiFetch<PineconeIndex>(`/api/indexes/${indexName}`, { token });
+}
+
+export async function createPineconeIndex(
+  token: string,
+  payload: PineconeIndexCreatePayload,
+): Promise<PineconeIndex> {
+  return apiFetch<PineconeIndex>("/api/indexes", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePineconeIndex(
+  indexName: string,
+  token: string,
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/indexes/${indexName}`, {
+    method: "DELETE",
+    token,
+  });
 }
 
 export async function validatePipeline(

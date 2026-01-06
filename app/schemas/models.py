@@ -30,6 +30,17 @@ class ModelInfo(BaseModel):
     default_parameters: Optional[Dict[str, Any]] = None
 
 
+class EmbeddingModelInfo(BaseModel):
+    """Minimal metadata for embedding model listings."""
+
+    id: str
+    name: str
+    description: Optional[str] = None
+    context_length: Optional[float] = None
+    pricing: Optional[ModelPricing] = None
+    dimension: Optional[int] = None
+
+
 NumberLike = float | str
 
 

@@ -1,4 +1,5 @@
 import { resolveNodeDescription, resolveNodeExample } from "./node-content";
+import { getNodeFamilyOrder, resolveNodeFamily, type NodeFamily } from "./pipeline-theme";
 
 import type { PipelineNodeData } from "./PipelineNode";
 import type { NodeSpec, PipelineDefinition, PipelineKind } from "@/lib/types";
@@ -30,7 +31,18 @@ export const createId = () => {
   return `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 };
 
-export const buildDefaultDefinition = (kind: PipelineKind): PipelineDefinition => {
+export const buildDefaultDefinition = (
+  kind: PipelineKind,
+  indexName?: string,
+  indexDimension?: number,
+): PipelineDefinition => {
+  const indexConfig =
+    typeof indexName === "string" && indexName.trim()
+      ? {
+          index_name: indexName.trim(),
+          ...(typeof indexDimension === "number" ? { dimension: indexDimension } : {}),
+        }
+      : {};
   if (kind === "retrieval") {
     return {
       nodes: [
@@ -45,7 +57,7 @@ export const buildDefaultDefinition = (kind: PipelineKind): PipelineDefinition =
           id: NODE_PINECONE_RETRIEVER,
           type: "retriever.pinecone",
           name: "Pinecone Retriever",
-          config: {},
+          config: indexConfig,
           position: { x: DEFAULT_NODE_X, y: DEFAULT_NODE_Y_SPACING },
         },
         {
@@ -94,9 +106,12 @@ export const buildDefaultDefinition = (kind: PipelineKind): PipelineDefinition =
       },
       {
         id: NODE_CHUNK_DOCUMENT,
-        type: "chunker.collection",
-        name: "Chunker",
-        config: {},
+        type: "chunker.token",
+        name: "Token Chunker",
+        config: {
+          chunk_size: 1024,
+          chunk_overlap: 200,
+        },
         position: { x: DEFAULT_NODE_X, y: DEFAULT_NODE_Y_SPACING * 2 },
       },
       {
@@ -110,7 +125,7 @@ export const buildDefaultDefinition = (kind: PipelineKind): PipelineDefinition =
         id: NODE_INDEX_CHUNKS,
         type: "indexer.pinecone",
         name: "Indexer",
-        config: {},
+        config: indexConfig,
         position: { x: DEFAULT_NODE_X, y: DEFAULT_NODE_Y_SPACING * 4 },
       },
       {
@@ -216,12 +231,24 @@ export const toPipelineDefinition = (
   viewport: {},
 });
 
-export const buildNodeCatalog = (specs: NodeSpec[]) =>
-  specs.reduce<Record<string, NodeSpec[]>>((acc, spec) => {
-    acc[spec.category] = acc[spec.category] ?? [];
-    acc[spec.category].push(spec);
-    return acc;
-  }, {});
+export const buildNodeCatalog = (specs: NodeSpec[]) => {
+  const catalog = specs.reduce<Record<NodeFamily, NodeSpec[]>>(
+    (acc, spec) => {
+      const family = resolveNodeFamily(spec.type);
+      acc[family] = acc[family] ?? [];
+      acc[family].push(spec);
+      return acc;
+    },
+    {} as Record<NodeFamily, NodeSpec[]>,
+  );
+  const order = getNodeFamilyOrder();
+  return order
+    .filter((family) => catalog[family]?.length)
+    .map((family) => ({
+      family,
+      specs: catalog[family] ?? [],
+    }));
+};
 
 export const createDefaultNodePosition = (count: number) => ({
   x: 160,

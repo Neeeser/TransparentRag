@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/panel";
 import { ParameterFieldCard, ParameterInput } from "@/components/ui/parameter-controls";
 
+import { EmbeddingModelSelectorCard } from "./EmbeddingModelSelectorCard";
 import { buildPipelineConfigFields, formatConfigValue } from "./pipeline-config";
 
 import type { PipelineConfigField } from "./pipeline-config";
 import type { PipelineNodeData } from "./PipelineNode";
+import type { EmbeddingModelSortOption } from "@/lib/model-sorting";
+import type { EmbeddingModelInfo, PineconeIndex } from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
 type PipelineInspectorProps = {
@@ -18,6 +21,20 @@ type PipelineInspectorProps = {
   onConfigDraftChange: (value: Record<string, unknown>) => void;
   onLabelChange: (value: string) => void;
   onApplyConfig: () => void;
+  isPreview?: boolean;
+  validationErrors?: string[];
+  applyDisabled?: boolean;
+  pineconeIndexes?: PineconeIndex[];
+  onOpenIndexManager?: () => void;
+  embeddingModels?: EmbeddingModelInfo[];
+  filteredEmbeddingModels?: EmbeddingModelInfo[];
+  embeddingModelSearchTerm?: string;
+  embeddingModelsLoading?: boolean;
+  embeddingModelsError?: string | null;
+  onEmbeddingSearchChange?: (value: string) => void;
+  onSelectEmbeddingModel?: (modelId: string) => void;
+  embeddingModelSortOption?: EmbeddingModelSortOption;
+  onEmbeddingModelSortChange?: (value: EmbeddingModelSortOption) => void;
 };
 
 const getInputValue = (field: PipelineConfigField, draft: Record<string, unknown>) => {
@@ -33,10 +50,41 @@ export function PipelineInspector({
   onConfigDraftChange,
   onLabelChange,
   onApplyConfig,
+  isPreview = false,
+  validationErrors = [],
+  applyDisabled = false,
+  embeddingModels = [],
+  filteredEmbeddingModels,
+  embeddingModelSearchTerm = "",
+  embeddingModelsLoading = false,
+  embeddingModelsError = null,
+  pineconeIndexes = [],
+  onOpenIndexManager,
+  onEmbeddingSearchChange,
+  onSelectEmbeddingModel,
+  embeddingModelSortOption = "price",
+  onEmbeddingModelSortChange,
 }: PipelineInspectorProps) {
+  const isEmbedder = selectedNode?.data.nodeType === "embedder.openrouter";
+  const isIndexNode =
+    selectedNode?.data.nodeType === "indexer.pinecone" ||
+    selectedNode?.data.nodeType === "retriever.pinecone";
   const fields = selectedNode?.data.configSchema
     ? buildPipelineConfigFields(selectedNode.data.configSchema)
     : [];
+  const filteredFields = fields.filter((field) => {
+    const embedderHidden = isEmbedder && ["model_name", "dimension"].includes(field.key);
+    const indexHidden = isIndexNode && ["index_name", "dimension"].includes(field.key);
+    return !(embedderHidden || indexHidden);
+  });
+  const selectedEmbeddingModelKey =
+    typeof configDraft.model_name === "string" ? configDraft.model_name : "";
+  const selectedEmbeddingModel =
+    embeddingModels.find((model) => model.id === selectedEmbeddingModelKey) ?? null;
+  const visibleEmbeddingModels = filteredEmbeddingModels ?? embeddingModels;
+  const sortedIndexes = [...pineconeIndexes].sort((a, b) => a.name.localeCompare(b.name));
+  const indexValue = typeof configDraft.index_name === "string" ? configDraft.index_name : "";
+  const selectedIndex = sortedIndexes.find((index) => index.name === indexValue) ?? null;
 
   const handleConfigChange = (field: PipelineConfigField, rawValue: string | boolean) => {
     let nextValue: unknown = rawValue;
@@ -70,17 +118,44 @@ export function PipelineInspector({
     onConfigDraftChange(nextDraft);
   };
 
+  const handleIndexChange = (value: string) => {
+    if (value === "__create__") {
+      onOpenIndexManager?.();
+      return;
+    }
+    const nextDraft = { ...configDraft };
+    if (!value) {
+      delete nextDraft.index_name;
+      delete nextDraft.dimension;
+    } else {
+      nextDraft.index_name = value;
+      const index = sortedIndexes.find((item) => item.name === value);
+      if (typeof index?.dimension === "number") {
+        nextDraft.dimension = index.dimension;
+      } else {
+        delete nextDraft.dimension;
+      }
+    }
+    onConfigDraftChange(nextDraft);
+  };
+
   return (
     <GlassCard className="rounded-3xl p-5">
       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Inspector</p>
       {selectedNode ? (
         <div className="mt-4 space-y-3 text-sm">
+          {isPreview ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+              Preview only. Drag this node into the canvas to add it.
+            </div>
+          ) : null}
           <div>
             <p className="text-xs text-slate-400">Node label</p>
             <input
               className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-400"
               value={selectedNode.data.label}
               onChange={(event) => onLabelChange(event.target.value)}
+              readOnly={isPreview}
             />
           </div>
           <div>
@@ -121,9 +196,58 @@ export function PipelineInspector({
           </div>
           <div>
             <p className="text-xs text-slate-400">Config</p>
-            {fields.length > 0 ? (
+            {isEmbedder ? (
               <div className="mt-2 space-y-3">
-                {fields.map((field) => {
+                <EmbeddingModelSelectorCard
+                  currentModelInfo={selectedEmbeddingModel}
+                  selectedModelKey={selectedEmbeddingModelKey}
+                  filteredModelCatalog={visibleEmbeddingModels}
+                  modelSearchTerm={embeddingModelSearchTerm}
+                  onSearchChange={onEmbeddingSearchChange ?? (() => undefined)}
+                  modelsLoading={embeddingModelsLoading}
+                  modelsError={embeddingModelsError}
+                  onSelectModel={onSelectEmbeddingModel ?? (() => undefined)}
+                  sortOption={embeddingModelSortOption}
+                  onSortChange={onEmbeddingModelSortChange ?? (() => undefined)}
+                />
+              </div>
+            ) : null}
+            {isIndexNode ? (
+              <div className="mt-2 space-y-3">
+                <ParameterFieldCard
+                  label="Pinecone index"
+                  description="Select an index to target for retrieval or ingestion."
+                  helper={
+                    indexValue
+                      ? selectedIndex?.dimension
+                        ? `Dimension: ${selectedIndex.dimension}`
+                        : "Dimension: n/a"
+                      : "Required"
+                  }
+                  actionLabel="Manage"
+                  actionDisabled={isPreview}
+                  onAction={onOpenIndexManager}
+                >
+                  <select
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                    value={indexValue}
+                    onChange={(event) => handleIndexChange(event.target.value)}
+                    disabled={isPreview}
+                  >
+                    <option value="">Select an index</option>
+                    {sortedIndexes.map((index) => (
+                      <option key={index.name} value={index.name}>
+                        {index.name}
+                      </option>
+                    ))}
+                    <option value="__create__">+ Add new index...</option>
+                  </select>
+                </ParameterFieldCard>
+              </div>
+            ) : null}
+            {filteredFields.length > 0 ? (
+              <div className="mt-2 space-y-3">
+                {filteredFields.map((field) => {
                   const value = getInputValue(field, configDraft);
                   const helper =
                     field.defaultValue !== undefined
@@ -147,21 +271,31 @@ export function PipelineInspector({
                         step={field.step}
                         placeholder={field.placeholder}
                         options={field.options}
+                        disabled={isPreview}
                         onChange={(nextValue) => handleConfigChange(field, nextValue)}
                       />
                     </ParameterFieldCard>
                   );
                 })}
               </div>
-            ) : (
+            ) : !isEmbedder ? (
               <p className="mt-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
                 This node has no configurable settings.
               </p>
-            )}
+            ) : null}
           </div>
-          <Button variant="secondary" onClick={onApplyConfig}>
-            Apply config
-          </Button>
+          {validationErrors.length > 0 ? (
+            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {validationErrors.map((error) => (
+                <p key={error}>{error}</p>
+              ))}
+            </div>
+          ) : null}
+          {!isPreview ? (
+            <Button variant="secondary" onClick={onApplyConfig} disabled={applyDisabled}>
+              Apply config
+            </Button>
+          ) : null}
         </div>
       ) : (
         <p className="mt-3 text-sm text-slate-400">

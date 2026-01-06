@@ -25,6 +25,7 @@ import type {
   ParameterDefinition,
   ParameterOverrides,
 } from "@/lib/chat-parameters";
+import type { ChatModelSortOption } from "@/lib/model-sorting";
 import type {
   Collection,
   CollectionPromptDetails,
@@ -50,6 +51,8 @@ interface TelemetryPanelProps {
   onModelSelectorToggle: () => void;
   modelSearchTerm: string;
   onModelSearchChange: (value: string) => void;
+  modelSortOption: ChatModelSortOption;
+  onModelSortChange: (value: ChatModelSortOption) => void;
   toolReadyModels: ModelInfo[];
   filteredModelCatalog: ModelInfo[];
   modelsLoading: boolean;
@@ -114,6 +117,8 @@ export const TelemetryPanel = ({
   onModelSelectorToggle,
   modelSearchTerm,
   onModelSearchChange,
+  modelSortOption,
+  onModelSortChange,
   toolReadyModels,
   filteredModelCatalog,
   modelsLoading,
@@ -224,6 +229,8 @@ export const TelemetryPanel = ({
             filteredModelCatalog={filteredModelCatalog}
             modelSearchTerm={modelSearchTerm}
             onSearchChange={onModelSearchChange}
+            sortOption={modelSortOption}
+            onSortChange={onModelSortChange}
             modelsLoading={modelsLoading}
             modelsError={modelsError}
             onSelectModel={onSelectModel}

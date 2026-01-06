@@ -260,6 +260,76 @@ def test_list_model_endpoints_encodes_path(_client: OpenRouterClient) -> None:
     assert _client._http.get_calls == ["/models/open%20ai/gpt%2F4/endpoints"]
 
 
+def test_list_embedding_models_caches_and_refreshes(_client: OpenRouterClient) -> None:
+    _StubHttpClient.responses = {
+        "/embeddings/models": [
+            {"data": [{"id": "embed-a", "name": "Embed A"}]},
+            {"data": [{"id": "embed-b", "name": "Embed B"}]},
+        ]
+    }
+
+    first = _client.list_embedding_models()
+    second = _client.list_embedding_models()
+    refreshed = _client.list_embedding_models(force_refresh=True)
+
+    assert first[0]["id"] == "embed-a"
+    assert second[0]["id"] == "embed-a"
+    assert refreshed[0]["id"] == "embed-b"
+    assert _client._http.get_calls.count("/embeddings/models") == 2
+
+
+def test_list_embedding_models_handles_invalid_payload(_client: OpenRouterClient) -> None:
+    _StubHttpClient.responses = {
+        "/embeddings/models": [{"data": {"id": "embed-a"}}],
+    }
+
+    models = _client.list_embedding_models()
+
+    assert models == []
+
+
+def test_list_embedding_models_skips_invalid_entries(_client: OpenRouterClient) -> None:
+    _StubHttpClient.responses = {
+        "/embeddings/models": [
+            {"data": ["bad-entry", {"name": "No Id"}, {"id": "embed-a", "name": "Embed A"}]}
+        ],
+    }
+
+    def _raise_dimension(_model_id: str) -> int:
+        raise ValueError("no dimension")
+
+    _client.get_embedding_dimension = _raise_dimension  # type: ignore[assignment]
+
+    models = _client.list_embedding_models()
+
+    assert len(models) == 2
+    assert models[0]["name"] == "No Id"
+    assert models[1]["id"] == "embed-a"
+    assert models[1]["dimension"] is None
+
+
+def test_list_embedding_models_uses_dimension_cache(_client: OpenRouterClient) -> None:
+    _StubHttpClient.responses = {
+        "/embeddings/models": [{"data": [{"id": "embed-a", "name": "Embed A"}]}],
+    }
+    _client._embedding_model_cache["dimensions"] = {"embed-a": 256}
+
+    def _raise_dimension(_model_id: str) -> int:
+        raise AssertionError("dimension lookup should be skipped")
+
+    _client.get_embedding_dimension = _raise_dimension  # type: ignore[assignment]
+
+    models = _client.list_embedding_models(force_refresh=True)
+
+    assert models[0]["dimension"] == 256
+
+
+def test_get_embedding_dimension_returns_length(_client: OpenRouterClient) -> None:
+    dimension = _client.get_embedding_dimension("model-a")
+
+    assert dimension == 1
+
+
 def test_embed_merges_extra_headers(_client: OpenRouterClient) -> None:
     result = _client.embed(["hello"], extra_headers={"X-Extra": "value"})
 
@@ -267,6 +337,48 @@ def test_embed_merges_extra_headers(_client: OpenRouterClient) -> None:
     assert call["extra_headers"]["X-Extra"] == "value"
     assert call["extra_headers"]["X-Title"] == "TransparentRag"
     assert result["data"][0]["embedding"] == [0.1]
+
+
+def test_embed_includes_dimensions(_client: OpenRouterClient) -> None:
+    _client.embed(["hello"], dimensions=1536)
+
+    call = _client._client.embeddings.calls[0]
+    assert call["dimensions"] == 1536
+
+
+def test_get_embedding_dimension_raises_on_missing_model_id(_client: OpenRouterClient) -> None:
+    with pytest.raises(ValueError, match="must be provided"):
+        _client.get_embedding_dimension("")
+
+
+def test_get_embedding_dimension_raises_on_invalid_payload(_client: OpenRouterClient) -> None:
+    def _stub_embed(*_args, **_kwargs):
+        return {"data": []}
+
+    _client.embed = _stub_embed  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="missing data array"):
+        _client.get_embedding_dimension("model-a")
+
+
+def test_get_embedding_dimension_raises_on_invalid_entry(_client: OpenRouterClient) -> None:
+    def _stub_embed(*_args, **_kwargs):
+        return {"data": ["bad"]}
+
+    _client.embed = _stub_embed  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="entry is invalid"):
+        _client.get_embedding_dimension("model-a")
+
+
+def test_get_embedding_dimension_raises_on_missing_embedding(_client: OpenRouterClient) -> None:
+    def _stub_embed(*_args, **_kwargs):
+        return {"data": [{"embedding": "bad"}]}
+
+    _client.embed = _stub_embed  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="missing embedding values"):
+        _client.get_embedding_dimension("model-a")
 
 
 def test_chat_includes_parameters_and_extra_body(_client: OpenRouterClient) -> None:

@@ -12,7 +12,13 @@ from pydantic import BaseModel, Field
 from app.api.config import get_settings
 from app.pipelines.nodes.trace_utils import summarize_match_order, summarize_matches, summarize_text
 from app.pipelines.payloads import RetrievalPayload, RetrievalRequestPayload
-from app.pipelines.runtime import NodePort, PipelineNodeBase, PipelineRunContext
+from app.pipelines.runtime import (
+    NodePort,
+    PipelineNodeBase,
+    PipelineRunContext,
+    PipelineValidationIssue,
+)
+from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.retrieval.embedders.openrouter_embedder import OpenRouterEmbedder
 from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig
@@ -100,6 +106,25 @@ class PineconeRetrieverNode(PipelineNodeBase):
     input_ports = [NodePort(key="request", label="Request", data_type="query_request")]
     output_ports = [NodePort(key="results", label="Results", data_type="retrieval_results")]
     config_model = RetrieverConfig
+
+    @classmethod
+    def validation_issues_for_node(
+        cls,
+        node: PipelineNodeDefinition,
+        _definition: PipelineDefinition,
+        _registry: "NodeRegistry",
+    ) -> list[PipelineValidationIssue]:
+        """Validate required Pinecone index selection."""
+        issues: list[PipelineValidationIssue] = []
+        index_name = (node.config or {}).get("index_name", "")
+        if not isinstance(index_name, str) or not index_name.strip():
+            issues.append(
+                PipelineValidationIssue(
+                    message=f"Retriever node '{node.id}' must specify a Pinecone index.",
+                    severity="error",
+                )
+            )
+        return issues
 
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
         """Retrieve chunks for the query request."""

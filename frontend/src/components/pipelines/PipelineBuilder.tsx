@@ -2,27 +2,36 @@
 
 import { addEdge, useEdgesState, useNodesState } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";
 import {
   activatePipelineVersion,
-  createPipeline,
   deletePipeline,
   fetchCollections,
   fetchPipelineNodes,
   fetchPipelines,
+  fetchEmbeddingModels,
+  listPineconeIndexes,
   listPipelineVersions,
   updatePipeline,
   validatePipeline,
 } from "@/lib/api";
+import { sortEmbeddingModels, type EmbeddingModelSortOption } from "@/lib/model-sorting";
 import { useAuth } from "@/providers/auth-provider";
 
+import { CreatePipelineWizard } from "./CreatePipelineWizard";
+import { IndexManagerModal } from "./index-manager/IndexManagerModal";
 import { resolveNodeDescription, resolveNodeExample } from "./node-content";
 import {
-  buildDefaultDefinition,
+  validatePipelineConfig,
+  validatePipelineConnection,
+  validatePipelineEdges,
+} from "./pipeline-io";
+import { PIPELINE_KIND_STORAGE_KEY } from "./pipeline-kinds";
+import {
   buildNodeCatalog,
   createDefaultNodePosition,
   createId,
@@ -38,19 +47,49 @@ import { PipelineSavePanel } from "./PipelineSavePanel";
 import { PipelineSidebar } from "./PipelineSidebar";
 
 import type { PipelineNodeData } from "./PipelineNode";
-import type { Collection, NodeSpec, Pipeline, PipelineKind, PipelineVersion } from "@/lib/types";
-import type { Connection, Edge, Node } from "@xyflow/react";
+import type {
+  Collection,
+  EmbeddingModelInfo,
+  NodeSpec,
+  Pipeline,
+  PipelineKind,
+  PipelineVersion,
+  PineconeIndex,
+} from "@/lib/types";
+import type { Connection, Edge, Node, ReactFlowInstance } from "@xyflow/react";
 
-export function PipelineBuilder() {
+type PipelineBuilderProps = {
+  kind: PipelineKind;
+};
+
+const HIDDEN_NODE_TYPES = new Set(["chunker.collection"]);
+const PREVIEW_NODE_SIZE = { width: 180, height: 72 };
+
+export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const { token } = useAuth();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [nodeSpecs, setNodeSpecs] = useState<NodeSpec[]>([]);
+  const [embeddingModels, setEmbeddingModels] = useState<EmbeddingModelInfo[]>([]);
+  const [embeddingModelsLoading, setEmbeddingModelsLoading] = useState(false);
+  const [embeddingModelsError, setEmbeddingModelsError] = useState<string | null>(null);
+  const [embeddingModelSearchTerm, setEmbeddingModelSearchTerm] = useState("");
+  const [embeddingModelSortOption, setEmbeddingModelSortOption] =
+    useState<EmbeddingModelSortOption>("price");
+  const [indexes, setIndexes] = useState<PineconeIndex[]>([]);
+  const [indexesLoading, setIndexesLoading] = useState(false);
+  const [indexesError, setIndexesError] = useState<string | null>(null);
   const [versions, setVersions] = useState<PipelineVersion[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<PipelineNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [previewSpec, setPreviewSpec] = useState<NodeSpec | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [dropPreviewPosition, setDropPreviewPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [dropPreviewLabel, setDropPreviewLabel] = useState<string | null>(null);
   const [configDraft, setConfigDraft] = useState<Record<string, unknown>>({});
   const [changeSummary, setChangeSummary] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -58,11 +97,53 @@ export function PipelineBuilder() {
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null);
+  const [showIndexManager, setShowIndexManager] = useState(false);
+  const [showCreatePipeline, setShowCreatePipeline] = useState(false);
+  const [returnToPipelineWizard, setReturnToPipelineWizard] = useState(false);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
   );
+  const previewNode = useMemo(() => {
+    if (!previewSpec) return null;
+    const description = resolveNodeDescription(previewSpec);
+    const example = resolveNodeExample(previewSpec);
+    const node: Node<PipelineNodeData> = {
+      id: `preview-${previewSpec.type}`,
+      type: "pipelineNode",
+      position: { x: 0, y: 0 },
+      data: {
+        label: previewSpec.label,
+        nodeType: previewSpec.type,
+        description,
+        example,
+        inputs: previewSpec.input_ports,
+        outputs: previewSpec.output_ports,
+        config: previewSpec.default_config ?? {},
+        configSchema: previewSpec.config_schema ?? {},
+      },
+    };
+    return node;
+  }, [previewSpec]);
+  const inspectedNode = previewNode ?? selectedNode;
+  const isPreview = Boolean(previewNode);
+  const nodesWithPreview = useMemo(() => {
+    if (!dropPreviewPosition) return nodes;
+    return [
+      ...nodes,
+      {
+        id: "drop-preview",
+        type: "dropPreview",
+        position: dropPreviewPosition,
+        data: { label: dropPreviewLabel ?? "Drop here" },
+        selectable: false,
+        draggable: false,
+        connectable: false,
+        focusable: false,
+      } satisfies Node,
+    ];
+  }, [dropPreviewLabel, dropPreviewPosition, nodes]);
 
   useEffect(() => {
     const authToken = token ?? "";
@@ -73,7 +154,7 @@ export function PipelineBuilder() {
       setLoading(true);
       try {
         const [pipelinesResponse, nodesResponse, collectionsResponse] = await Promise.all([
-          fetchPipelines(authToken),
+          fetchPipelines(authToken, kind),
           fetchPipelineNodes(authToken),
           fetchCollections(authToken),
         ]);
@@ -95,7 +176,79 @@ export function PipelineBuilder() {
     return () => {
       cancelled = true;
     };
+  }, [token, kind]);
+
+  useEffect(() => {
+    const authToken = token ?? "";
+    if (!authToken) return;
+    let cancelled = false;
+    async function loadEmbeddingModels() {
+      setEmbeddingModelsLoading(true);
+      setEmbeddingModelsError(null);
+      try {
+        const models = await fetchEmbeddingModels(authToken);
+        if (!cancelled) {
+          setEmbeddingModels(models);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setEmbeddingModelsError(
+            error instanceof Error ? error.message : "Unable to load embedding models.",
+          );
+        }
+      } finally {
+        if (!cancelled) setEmbeddingModelsLoading(false);
+      }
+    }
+    loadEmbeddingModels();
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
+
+  const refreshIndexes = async (authToken: string) => {
+    setIndexesLoading(true);
+    setIndexesError(null);
+    try {
+      const data = await listPineconeIndexes(authToken);
+      setIndexes(data);
+    } catch (error) {
+      setIndexesError(error instanceof Error ? error.message : "Unable to load indexes.");
+    } finally {
+      setIndexesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const authToken = token ?? "";
+    if (!authToken) return;
+    let cancelled = false;
+    async function loadIndexes() {
+      setIndexesLoading(true);
+      setIndexesError(null);
+      try {
+        const data = await listPineconeIndexes(authToken);
+        if (!cancelled) {
+          setIndexes(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setIndexesError(error instanceof Error ? error.message : "Unable to load indexes.");
+        }
+      } finally {
+        if (!cancelled) setIndexesLoading(false);
+      }
+    }
+    loadIndexes();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(PIPELINE_KIND_STORAGE_KEY, kind);
+  }, [kind]);
 
   useEffect(() => {
     if (!selectedPipeline || nodeSpecs.length === 0) {
@@ -106,6 +259,9 @@ export function PipelineBuilder() {
     setNodes(toFlowNodes(selectedPipeline.definition, nodeSpecs));
     setEdges(toFlowEdges(selectedPipeline.definition));
     setSelectedNodeId(null);
+    setPreviewSpec(null);
+    setDropPreviewPosition(null);
+    setDropPreviewLabel(null);
   }, [selectedPipeline, nodeSpecs, setNodes, setEdges]);
 
   useEffect(() => {
@@ -134,14 +290,37 @@ export function PipelineBuilder() {
   }, [selectedPipeline, token]);
 
   useEffect(() => {
-    if (!selectedNode) {
+    if (!inspectedNode) {
       setConfigDraft({});
       return;
     }
-    setConfigDraft({ ...(selectedNode.data.config ?? {}) });
-  }, [selectedNode]);
+    setConfigDraft({ ...(inspectedNode.data.config ?? {}) });
+  }, [inspectedNode]);
+
+  const configOverrides = useMemo(() => {
+    if (!selectedNode) return undefined;
+    return { [selectedNode.id]: configDraft };
+  }, [selectedNode, configDraft]);
+
+  const { edgeErrors, nodeErrors } = useMemo(() => {
+    const edgeValidation = validatePipelineEdges(nodes, edges, configOverrides);
+    const configValidation = validatePipelineConfig(nodes, configOverrides);
+    const mergedNodeErrors: Record<string, string[]> = { ...edgeValidation.nodeErrors };
+    Object.entries(configValidation.nodeErrors).forEach(([nodeId, errors]) => {
+      mergedNodeErrors[nodeId] = [...(mergedNodeErrors[nodeId] ?? []), ...errors];
+    });
+    return { edgeErrors: edgeValidation.edgeErrors, nodeErrors: mergedNodeErrors };
+  }, [nodes, edges, configOverrides]);
+
+  const validateConnection = (connection: Connection) =>
+    validatePipelineConnection(connection, nodes, configOverrides);
 
   const handleConnect = (connection: Connection) => {
+    const validation = validateConnection(connection);
+    if (!validation.valid) {
+      setMessage(validation.reason ?? "Invalid connection.");
+      return;
+    }
     setEdges((prev) =>
       addEdge(
         {
@@ -154,14 +333,14 @@ export function PipelineBuilder() {
     );
   };
 
-  const handleAddNode = (spec: NodeSpec) => {
+  const handleAddNode = (spec: NodeSpec, position?: { x: number; y: number }) => {
     const nodeId = createId();
     const description = resolveNodeDescription(spec);
     const example = resolveNodeExample(spec);
     const newNode: Node<PipelineNodeData> = {
       id: nodeId,
       type: "pipelineNode",
-      position: createDefaultNodePosition(nodes.length),
+      position: position ?? createDefaultNodePosition(nodes.length),
       data: {
         label: spec.label,
         nodeType: spec.type,
@@ -175,10 +354,18 @@ export function PipelineBuilder() {
     };
     setNodes((prev) => [...prev, newNode]);
     setSelectedNodeId(nodeId);
+    setPreviewSpec(null);
+    setDropPreviewPosition(null);
+    setDropPreviewLabel(null);
   };
 
   const handleApplyConfig = () => {
     if (!selectedNode) return;
+    const selectedErrors = nodeErrors[selectedNode.id] ?? [];
+    if (selectedErrors.length > 0) {
+      setMessage(selectedErrors[0]);
+      return;
+    }
     const nextConfig = { ...configDraft };
     setNodes((prev) =>
       prev.map((node) =>
@@ -193,6 +380,11 @@ export function PipelineBuilder() {
   const handleSavePipeline = async () => {
     const authToken = token ?? "";
     if (!authToken || !selectedPipeline) return;
+    const validationErrors = Object.values(nodeErrors).flat();
+    if (validationErrors.length > 0) {
+      setMessage(validationErrors[0]);
+      return;
+    }
     setValidating(true);
     setMessage(null);
     try {
@@ -202,6 +394,9 @@ export function PipelineBuilder() {
         setMessage(`Validation failed: ${validation.errors.join(" ")}`);
         return;
       }
+      const warningText = validation.warnings?.length
+        ? `Warnings: ${validation.warnings.join(" ")}`
+        : "";
       setSaving(true);
       const updated = await updatePipeline(selectedPipeline.id, authToken, {
         definition,
@@ -212,7 +407,11 @@ export function PipelineBuilder() {
       );
       setSelectedPipeline(updated);
       setChangeSummary("");
-      setMessage("Pipeline saved as a new version.");
+      setMessage(
+        warningText
+          ? `Pipeline saved as a new version. ${warningText}`
+          : "Pipeline saved as a new version.",
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save pipeline.");
     } finally {
@@ -221,27 +420,14 @@ export function PipelineBuilder() {
     }
   };
 
-  const handleCreatePipeline = async (kind: PipelineKind) => {
-    const authToken = token ?? "";
-    if (!authToken) return;
-    setSaving(true);
-    setMessage(null);
-    try {
-      const definition = buildDefaultDefinition(kind);
-      const created = await createPipeline(authToken, {
-        name: `New ${kind === "ingestion" ? "Ingestion" : "Retrieval"} Pipeline`,
-        kind,
-        definition,
-        change_summary: "Initial pipeline scaffold.",
-      });
-      setPipelines((prev) => [created, ...prev]);
-      setSelectedPipeline(created);
-      setChangeSummary("");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to create pipeline.");
-    } finally {
-      setSaving(false);
-    }
+  const handleCreatePipeline = () => {
+    setShowCreatePipeline(true);
+  };
+
+  const handlePipelineCreated = (created: Pipeline) => {
+    setPipelines((prev) => [created, ...prev]);
+    setSelectedPipeline(created);
+    setChangeSummary("");
   };
 
   const handleActivateVersion = async (version: PipelineVersion) => {
@@ -325,7 +511,138 @@ export function PipelineBuilder() {
     );
   };
 
-  const catalogByCategory = useMemo(() => buildNodeCatalog(nodeSpecs), [nodeSpecs]);
+  const handleOpenIndexManager = (returnToWizard?: boolean) => {
+    setShowIndexManager(true);
+    if (returnToWizard) {
+      setReturnToPipelineWizard(true);
+    }
+  };
+
+  const handleRefreshIndexes = () => {
+    const authToken = token ?? "";
+    if (!authToken) return;
+    refreshIndexes(authToken);
+  };
+
+  const filteredEmbeddingModels = useMemo(() => {
+    const term = embeddingModelSearchTerm.trim().toLowerCase();
+    if (!term) return embeddingModels;
+    return embeddingModels.filter((model) => {
+      const haystack = `${model.name} ${model.id} ${model.description ?? ""}`.toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [embeddingModels, embeddingModelSearchTerm]);
+
+  const sortedEmbeddingModels = useMemo(
+    () => sortEmbeddingModels(filteredEmbeddingModels, embeddingModelSortOption),
+    [filteredEmbeddingModels, embeddingModelSortOption],
+  );
+
+  const handleSelectEmbeddingModel = async (modelId: string) => {
+    if (!selectedNode || selectedNode.data.nodeType !== "embedder.openrouter") return;
+    const selected = embeddingModels.find((model) => model.id === modelId);
+    const nextDimension = selected?.dimension ?? undefined;
+    setConfigDraft((prev) => {
+      const next = { ...prev, model_name: modelId };
+      if (typeof nextDimension === "number") {
+        next.dimension = nextDimension;
+      } else {
+        delete next.dimension;
+      }
+      return next;
+    });
+  };
+
+  const catalogSpecs = useMemo(
+    () => nodeSpecs.filter((spec) => spec.category === kind && !HIDDEN_NODE_TYPES.has(spec.type)),
+    [nodeSpecs, kind],
+  );
+  const catalogByFamily = useMemo(() => buildNodeCatalog(catalogSpecs), [catalogSpecs]);
+
+  const handlePreviewNode = (spec: NodeSpec) => {
+    setPreviewSpec(spec);
+    setSelectedNodeId(null);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const type = event.dataTransfer.getData("application/transparentrag-node");
+    if (!type) {
+      setDropPreviewPosition(null);
+      setDropPreviewLabel(null);
+      return;
+    }
+    const spec = catalogSpecs.find((item) => item.type === type);
+    if (!spec || !reactFlowInstance) {
+      setDropPreviewPosition(null);
+      setDropPreviewLabel(null);
+      return;
+    }
+    const point = {
+      x: event.clientX - PREVIEW_NODE_SIZE.width / 2,
+      y: event.clientY - PREVIEW_NODE_SIZE.height / 2,
+    };
+    const position =
+      "screenToFlowPosition" in reactFlowInstance
+        ? reactFlowInstance.screenToFlowPosition(point)
+        : reactFlowInstance.project(point);
+    setDropPreviewPosition(position);
+    setDropPreviewLabel(spec.label);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const type = event.dataTransfer.getData("application/transparentrag-node");
+    if (!type) return;
+    const spec = catalogSpecs.find((item) => item.type === type);
+    if (!spec) {
+      setMessage("Unable to add node: unknown type.");
+      return;
+    }
+    if (dropPreviewPosition) {
+      handleAddNode(spec, dropPreviewPosition);
+      return;
+    }
+    if (!reactFlowInstance) {
+      handleAddNode(spec);
+      return;
+    }
+    const point = {
+      x: event.clientX - PREVIEW_NODE_SIZE.width / 2,
+      y: event.clientY - PREVIEW_NODE_SIZE.height / 2,
+    };
+    const position =
+      "screenToFlowPosition" in reactFlowInstance
+        ? reactFlowInstance.screenToFlowPosition(point)
+        : reactFlowInstance.project(point);
+    handleAddNode(spec, position);
+  };
+
+  const handleDragLeave = () => {
+    setDropPreviewPosition(null);
+    setDropPreviewLabel(null);
+  };
+
+  const selectedNodeErrors = selectedNode ? (nodeErrors[selectedNode.id] ?? []) : [];
+  const applyDisabled = selectedNodeErrors.length > 0;
+  const edgesWithValidation = useMemo(
+    () =>
+      edges.map((edge) => {
+        const error = edgeErrors[edge.id];
+        if (!error) return edge;
+        return {
+          ...edge,
+          className: `${edge.className ?? ""} pipeline-edge-error`.trim(),
+          style: {
+            ...edge.style,
+            stroke: "#f87171",
+            strokeWidth: 2,
+          },
+        };
+      }),
+    [edges, edgeErrors],
+  );
 
   return (
     <div className="flex h-full flex-col gap-6">
@@ -343,7 +660,41 @@ export function PipelineBuilder() {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-      <PipelineHeader onCreatePipeline={handleCreatePipeline} />
+      <CreatePipelineWizard
+        open={showCreatePipeline}
+        token={token ?? ""}
+        kind={kind}
+        indexes={indexes}
+        onClose={() => setShowCreatePipeline(false)}
+        onCreated={handlePipelineCreated}
+        onOpenIndexManager={() => {
+          setShowCreatePipeline(false);
+          handleOpenIndexManager(true);
+        }}
+      />
+      <IndexManagerModal
+        open={showIndexManager}
+        token={token ?? ""}
+        indexes={indexes}
+        embeddingModels={embeddingModels}
+        embeddingModelsLoading={embeddingModelsLoading}
+        embeddingModelsError={embeddingModelsError}
+        loading={indexesLoading}
+        error={indexesError}
+        onClose={() => {
+          setShowIndexManager(false);
+          if (returnToPipelineWizard) {
+            setShowCreatePipeline(true);
+            setReturnToPipelineWizard(false);
+          }
+        }}
+        onRefresh={handleRefreshIndexes}
+      />
+      <PipelineHeader
+        kind={kind}
+        onCreatePipeline={handleCreatePipeline}
+        onManageIndexes={() => handleOpenIndexManager()}
+      />
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -357,33 +708,55 @@ export function PipelineBuilder() {
             <PipelineSidebar
               pipelines={pipelines}
               selectedPipelineId={selectedPipeline?.id}
-              catalog={catalogByCategory}
+              catalog={catalogByFamily}
               onSelectPipeline={setSelectedPipeline}
               onDeletePipeline={handleDeletePipeline}
               pipelineUsage={pipelineUsage}
-              onAddNode={handleAddNode}
+              onPreviewNode={handlePreviewNode}
             />
           </div>
 
           <PipelineCanvas
-            nodes={nodes}
-            edges={edges}
+            nodes={nodesWithPreview}
+            edges={edgesWithValidation}
             selectedPipeline={selectedPipeline}
             notice={message}
             onNoticeDismiss={() => setMessage(null)}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
-            onNodeSelect={setSelectedNodeId}
+            isValidConnection={(connection) => validateConnection(connection).valid}
+            onNodeSelect={(nodeId) => {
+              setSelectedNodeId(nodeId);
+              setPreviewSpec(null);
+            }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onInit={setReactFlowInstance}
           />
 
           <div className="flex min-h-0 flex-col gap-6 xl:overflow-y-auto">
             <PipelineInspector
-              selectedNode={selectedNode}
+              selectedNode={inspectedNode}
               configDraft={configDraft}
-              onConfigDraftChange={setConfigDraft}
-              onLabelChange={handleLabelChange}
-              onApplyConfig={handleApplyConfig}
+              onConfigDraftChange={isPreview ? () => undefined : setConfigDraft}
+              onLabelChange={isPreview ? () => undefined : handleLabelChange}
+              onApplyConfig={isPreview ? () => undefined : handleApplyConfig}
+              isPreview={isPreview}
+              validationErrors={selectedNodeErrors}
+              applyDisabled={applyDisabled}
+              pineconeIndexes={indexes}
+              onOpenIndexManager={handleOpenIndexManager}
+              embeddingModels={embeddingModels}
+              filteredEmbeddingModels={sortedEmbeddingModels}
+              embeddingModelSearchTerm={embeddingModelSearchTerm}
+              embeddingModelsLoading={embeddingModelsLoading}
+              embeddingModelsError={embeddingModelsError}
+              onEmbeddingSearchChange={setEmbeddingModelSearchTerm}
+              onSelectEmbeddingModel={handleSelectEmbeddingModel}
+              embeddingModelSortOption={embeddingModelSortOption}
+              onEmbeddingModelSortChange={setEmbeddingModelSortOption}
             />
 
             <PipelineSavePanel

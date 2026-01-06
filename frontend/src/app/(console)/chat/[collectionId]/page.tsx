@@ -35,6 +35,7 @@ import {
   updateCollectionPrompt,
 } from "@/lib/api";
 import { PARAMETER_DEFINITIONS } from "@/lib/chat-parameters";
+import { sortChatModels } from "@/lib/model-sorting";
 import { useAuth } from "@/providers/auth-provider";
 
 import {
@@ -56,6 +57,7 @@ import type {
   ParameterOverrides,
   ParameterValue,
 } from "@/lib/chat-parameters";
+import type { ChatModelSortOption } from "@/lib/model-sorting";
 import type {
   ChatCompletionPayload,
   ChatMessage,
@@ -391,6 +393,7 @@ export default function ChatStudioExperience() {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [modelSearchTerm, setModelSearchTerm] = useState("");
+  const [modelSortOption, setModelSortOption] = useState<ChatModelSortOption>("price");
   const [parameterOverrides, setParameterOverrides] = useState<ParameterOverrides>({});
   const [providerForm, setProviderForm] = useState<ProviderFormState>(() =>
     createDefaultProviderForm(),
@@ -1420,6 +1423,11 @@ export default function ChatStudioExperience() {
     });
   }, [modelSearchTerm, toolReadyModels]);
 
+  const sortedModelCatalog = useMemo(
+    () => sortChatModels(filteredModelCatalog, modelSortOption),
+    [filteredModelCatalog, modelSortOption],
+  );
+
   const selectedModelKey = useMemo(
     () => activeModelId || defaultChatModel || "",
     [activeModelId, defaultChatModel],
@@ -2302,8 +2310,10 @@ export default function ChatStudioExperience() {
                     onModelSelectorToggle={() => setModelSelectorOpen((prev) => !prev)}
                     modelSearchTerm={modelSearchTerm}
                     onModelSearchChange={setModelSearchTerm}
+                    modelSortOption={modelSortOption}
+                    onModelSortChange={setModelSortOption}
                     toolReadyModels={toolReadyModels}
-                    filteredModelCatalog={filteredModelCatalog}
+                    filteredModelCatalog={sortedModelCatalog}
                     modelsLoading={modelsLoading}
                     modelsError={modelsError}
                     selectedModelKey={selectedModelKey}

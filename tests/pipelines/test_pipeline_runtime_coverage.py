@@ -7,6 +7,8 @@ from sqlmodel import Session
 
 from app.db import models
 from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
+from app.pipelines.nodes.ingestion import EmbedderNode, IndexerNode
+from app.pipelines.nodes.retrieval import PineconeRetrieverNode, RetrievalInputNode
 from app.pipelines.runtime import (
     EmptyConfig,
     NodePort,
@@ -70,6 +72,54 @@ class _DoubleInputNode(PipelineNodeBase):
 
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
         return {"out": "ok"}
+
+    def summarize_io(self, inputs: dict[str, object], outputs: dict[str, object]):
+        return None
+
+
+class _NumberSinkNode(PipelineNodeBase):
+    type = "test.number"
+    label = "Number Sink"
+    category = "test"
+    description = "Number input node"
+    example = "Input -> Output."
+    input_ports = [NodePort(key="value", label="Value", data_type="number")]
+    output_ports = []
+
+    def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
+        return {}
+
+    def summarize_io(self, inputs: dict[str, object], outputs: dict[str, object]):
+        return None
+
+
+class _ChunkSourceNode(PipelineNodeBase):
+    type = "test.chunks"
+    label = "Chunk Source"
+    category = "test"
+    description = "Outputs a chunk batch."
+    example = "Input -> Chunks."
+    input_ports = []
+    output_ports = [NodePort(key="chunks", label="Chunks", data_type="chunk_batch")]
+
+    def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
+        return {"chunks": []}
+
+    def summarize_io(self, inputs: dict[str, object], outputs: dict[str, object]):
+        return None
+
+
+class _EmbeddedSourceNode(PipelineNodeBase):
+    type = "test.embedded"
+    label = "Embedded Source"
+    category = "test"
+    description = "Outputs an embedded batch."
+    example = "Input -> Embedded."
+    input_ports = []
+    output_ports = [NodePort(key="embedded", label="Embedded", data_type="embedded_batch")]
+
+    def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
+        return {"embedded": []}
 
     def summarize_io(self, inputs: dict[str, object], outputs: dict[str, object]):
         return None
@@ -262,6 +312,227 @@ def test_pipeline_validator_detects_missing_input_port() -> None:
 
     assert result.valid is False
     assert any("missing input port" in error for error in result.errors)
+
+
+def test_pipeline_validator_detects_incompatible_port_types() -> None:
+    registry = NodeRegistry([_InputNode, _NumberSinkNode])
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="input", type="test.input", name="Input"),
+            PipelineNodeDefinition(id="number", type="test.number", name="Number"),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="edge",
+                source="input",
+                target="number",
+                source_port="out",
+                target_port="value",
+            )
+        ],
+    )
+    result = PipelineValidator(registry).validate(definition)
+
+    assert result.valid is False
+    assert any("incompatible port types" in error for error in result.errors)
+
+
+def test_pipeline_validator_reports_dimension_mismatch() -> None:
+    registry = NodeRegistry([_ChunkSourceNode, EmbedderNode, IndexerNode])
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="source", type="test.chunks", name="Source"),
+            PipelineNodeDefinition(
+                id="embedder",
+                type="embedder.openrouter",
+                name="Embedder",
+                config={"dimension": 512},
+            ),
+            PipelineNodeDefinition(
+                id="indexer",
+                type="indexer.pinecone",
+                name="Indexer",
+                config={"dimension": 768},
+            ),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="edge-source-embedder",
+                source="source",
+                target="embedder",
+                source_port="chunks",
+                target_port="chunks",
+            ),
+            PipelineEdgeDefinition(
+                id="edge-embedder-indexer",
+                source="embedder",
+                target="indexer",
+                source_port="embedded",
+                target_port="embedded",
+            ),
+        ],
+    )
+    result = PipelineValidator(registry).validate(definition)
+
+    assert result.valid is False
+    assert any("dimension 768" in error and "dimension 512" in error for error in result.errors)
+
+
+def test_pipeline_validator_warns_when_dimension_missing() -> None:
+    registry = NodeRegistry([_ChunkSourceNode, EmbedderNode, IndexerNode])
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="source", type="test.chunks", name="Source"),
+            PipelineNodeDefinition(
+                id="embedder",
+                type="embedder.openrouter",
+                name="Embedder",
+                config={"dimension": 512},
+            ),
+            PipelineNodeDefinition(
+                id="indexer",
+                type="indexer.pinecone",
+                name="Indexer",
+                config={"index_name": "test-index"},
+            ),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="edge-source-embedder",
+                source="source",
+                target="embedder",
+                source_port="chunks",
+                target_port="chunks",
+            ),
+            PipelineEdgeDefinition(
+                id="edge-embedder-indexer",
+                source="embedder",
+                target="indexer",
+                source_port="embedded",
+                target_port="embedded",
+            ),
+        ],
+    )
+    result = PipelineValidator(registry).validate(definition)
+
+    assert result.valid is True
+    assert any("no dimension configured" in warning for warning in result.warnings)
+
+
+def test_pipeline_validator_requires_inbound_edges_for_indexer() -> None:
+    registry = NodeRegistry([_ChunkSourceNode, IndexerNode])
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="source", type="test.chunks", name="Source"),
+            PipelineNodeDefinition(
+                id="indexer",
+                type="indexer.pinecone",
+                name="Indexer",
+                config={"index_name": "test-index"},
+            ),
+        ],
+        edges=[],
+    )
+    result = PipelineValidator(registry).validate(definition)
+
+    assert result.valid is False
+    assert any("missing inbound edges" in error for error in result.errors)
+
+
+def test_pipeline_validator_skips_dimension_for_non_embedder_edge() -> None:
+    registry = NodeRegistry([_EmbeddedSourceNode, IndexerNode])
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="source", type="test.embedded", name="Source"),
+            PipelineNodeDefinition(
+                id="indexer",
+                type="indexer.pinecone",
+                name="Indexer",
+                config={"index_name": "test-index"},
+            ),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="edge-source-indexer",
+                source="source",
+                target="indexer",
+                source_port="embedded",
+                target_port="embedded",
+            )
+        ],
+    )
+    result = PipelineValidator(registry).validate(definition)
+
+    assert result.valid is True
+
+
+def test_pipeline_validator_warns_when_embedder_dimension_missing() -> None:
+    registry = NodeRegistry([_ChunkSourceNode, EmbedderNode, IndexerNode])
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="source", type="test.chunks", name="Source"),
+            PipelineNodeDefinition(
+                id="embedder",
+                type="embedder.openrouter",
+                name="Embedder",
+                config={},
+            ),
+            PipelineNodeDefinition(
+                id="indexer",
+                type="indexer.pinecone",
+                name="Indexer",
+                config={"index_name": "test-index", "dimension": 768},
+            ),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="edge-source-embedder",
+                source="source",
+                target="embedder",
+                source_port="chunks",
+                target_port="chunks",
+            ),
+            PipelineEdgeDefinition(
+                id="edge-embedder-indexer",
+                source="embedder",
+                target="indexer",
+                source_port="embedded",
+                target_port="embedded",
+            ),
+        ],
+    )
+    result = PipelineValidator(registry).validate(definition)
+
+    assert result.valid is True
+    assert any("Embedder node" in warning for warning in result.warnings)
+
+
+def test_pipeline_validator_requires_retriever_index() -> None:
+    registry = NodeRegistry([RetrievalInputNode, PineconeRetrieverNode])
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="input", type="retrieval.input", name="Input"),
+            PipelineNodeDefinition(
+                id="retriever",
+                type="retriever.pinecone",
+                name="Retriever",
+                config={"index_name": ""},
+            ),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="edge-input-retriever",
+                source="input",
+                target="retriever",
+                source_port="request",
+                target_port="request",
+            )
+        ],
+    )
+    result = PipelineValidator(registry).validate(definition)
+
+    assert result.valid is False
+    assert any("must specify a Pinecone index" in error for error in result.errors)
 
 
 def test_pipeline_validator_detects_cycles() -> None:
