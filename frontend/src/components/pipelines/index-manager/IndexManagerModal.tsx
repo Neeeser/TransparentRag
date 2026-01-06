@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { EmbeddingModelSelectorCard } from "@/components/pipelines/EmbeddingModelSelectorCard";
 import { Button } from "@/components/ui/button";
+import { Notification } from "@/components/ui/notification";
 import { GlassCard } from "@/components/ui/panel";
 import { createPineconeIndex, deletePineconeIndex } from "@/lib/api";
 import { sortEmbeddingModels, type EmbeddingModelSortOption } from "@/lib/model-sorting";
@@ -54,7 +55,8 @@ export function IndexManagerModal({
     region: "us-east-1",
     deletion_protection: "disabled",
   });
-  const [message, setMessage] = useState<string | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -99,10 +101,10 @@ export function IndexManagerModal({
 
   useEffect(() => {
     if (!open) return;
-    if (!selectedName && sortedIndexes.length > 0) {
+    if (viewMode === "details" && !selectedName && sortedIndexes.length > 0) {
       setSelectedName(sortedIndexes[0].name);
     }
-  }, [open, selectedName, sortedIndexes]);
+  }, [open, selectedName, sortedIndexes, viewMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -112,17 +114,23 @@ export function IndexManagerModal({
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (deleteTarget) {
+        setDeleteTarget(null);
+        return;
+      }
+      onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+  }, [deleteTarget, open, onClose]);
 
   if (!open) return null;
 
   const handleCreate = async () => {
     setCreating(true);
-    setMessage(null);
+    setNotificationMessage(null);
+    setLocalError(null);
     try {
       const payload: PineconeIndexCreatePayload = {
         ...createForm,
@@ -131,21 +139,21 @@ export function IndexManagerModal({
       if (payload.vector_type === "sparse") {
         delete payload.dimension;
       } else if (!payload.dimension) {
-        setMessage("Dense indexes require a vector dimension.");
+        setLocalError("Dense indexes require a vector dimension.");
         setCreating(false);
         return;
       }
       if (useModelDimension && !selectedEmbeddingModelId) {
-        setMessage("Select an embedding model to set the dimension.");
+        setLocalError("Select an embedding model to set the dimension.");
         setCreating(false);
         return;
       }
       await createPineconeIndex(token, payload);
       setCreateForm((prev) => ({ ...prev, name: "" }));
       onRefresh();
-      setMessage("Index created.");
+      setNotificationMessage("Index created.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to create index.");
+      setLocalError(err instanceof Error ? err.message : "Unable to create index.");
     } finally {
       setCreating(false);
     }
@@ -153,16 +161,17 @@ export function IndexManagerModal({
 
   const handleDelete = async (indexName: string) => {
     setDeleting(true);
-    setMessage(null);
+    setNotificationMessage(null);
+    setLocalError(null);
     try {
       await deletePineconeIndex(indexName, token);
       setDeleteConfirm("");
       setDeleteTarget(null);
       onRefresh();
       setSelectedName(null);
-      setMessage("Index deletion requested.");
+      setNotificationMessage("Index deletion requested.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to delete index.");
+      setLocalError(err instanceof Error ? err.message : "Unable to delete index.");
     } finally {
       setDeleting(false);
     }
@@ -198,6 +207,11 @@ export function IndexManagerModal({
   const handleSelectIndex = (name: string) => {
     setSelectedName(name);
     setViewMode("details");
+  };
+
+  const handleSelectCreate = () => {
+    setViewMode("create");
+    setSelectedName(null);
   };
 
   const handleDimensionModeChange = (mode: "manual" | "model") => {
@@ -239,9 +253,16 @@ export function IndexManagerModal({
       <GlassCard
         role="dialog"
         aria-modal="true"
-        className="flex w-full max-w-6xl max-h-[calc(100vh-4rem)] flex-col rounded-[2.5rem] border border-white/10 bg-slate-950/95 p-6 text-white"
+        className="relative flex w-full max-w-6xl max-h-[calc(100vh-4rem)] flex-col rounded-[2.5rem] border border-white/10 bg-slate-950/95 p-6 text-white"
         onClick={(event) => event.stopPropagation()}
       >
+        {notificationMessage ? (
+          <Notification
+            message={notificationMessage}
+            onDismiss={() => setNotificationMessage(null)}
+            className="absolute right-6 top-6 z-10"
+          />
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Manage indexes</p>
@@ -251,7 +272,12 @@ export function IndexManagerModal({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={onRefresh} disabled={loading}>
+            <Button
+              variant="secondary"
+              onClick={onRefresh}
+              disabled={loading}
+              className="inline-flex items-center gap-2"
+            >
               <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
@@ -262,9 +288,9 @@ export function IndexManagerModal({
         </div>
 
         <div className="mt-4 flex-1 overflow-y-auto pr-2">
-          {message ? (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
-              {message}
+          {localError ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+              {localError}
             </div>
           ) : null}
           {error ? (
@@ -287,7 +313,7 @@ export function IndexManagerModal({
                   </p>
                 ) : (
                   sortedIndexes.map((index) => {
-                    const isActive = index.name === selectedName;
+                    const isActive = viewMode === "details" && index.name === selectedName;
                     return (
                       <button
                         key={index.name}
@@ -309,8 +335,8 @@ export function IndexManagerModal({
                 )}
               </div>
               <Button
-                variant="secondary"
-                onClick={() => setViewMode("create")}
+                variant={viewMode === "create" ? "primary" : "secondary"}
+                onClick={handleSelectCreate}
                 className="w-full inline-flex items-center justify-center gap-2"
               >
                 <Plus className="h-4 w-4" />
@@ -319,24 +345,6 @@ export function IndexManagerModal({
             </div>
 
             <div className="space-y-6">
-              <div className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="text-xs uppercase tracking-[0.3em] text-slate-400">View</div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={viewMode === "details" ? "primary" : "secondary"}
-                    onClick={() => setViewMode("details")}
-                  >
-                    Details
-                  </Button>
-                  <Button
-                    variant={viewMode === "create" ? "primary" : "secondary"}
-                    onClick={() => setViewMode("create")}
-                  >
-                    Create
-                  </Button>
-                </div>
-              </div>
-
               {viewMode === "details" ? (
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
                   <div className="flex items-center justify-between">
@@ -614,10 +622,11 @@ export function IndexManagerModal({
                 Cancel
               </Button>
               <Button
-                variant="danger"
+                variant="primary"
                 onClick={() => handleDelete(deleteTarget)}
                 loading={deleting}
                 disabled={deleteConfirm !== deleteTarget}
+                className={deleteConfirm !== deleteTarget ? "opacity-50" : ""}
               >
                 Delete index
               </Button>
