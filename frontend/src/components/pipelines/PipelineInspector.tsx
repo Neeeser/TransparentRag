@@ -74,7 +74,7 @@ export function PipelineInspector({
     : [];
   const filteredFields = fields.filter((field) => {
     const embedderHidden = isEmbedder && ["model_name", "dimension"].includes(field.key);
-    const indexHidden = isIndexNode && field.key === "index_name";
+    const indexHidden = isIndexNode && ["index_name", "dimension"].includes(field.key);
     return !(embedderHidden || indexHidden);
   });
   const selectedEmbeddingModelKey =
@@ -84,6 +84,7 @@ export function PipelineInspector({
   const visibleEmbeddingModels = filteredEmbeddingModels ?? embeddingModels;
   const sortedIndexes = [...pineconeIndexes].sort((a, b) => a.name.localeCompare(b.name));
   const indexValue = typeof configDraft.index_name === "string" ? configDraft.index_name : "";
+  const selectedIndex = sortedIndexes.find((index) => index.name === indexValue) ?? null;
 
   const handleConfigChange = (field: PipelineConfigField, rawValue: string | boolean) => {
     let nextValue: unknown = rawValue;
@@ -125,8 +126,15 @@ export function PipelineInspector({
     const nextDraft = { ...configDraft };
     if (!value) {
       delete nextDraft.index_name;
+      delete nextDraft.dimension;
     } else {
       nextDraft.index_name = value;
+      const index = sortedIndexes.find((item) => item.name === value);
+      if (typeof index?.dimension === "number") {
+        nextDraft.dimension = index.dimension;
+      } else {
+        delete nextDraft.dimension;
+      }
     }
     onConfigDraftChange(nextDraft);
   };
@@ -209,7 +217,13 @@ export function PipelineInspector({
                 <ParameterFieldCard
                   label="Pinecone index"
                   description="Select an index to target for retrieval or ingestion."
-                  helper={indexValue ? undefined : "Required"}
+                  helper={
+                    indexValue
+                      ? selectedIndex?.dimension
+                        ? `Dimension: ${selectedIndex.dimension}`
+                        : "Dimension: n/a"
+                      : "Required"
+                  }
                   actionLabel="Manage"
                   actionDisabled={isPreview}
                   onAction={onOpenIndexManager}

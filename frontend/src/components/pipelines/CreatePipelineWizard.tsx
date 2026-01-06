@@ -56,6 +56,10 @@ export function CreatePipelineWizard({
     () => [...indexes].sort((a, b) => a.name.localeCompare(b.name)),
     [indexes],
   );
+  const selectedIndex = useMemo(
+    () => sortedIndexes.find((index) => index.name === form.index_name) ?? null,
+    [sortedIndexes, form.index_name],
+  );
 
   const canProceed = () => {
     if (stepIndex === 0) return form.name.trim().length > 0;
@@ -67,7 +71,11 @@ export function CreatePipelineWizard({
     setCreating(true);
     setMessage(null);
     try {
-      const definition = buildDefaultDefinition(kind, form.index_name.trim());
+      const definition = buildDefaultDefinition(
+        kind,
+        form.index_name.trim(),
+        selectedIndex?.dimension ?? undefined,
+      );
       const created = await createPipeline(token, {
         name: form.name.trim(),
         kind,

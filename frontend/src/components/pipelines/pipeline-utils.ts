@@ -34,7 +34,15 @@ export const createId = () => {
 export const buildDefaultDefinition = (
   kind: PipelineKind,
   indexName?: string,
+  indexDimension?: number,
 ): PipelineDefinition => {
+  const indexConfig =
+    typeof indexName === "string" && indexName.trim()
+      ? {
+          index_name: indexName.trim(),
+          ...(typeof indexDimension === "number" ? { dimension: indexDimension } : {}),
+        }
+      : {};
   if (kind === "retrieval") {
     return {
       nodes: [
@@ -49,7 +57,7 @@ export const buildDefaultDefinition = (
           id: NODE_PINECONE_RETRIEVER,
           type: "retriever.pinecone",
           name: "Pinecone Retriever",
-          config: indexName ? { index_name: indexName } : {},
+          config: indexConfig,
           position: { x: DEFAULT_NODE_X, y: DEFAULT_NODE_Y_SPACING },
         },
         {
@@ -117,7 +125,7 @@ export const buildDefaultDefinition = (
         id: NODE_INDEX_CHUNKS,
         type: "indexer.pinecone",
         name: "Indexer",
-        config: indexName ? { index_name: indexName } : {},
+        config: indexConfig,
         position: { x: DEFAULT_NODE_X, y: DEFAULT_NODE_Y_SPACING * 4 },
       },
       {

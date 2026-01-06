@@ -111,6 +111,20 @@ export function IndexManagerModal({
 
   const dimensionDisabled = createForm.vector_type === "sparse";
 
+  const handleVectorTypeChange = (value: string) => {
+    setCreateForm((prev) => {
+      if (value === "sparse") {
+        return { ...prev, vector_type: value, dimension: undefined, metric: "dotproduct" };
+      }
+      return {
+        ...prev,
+        vector_type: value,
+        dimension: prev.dimension ?? 1536,
+        metric: prev.metric ?? "cosine",
+      };
+    });
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8 backdrop-blur-sm"
@@ -279,9 +293,7 @@ export function IndexManagerModal({
                   <select
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
                     value={createForm.vector_type ?? "dense"}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({ ...prev, vector_type: event.target.value }))
-                    }
+                    onChange={(event) => handleVectorTypeChange(event.target.value)}
                   >
                     <option value="dense">Dense</option>
                     <option value="sparse">Sparse</option>
@@ -304,6 +316,11 @@ export function IndexManagerModal({
                     placeholder="1536"
                     disabled={dimensionDisabled}
                   />
+                  {dimensionDisabled ? (
+                    <p className="mt-2 text-xs text-slate-400">
+                      Sparse indexes do not require a dimension.
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -315,6 +332,7 @@ export function IndexManagerModal({
                     onChange={(event) =>
                       setCreateForm((prev) => ({ ...prev, metric: event.target.value }))
                     }
+                    disabled={createForm.vector_type === "sparse"}
                   >
                     {METRIC_OPTIONS.map((metric) => (
                       <option key={metric} value={metric}>
