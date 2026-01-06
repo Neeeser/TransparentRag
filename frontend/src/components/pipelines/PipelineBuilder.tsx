@@ -676,6 +676,9 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         open={showIndexManager}
         token={token ?? ""}
         indexes={indexes}
+        embeddingModels={embeddingModels}
+        embeddingModelsLoading={embeddingModelsLoading}
+        embeddingModelsError={embeddingModelsError}
         loading={indexesLoading}
         error={indexesError}
         onClose={() => {
