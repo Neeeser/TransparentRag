@@ -616,12 +616,29 @@ export function ChatStudio() {
     urlCollectionsValue,
   ]);
 
+  const isPendingSession = useMemo(() => {
+    if (!selectedSessionId) {
+      return false;
+    }
+    return pendingSessionIdsRef.current.has(selectedSessionId);
+  }, [selectedSessionId]);
+
   useEffect(() => {
+    if (isPendingSession) {
+      return;
+    }
     const target = buildChatUrl(selectedSessionId, selectedToolCollectionIds);
     if (target !== currentUrl) {
       router.replace(target);
     }
-  }, [buildChatUrl, currentUrl, router, selectedSessionId, selectedToolCollectionIds]);
+  }, [
+    buildChatUrl,
+    currentUrl,
+    isPendingSession,
+    router,
+    selectedSessionId,
+    selectedToolCollectionIds,
+  ]);
 
   useEffect(() => {
     isStreamingResponseRef.current = isStreamingResponse;
@@ -1920,7 +1937,11 @@ export function ChatStudio() {
       if (finalAssistant?.id && streamKey) {
         setStreamEntryKeyMap((prev) => ({ ...prev, [finalAssistant.id]: streamKey }));
       }
+      const wasPending = pendingSessionIdsRef.current.has(response.session.id);
       pendingSessionIdsRef.current.delete(response.session.id);
+      if (wasPending) {
+        navigateToChat(response.session.id, selectedToolCollectionIds);
+      }
 
       // Check if we need to inject persisted reasoning into the final assistant message
       // This handles the case where the tool call response doesn't include the reasoning trace
@@ -1977,7 +1998,15 @@ export function ChatStudio() {
         return sortSessions(next);
       });
     },
-    [contextWindow, deriveToolTraces, finalizeLiveReasoningBlock, sortSessions, syncMessages],
+    [
+      contextWindow,
+      deriveToolTraces,
+      finalizeLiveReasoningBlock,
+      navigateToChat,
+      selectedToolCollectionIds,
+      sortSessions,
+      syncMessages,
+    ],
   );
 
   const isAbortError = (value: unknown): value is DOMException =>
@@ -2001,7 +2030,6 @@ export function ChatStudio() {
     if (!sessionId) {
       sessionId = generateClientSessionId();
       setSelectedSessionId(sessionId);
-      navigateToChat(sessionId, selectedToolCollectionIds);
       const placeholderSession: ChatSession = {
         id: sessionId,
         user_id: user.id,
@@ -2665,14 +2693,16 @@ export function ChatStudio() {
 
   return (
     <Fragment>
-      <div className="flex h-full flex-col gap-4">
+      <div className="relative flex h-full flex-col">
         {status && (
-          <Notification
-            title="Action required"
-            message={status}
-            onDismiss={() => setStatus(null)}
-            autoDismissMs={0}
-          />
+          <div className="pointer-events-none absolute left-1/2 top-4 z-40 w-full max-w-2xl -translate-x-1/2 px-4">
+            <Notification
+              title="Action required"
+              message={status}
+              onDismiss={() => setStatus(null)}
+              className="pointer-events-auto"
+            />
+          </div>
         )}
 
         <div className="flex flex-1 flex-col min-h-0">
