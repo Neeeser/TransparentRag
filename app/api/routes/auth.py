@@ -42,6 +42,7 @@ def _build_user_read(user: models.User) -> UserRead:
         last_used_provider=user.last_used_provider,
         last_used_stream=user.last_used_stream,
         last_used_tool_collection_ids=user.last_used_tool_collection_ids,
+        run_settings_order=user.run_settings_order,
         created_at=user.created_at,
         updated_at=user.updated_at,
     )
@@ -160,7 +161,7 @@ def update_current_user(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> UserRead:
-    """Update API key settings for the authenticated user."""
+    """Update settings for the authenticated user."""
     errors: dict[str, str] = {}
     openrouter_value = None
     if payload.openrouter_api_key is not None:
@@ -189,6 +190,8 @@ def update_current_user(
         current_user.openrouter_api_key = openrouter_value or None
     if payload.pinecone_api_key is not None:
         current_user.pinecone_api_key = pinecone_value or None
+    if payload.run_settings_order is not None:
+        current_user.run_settings_order = [entry.value for entry in payload.run_settings_order]
     current_user.updated_at = utc_now()
     session.add(current_user)
     session.commit()

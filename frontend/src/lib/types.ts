@@ -9,6 +9,15 @@ export type ChatRole = "system" | "user" | "assistant" | "tool";
 export type PipelineKind = "ingestion" | "retrieval";
 export type PipelineRunStatus = "running" | "completed" | "failed";
 export type PipelineIOType = "input" | "output";
+export type RunSettingsSectionKey =
+  | "systemPrompt"
+  | "collectionTools"
+  | "streaming"
+  | "modelRouting"
+  | "providerRouting"
+  | "modelParameters"
+  | "vitals"
+  | "usage";
 
 export interface User {
   id: UUID;
@@ -22,6 +31,7 @@ export interface User {
   last_used_provider?: ProviderPreferences | null;
   last_used_stream?: boolean | null;
   last_used_tool_collection_ids?: UUID[] | null;
+  run_settings_order?: RunSettingsSectionKey[] | null;
   created_at: string;
   updated_at: string;
 }

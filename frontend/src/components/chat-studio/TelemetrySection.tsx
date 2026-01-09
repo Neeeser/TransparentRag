@@ -12,6 +12,8 @@ interface TelemetrySectionProps {
   onToggle: () => void;
   sectionId?: string;
   overrideActive?: boolean;
+  headerAction?: ReactNode;
+  isDragging?: boolean;
   children: ReactNode;
 }
 
@@ -23,16 +25,23 @@ export const TelemetrySection = ({
   onToggle,
   sectionId,
   overrideActive,
+  headerAction,
+  isDragging = false,
   children,
 }: TelemetrySectionProps) => (
-  <div id={sectionId} className="rounded-2xl border border-white/10 bg-white/5">
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={isOpen}
-      className="flex w-full items-center justify-between gap-3 rounded-2xl border-b border-white/5 px-4 py-3 text-left transition hover:bg-white/10"
-    >
-      <div className="flex flex-1 items-center gap-2">
+  <div
+    id={sectionId}
+    className={`rounded-2xl border border-white/10 bg-white/5 ${
+      isDragging ? "border-emerald-400/60 bg-emerald-500/5" : ""
+    }`}
+  >
+    <div className="flex w-full items-center justify-between gap-3 rounded-2xl border-b border-white/5 px-4 py-3 transition hover:bg-white/10">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="flex flex-1 items-center gap-2 text-left"
+      >
         {icon && <span className="text-slate-300">{icon}</span>}
         <div>
           <div className="flex items-center gap-2">
@@ -43,13 +52,19 @@ export const TelemetrySection = ({
           </div>
           {description && <p className="text-[11px] text-slate-300">{description}</p>}
         </div>
+      </button>
+      <div className="flex items-center gap-2">
+        {headerAction}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={`${title} toggle`}
+          className="flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10"
+        >
+          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
       </div>
-      {isOpen ? (
-        <ChevronDown className="h-4 w-4 text-slate-300" />
-      ) : (
-        <ChevronRight className="h-4 w-4 text-slate-300" />
-      )}
-    </button>
+    </div>
     {isOpen && <div className="space-y-3 px-4 pb-4 pt-3">{children}</div>}
   </div>
 );

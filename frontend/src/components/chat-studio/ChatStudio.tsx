@@ -35,6 +35,7 @@ import {
   listModelEndpoints,
   listModels,
   streamChat,
+  updateRunSettingsOrder,
   updateBasePrompt,
   updateCollectionPrompt,
 } from "@/lib/api";
@@ -75,6 +76,7 @@ import type {
   ReasoningTraceSegment,
   ToolCallTrace,
   UsageBreakdown,
+  RunSettingsSectionKey,
 } from "@/lib/types";
 
 const PINECONE_KEY_REQUIRED_MESSAGE =
@@ -89,11 +91,45 @@ const TELEMETRY_SECTION_IDS = {
   vitals: "telemetry-collection-vitals",
   usage: "telemetry-usage",
 } as const;
+const DEFAULT_TELEMETRY_ORDER: RunSettingsSectionKey[] = [
+  "systemPrompt",
+  "collectionTools",
+  "streaming",
+  "modelRouting",
+  "providerRouting",
+  "vitals",
+  "modelParameters",
+  "usage",
+];
+const TELEMETRY_SECTION_SET = new Set(DEFAULT_TELEMETRY_ORDER);
 const HISTORY_PANEL_WIDTH_PX = 288;
 const TELEMETRY_PANEL_WIDTH_PX = 416;
 const MIN_CENTER_PANEL_WIDTH_PX = 720;
 const OVERLAY_TRIGGER_WIDTH_PX =
   HISTORY_PANEL_WIDTH_PX + TELEMETRY_PANEL_WIDTH_PX + MIN_CENTER_PANEL_WIDTH_PX;
+
+const normalizeRunSettingsOrder = (
+  order?: RunSettingsSectionKey[] | null,
+): RunSettingsSectionKey[] => {
+  if (!order || order.length === 0) {
+    return [...DEFAULT_TELEMETRY_ORDER];
+  }
+  const seen = new Set<RunSettingsSectionKey>();
+  const normalized: RunSettingsSectionKey[] = [];
+  for (const entry of order) {
+    if (!TELEMETRY_SECTION_SET.has(entry) || seen.has(entry)) {
+      continue;
+    }
+    seen.add(entry);
+    normalized.push(entry);
+  }
+  for (const entry of DEFAULT_TELEMETRY_ORDER) {
+    if (!seen.has(entry)) {
+      normalized.push(entry);
+    }
+  }
+  return normalized;
+};
 
 const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
   PARAMETER_DEFINITIONS.reduce(
@@ -448,7 +484,7 @@ export function ChatStudio() {
     () => parseCollectionIdsParam(urlCollectionsValue),
     [urlCollectionsValue],
   );
-  const { token, user, loading: authLoading } = useAuth();
+  const { token, user, loading: authLoading, refreshProfile } = useAuth();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
@@ -508,6 +544,10 @@ export function ChatStudio() {
     "chat.telemetry.streamingOpen",
     true,
   );
+  const [runSettingsOrder, setRunSettingsOrder] =
+    useState<RunSettingsSectionKey[]>(DEFAULT_TELEMETRY_ORDER);
+  const runSettingsSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedRunSettingsOrderRef = useRef<string>(JSON.stringify(DEFAULT_TELEMETRY_ORDER));
   const [streamingEnabled, setStreamingEnabled] = useState(DEFAULT_STREAMING_ENABLED);
   const [modelCatalog, setModelCatalog] = useState<ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -873,6 +913,42 @@ export function ChatStudio() {
     }
     setStatus(null);
   }, [authLoading, authToken, openrouterConfigured]);
+
+  useEffect(() => {
+    const normalizedOrder = normalizeRunSettingsOrder(user?.run_settings_order ?? null);
+    setRunSettingsOrder(normalizedOrder);
+    lastSavedRunSettingsOrderRef.current = JSON.stringify(normalizedOrder);
+  }, [user]);
+
+  useEffect(() => {
+    if (!authToken || !user) {
+      return;
+    }
+    const serialized = JSON.stringify(runSettingsOrder);
+    if (serialized === lastSavedRunSettingsOrderRef.current) {
+      return;
+    }
+    if (runSettingsSaveTimeoutRef.current) {
+      window.clearTimeout(runSettingsSaveTimeoutRef.current);
+    }
+    runSettingsSaveTimeoutRef.current = window.setTimeout(() => {
+      updateRunSettingsOrder(authToken, runSettingsOrder)
+        .then(() => {
+          lastSavedRunSettingsOrderRef.current = serialized;
+          refreshProfile();
+        })
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : "Unable to save run settings order.";
+          setStatus(message);
+        });
+    }, 600);
+    return () => {
+      if (runSettingsSaveTimeoutRef.current) {
+        window.clearTimeout(runSettingsSaveTimeoutRef.current);
+      }
+    };
+  }, [authToken, refreshProfile, runSettingsOrder, user]);
 
   useEffect(() => {
     if (authLoading) {
@@ -2982,11 +3058,16 @@ export function ChatStudio() {
                   />
                 </aside>
               )}
-              {!historyOpen && !isOverlayMode && (
+              {!historyOpen && (
                 <button
                   type="button"
-                  className="absolute left-4 top-1/2 z-10 hidden -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 transition-all hover:border-white/40 hover:bg-black/60 lg:flex"
-                  onClick={() => setHistoryOpen(true)}
+                  className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 transition-all hover:border-white/40 hover:bg-black/60"
+                  onClick={() => {
+                    setHistoryOpen(true);
+                    if (isOverlayMode) {
+                      setTelemetryOpen(false);
+                    }
+                  }}
                 >
                   <PanelLeftOpen className="h-4 w-4" />
                 </button>
@@ -3039,32 +3120,6 @@ export function ChatStudio() {
                     className="relative flex-1 min-h-0 overflow-y-auto px-16 py-6 scroll-smooth !overflow-anchor-none"
                     style={{ overflowAnchor: "none" }}
                   >
-                    {isOverlayMode && !historyOpen && (
-                      <button
-                        type="button"
-                        aria-label="Open history"
-                        className="absolute left-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-slate-200 shadow-lg backdrop-blur-sm transition hover:border-white/40 hover:bg-black/80"
-                        onClick={() => {
-                          setHistoryOpen(true);
-                          setTelemetryOpen(false);
-                        }}
-                      >
-                        <PanelLeftOpen className="h-4 w-4" />
-                      </button>
-                    )}
-                    {isOverlayMode && !telemetryOpen && (
-                      <button
-                        type="button"
-                        aria-label="Open run settings"
-                        className="absolute right-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-slate-200 shadow-lg backdrop-blur-sm transition hover:border-white/40 hover:bg-black/80"
-                        onClick={() => {
-                          setTelemetryOpen(true);
-                          setHistoryOpen(false);
-                        }}
-                      >
-                        <PanelRightOpen className="h-4 w-4" />
-                      </button>
-                    )}
                     <div className="flex h-full flex-col gap-4">
                       <ChatTimeline
                         modelLabel={currentModelInfo?.name || activeModelId || "Select model"}
@@ -3141,6 +3196,8 @@ export function ChatStudio() {
                   <TelemetryPanel
                     onClose={() => setTelemetryOpen(false)}
                     sectionIds={TELEMETRY_SECTION_IDS}
+                    sectionOrder={runSettingsOrder}
+                    onSectionOrderChange={setRunSettingsOrder}
                     systemPromptCustom={Boolean(basePromptDetails?.is_custom)}
                     promptSections={promptSectionsSummary}
                     promptPreviewMarkdown={promptPreviewMarkdown}
@@ -3216,11 +3273,16 @@ export function ChatStudio() {
                   />
                 </aside>
               )}
-              {!telemetryOpen && !isOverlayMode && (
+              {!telemetryOpen && (
                 <button
                   type="button"
-                  className="absolute right-4 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 hover:border-white/40 lg:flex"
-                  onClick={() => setTelemetryOpen(true)}
+                  className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 hover:border-white/40"
+                  onClick={() => {
+                    setTelemetryOpen(true);
+                    if (isOverlayMode) {
+                      setHistoryOpen(false);
+                    }
+                  }}
                 >
                   <PanelRightOpen className="h-4 w-4" />
                 </button>
@@ -3262,6 +3324,8 @@ export function ChatStudio() {
                     <TelemetryPanel
                       onClose={() => setTelemetryOpen(false)}
                       sectionIds={TELEMETRY_SECTION_IDS}
+                      sectionOrder={runSettingsOrder}
+                      onSectionOrderChange={setRunSettingsOrder}
                       systemPromptCustom={Boolean(basePromptDetails?.is_custom)}
                       promptSections={promptSectionsSummary}
                       promptPreviewMarkdown={promptPreviewMarkdown}

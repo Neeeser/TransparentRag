@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.schemas.base import DateTimeConfigMixin
 
@@ -18,6 +19,19 @@ class UserBase(DateTimeConfigMixin, BaseModel):
 
     email: EmailStr
     full_name: Optional[str] = None
+
+
+class RunSettingsSection(str, Enum):
+    """Sortable section identifiers for the run settings panel."""
+
+    SYSTEM_PROMPT = "systemPrompt"
+    COLLECTION_TOOLS = "collectionTools"
+    STREAMING = "streaming"
+    MODEL_ROUTING = "modelRouting"
+    PROVIDER_ROUTING = "providerRouting"
+    MODEL_PARAMETERS = "modelParameters"
+    VITALS = "vitals"
+    USAGE = "usage"
 
 
 class UserCreate(UserBase):
@@ -38,15 +52,29 @@ class UserRead(UserBase):
     last_used_provider: Optional[Dict[str, Any]] = None
     last_used_stream: Optional[bool] = None
     last_used_tool_collection_ids: Optional[List[UUID]] = None
+    run_settings_order: Optional[List[RunSettingsSection]] = None
     created_at: datetime
     updated_at: datetime
 
 
 class UserSettingsUpdate(BaseModel):
-    """Payload for updating user API key settings."""
+    """Payload for updating user settings."""
 
     openrouter_api_key: Optional[str] = None
     pinecone_api_key: Optional[str] = None
+    run_settings_order: Optional[List[RunSettingsSection]] = None
+
+    @field_validator("run_settings_order")
+    @classmethod
+    def ensure_unique_run_settings_order(
+        cls, value: Optional[List[RunSettingsSection]]
+    ) -> Optional[List[RunSettingsSection]]:
+        """Reject run settings orders with duplicate entries."""
+        if value is None:
+            return value
+        if len(set(value)) != len(value):
+            raise ValueError("Run settings order must be unique.")
+        return value
 
 
 class ProviderKeyStatus(BaseModel):

@@ -111,6 +111,10 @@ class User(SQLModel, TimestampMixin, table=True):
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
+    run_settings_order: Optional[List[str]] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+    )
     is_active: bool = Field(default=True, nullable=False)
 
 

@@ -11,7 +11,7 @@ from app.api.routes import auth as auth_routes
 from app.core.security import hash_password
 from app.db import models
 
-from app.schemas.auth import UserCreate, UserSettingsUpdate
+from app.schemas.auth import RunSettingsSection, UserCreate, UserSettingsUpdate
 
 
 def test_register_user_rejects_duplicate_email(session: Session) -> None:
@@ -307,3 +307,32 @@ def test_update_current_user_sets_only_pinecone(monkeypatch, session: Session) -
 
     assert updated.openrouter_configured is False
     assert updated.pinecone_configured is True
+
+
+def test_update_current_user_sets_run_settings_order(session: Session) -> None:
+    user = models.User(
+        email="user@example.com",
+        full_name="User",
+        hashed_password="hashed",
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    payload = UserSettingsUpdate(
+        run_settings_order=[
+            RunSettingsSection.STREAMING,
+            RunSettingsSection.SYSTEM_PROMPT,
+            RunSettingsSection.USAGE,
+        ],
+    )
+
+    updated = auth_routes.update_current_user(
+        payload,
+        current_user=user,
+        session=session,
+    )
+
+    assert updated.run_settings_order == payload.run_settings_order
+    session.refresh(user)
+    assert user.run_settings_order == [entry.value for entry in payload.run_settings_order]

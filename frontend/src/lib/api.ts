@@ -33,6 +33,7 @@ import type {
   PipelineTraceResponse,
   UmapComputePayload,
   UmapVisualization,
+  RunSettingsSectionKey,
 } from "@/lib/types";
 
 const API_BASE_URL =
@@ -128,6 +129,7 @@ export async function updateUserSettings(
   payload: {
     openrouter_api_key?: string;
     pinecone_api_key?: string;
+    run_settings_order?: RunSettingsSectionKey[];
   },
 ): Promise<User> {
   return apiFetch<User>("/api/auth/me", {
@@ -135,6 +137,13 @@ export async function updateUserSettings(
     token,
     body: JSON.stringify(payload),
   });
+}
+
+export async function updateRunSettingsOrder(
+  token: string,
+  order: RunSettingsSectionKey[],
+): Promise<User> {
+  return updateUserSettings(token, { run_settings_order: order });
 }
 
 export async function validateUserKeys(token: string): Promise<UserKeyValidation> {
