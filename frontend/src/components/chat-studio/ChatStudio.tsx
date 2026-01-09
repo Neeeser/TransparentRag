@@ -3022,7 +3022,7 @@ export function ChatStudio() {
                     {!historyOpen && (
                       <Button
                         variant="secondary"
-                        className="flex h-10 items-center justify-center gap-2 px-3"
+                        className="flex h-10 items-center justify-center gap-2 px-3 whitespace-nowrap"
                         onClick={handleStartNewChat}
                       >
                         <PlusCircle className="h-4 w-4" />
