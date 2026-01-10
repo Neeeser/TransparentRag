@@ -495,7 +495,7 @@ export function ChatStudio() {
   const [historyFilterIncludeUnassigned, setHistoryFilterIncludeUnassigned] = useState(false);
   const [documentCount, setDocumentCount] = useState(0);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(sessionIdParam);
+  const selectedSessionId = sessionIdParam;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [toolTraces, setToolTraces] = useState<ToolCallTrace[]>([]);
   const [chatEntryOrder, setChatEntryOrder] = useState<string[]>([]);
@@ -709,10 +709,6 @@ export function ChatStudio() {
     },
     [buildChatUrl, currentUrl, router],
   );
-
-  useEffect(() => {
-    setSelectedSessionId(sessionIdParam);
-  }, [sessionIdParam]);
 
   useEffect(() => {
     toolCollectionsDirtyRef.current = false;
@@ -1052,7 +1048,6 @@ export function ChatStudio() {
   useEffect(() => {
     if (authLoading || !authToken || !openrouterConfigured) {
       setSessions([]);
-      setSelectedSessionId(null);
       setLoading(false);
       return;
     }
@@ -1069,15 +1064,6 @@ export function ChatStudio() {
         if (cancelled) return;
         const sorted = sortSessions(sessionList);
         setSessions(sorted);
-        setSelectedSessionId((current) => {
-          if (sessionIdParam && sorted.some((session) => session.id === sessionIdParam)) {
-            return sessionIdParam;
-          }
-          if (current && sorted.some((session) => session.id === current)) {
-            return current;
-          }
-          return null;
-        });
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -2230,7 +2216,6 @@ export function ChatStudio() {
       setUsage(calculateSessionUsage(enrichedMessages) ?? response.usage ?? null);
       setContextConsumed(response.context_consumed);
       setContextWindow(response.context_window || contextWindow || 0);
-      setSelectedSessionId(response.session.id);
       setActiveModelId(response.session.chat_model);
       const resolvedSession =
         toolCollectionsDirtyRef.current && response.session.tool_collection_ids
@@ -2294,7 +2279,6 @@ export function ChatStudio() {
     const isNewSession = !sessionId;
     if (!sessionId) {
       sessionId = generateClientSessionId();
-      setSelectedSessionId(sessionId);
       const placeholderSession: ChatSession = {
         id: sessionId,
         user_id: user.id,
@@ -2370,7 +2354,7 @@ export function ChatStudio() {
       }
       if (isNewSession && sessionId && !aborted) {
         setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-        setSelectedSessionId(null);
+        navigateToChat(null, selectedToolCollectionIds);
       }
       if (!aborted) {
         const statusMessage =
@@ -2462,7 +2446,6 @@ export function ChatStudio() {
           next.push(branchedSession);
           return sortSessions(next);
         });
-        setSelectedSessionId(branchedSession.id);
         setActiveModelId(branchedSession.chat_model);
         setSelectedToolCollectionIds(branchedSession.tool_collection_ids ?? []);
         setParameterOverrides(branchedSession.parameter_overrides ?? {});
@@ -2510,7 +2493,6 @@ export function ChatStudio() {
       streamingEnabled,
       toolCollectionIds: selectedToolCollectionIds,
     };
-    setSelectedSessionId(null);
     applyNewChatDefaultsRef.current = true;
     pendingSessionIdsRef.current.clear();
     toolCollectionsDirtyRef.current = false;
@@ -2800,7 +2782,8 @@ export function ChatStudio() {
       });
       if (selectedSessionId === sessionId) {
         if (nextSelectedId) {
-          setSelectedSessionId(nextSelectedId);
+          const nextSession = sessions.find((session) => session.id === nextSelectedId);
+          navigateToChat(nextSelectedId, nextSession?.tool_collection_ids ?? []);
         } else {
           handleStartNewChat();
         }
