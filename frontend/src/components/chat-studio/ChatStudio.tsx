@@ -515,6 +515,8 @@ export function ChatStudio() {
   const [isStopping, setIsStopping] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState("");
+  const editScrollSnapshotRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
+  const editAutoScrollRef = useRef<boolean | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = usePersistentToggle("chat.historyOpen", true);
@@ -1660,6 +1662,27 @@ export function ChatStudio() {
       setPersistedLiveReasoningSegments(liveReasoningSegments);
     }
   }, [liveReasoningSegments]);
+
+  useLayoutEffect(() => {
+    if (!editingMessageId) {
+      editScrollSnapshotRef.current = null;
+      if (editAutoScrollRef.current !== null) {
+        setAutoScrollEnabled(editAutoScrollRef.current);
+        editAutoScrollRef.current = null;
+      }
+      return;
+    }
+    const container = messagesContainerRef.current;
+    const snapshot = editScrollSnapshotRef.current;
+    if (!container || !snapshot) {
+      return;
+    }
+    const previousBehavior = container.style.scrollBehavior;
+    container.style.scrollBehavior = "auto";
+    container.scrollTop = snapshot.scrollTop;
+    container.style.scrollBehavior = previousBehavior;
+    editScrollSnapshotRef.current = null;
+  }, [editingMessageId]);
 
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -3199,6 +3222,21 @@ export function ChatStudio() {
                         editingDraft={editingDraft}
                         onEditChange={setEditingDraft}
                         onEditStart={(messageId, content) => {
+                          const container = messagesContainerRef.current;
+                          if (container) {
+                            editScrollSnapshotRef.current = {
+                              scrollTop: container.scrollTop,
+                              scrollHeight: container.scrollHeight,
+                            };
+                          }
+                          editAutoScrollRef.current = autoScrollEnabled;
+                          if (autoScrollEnabled) {
+                            setAutoScrollEnabled(false);
+                          }
+                          if (scrollAnimationFrameRef.current) {
+                            window.cancelAnimationFrame(scrollAnimationFrameRef.current);
+                            scrollAnimationFrameRef.current = null;
+                          }
                           setEditingMessageId(messageId);
                           setEditingDraft(content);
                         }}

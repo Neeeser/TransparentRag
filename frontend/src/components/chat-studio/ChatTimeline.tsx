@@ -1,5 +1,5 @@
 import { Edit3, GitBranch, RotateCcw } from "lucide-react";
-import React, { Fragment, useMemo } from "react";
+import React, { Fragment, useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -136,6 +136,17 @@ export function ChatTimeline({
   branchedFromMessageId,
   onNavigateToSession,
 }: ChatTimelineProps) {
+  const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!editingMessageId || !editTextareaRef.current) {
+      return;
+    }
+
+    const textarea = editTextareaRef.current;
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [editingDraft, editingMessageId]);
   const renderBranchRow = (messageId: string, usage?: UsageBreakdown | null) => (
     <div className="absolute left-0 right-0 top-full mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-300/70 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
       {usage && <UsageInline usage={usage} />}
@@ -495,13 +506,20 @@ export function ChatTimeline({
       </div>
     ) : null;
 
+    const isEditing = isUser && editingMessageId === entry.message.id;
+    const editHighlight = isEditing
+      ? "border-violet-300/80 bg-violet-500/25 shadow-[0_0_0_1px_rgba(196,181,253,0.35)]"
+      : null;
+
     return (
       <div key={bubbleKey} className={cn("flex", alignClass, hasBranchFooter && "mb-5")}>
-        <div className="group relative max-w-[75%]">
+        <div className={cn("group relative max-w-[75%]", isEditing && "w-full")}>
           <div
             className={cn(
               "chat-bubble rounded-2xl border px-4 py-3 text-sm shadow-2xl transition",
               variant,
+              editHighlight,
+              isEditing && "w-full",
             )}
             data-chat-role={entry.type}
           >
@@ -536,10 +554,11 @@ export function ChatTimeline({
                 </div>
               )}
             </div>
-            {isUser && editingMessageId === entry.message.id ? (
+            {isEditing ? (
               <div className="space-y-2">
                 <textarea
-                  className="min-h-[120px] w-full rounded-2xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-violet-400"
+                  ref={editTextareaRef}
+                  className="min-h-[64px] w-full resize-none overflow-hidden rounded-xl bg-violet-500/15 px-4 py-3 text-sm leading-relaxed text-white outline-none"
                   value={editingDraft}
                   onChange={(event) => onEditChange(event.target.value)}
                 />
