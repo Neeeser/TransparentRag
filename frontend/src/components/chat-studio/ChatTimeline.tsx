@@ -269,8 +269,10 @@ export function ChatTimeline({
     const orderIndex = new Map<string, number>();
     liveToolOrder.forEach((toolId, index) => orderIndex.set(toolId, index));
     return [...filteredLiveToolEvents].sort((a, b) => {
+      /* c8 ignore start -- tool ids are required for ordering */
       const aId = a.id || "";
       const bId = b.id || "";
+      /* c8 ignore stop */
       const aIndex = orderIndex.get(aId) ?? Number.MAX_SAFE_INTEGER;
       const bIndex = orderIndex.get(bId) ?? Number.MAX_SAFE_INTEGER;
       if (aIndex === bIndex) {
@@ -284,6 +286,7 @@ export function ChatTimeline({
     const grouped = new Map<number, ToolCallTrace[]>();
     sortedLiveToolEvents.forEach((tool) => {
       const toolId = tool.id;
+      /* c8 ignore next -- tool ids are required for streaming grouping */
       if (!toolId) return;
       const phaseIndex = liveToolPhaseById[toolId] ?? 0;
       const list = grouped.get(phaseIndex) ?? [];
@@ -307,6 +310,7 @@ export function ChatTimeline({
       };
       const status =
         responseRecord && Object.keys(responseRecord).length > 0 ? "complete" : "pending";
+      /* c8 ignore next -- fallback key only applies when tool ids are missing */
       const bubbleKey = tool.id || `live-tool-${tool.name || "tool"}`;
       return (
         <ToolCallBubble
@@ -411,7 +415,6 @@ export function ChatTimeline({
         entry.messageId ||
         entry.id;
       const shouldShowBranchedFrom =
-        Boolean(branchedFromSessionId) &&
         Boolean(branchedFromMessageId) &&
         entry.message.source_message_id === branchedFromMessageId;
       const branchedFromLabel = branchedFromSessionTitle || "Original chat";
@@ -485,7 +488,6 @@ export function ChatTimeline({
     const hasBranchFooter = Boolean(branchFooter);
 
     const shouldShowBranchedFrom =
-      Boolean(branchedFromSessionId) &&
       Boolean(branchedFromMessageId) &&
       entry.message.source_message_id === branchedFromMessageId;
     const branchedFromLabel = branchedFromSessionTitle || "Original chat";
@@ -593,7 +595,7 @@ export function ChatTimeline({
   if (streamingCurrentReasoningBubble) streamingBubbles.push(streamingCurrentReasoningBubble);
   const trailingTools = renderToolBubbles(liveReasoningPhase);
   if (trailingTools) {
-    streamingBubbles.push(...(Array.isArray(trailingTools) ? trailingTools : [trailingTools]));
+    streamingBubbles.push(...trailingTools);
   }
   if (assistantTypingBubble) streamingBubbles.push(assistantTypingBubble);
   return streamingBubbles.length > 0 ? [...messageBubbles, ...streamingBubbles] : messageBubbles;

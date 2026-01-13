@@ -20,6 +20,10 @@ to ensure the most up-to-date behavior and feature availability.
 - `make coverage`: run tests with coverage (terminal missing-lines + `htmlcov/` + `coverage.xml`)
 - `make coverage-report`: like `make coverage`, but does not fail the Make target if tests fail
 - `make coverage-open`: open `htmlcov/index.html`
+- `make test-frontend`: run frontend tests (`vitest`)
+- `make coverage-frontend`: run frontend coverage (`vitest`)
+- `make coverage-report-frontend`: like `make coverage-frontend`, but does not fail the Make target if tests fail
+- `make coverage-open-frontend`: open `frontend/coverage/index.html`
 
 
 # Backend Coding Guidelines
@@ -69,6 +73,14 @@ to ensure the most up-to-date behavior and feature availability.
 
 - Always run Prettier on frontend code you change (use `make format-frontend`).
 - Ensure CI-friendly formatting checks pass (use `make format-check-frontend`).
+
+## Frontend Tests and Coverage
+
+- Always add/adjust tests alongside new frontend code.
+- Before finishing your work on a frontend change:
+  - Run `make test-frontend`
+  - Run `make coverage-frontend` and ensure frontend updates are covered at 100%
+  - Use `make coverage-report-frontend` while iterating if you need a non-blocking run
 
 ## Modularity and Structure
 
