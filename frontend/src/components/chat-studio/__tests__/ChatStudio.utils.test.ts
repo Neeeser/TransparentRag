@@ -18,7 +18,7 @@ import {
   parseCollectionIdsParam,
   pruneHistoryForEdit,
   sortMessagesChronologically,
-} from "@/components/chat-studio/ChatStudioView";
+} from "@/components/chat-studio/ChatStudio";
 
 import type {
   ChatMessage,
@@ -29,7 +29,7 @@ import type {
 
 const baseTimestamp = "2024-01-01T00:00:00.000Z";
 
-describe("ChatStudioView helpers", () => {
+describe("ChatStudio helpers", () => {
   it("normalizes run settings order", () => {
     expect(normalizeRunSettingsOrder(null)).toEqual([
       "systemPrompt",
