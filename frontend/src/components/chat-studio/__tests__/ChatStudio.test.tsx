@@ -385,8 +385,9 @@ describe("ChatStudio", () => {
     });
 
     await act(async () => {
-      (mockChatTimelineProps as { onEditStart?: (id: string, content: string) => void })
-        .onEditStart?.("message-1", "Draft");
+      (
+        mockChatTimelineProps as { onEditStart?: (id: string, content: string) => void }
+      ).onEditStart?.("message-1", "Draft");
     });
 
     await waitFor(() => {
@@ -415,8 +416,9 @@ describe("ChatStudio", () => {
       .providerPreferencesOpen;
 
     await act(async () => {
-      (mockTelemetryPanelProps as { onProviderPreferencesToggle?: () => void })
-        .onProviderPreferencesToggle?.();
+      (
+        mockTelemetryPanelProps as { onProviderPreferencesToggle?: () => void }
+      ).onProviderPreferencesToggle?.();
     });
 
     await waitFor(() => {
@@ -446,8 +448,9 @@ describe("ChatStudio", () => {
     });
 
     await act(async () => {
-      (mockChatTimelineProps as { onEditStart?: (id: string, content: string) => void })
-        .onEditStart?.("message-1", "Draft");
+      (
+        mockChatTimelineProps as { onEditStart?: (id: string, content: string) => void }
+      ).onEditStart?.("message-1", "Draft");
     });
 
     await waitFor(() => {
@@ -455,8 +458,9 @@ describe("ChatStudio", () => {
     });
 
     await act(async () => {
-      (mockTelemetryPanelProps as { onProviderPreferencesToggle?: () => void })
-        .onProviderPreferencesToggle?.();
+      (
+        mockTelemetryPanelProps as { onProviderPreferencesToggle?: () => void }
+      ).onProviderPreferencesToggle?.();
     });
 
     window.innerWidth = originalWidth;

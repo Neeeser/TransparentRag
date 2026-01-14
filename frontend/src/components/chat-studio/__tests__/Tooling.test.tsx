@@ -240,13 +240,7 @@ describe("Tooling", () => {
 
   it("falls back to default tool summaries", () => {
     render(
-      <ToolCallBubble
-        label="fallback"
-        variantClass=""
-        args={{}}
-        response={{}}
-        rawPayload={{}}
-      />,
+      <ToolCallBubble label="fallback" variantClass="" args={{}} response={{}} rawPayload={{}} />,
     );
 
     expect(screen.getByText("View tool output")).toBeInTheDocument();

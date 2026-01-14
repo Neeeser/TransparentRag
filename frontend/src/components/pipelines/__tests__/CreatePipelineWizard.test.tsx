@@ -92,7 +92,9 @@ describe("CreatePipelineWizard", () => {
         open
         token="token"
         kind="ingestion"
-        indexes={[{ name: "alpha", dimension: 768, metric: "cosine", host: null, spec: null, status: null }]}
+        indexes={[
+          { name: "alpha", dimension: 768, metric: "cosine", host: null, spec: null, status: null },
+        ]}
         onClose={() => undefined}
         onCreated={() => undefined}
         onOpenIndexManager={() => undefined}
@@ -143,11 +145,7 @@ describe("CreatePipelineWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }));
 
     await waitFor(() => {
-      expect(pipelineUtils.buildDefaultDefinition).toHaveBeenCalledWith(
-        "retrieval",
-        "alpha",
-        768,
-      );
+      expect(pipelineUtils.buildDefaultDefinition).toHaveBeenCalledWith("retrieval", "alpha", 768);
       expect(onCreated).toHaveBeenCalledWith(pipeline);
       expect(onClose).toHaveBeenCalled();
     });
@@ -174,7 +172,16 @@ describe("CreatePipelineWizard", () => {
         open
         token="token"
         kind="ingestion"
-        indexes={[{ name: "alpha", dimension: null, metric: "cosine", host: null, spec: null, status: null }]}
+        indexes={[
+          {
+            name: "alpha",
+            dimension: null,
+            metric: "cosine",
+            host: null,
+            spec: null,
+            status: null,
+          },
+        ]}
         onClose={() => undefined}
         onCreated={onCreated}
         onOpenIndexManager={() => undefined}
@@ -188,7 +195,11 @@ describe("CreatePipelineWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }));
 
     await waitFor(() => {
-      expect(pipelineUtils.buildDefaultDefinition).toHaveBeenCalledWith("ingestion", "alpha", undefined);
+      expect(pipelineUtils.buildDefaultDefinition).toHaveBeenCalledWith(
+        "ingestion",
+        "alpha",
+        undefined,
+      );
       expect(onCreated).toHaveBeenCalledWith(pipeline);
     });
   });

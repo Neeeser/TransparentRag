@@ -127,10 +127,12 @@ describe("UmapCanvas", () => {
     const layers = lastDeckProps?.layers as DeckLayer[] | undefined;
     const scatter = layers?.find((layer) => layer.id === "umap-points");
     const grid = layers?.find((layer) => layer.id === "umap-grid");
-    const gridLine = (grid?.props.data as Array<{
-      source: [number, number];
-      target: [number, number];
-    }>)[0];
+    const gridLine = (
+      grid?.props.data as Array<{
+        source: [number, number];
+        target: [number, number];
+      }>
+    )[0];
     if (grid && gridLine) {
       expect(grid.props.getSourcePosition(gridLine)).toEqual(gridLine.source);
       expect(grid.props.getTargetPosition(gridLine)).toEqual(gridLine.target);

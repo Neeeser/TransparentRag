@@ -256,9 +256,7 @@ describe("PipelineOverridesEditor", () => {
     const calls = onOverridesChange.mock.calls.map(
       ([value]) => value as Record<string, Record<string, unknown>>,
     );
-    const clearedThreshold = calls.some(
-      (call) => !("threshold" in (call["node-nan"] ?? {})),
-    );
+    const clearedThreshold = calls.some((call) => !("threshold" in (call["node-nan"] ?? {})));
     const clearedNote = calls.some((call) => !("note" in (call["node-nan"] ?? {})));
     expect(clearedThreshold).toBe(true);
     expect(clearedNote).toBe(true);

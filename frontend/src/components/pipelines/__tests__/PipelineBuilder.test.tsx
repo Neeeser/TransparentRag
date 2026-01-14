@@ -171,34 +171,33 @@ vi.mock("@/components/pipelines/PipelineSidebar", () => ({
     onDeletePipeline: (p: Pipeline) => void;
     onPreviewNode?: (spec: NodeSpec) => void;
     catalog?: { specs: NodeSpec[] }[] | undefined;
-  }) => (
+  }) =>
     (() => {
       lastSidebarProps = props as Record<string, unknown>;
       const { pipelines, onSelectPipeline, onDeletePipeline, onPreviewNode, catalog } = props;
       return (
-    <div>
-      <button type="button" onClick={() => onSelectPipeline(pipelines[0])}>
-        Select pipeline
-      </button>
-      <button type="button" onClick={() => onDeletePipeline(pipelines[0])}>
-        Delete pipeline
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          const family = catalog?.[0];
-          const spec = family?.specs?.[0];
-          if (spec && onPreviewNode) {
-            onPreviewNode(spec);
-          }
-        }}
-      >
-        Preview node
-      </button>
-    </div>
+        <div>
+          <button type="button" onClick={() => onSelectPipeline(pipelines[0])}>
+            Select pipeline
+          </button>
+          <button type="button" onClick={() => onDeletePipeline(pipelines[0])}>
+            Delete pipeline
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const family = catalog?.[0];
+              const spec = family?.specs?.[0];
+              if (spec && onPreviewNode) {
+                onPreviewNode(spec);
+              }
+            }}
+          >
+            Preview node
+          </button>
+        </div>
       );
-    })()
-  ),
+    })(),
 }));
 
 vi.mock("@/components/pipelines/PipelineHeader", () => ({
@@ -575,8 +574,7 @@ describe("PipelineBuilder", () => {
     expect(screen.getByRole("button", { name: "Finish create" })).toBeInTheDocument();
 
     await waitFor(() => {
-      const catalog = (lastSidebarProps as { catalog?: { specs?: NodeSpec[] }[] } | null)
-        ?.catalog;
+      const catalog = (lastSidebarProps as { catalog?: { specs?: NodeSpec[] }[] } | null)?.catalog;
       expect(catalog?.[0]?.specs?.length).toBeGreaterThan(0);
     });
 
@@ -591,15 +589,18 @@ describe("PipelineBuilder", () => {
     });
 
     act(() => {
-      (lastInspectorProps as { onEmbeddingSearchChange?: (value: string) => void })
-        .onEmbeddingSearchChange?.("alpha");
-      (lastInspectorProps as { onEmbeddingModelSortChange?: (value: string) => void })
-        .onEmbeddingModelSortChange?.("dimension");
+      (
+        lastInspectorProps as { onEmbeddingSearchChange?: (value: string) => void }
+      ).onEmbeddingSearchChange?.("alpha");
+      (
+        lastInspectorProps as { onEmbeddingModelSortChange?: (value: string) => void }
+      ).onEmbeddingModelSortChange?.("dimension");
     });
 
     act(() => {
-      (lastInspectorProps as { onSelectEmbeddingModel?: (value: string) => void })
-        .onSelectEmbeddingModel?.("emb-1");
+      (
+        lastInspectorProps as { onSelectEmbeddingModel?: (value: string) => void }
+      ).onSelectEmbeddingModel?.("emb-1");
     });
     await waitFor(() => {
       expect(
@@ -608,8 +609,9 @@ describe("PipelineBuilder", () => {
     });
 
     act(() => {
-      (lastInspectorProps as { onSelectEmbeddingModel?: (value: string) => void })
-        .onSelectEmbeddingModel?.("emb-2");
+      (
+        lastInspectorProps as { onSelectEmbeddingModel?: (value: string) => void }
+      ).onSelectEmbeddingModel?.("emb-2");
     });
     await waitFor(() => {
       expect(

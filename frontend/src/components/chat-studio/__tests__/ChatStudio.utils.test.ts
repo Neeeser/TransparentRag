@@ -140,9 +140,9 @@ describe("ChatStudio helpers", () => {
     expect(attached[0].usage).toEqual(usage);
 
     expect(attachUsageToLastAssistantMessage(withoutUsage, null)).toEqual(withoutUsage);
-    expect(
-      attachUsageToLastAssistantMessage([{ ...withoutUsage[0], usage }], usage),
-    ).toEqual([{ ...withoutUsage[0], usage }]);
+    expect(attachUsageToLastAssistantMessage([{ ...withoutUsage[0], usage }], usage)).toEqual([
+      { ...withoutUsage[0], usage },
+    ]);
   });
 
   it("detects tool reasoning segments", () => {

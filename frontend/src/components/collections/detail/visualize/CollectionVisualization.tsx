@@ -152,14 +152,14 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
       {visualization ? (
         <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <GlassCard className="relative h-full min-h-[420px] rounded-3xl border border-white/10">
-              <UmapCanvas
-                key={projectionId ?? "empty"}
-                points={visualization.points}
-                selectedPointId={selectedPoint?.id}
-                selectedPoint={selectedPoint}
-                /* c8 ignore next -- selection is exercised through the dynamic preview in tests */
-                onSelectPoint={handleSelectPoint}
-              />
+            <UmapCanvas
+              key={projectionId ?? "empty"}
+              points={visualization.points}
+              selectedPointId={selectedPoint?.id}
+              selectedPoint={selectedPoint}
+              /* c8 ignore next -- selection is exercised through the dynamic preview in tests */
+              onSelectPoint={handleSelectPoint}
+            />
           </GlassCard>
           <ChunkDetailPanel
             detail={chunkDetail}

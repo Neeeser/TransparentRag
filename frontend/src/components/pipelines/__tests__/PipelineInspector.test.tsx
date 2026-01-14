@@ -416,9 +416,7 @@ describe("PipelineInspector", () => {
 
     const calls = onConfigDraftChange.mock.calls.map(([value]) => value as Record<string, unknown>);
     expect(calls.some((call) => !("temperature" in call))).toBe(true);
-    expect(calls.some((call) => call.index_name === "alpha" && !("dimension" in call))).toBe(
-      true,
-    );
+    expect(calls.some((call) => call.index_name === "alpha" && !("dimension" in call))).toBe(true);
   });
 
   it("uses draft values for parameter inputs and clears empty numbers", () => {
@@ -487,9 +485,7 @@ describe("PipelineInspector", () => {
       />,
     );
 
-    expect(
-      screen.queryByText("This node has no configurable settings."),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("This node has no configurable settings.")).not.toBeInTheDocument();
   });
 
   it("passes embedder selection state and callbacks", () => {

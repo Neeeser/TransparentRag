@@ -169,9 +169,10 @@ describe("pipeline-io", () => {
     const result = validatePipelineConnection(connection, nodes);
     expect(result.valid).toBe(true);
 
-    const edgeValidation = validatePipelineEdges([], [
-      { id: "edge-missing", source: "missing", target: "missing-2" },
-    ]);
+    const edgeValidation = validatePipelineEdges(
+      [],
+      [{ id: "edge-missing", source: "missing", target: "missing-2" }],
+    );
     expect(edgeValidation.edgeErrors).toEqual({});
   });
 

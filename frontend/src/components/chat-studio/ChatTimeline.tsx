@@ -417,9 +417,7 @@ export function ChatTimeline({
         entry.messageId ||
         entry.id;
       const shouldShowBranchedFrom =
-        Boolean(branchedFromSessionId) &&
-        Boolean(branchedFromMessageId) &&
-        entry.message.source_message_id === branchedFromMessageId;
+        Boolean(branchedFromMessageId) && entry.message.source_message_id === branchedFromMessageId;
       const branchedFromLabel = branchedFromSessionTitle || "Original chat";
       const branchBanner = shouldShowBranchedFrom ? (
         <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-300/80">
@@ -440,7 +438,7 @@ export function ChatTimeline({
         </div>
       ) : null;
       return (
-        <Fragment key={toolKey}>
+        <div key={toolKey} className="flex flex-col">
           <ToolCallBubble
             label={entry.label}
             variantClass={roleVariants.tool}
@@ -449,7 +447,8 @@ export function ChatTimeline({
             rawPayload={entry.rawPayload}
             className="chat-bubble"
           />
-        </Fragment>
+          {branchBanner ? <div className="flex justify-start">{branchBanner}</div> : null}
+        </div>
       );
     }
 
@@ -490,8 +489,7 @@ export function ChatTimeline({
     const hasBranchFooter = Boolean(branchFooter);
 
     const shouldShowBranchedFrom =
-      Boolean(branchedFromMessageId) &&
-      entry.message.source_message_id === branchedFromMessageId;
+      Boolean(branchedFromMessageId) && entry.message.source_message_id === branchedFromMessageId;
     const branchedFromLabel = branchedFromSessionTitle || "Original chat";
     const branchBanner = shouldShowBranchedFrom ? (
       <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-300/80">

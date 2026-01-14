@@ -406,9 +406,7 @@ describe("ChatTimeline", () => {
       />,
     );
 
-    const labels = screen
-      .getAllByTestId("tool-bubble")
-      .map((node) => node.textContent ?? "");
+    const labels = screen.getAllByTestId("tool-bubble").map((node) => node.textContent ?? "");
     expect(labels[0]).toContain("Alpha");
     expect(labels[1]).toContain("Beta");
   });
@@ -444,9 +442,7 @@ describe("ChatTimeline", () => {
       />,
     );
 
-    const labels = screen
-      .getAllByTestId("tool-bubble")
-      .map((node) => node.textContent ?? "");
+    const labels = screen.getAllByTestId("tool-bubble").map((node) => node.textContent ?? "");
     expect(labels[0]).toContain("Beta");
     expect(labels[1]).toContain("Alpha");
   });

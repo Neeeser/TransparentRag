@@ -3050,7 +3050,11 @@ export function ChatStudio() {
   );
 
   const performChatMutation = useCallback(
-    async (sessionId: string, payload: Omit<ChatRequestPayload, "session_id">) => {
+    async (
+      sessionId: string,
+      payload: Omit<ChatRequestPayload, "session_id">,
+      toolCollectionIdsOverride?: string[] | null,
+    ) => {
       if (!authToken) {
         throw new Error("Missing authentication context.");
       }

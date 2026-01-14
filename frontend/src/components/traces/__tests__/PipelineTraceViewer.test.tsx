@@ -25,11 +25,7 @@ vi.mock("@xyflow/react", () => ({
   ReactFlow: (props: Record<string, unknown>) => {
     lastReactFlowProps = props;
     const TraceCursor = (props.nodeTypes as { traceCursor?: React.FC } | undefined)?.traceCursor;
-    return (
-      <div data-testid="reactflow">
-        {TraceCursor ? <TraceCursor /> : null}
-      </div>
-    );
+    return <div data-testid="reactflow">{TraceCursor ? <TraceCursor /> : null}</div>;
   },
   Background: () => <div data-testid="background" />,
   Controls: () => <div data-testid="controls" />,
@@ -257,12 +253,7 @@ describe("PipelineTraceViewer", () => {
     };
 
     render(
-      <PipelineTraceViewer
-        trace={textTrace}
-        token="token"
-        isOpen
-        onClose={() => undefined}
-      />,
+      <PipelineTraceViewer trace={textTrace} token="token" isOpen onClose={() => undefined} />,
     );
 
     await waitFor(() => {
@@ -416,7 +407,9 @@ describe("PipelineTraceViewer", () => {
       ],
     };
 
-    render(<PipelineTraceViewer trace={summaryTrace} token="token" isOpen onClose={() => undefined} />);
+    render(
+      <PipelineTraceViewer trace={summaryTrace} token="token" isOpen onClose={() => undefined} />,
+    );
 
     expect(screen.getByText("Short preview")).toBeInTheDocument();
     expect(screen.getByText(/length 20/)).toBeInTheDocument();

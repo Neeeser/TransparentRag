@@ -160,14 +160,10 @@ describe("DashboardPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          "No documents yet. Upload your first source from the collections page.",
-        ),
+        screen.getByText("No documents yet. Upload your first source from the collections page."),
       ).toBeInTheDocument();
     });
-    expect(
-      screen.getByText("Create your first collection to begin."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Create your first collection to begin.")).toBeInTheDocument();
   });
 
   it("shows error state on load failure", async () => {

@@ -268,9 +268,7 @@ describe("ProviderRoutingCard", () => {
     render(
       <ProviderRoutingCard
         providerForm={{ ...baseForm, order: ["openai/gpt-4", "mistral/mixtral"] }}
-        setProviderForm={(updater) =>
-          updater({ ...baseForm, order: ["openai/gpt-4"] })
-        }
+        setProviderForm={(updater) => updater({ ...baseForm, order: ["openai/gpt-4"] })}
         providerDirectory={directory}
         providerDirectoryLoading={false}
         providerDirectoryError={null}
