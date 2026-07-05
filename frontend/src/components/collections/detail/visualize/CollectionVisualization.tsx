@@ -175,7 +175,6 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
         </GlassCard>
       )}
       <ChunkPreviewOverlay
-        key={`${chunkDetail?.chunk.id ?? "empty"}-${previewOpen ? "open" : "closed"}`}
         isOpen={previewOpen}
         onClose={() => setPreviewOpen(false)}
         detail={chunkDetail}

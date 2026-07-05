@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useId, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -28,14 +28,26 @@ export function ChunkPreviewOverlay({
 }: ChunkPreviewOverlayProps) {
   const titleId = useId();
   const [renderMode, setRenderMode] = useState<RenderMode>(defaultRenderMode);
+  const chunkId = detail?.chunk.id;
 
-  const markdownSource = useMemo(() => {
-    return detail?.chunk.text?.trim() ? detail.chunk.text : "_No chunk content available._";
-  }, [detail]);
+  // Re-sync to the caller's preferred mode whenever the overlay opens or a different
+  // chunk is loaded, without clobbering a manual Plain/Markdown toggle mid-session.
+  // Adjusting state during render (rather than in an effect) replaces a remount-via-
+  // `key` hack callers previously needed for the same reset.
+  const syncKey = `${isOpen ? "open" : "closed"}:${chunkId ?? "empty"}`;
+  const [lastSyncKey, setLastSyncKey] = useState(syncKey);
+  if (syncKey !== lastSyncKey) {
+    setLastSyncKey(syncKey);
+    if (isOpen) {
+      setRenderMode(defaultRenderMode);
+    }
+  }
 
   if (!isOpen || !detail) {
     return null;
   }
+
+  const markdownSource = detail.chunk.text?.trim() ? detail.chunk.text : "_No chunk content available._";
 
   const { document, chunk } = detail;
 
