@@ -1,12 +1,12 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PipelineOverridesEditor } from "@/components/collections/PipelineOverridesEditor";
-import { Button } from "@/components/ui/button";
+import { Field, Select, TextArea, TextInput } from "@/components/ui/field";
 import { Loader } from "@/components/ui/loader";
-import { WizardShell, type WizardStep } from "@/components/ui/wizard-shell";
+import { WizardFooter, WizardShell, type WizardStep } from "@/components/ui/wizard-shell";
 import { createCollection } from "@/lib/api";
 
 import type { Collection, CollectionCreatePayload, NodeSpec, Pipeline } from "@/lib/types";
@@ -103,17 +103,6 @@ export function CreateCollectionWizard({
       retrieval_pipeline_id: prev.retrieval_pipeline_id || defaultRetrieval?.id || "",
     }));
   }, [open, defaultIngestion, defaultRetrieval]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
 
   const usesDefaultPipelines =
     !!defaultIngestion &&
@@ -218,75 +207,59 @@ export function CreateCollectionWizard({
       onStepChange={setStepIndex}
       onClose={onClose}
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" onClick={onClose} disabled={creating} className="px-5">
-            Cancel
-          </Button>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setStepIndex((prev) => Math.max(prev - 1, 0))}
-              disabled={creating || stepIndex === 0}
-              className="flex items-center gap-2"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            {stepIndex < steps.length - 1 ? (
-              <Button
-                onClick={() => setStepIndex((prev) => Math.min(prev + 1, steps.length - 1))}
-                disabled={creating || !canProceed()}
-                className="flex items-center gap-2"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button onClick={handleCreate} loading={creating}>
-                Create collection
-              </Button>
-            )}
-          </div>
-        </div>
+        <WizardFooter
+          step={stepIndex}
+          stepCount={steps.length}
+          onBack={() => setStepIndex((prev) => Math.max(prev - 1, 0))}
+          onNext={() =>
+            stepIndex < steps.length - 1
+              ? setStepIndex((prev) => Math.min(prev + 1, steps.length - 1))
+              : handleCreate()
+          }
+          nextLabel="Create collection"
+          nextDisabled={!canProceed()}
+          busy={creating}
+          onCancel={onClose}
+        />
       }
     >
       {stepIndex === 0 && (
         <div className="space-y-4">
-          <div>
-            <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              Collection name
-            </label>
-            <input
+          <Field
+            label="Collection name"
+            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+          >
+            <TextInput
               type="text"
               placeholder="Research vault"
               required
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
               value={form.name}
               onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
             />
-          </div>
-          <div>
-            <label className="text-xs uppercase tracking-[0.3em] text-slate-400">Description</label>
-            <textarea
+          </Field>
+          <Field
+            label="Description"
+            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+          >
+            <TextArea
               placeholder="Summarize what this collection is for."
-              className="mt-2 h-24 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+              className="h-24"
               value={form.description}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, description: event.target.value }))
               }
             />
-          </div>
+          </Field>
         </div>
       )}
 
       {stepIndex === 1 && (
         <div className="space-y-4">
-          <div>
-            <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              Ingestion pipeline
-            </label>
-            <select
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+          <Field
+            label="Ingestion pipeline"
+            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+          >
+            <Select
               value={form.ingestion_pipeline_id}
               onChange={(event) =>
                 setForm((prev) => ({
@@ -301,14 +274,13 @@ export function CreateCollectionWizard({
                   {pipeline.name}
                 </option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              Retrieval pipeline
-            </label>
-            <select
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+            </Select>
+          </Field>
+          <Field
+            label="Retrieval pipeline"
+            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+          >
+            <Select
               value={form.retrieval_pipeline_id}
               onChange={(event) =>
                 setForm((prev) => ({
@@ -323,8 +295,8 @@ export function CreateCollectionWizard({
                   {pipeline.name}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
       )}
 

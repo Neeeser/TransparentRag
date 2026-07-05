@@ -39,7 +39,10 @@ describe("ui components", () => {
         Ghost
       </Button>,
     );
-    expect(screen.getByText(/Working/i)).toBeInTheDocument();
+    const loadingButton = screen.getByRole("button", { name: "Ghost" });
+    expect(loadingButton).toHaveAttribute("aria-busy", "true");
+    expect(loadingButton).toBeDisabled();
+    expect(screen.getByText("Ghost")).toBeInTheDocument();
   });
 
   it("renders and toggles collapsible reasoning", () => {

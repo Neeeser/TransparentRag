@@ -4,6 +4,7 @@ import { Cloud, KeyRound, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Field, TextInput } from "@/components/ui/field";
 import { Notification } from "@/components/ui/notification";
 import { GlassCard } from "@/components/ui/panel";
 import { updateUserSettings, validateUserKeys } from "@/lib/api";
@@ -179,86 +180,96 @@ export default function SettingsPage() {
         <GlassCard className="rounded-3xl p-6">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <div className="flex items-center gap-2 text-sm text-white">
-                <KeyRound className="h-4 w-4 text-violet-300" />
-                OpenRouter API key
-                <div className="ml-auto flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
-                      openrouterBadge.className,
-                    )}
-                  >
-                    {openrouterBadge.label}
-                  </span>
-                  {openrouterConfigured && (
-                    <button
-                      type="button"
-                      className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
-                      onClick={() => setPendingClear((prev) => ({ ...prev, openrouter: true }))}
+              <Field
+                label={
+                  <>
+                    <KeyRound className="h-4 w-4 text-violet-300" />
+                    OpenRouter API key
+                  </>
+                }
+                labelClassName="flex items-center gap-2 text-sm text-white"
+                labelEnd={
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
+                        openrouterBadge.className,
+                      )}
                     >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </div>
-              <input
-                type="password"
-                autoComplete="off"
-                placeholder={openrouterPlaceholder}
-                className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
-                value={form.openrouter_api_key}
-                onChange={(event) => {
-                  setPendingClear((prev) => ({ ...prev, openrouter: false }));
-                  setForm((prev) => ({ ...prev, openrouter_api_key: event.target.value }));
-                }}
-              />
-              <p className="mt-2 text-xs text-slate-400">
-                Used for embeddings, chat, and provider metadata.
-              </p>
+                      {openrouterBadge.label}
+                    </span>
+                    {openrouterConfigured && (
+                      <button
+                        type="button"
+                        className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
+                        onClick={() => setPendingClear((prev) => ({ ...prev, openrouter: true }))}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                }
+                hint="Used for embeddings, chat, and provider metadata."
+              >
+                <TextInput
+                  type="password"
+                  autoComplete="off"
+                  placeholder={openrouterPlaceholder}
+                  value={form.openrouter_api_key}
+                  onChange={(event) => {
+                    setPendingClear((prev) => ({ ...prev, openrouter: false }));
+                    setForm((prev) => ({ ...prev, openrouter_api_key: event.target.value }));
+                  }}
+                />
+              </Field>
               {pendingClear.openrouter && (
                 <p className="mt-2 text-xs text-amber-300">Will remove on save.</p>
               )}
             </div>
 
             <div>
-              <div className="flex items-center gap-2 text-sm text-white">
-                <Cloud className="h-4 w-4 text-cyan-300" />
-                Pinecone API key
-                <div className="ml-auto flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
-                      pineconeBadge.className,
-                    )}
-                  >
-                    {pineconeBadge.label}
-                  </span>
-                  {pineconeConfigured && (
-                    <button
-                      type="button"
-                      className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
-                      onClick={() => setPendingClear((prev) => ({ ...prev, pinecone: true }))}
+              <Field
+                label={
+                  <>
+                    <Cloud className="h-4 w-4 text-cyan-300" />
+                    Pinecone API key
+                  </>
+                }
+                labelClassName="flex items-center gap-2 text-sm text-white"
+                labelEnd={
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
+                        pineconeBadge.className,
+                      )}
                     >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </div>
-              <input
-                type="password"
-                autoComplete="off"
-                placeholder={pineconePlaceholder}
-                className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
-                value={form.pinecone_api_key}
-                onChange={(event) => {
-                  setPendingClear((prev) => ({ ...prev, pinecone: false }));
-                  setForm((prev) => ({ ...prev, pinecone_api_key: event.target.value }));
-                }}
-              />
-              <p className="mt-2 text-xs text-slate-400">
-                Powers vector indexing, retrieval, and namespace cleanup.
-              </p>
+                      {pineconeBadge.label}
+                    </span>
+                    {pineconeConfigured && (
+                      <button
+                        type="button"
+                        className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
+                        onClick={() => setPendingClear((prev) => ({ ...prev, pinecone: true }))}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                }
+                hint="Powers vector indexing, retrieval, and namespace cleanup."
+              >
+                <TextInput
+                  type="password"
+                  autoComplete="off"
+                  placeholder={pineconePlaceholder}
+                  value={form.pinecone_api_key}
+                  onChange={(event) => {
+                    setPendingClear((prev) => ({ ...prev, pinecone: false }));
+                    setForm((prev) => ({ ...prev, pinecone_api_key: event.target.value }));
+                  }}
+                />
+              </Field>
               {pendingClear.pinecone && (
                 <p className="mt-2 text-xs text-amber-300">Will remove on save.</p>
               )}

@@ -1,11 +1,12 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
+import { ModalOverlay } from "@/components/ui/modal-overlay";
 import { prettyJson, timeAgo } from "@/lib/utils";
 
 import type { ChunkDetail } from "@/lib/types";
@@ -25,6 +26,7 @@ export function ChunkPreviewOverlay({
   detail,
   defaultRenderMode = "text",
 }: ChunkPreviewOverlayProps) {
+  const titleId = useId();
   const [renderMode, setRenderMode] = useState<RenderMode>(defaultRenderMode);
 
   const markdownSource = useMemo(() => {
@@ -38,13 +40,14 @@ export function ChunkPreviewOverlay({
   const { document, chunk } = detail;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex h-[85vh] w-full max-w-5xl flex-col rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
+    <ModalOverlay open onClose={onClose} labelledBy={titleId} backdropClassName="bg-black/80">
+      <div className="flex h-[85vh] w-full max-w-5xl flex-col rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Chunk preview</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">{document.name}</h2>
+            <h2 id={titleId} className="mt-2 text-2xl font-semibold text-white">
+              {document.name}
+            </h2>
             <p className="text-sm text-slate-400">
               Chunk #{chunk.chunk_index + 1} · {chunk.chunk_strategy} · {chunk.chunk_size} tokens
             </p>
@@ -135,6 +138,6 @@ export function ChunkPreviewOverlay({
           </div>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

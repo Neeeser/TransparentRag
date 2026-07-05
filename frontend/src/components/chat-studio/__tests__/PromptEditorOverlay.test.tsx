@@ -152,7 +152,7 @@ describe("PromptEditorOverlay", () => {
     );
 
     expect(screen.getByText("Save failed")).toBeInTheDocument();
-    const saveButton = screen.getByRole("button", { name: /Working/ });
+    const saveButton = screen.getByRole("button", { name: "Save prompt" });
     expect(saveButton).toBeDisabled();
   });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 
 import type { ButtonHTMLAttributes } from "react";
@@ -37,9 +38,13 @@ export function Button({
         className,
       )}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
-      {loading ? "Working…" : children}
+      <span className="inline-flex items-center justify-center gap-2">
+        {loading ? <Loader className="h-3.5 w-3.5" /> : null}
+        {children}
+      </span>
     </button>
   );
 }
