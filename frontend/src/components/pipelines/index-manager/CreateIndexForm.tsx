@@ -15,6 +15,7 @@ type CreateIndexFormProps = {
   embeddingModels: EmbeddingModelInfo[];
   embeddingModelsLoading: boolean;
   embeddingModelsError: string | null;
+  onCreateStart: () => void;
   onCreated: () => void;
   onError: (message: string) => void;
 };
@@ -30,10 +31,11 @@ export function CreateIndexForm({
   embeddingModels,
   embeddingModelsLoading,
   embeddingModelsError,
+  onCreateStart,
   onCreated,
   onError,
 }: CreateIndexFormProps) {
-  const form = useCreateIndexForm({ token, embeddingModels, onCreated, onError });
+  const form = useCreateIndexForm({ token, embeddingModels, onCreateStart, onCreated, onError });
   const isDense = form.createForm.vector_type !== "sparse";
 
   return (

@@ -18,6 +18,11 @@ type ModalOverlayProps = {
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Stack of currently-open overlays, in open order. Escape only dismisses the overlay
+// at the top of the stack, so nested dialogs (e.g. a ConfirmDialog layered over
+// another modal) close one layer per press, per the ARIA dialog convention.
+const openOverlayStack: symbol[] = [];
+
 export function ModalOverlay({
   open,
   onClose,
@@ -28,6 +33,7 @@ export function ModalOverlay({
 }: ModalOverlayProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const stackIdRef = useRef(Symbol("modal-overlay"));
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
@@ -36,6 +42,9 @@ export function ModalOverlay({
 
   useEffect(() => {
     if (!open) return;
+
+    const stackId = stackIdRef.current;
+    openOverlayStack.push(stackId);
 
     previouslyFocused.current = document.activeElement as HTMLElement | null;
 
@@ -50,6 +59,7 @@ export function ModalOverlay({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (openOverlayStack[openOverlayStack.length - 1] !== stackId) return;
         onCloseRef.current();
         return;
       }
@@ -70,6 +80,8 @@ export function ModalOverlay({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => {
+      const stackIndex = openOverlayStack.indexOf(stackId);
+      if (stackIndex !== -1) openOverlayStack.splice(stackIndex, 1);
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
       previouslyFocused.current?.focus();

@@ -227,6 +227,38 @@ describe("IndexManagerModal", () => {
     expect(await screen.findByText("Boom")).toBeInTheDocument();
   });
 
+  it("clears a stale error banner when a create retry succeeds", async () => {
+    const onRefresh = vi.fn();
+    render(
+      <IndexManagerModal
+        open
+        token="token"
+        indexes={[]}
+        embeddingModels={embeddingModels}
+        onClose={() => undefined}
+        onRefresh={onRefresh}
+      />,
+    );
+
+    const nameInput = screen.getByPlaceholderText("research-vault");
+    fireEvent.change(nameInput, { target: { value: "index" } });
+
+    api.createPineconeIndex.mockRejectedValueOnce(new Error("Boom"));
+    let createButtons = screen.getAllByRole("button", { name: /Create index/ });
+    fireEvent.click(createButtons[createButtons.length - 1]);
+    expect(await screen.findByText("Boom")).toBeInTheDocument();
+
+    api.createPineconeIndex.mockResolvedValueOnce(undefined);
+    createButtons = screen.getAllByRole("button", { name: /Create index/ });
+    fireEvent.click(createButtons[createButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByText("Index created.")).toBeInTheDocument();
+      expect(screen.queryByText("Boom")).not.toBeInTheDocument();
+    });
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
   it("switches between index list views", () => {
     render(
       <IndexManagerModal
@@ -262,11 +294,15 @@ describe("IndexManagerModal", () => {
     fireEvent.click(screen.getByRole("button", { name: deleteIndexLabel }));
     expect(screen.getByText(/Confirm index deletion/)).toBeInTheDocument();
 
+    // First Escape closes only the topmost dialog (the delete confirmation); the
+    // index manager itself stays open.
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByText(/Confirm index deletion/)).not.toBeInTheDocument();
+    expect(screen.getByText("Pinecone index manager")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
 
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("renders external error messages", () => {

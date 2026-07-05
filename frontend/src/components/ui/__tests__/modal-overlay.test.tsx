@@ -1,9 +1,35 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ModalOverlay } from "@/components/ui/modal-overlay";
+
+function NestedHarness({
+  onCloseOuter,
+  onCloseInner,
+}: {
+  onCloseOuter: () => void;
+  onCloseInner: () => void;
+}) {
+  const [innerOpen, setInnerOpen] = useState(true);
+  return (
+    <>
+      <ModalOverlay open onClose={onCloseOuter}>
+        <div>Outer content</div>
+      </ModalOverlay>
+      <ModalOverlay
+        open={innerOpen}
+        onClose={() => {
+          onCloseInner();
+          setInnerOpen(false);
+        }}
+      >
+        <div>Inner content</div>
+      </ModalOverlay>
+    </>
+  );
+}
 
 function FocusRestoreHarness() {
   const [open, setOpen] = useState(false);
@@ -70,6 +96,42 @@ describe("ModalOverlay", () => {
     );
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape closes only the topmost overlay when nested", () => {
+    const onCloseOuter = vi.fn();
+    const onCloseInner = vi.fn();
+    render(<NestedHarness onCloseOuter={onCloseOuter} onCloseInner={onCloseInner} />);
+
+    expect(screen.getByText("Inner content")).toBeInTheDocument();
+
+    // First Escape: only the inner (topmost) overlay closes; the outer's listener
+    // sees it is not at the top of the stack and ignores the same event.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onCloseInner).toHaveBeenCalledTimes(1);
+    expect(onCloseOuter).not.toHaveBeenCalled();
+    expect(screen.queryByText("Inner content")).not.toBeInTheDocument();
+    expect(screen.getByText("Outer content")).toBeInTheDocument();
+
+    // Second Escape: the outer overlay is now topmost and closes.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onCloseOuter).toHaveBeenCalledTimes(1);
+    expect(onCloseInner).toHaveBeenCalledTimes(1);
+  });
+
+  it("backdrop click on the inner overlay does not close the outer overlay", async () => {
+    const user = userEvent.setup();
+    const onCloseOuter = vi.fn();
+    const onCloseInner = vi.fn();
+    render(<NestedHarness onCloseOuter={onCloseOuter} onCloseInner={onCloseInner} />);
+
+    // The inner overlay's backdrop is a separate fixed inset-0 layer covering the
+    // outer one, so a backdrop click only reaches (and closes) the inner overlay.
+    const backdrops = screen.getAllByRole("presentation");
+    await user.click(backdrops[backdrops.length - 1]);
+    expect(onCloseInner).toHaveBeenCalledTimes(1);
+    expect(onCloseOuter).not.toHaveBeenCalled();
+    expect(screen.getByText("Outer content")).toBeInTheDocument();
   });
 
   it("closes on backdrop click but not on content click", async () => {

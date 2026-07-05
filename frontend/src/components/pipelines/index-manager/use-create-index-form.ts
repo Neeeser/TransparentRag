@@ -28,6 +28,10 @@ const DEFAULT_FORM: PineconeIndexCreatePayload = {
 interface UseCreateIndexFormParams {
   token: string;
   embeddingModels: EmbeddingModelInfo[];
+  /** Called at the start of every create attempt, before any validation or the API
+   * call - the parent uses it to clear stale success/error banners so a retry never
+   * shows a leftover error next to a fresh result. */
+  onCreateStart: () => void;
   onCreated: () => void;
   onError: (message: string) => void;
 }
@@ -62,6 +66,7 @@ export interface UseCreateIndexFormResult {
 export function useCreateIndexForm({
   token,
   embeddingModels,
+  onCreateStart,
   onCreated,
   onError,
 }: UseCreateIndexFormParams): UseCreateIndexFormResult {
@@ -145,6 +150,7 @@ export function useCreateIndexForm({
 
   const handleCreate = async () => {
     setCreating(true);
+    onCreateStart();
     try {
       const payload: PineconeIndexCreatePayload = {
         ...createForm,

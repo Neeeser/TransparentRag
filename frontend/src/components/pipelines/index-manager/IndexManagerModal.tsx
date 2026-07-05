@@ -170,6 +170,10 @@ export function IndexManagerModal({
                     embeddingModels={embeddingModels}
                     embeddingModelsLoading={embeddingModelsLoading}
                     embeddingModelsError={embeddingModelsError}
+                    onCreateStart={() => {
+                      setNotificationMessage(null);
+                      setLocalError(null);
+                    }}
                     onCreated={() => {
                       onRefresh();
                       setNotificationMessage("Index created.");
