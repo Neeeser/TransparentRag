@@ -1,10 +1,11 @@
-import type { ParameterInputType, ParameterSelectOption } from "@/components/ui/parameter-controls";
+import type { ParameterSelectOption } from "@/components/ui/parameter-controls";
+import type { ParameterInputKind } from "@/lib/types";
 
 export type PipelineConfigField = {
   key: string;
   label: string;
   description?: string;
-  input: ParameterInputType;
+  input: ParameterInputKind;
   options?: ParameterSelectOption[];
   min?: number;
   max?: number;
@@ -97,7 +98,7 @@ const resolveSchemaNode = (
   return { node: current, nullable };
 };
 
-const resolveInputType = (schema: JsonSchema): ParameterInputType => {
+const resolveInputType = (schema: JsonSchema): ParameterInputKind => {
   const { type } = resolveNullableType(schema);
   if (Array.isArray(schema.enum)) {
     return "select";

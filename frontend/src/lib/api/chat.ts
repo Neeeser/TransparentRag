@@ -108,15 +108,13 @@ type ChatStreamEvent =
 const isAbortError = (value: unknown): value is DOMException =>
   value instanceof DOMException && value.name === "AbortError";
 
-export interface ToolStreamEvent {
-  id?: string;
-  name?: string;
-  arguments?: Record<string, unknown>;
-  response?: Record<string, unknown>;
-  reasoning?: unknown;
-  collection_id?: string;
-  collection_name?: string;
-}
+/**
+ * Single source of truth for the shape handed to `onToolCall` / `onToolResult`.
+ * Derived from the `tool_result` variant of `ChatStreamEvent` (a superset of
+ * the `tool_call` variant's fields, since both are already fully optional)
+ * with the `type` discriminant stripped.
+ */
+export type ToolStreamEvent = Omit<Extract<ChatStreamEvent, { type: "tool_result" }>, "type">;
 
 export async function streamChat(
   token: string,

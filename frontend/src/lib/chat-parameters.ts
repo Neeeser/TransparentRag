@@ -1,4 +1,4 @@
-export type ParameterInputKind = "number" | "integer" | "boolean" | "list" | "json" | "select";
+import type { ParameterInputKind } from "@/lib/types";
 
 export interface ParameterOption {
   label: string;

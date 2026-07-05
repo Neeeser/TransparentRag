@@ -2,14 +2,7 @@
 
 import type { ReactNode } from "react";
 
-export type ParameterInputType =
-  | "number"
-  | "integer"
-  | "boolean"
-  | "select"
-  | "text"
-  | "list"
-  | "json";
+import type { ParameterInputKind } from "@/lib/types";
 
 export type ParameterSelectOption = {
   label: string;
@@ -67,7 +60,7 @@ export function ParameterFieldCard({
 }
 
 type ParameterInputProps = {
-  input: ParameterInputType;
+  input: ParameterInputKind;
   value: unknown;
   min?: number;
   max?: number;

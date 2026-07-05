@@ -1,5 +1,3 @@
-"use client";
-
 import { formatDistanceToNow, parseISO } from "date-fns";
 
 export function cn(...classes: Array<string | false | null | undefined>) {
