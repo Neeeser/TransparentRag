@@ -296,7 +296,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
 
     async function loadVersions() {
       try {
-        const data = await listPipelineVersions(pipelineId, authToken);
+        const data = await listPipelineVersions(authToken, pipelineId);
         if (!cancelled) setVersions(data);
       } catch (error) {
         if (!cancelled) {
@@ -420,7 +420,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         ? `Warnings: ${validation.warnings.join(" ")}`
         : "";
       setSaving(true);
-      const updated = await updatePipeline(selectedPipeline.id, authToken, {
+      const updated = await updatePipeline(authToken, selectedPipeline.id, {
         definition,
         change_summary: changeSummary || "Updated pipeline definition.",
       });
@@ -459,9 +459,9 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     setMessage(null);
     try {
       const updated = await activatePipelineVersion(
+        authToken,
         selectedPipeline.id,
         version.version,
-        authToken,
       );
       setPipelines((prev) =>
         prev.map((pipeline) => (pipeline.id === updated.id ? updated : pipeline)),
@@ -511,7 +511,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     setSaving(true);
     setMessage(null);
     try {
-      await deletePipeline(deleteTarget.id, authToken);
+      await deletePipeline(authToken, deleteTarget.id);
       const nextPipelines = pipelines.filter((item) => item.id !== deleteTarget.id);
       setPipelines(nextPipelines);
       if (selectedPipeline?.id === deleteTarget.id) {

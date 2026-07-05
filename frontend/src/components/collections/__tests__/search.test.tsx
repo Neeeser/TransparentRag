@@ -99,7 +99,7 @@ describe("CollectionSearch", () => {
     await waitFor(() => {
       expect(screen.getByTestId("trace-viewer")).toBeInTheDocument();
     });
-    expect(api.fetchQueryEventTrace).toHaveBeenLastCalledWith("event-1", "token");
+    expect(api.fetchQueryEventTrace).toHaveBeenLastCalledWith("token", "event-1");
     fireEvent.click(screen.getByRole("button", { name: "Close trace" }));
     expect(api.fetchQueryEventTrace).toHaveBeenCalledTimes(2);
 

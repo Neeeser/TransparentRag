@@ -140,7 +140,7 @@ describe("CollectionVisualization", () => {
 
     fireEvent.click(screen.getByText(selectPointLabel));
     await waitFor(() => {
-      expect(api.fetchChunkDetail).toHaveBeenCalledWith("chunk-1", "token");
+      expect(api.fetchChunkDetail).toHaveBeenCalledWith("token", "chunk-1");
     });
     await waitFor(() => {
       expect(screen.getByText("Expand")).toBeInTheDocument();
@@ -189,7 +189,7 @@ describe("CollectionVisualization", () => {
     });
 
     await waitFor(() => {
-      expect(api.fetchChunkDetail).toHaveBeenCalledWith("chunk-1", "token");
+      expect(api.fetchChunkDetail).toHaveBeenCalledWith("token", "chunk-1");
       expect(screen.getByText("Trace failed.")).toBeInTheDocument();
     });
   });

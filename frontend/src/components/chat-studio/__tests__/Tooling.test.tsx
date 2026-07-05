@@ -208,7 +208,7 @@ describe("Tooling", () => {
     fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
     fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
     await waitFor(() => {
-      expect(api.fetchQueryEventTrace).toHaveBeenCalledWith("q1", "token");
+      expect(api.fetchQueryEventTrace).toHaveBeenCalledWith("token", "q1");
     });
     expect(screen.getByTestId("trace-viewer")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close trace" }));
@@ -311,7 +311,7 @@ describe("Tooling", () => {
     fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
 
     await waitFor(() => {
-      expect(api.fetchPipelineRunTrace).toHaveBeenCalledWith("run-1", "token");
+      expect(api.fetchPipelineRunTrace).toHaveBeenCalledWith("token", "run-1");
     });
   });
 

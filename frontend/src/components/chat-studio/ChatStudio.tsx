@@ -687,7 +687,7 @@ export function ChatStudio() {
       return;
     }
     let cancelled = false;
-    fetchDocuments(primaryCollection.id, authToken)
+    fetchDocuments(authToken, primaryCollection.id)
       .then((docs) => {
         if (!cancelled) {
           setDocumentCount(docs.length);
@@ -713,7 +713,7 @@ export function ChatStudio() {
       return;
     }
     let cancelled = false;
-    fetchPipeline(primaryCollection.retrieval_pipeline_id, authToken)
+    fetchPipeline(authToken, primaryCollection.retrieval_pipeline_id)
       .then((pipeline) => {
         if (!cancelled) {
           const settings = resolveChatSettings(pipeline);
@@ -819,7 +819,7 @@ export function ChatStudio() {
       }
       setCollectionPromptLoading((prev) => ({ ...prev, [collectionId]: true }));
       setCollectionPromptErrors((prev) => ({ ...prev, [collectionId]: null }));
-      getCollectionPrompt(collectionId, authToken)
+      getCollectionPrompt(authToken, collectionId)
         .then((details) => {
           setCollectionPromptDetails((prev) => ({ ...prev, [collectionId]: details }));
           setCollectionPromptDrafts((prev) => {
@@ -989,7 +989,7 @@ export function ChatStudio() {
     let cancelled = false;
     async function loadHistory() {
       try {
-        const history = await getChatHistory(selectedSessionId!, authToken);
+        const history = await getChatHistory(authToken, selectedSessionId!);
         if (!cancelled) {
           syncMessages(history, { hydrate: true, resetStreamKeys: true });
           setToolTraces(deriveToolTraces(history));
@@ -1216,7 +1216,7 @@ export function ChatStudio() {
     let cancelled = false;
     setProviderDirectoryLoading(true);
     setProviderDirectoryError(null);
-    listModelEndpoints(author, slugPart, authToken || undefined)
+    listModelEndpoints(authToken || undefined, author, slugPart)
       .then((response) => {
         if (cancelled) return;
         setProviderDirectory(response.data);
@@ -1417,7 +1417,7 @@ export function ChatStudio() {
         return;
       }
       try {
-        const history = await getChatHistory(sessionId, authToken);
+        const history = await getChatHistory(authToken, sessionId);
         if (activePollingSession.current !== sessionId) {
           return;
         }
@@ -2165,9 +2165,9 @@ export function ChatStudio() {
       }
       try {
         const response = await branchChatSession(
+          authToken,
           selectedSessionId,
           { message_id: messageId },
-          authToken,
         );
         const branchedSession = response.session;
         const branchedMessages = response.messages;
@@ -2458,7 +2458,7 @@ export function ChatStudio() {
       if (sectionId === "base") {
         setBasePromptError(null);
         try {
-          const updated = await updateBasePrompt(basePromptDraft, authToken);
+          const updated = await updateBasePrompt(authToken, basePromptDraft);
           setBasePromptDetails(updated);
           setBasePromptDraft(updated.template ?? "");
           setPromptEditorOpen(false);
@@ -2476,7 +2476,7 @@ export function ChatStudio() {
       setCollectionPromptErrors((prev) => ({ ...prev, [sectionId]: null }));
       try {
         const draft = collectionPromptDrafts[sectionId] ?? "";
-        const updated = await updateCollectionPrompt(sectionId, draft, authToken);
+        const updated = await updateCollectionPrompt(authToken, sectionId, draft);
         setCollectionPromptDetails((prev) => ({ ...prev, [sectionId]: updated }));
         setCollectionPromptDrafts((prev) => ({
           ...prev,
@@ -2514,7 +2514,7 @@ export function ChatStudio() {
     setStatus(null);
     setDeletingSessionId(sessionId);
     try {
-      await deleteChatSession(sessionId, authToken);
+      await deleteChatSession(authToken, sessionId);
       let nextSelectedId: string | null = null;
       setSessions((prev) => {
         const next = prev.filter((session) => session.id !== sessionId);
@@ -2725,7 +2725,7 @@ export function ChatStudio() {
             .slice(2, 7)}`;
           setActiveStreamEntryKey(streamKey);
           activeStreamEntryKeyRef.current = streamKey;
-          result = await streamChat(requestPayload, authToken, {
+          result = await streamChat(authToken, requestPayload, {
             signal: controller.signal,
             onToken: (token) => {
               if (token) {
@@ -2787,7 +2787,7 @@ export function ChatStudio() {
             },
           });
         } else {
-          result = await chat(requestPayload, authToken, controller.signal);
+          result = await chat(authToken, requestPayload, controller.signal);
         }
         if (!result) {
           throw new Error("Streaming response did not complete.");

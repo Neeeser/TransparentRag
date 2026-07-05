@@ -45,8 +45,8 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
       setMessage(null);
       try {
         const [collectionData, statsData, ingestion, retrieval] = await Promise.all([
-          fetchCollection(collectionId, authToken),
-          fetchCollectionStatsById(collectionId, authToken),
+          fetchCollection(authToken, collectionId),
+          fetchCollectionStatsById(authToken, collectionId),
           fetchPipelines(authToken, "ingestion"),
           fetchPipelines(authToken, "retrieval"),
         ]);

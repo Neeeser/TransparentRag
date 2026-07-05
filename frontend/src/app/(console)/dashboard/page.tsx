@@ -44,7 +44,7 @@ export default function DashboardPage() {
         const docResults = await Promise.all(
           cols.map(async (collection) => {
             try {
-              return await fetchDocuments(collection.id, authToken);
+              return await fetchDocuments(authToken, collection.id);
             } catch {
               return [];
             }

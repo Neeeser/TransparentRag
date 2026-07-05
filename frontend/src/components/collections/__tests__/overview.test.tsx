@@ -208,7 +208,7 @@ describe("CollectionOverview", () => {
     });
 
     await waitFor(() => {
-      expect(api.updateCollection).toHaveBeenCalledWith("col-1", "token", {
+      expect(api.updateCollection).toHaveBeenCalledWith("token", "col-1", {
         ingestion_pipeline_id: null,
         retrieval_pipeline_id: null,
       });

@@ -40,7 +40,7 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
       setLoading(true);
       setMessage(null);
       try {
-        const docs = await fetchDocuments(collectionId, token);
+        const docs = await fetchDocuments(token, collectionId);
         if (!cancelled) {
           setDocuments(docs);
         }
@@ -65,7 +65,7 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
   const loadChunks = async (documentId: string) => {
     setWorking((prev) => ({ ...prev, [documentId]: true }));
     try {
-      const payload = await fetchDocumentChunks(documentId, token);
+      const payload = await fetchDocumentChunks(token, documentId);
       setChunksByDocument((prev) => ({ ...prev, [documentId]: payload.chunks }));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to load chunks.");
@@ -88,8 +88,8 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
     setUploading(true);
     setMessage(null);
     try {
-      await uploadDocument(collectionId, file, token);
-      const docs = await fetchDocuments(collectionId, token);
+      await uploadDocument(token, collectionId, file);
+      const docs = await fetchDocuments(token, collectionId);
       setDocuments(docs);
       setMessage(`Uploaded ${file.name}. Chunking in progress.`);
     } catch (error) {
@@ -106,7 +106,7 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
     setTraceLoading((prev) => ({ ...prev, [documentId]: true }));
     setMessage(null);
     try {
-      const trace = await fetchDocumentTrace(documentId, token);
+      const trace = await fetchDocumentTrace(token, documentId);
       setTraceByDocument((prev) => ({ ...prev, [documentId]: trace }));
       setActiveTraceDocumentId(documentId);
       setActiveTraceChunkId(chunkId ?? null);

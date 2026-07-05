@@ -217,7 +217,7 @@ describe("collections pages", () => {
     fireEvent.click(screen.getByText("Delete first"));
     fireEvent.click(screen.getByText("Confirm delete"));
     await waitFor(() => {
-      expect(api.deleteCollection).toHaveBeenCalledWith("col-2", "token");
+      expect(api.deleteCollection).toHaveBeenCalledWith("token", "col-2");
     });
     expect(screen.getByText("Collection deleted.")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Dismiss notice"));

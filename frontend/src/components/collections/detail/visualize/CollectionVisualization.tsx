@@ -58,7 +58,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
     setLoading(true);
     setMessage(null);
     try {
-      const data = await fetchCollectionUmap(collectionId, token);
+      const data = await fetchCollectionUmap(token, collectionId);
       setVisualization(data);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unable to load UMAP.";
@@ -84,7 +84,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
     setComputing(true);
     setMessage(null);
     try {
-      const data = await computeCollectionUmap(collectionId, token);
+      const data = await computeCollectionUmap(token, collectionId);
       setVisualization(data);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unable to compute UMAP.";
@@ -101,7 +101,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
       setChunkDetail(null);
       setChunkError(null);
       try {
-        const detail = await fetchChunkDetail(point.chunk_id, token);
+        const detail = await fetchChunkDetail(token, point.chunk_id);
         setChunkDetail(detail);
       } catch (error) {
         const detail = error instanceof Error ? error.message : "Unable to load chunk details.";

@@ -129,7 +129,7 @@ export default function CollectionsPage() {
     setDeleting(true);
     setMessage(null);
     try {
-      await deleteCollection(deleteTarget.id, token);
+      await deleteCollection(token, deleteTarget.id);
       setCollections((prev) => prev.filter((item) => item.id !== deleteTarget.id));
       setStatsById((prev) => {
         const next = { ...prev };

@@ -34,7 +34,7 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     setWorking(true);
     setMessage(null);
     try {
-      const result = await runCollectionQuery(collectionId, { query, top_k: topK }, token);
+      const result = await runCollectionQuery(token, collectionId, { query, top_k: topK });
       setQueryResult(result);
       setTrace(null);
       setTraceChunkId(null);
@@ -54,7 +54,7 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     setTraceLoading(true);
     setMessage(null);
     try {
-      const payload = await fetchQueryEventTrace(queryResult.query_event_id, token);
+      const payload = await fetchQueryEventTrace(token, queryResult.query_event_id);
       setTrace(payload);
       setTraceChunkId(chunkId ?? null);
       setTraceOpen(true);

@@ -365,8 +365,8 @@ export const ToolCallBubble = ({
     setTraceLoading(true);
     try {
       const payload = queryEventId
-        ? await fetchQueryEventTrace(queryEventId, token)
-        : await fetchPipelineRunTrace(pipelineRunId as string, token);
+        ? await fetchQueryEventTrace(token, queryEventId)
+        : await fetchPipelineRunTrace(token, pipelineRunId as string);
       setTrace(payload);
       setTraceChunkId(chunkId ?? null);
       setTraceOpen(true);

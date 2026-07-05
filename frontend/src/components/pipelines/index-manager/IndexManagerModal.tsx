@@ -168,7 +168,7 @@ export function IndexManagerModal({
     setNotificationMessage(null);
     setLocalError(null);
     try {
-      await deletePineconeIndex(indexName, token);
+      await deletePineconeIndex(token, indexName);
       setDeleteConfirm("");
       setDeleteTarget(null);
       onRefresh();

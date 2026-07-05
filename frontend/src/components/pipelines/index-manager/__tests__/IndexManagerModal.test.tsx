@@ -119,7 +119,7 @@ describe("IndexManagerModal", () => {
     fireEvent.click(deleteButtons[deleteButtons.length - 1]);
 
     await waitFor(() => {
-      expect(api.deletePineconeIndex).toHaveBeenCalledWith("alpha", "token");
+      expect(api.deletePineconeIndex).toHaveBeenCalledWith("token", "alpha");
       expect(onRefresh).toHaveBeenCalled();
     });
   });

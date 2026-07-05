@@ -837,7 +837,7 @@ describe("ChatStudio", () => {
       expect(api.streamChat).toHaveBeenCalled();
     });
 
-    const [payload] = api.streamChat.mock.calls[0] as [Record<string, unknown>];
+    const [, payload] = api.streamChat.mock.calls[0] as [string, Record<string, unknown>];
     expect(payload).toEqual(
       expect.objectContaining({
         parameters: expect.objectContaining({ logprobs: true, stop: "END" }),
@@ -911,7 +911,7 @@ describe("ChatStudio", () => {
       expect(api.streamChat).toHaveBeenCalled();
     });
 
-    const [payload] = api.streamChat.mock.calls[0] as [Record<string, unknown>];
+    const [, payload] = api.streamChat.mock.calls[0] as [string, Record<string, unknown>];
     expect(payload).toEqual(
       expect.objectContaining({
         parameters: expect.not.objectContaining({
@@ -947,7 +947,7 @@ describe("ChatStudio", () => {
       expect(api.streamChat).toHaveBeenCalled();
     });
 
-    const [payload] = api.streamChat.mock.calls[0] as [Record<string, unknown>];
+    const [, payload] = api.streamChat.mock.calls[0] as [string, Record<string, unknown>];
     expect(payload).toEqual(
       expect.objectContaining({
         parameters: expect.objectContaining({ reasoning: { effort: "high" } }),
@@ -1093,7 +1093,7 @@ describe("ChatStudio", () => {
       await (historyProps.onDelete as (sessionId: string) => Promise<void>)("session-2");
     });
 
-    expect(api.deleteChatSession).toHaveBeenCalledWith("session-2", "token");
+    expect(api.deleteChatSession).toHaveBeenCalledWith("token", "session-2");
   });
 
   it("guards against missing tool keys", async () => {

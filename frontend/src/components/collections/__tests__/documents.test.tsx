@@ -110,7 +110,7 @@ describe("CollectionDocuments", () => {
     fireEvent.click(screen.getByText(/Chunk #/));
     fireEvent.click(screen.getByRole("button", { name: "Trace this chunk" }));
     await waitFor(() => {
-      expect(api.fetchDocumentTrace).toHaveBeenCalledWith("doc-1", "token");
+      expect(api.fetchDocumentTrace).toHaveBeenCalledWith("token", "doc-1");
     });
   });
 

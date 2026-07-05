@@ -69,7 +69,7 @@ export function CollectionOverview({
     setBinding(true);
     setMessage(null);
     try {
-      const updated = await updateCollection(collection.id, token, {
+      const updated = await updateCollection(token, collection.id, {
         ingestion_pipeline_id: pipelineBindings.ingestion || null,
         retrieval_pipeline_id: pipelineBindings.retrieval || null,
       });
