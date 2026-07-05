@@ -35,6 +35,7 @@ import { ChatStudioView } from "@/components/chat-studio/ChatStudioView";
 import { useAutoScroll } from "@/components/chat-studio/hooks/use-auto-scroll";
 import { useModelCatalog } from "@/components/chat-studio/hooks/use-model-catalog";
 import { useModelParameters } from "@/components/chat-studio/hooks/use-model-parameters";
+import { usePromptEditor } from "@/components/chat-studio/hooks/use-prompt-editor";
 import { useProviderPreferences } from "@/components/chat-studio/hooks/use-provider-preferences";
 import { useRunSettingsOrder } from "@/components/chat-studio/hooks/use-run-settings-order";
 import { useSessionHistoryPolling } from "@/components/chat-studio/hooks/use-session-history-polling";
@@ -49,13 +50,9 @@ import {
   fetchCollections,
   fetchDocuments,
   fetchPipeline,
-  getBasePrompt,
   getChatHistory,
-  getCollectionPrompt,
   listChatSessions,
   streamChat,
-  updateBasePrompt,
-  updateCollectionPrompt,
 } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -77,7 +74,6 @@ import type {
   ChatSession,
   Collection,
   Pipeline,
-  PromptDetails,
   ProviderPreferences,
   ReasoningTraceSegment,
   ToolCallTrace,
@@ -196,23 +192,6 @@ export function ChatStudio() {
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const previousModelIdRef = useRef<string | null>(null);
   const applyNewChatDefaultsRef = useRef(true);
-  const [basePromptDetails, setBasePromptDetails] = useState<PromptDetails | null>(null);
-  const [basePromptLoading, setBasePromptLoading] = useState(false);
-  const [basePromptError, setBasePromptError] = useState<string | null>(null);
-  const [basePromptDraft, setBasePromptDraft] = useState("");
-  const [promptEditorOpen, setPromptEditorOpen] = useState(false);
-  const [activePromptSectionId, setActivePromptSectionId] = useState("base");
-  const [collectionPromptDetails, setCollectionPromptDetails] = useState<
-    Record<string, PromptDetails>
-  >({});
-  const [collectionPromptDrafts, setCollectionPromptDrafts] = useState<Record<string, string>>({});
-  const [collectionPromptLoading, setCollectionPromptLoading] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [collectionPromptErrors, setCollectionPromptErrors] = useState<
-    Record<string, string | null>
-  >({});
-  const [promptSavingBySection, setPromptSavingBySection] = useState<Record<string, boolean>>({});
   const [liveResponse, setLiveResponse] = useState("");
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const [liveReasoningSegments, setLiveReasoningSegments] = useState<ReasoningTraceSegment[]>([]);
@@ -254,7 +233,6 @@ export function ChatStudio() {
     liveReasoningSegments,
   });
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
-  const promptEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingSessionIdsRef = useRef<Set<string>>(new Set());
   const toolCollectionsDirtyRef = useRef(false);
   const newChatDefaultsRef = useRef<{
@@ -602,6 +580,31 @@ export function ChatStudio() {
     providerModelSlug,
   });
 
+  const {
+    promptEditorRef,
+    promptEditorOpen,
+    activePromptSectionId,
+    basePromptDetails,
+    promptSections,
+    promptSectionsSummary,
+    promptPreviewMarkdown,
+    promptLoading,
+    promptError,
+    promptGeneratedAt,
+    handlePromptEditorOpen,
+    handlePromptEditorClose,
+    handlePromptSectionSelect,
+    handlePromptDraftChange,
+    handlePromptSave,
+    handlePromptReset,
+    handleInsertPromptVariable,
+  } = usePromptEditor({
+    authToken,
+    authLoading,
+    selectedToolCollectionIds,
+    selectedToolCollections,
+  });
+
   const sortSessions = useCallback((items: ChatSession[]) => {
     const pendingIds = pendingSessionIdsRef.current;
     return [...items].sort((a, b) => {
@@ -781,69 +784,6 @@ export function ChatStudio() {
     sessionIdParam,
     sortSessions,
   ]);
-
-  useEffect(() => {
-    if (authLoading || !authToken) {
-      setBasePromptDetails(null);
-      setBasePromptDraft("");
-      return;
-    }
-    let cancelled = false;
-    setBasePromptLoading(true);
-    setBasePromptError(null);
-    getBasePrompt(authToken)
-      .then((details) => {
-        if (cancelled) return;
-        setBasePromptDetails(details);
-        setBasePromptDraft((prev) => (prev ? prev : (details.template ?? "")));
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          const message =
-            error instanceof Error ? error.message : "Unable to load the base prompt.";
-          setBasePromptError(message);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setBasePromptLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, authToken]);
-
-  useEffect(() => {
-    if (authLoading || !authToken || selectedToolCollectionIds.length === 0) {
-      return;
-    }
-    selectedToolCollectionIds.forEach((collectionId) => {
-      if (collectionPromptDetails[collectionId]) {
-        return;
-      }
-      setCollectionPromptLoading((prev) => ({ ...prev, [collectionId]: true }));
-      setCollectionPromptErrors((prev) => ({ ...prev, [collectionId]: null }));
-      getCollectionPrompt(authToken, collectionId)
-        .then((details) => {
-          setCollectionPromptDetails((prev) => ({ ...prev, [collectionId]: details }));
-          setCollectionPromptDrafts((prev) => {
-            if (prev[collectionId] !== undefined) {
-              return prev;
-            }
-            return { ...prev, [collectionId]: details.template ?? "" };
-          });
-        })
-        .catch((error: unknown) => {
-          const message =
-            error instanceof Error ? error.message : "Unable to load the tool prompt.";
-          setCollectionPromptErrors((prev) => ({ ...prev, [collectionId]: message }));
-        })
-        .finally(() => {
-          setCollectionPromptLoading((prev) => ({ ...prev, [collectionId]: false }));
-        });
-    });
-  }, [authLoading, authToken, collectionPromptDetails, selectedToolCollectionIds]);
 
   useEffect(() => {
     if (!selectedSessionId) {
@@ -1304,134 +1244,6 @@ export function ChatStudio() {
   const chatInputPlaceholder = toolsEnabled
     ? "Ask about the selected collections…"
     : "Ask anything…";
-
-  const substitutePromptVariables = useCallback(
-    (templateValue: string, context?: Record<string, string>) => {
-      if (!templateValue) return "";
-      if (!context) return templateValue;
-      return templateValue.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, rawKey) => {
-        const key = String(rawKey).trim();
-        return context?.[key] ?? `{{${key}}}`;
-      });
-    },
-    [],
-  );
-
-  const basePromptTemplate = useMemo(() => {
-    return basePromptDraft || basePromptDetails?.template || "";
-  }, [basePromptDetails?.template, basePromptDraft]);
-
-  const basePromptPreview = useMemo(() => {
-    return substitutePromptVariables(basePromptTemplate, basePromptDetails?.context);
-  }, [basePromptDetails?.context, basePromptTemplate, substitutePromptVariables]);
-
-  const toolPromptPreviews = useMemo(() => {
-    return selectedToolCollections
-      .map((collection) => {
-        const details = collectionPromptDetails[collection.id];
-        const draft = collectionPromptDrafts[collection.id] ?? details?.template ?? "";
-        return substitutePromptVariables(draft, details?.context);
-      })
-      .filter((section) => section.trim().length > 0);
-  }, [
-    collectionPromptDetails,
-    collectionPromptDrafts,
-    selectedToolCollections,
-    substitutePromptVariables,
-  ]);
-
-  const promptPreviewMarkdown = useMemo(() => {
-    return [basePromptPreview, ...toolPromptPreviews]
-      .map((section) => section.trim())
-      .filter(Boolean)
-      .join("\n\n");
-  }, [basePromptPreview, toolPromptPreviews]);
-
-  const basePromptHasChanges = useMemo(() => {
-    if (!basePromptDetails) {
-      return Boolean(basePromptDraft);
-    }
-    return basePromptDraft !== (basePromptDetails.template ?? "");
-  }, [basePromptDetails, basePromptDraft]);
-
-  const promptSections = useMemo(() => {
-    const sections: Array<{
-      id: string;
-      label: string;
-      scope: "base" | "collection";
-      details: PromptDetails | null;
-      draft: string;
-      hasChanges: boolean;
-      saving: boolean;
-      error: string | null;
-    }> = [
-      {
-        id: "base",
-        label: "Base",
-        scope: "base" as const,
-        details: basePromptDetails,
-        draft: basePromptDraft,
-        hasChanges: basePromptHasChanges,
-        saving: Boolean(promptSavingBySection.base),
-        error: basePromptError,
-      },
-    ];
-    selectedToolCollections.forEach((collection) => {
-      const details = collectionPromptDetails[collection.id] ?? null;
-      const draft = collectionPromptDrafts[collection.id] ?? details?.template ?? "";
-      const hasChanges = details ? draft !== (details.template ?? "") : draft.trim().length > 0;
-      sections.push({
-        id: collection.id,
-        label: collection.name,
-        scope: "collection" as const,
-        details,
-        draft,
-        hasChanges,
-        saving: Boolean(promptSavingBySection[collection.id]),
-        error: collectionPromptErrors[collection.id] ?? null,
-      });
-    });
-    return sections;
-  }, [
-    basePromptDetails,
-    basePromptDraft,
-    basePromptError,
-    basePromptHasChanges,
-    collectionPromptDetails,
-    collectionPromptDrafts,
-    collectionPromptErrors,
-    promptSavingBySection,
-    selectedToolCollections,
-  ]);
-
-  const promptSectionsSummary = useMemo(() => {
-    return promptSections.map((section) => ({
-      id: section.id,
-      label: section.label,
-      scope: section.scope,
-      isCustom: Boolean(section.details?.is_custom),
-    }));
-  }, [promptSections]);
-
-  const promptLoading =
-    basePromptLoading ||
-    selectedToolCollectionIds.some((collectionId) => collectionPromptLoading[collectionId]);
-  const promptError =
-    basePromptError ??
-    selectedToolCollectionIds
-      .map((collectionId) => collectionPromptErrors[collectionId])
-      .find((value) => Boolean(value)) ??
-    null;
-  const promptGeneratedAt = basePromptDetails?.context?.["datetime.iso"] ?? null;
-
-  useEffect(() => {
-    if (
-      activePromptSectionId !== "base" &&
-      !selectedToolCollectionIds.includes(activePromptSectionId)
-    ) {
-      setActivePromptSectionId("base");
-    }
-  }, [activePromptSectionId, selectedToolCollectionIds]);
 
   const liveReasoningSegmentsRef = useRef<ReasoningTraceSegment[]>([]);
   const streamedReasoningAllRef = useRef<ReasoningTraceSegment[]>([]);
@@ -2013,136 +1825,6 @@ export function ChatStudio() {
       navigateToChat(sessionId, session?.tool_collection_ids ?? []);
     },
     [navigateToChat, sessions],
-  );
-
-  const handlePromptEditorOpen = useCallback(() => {
-    if (promptSections.length > 0) {
-      const isActiveValid = promptSections.some((section) => section.id === activePromptSectionId);
-      if (!isActiveValid) {
-        setActivePromptSectionId("base");
-      }
-    }
-    setPromptEditorOpen(true);
-    window.setTimeout(() => {
-      promptEditorRef.current?.focus();
-    }, 20);
-  }, [activePromptSectionId, promptSections]);
-
-  const handlePromptEditorClose = useCallback(() => {
-    setPromptEditorOpen(false);
-  }, []);
-
-  const updatePromptDraft = useCallback((sectionId: string, updater: (value: string) => string) => {
-    if (sectionId === "base") {
-      setBasePromptDraft(updater);
-      return;
-    }
-    setCollectionPromptDrafts((prev) => {
-      const current = prev[sectionId] ?? "";
-      return { ...prev, [sectionId]: updater(current) };
-    });
-  }, []);
-
-  const handleInsertPromptVariable = useCallback(
-    (sectionId: string, variableName: string) => {
-      const insertion = `{{${variableName}}}`;
-      updatePromptDraft(sectionId, (prev) => {
-        const textarea = promptEditorRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart ?? prev.length;
-          const end = textarea.selectionEnd ?? prev.length;
-          const next = prev.slice(0, start) + insertion + prev.slice(end);
-          window.requestAnimationFrame(() => {
-            const cursor = start + insertion.length;
-            textarea.selectionStart = cursor;
-            textarea.selectionEnd = cursor;
-            textarea.focus();
-          });
-          return next;
-        }
-        const spacer = prev.endsWith(" ") || prev.endsWith("\n") || prev.length === 0 ? "" : " ";
-        return `${prev}${spacer}${insertion}`;
-      });
-    },
-    [updatePromptDraft],
-  );
-
-  const handlePromptReset = useCallback(
-    (sectionId: string) => {
-      updatePromptDraft(sectionId, () => "");
-      window.requestAnimationFrame(() => {
-        promptEditorRef.current?.focus();
-      });
-    },
-    [updatePromptDraft],
-  );
-
-  const handlePromptSave = useCallback(
-    async (sectionId: string) => {
-      if (!authToken) {
-        if (sectionId === "base") {
-          setBasePromptError("Sign in to update the system prompt.");
-        } else {
-          setCollectionPromptErrors((prev) => ({
-            ...prev,
-            [sectionId]: "Sign in to update the system prompt.",
-          }));
-        }
-        return;
-      }
-      setPromptSavingBySection((prev) => ({ ...prev, [sectionId]: true }));
-      if (sectionId === "base") {
-        setBasePromptError(null);
-        try {
-          const updated = await updateBasePrompt(authToken, basePromptDraft);
-          setBasePromptDetails(updated);
-          setBasePromptDraft(updated.template ?? "");
-          setPromptEditorOpen(false);
-        } catch (error) {
-          setBasePromptError(
-            error instanceof Error
-              ? error.message
-              : "Unable to update the system prompt right now.",
-          );
-        } finally {
-          setPromptSavingBySection((prev) => ({ ...prev, [sectionId]: false }));
-        }
-        return;
-      }
-      setCollectionPromptErrors((prev) => ({ ...prev, [sectionId]: null }));
-      try {
-        const draft = collectionPromptDrafts[sectionId] ?? "";
-        const updated = await updateCollectionPrompt(authToken, sectionId, draft);
-        setCollectionPromptDetails((prev) => ({ ...prev, [sectionId]: updated }));
-        setCollectionPromptDrafts((prev) => ({
-          ...prev,
-          [sectionId]: updated.template ?? "",
-        }));
-        setPromptEditorOpen(false);
-      } catch (error) {
-        setCollectionPromptErrors((prev) => ({
-          ...prev,
-          [sectionId]:
-            error instanceof Error
-              ? error.message
-              : "Unable to update the system prompt right now.",
-        }));
-      } finally {
-        setPromptSavingBySection((prev) => ({ ...prev, [sectionId]: false }));
-      }
-    },
-    [authToken, basePromptDraft, collectionPromptDrafts],
-  );
-
-  const handlePromptSectionSelect = useCallback((sectionId: string) => {
-    setActivePromptSectionId(sectionId);
-  }, []);
-
-  const handlePromptDraftChange = useCallback(
-    (sectionId: string, value: string) => {
-      updatePromptDraft(sectionId, () => value);
-    },
-    [updatePromptDraft],
   );
 
   const handleDeleteSession = async (sessionId: string) => {
