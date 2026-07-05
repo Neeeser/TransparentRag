@@ -94,7 +94,6 @@ export function ChatStudio() {
   const selectedSessionId = activeSessionId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [toolTraces, setToolTraces] = useState<ToolCallTrace[]>([]);
-  const [chatEntryOrder, setChatEntryOrder] = useState<string[]>([]);
   const [usage, setUsage] = useState<UsageBreakdown | null>(null);
   const [contextConsumed, setContextConsumed] = useState<number>(0);
   const [draft, setDraft] = useState("");
@@ -176,6 +175,59 @@ export function ChatStudio() {
     return window.innerWidth;
   });
   const isOverlayMode = chatPanelWidth > 0 && chatPanelWidth < OVERLAY_TRIGGER_WIDTH_PX;
+  const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
+  const pendingSessionIdsRef = useRef<Set<string>>(new Set());
+  const newChatDefaultsRef = useRef<{
+    activeModelId: string | null;
+    parameterOverrides: ParameterOverrides;
+    providerForm: ProviderFormState;
+    streamingEnabled: boolean;
+    toolCollectionIds: string[];
+  } | null>(null);
+  const reasoningCacheRef = useRef<Map<string, ReasoningTraceSegment[]>>(new Map());
+  const messageOrderRef = useRef<Map<string, number>>(new Map());
+  const nextMessageOrderRef = useRef(1);
+
+  const getPersistedReasoningSegments = useCallback(
+    (messageId: string, segments: ReasoningTraceSegment[]) => {
+      if (segments.length > 0) {
+        reasoningCacheRef.current.set(messageId, segments);
+        return segments;
+      }
+      return reasoningCacheRef.current.get(messageId) ?? segments;
+    },
+    [],
+  );
+
+  const toolTraceMap = useMemo(() => {
+    const map = new Map<string, ToolCallTrace>();
+    toolTraces.forEach((trace) => map.set(trace.id, trace));
+    return map;
+  }, [toolTraces]);
+
+  const chatEntries = useMemo<ChatEntry[]>(
+    () =>
+      buildChatEntries({
+        messages,
+        optimisticMessages,
+        messageOrder: messageOrderRef.current,
+        toolTraceMap,
+        getPersistedReasoningSegments,
+        formatToolLabel,
+      }),
+    [getPersistedReasoningSegments, messages, optimisticMessages, toolTraceMap],
+  );
+
+  const chatEntryMap = useMemo(() => {
+    const map = new Map<string, ChatEntry>();
+    chatEntries.forEach((entry) => map.set(entry.id, entry));
+    return map;
+  }, [chatEntries]);
+
+  // Derived directly from chatEntries — the render order is whatever the pure
+  // buildChatEntries produced, with no state written back from an effect.
+  const chatEntryOrder = useMemo(() => chatEntries.map((entry) => entry.id), [chatEntries]);
+
   const {
     autoScrollEnabled,
     setAutoScrollEnabled,
@@ -190,19 +242,6 @@ export function ChatStudio() {
     liveResponse,
     liveReasoningSegments,
   });
-  const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
-  const pendingSessionIdsRef = useRef<Set<string>>(new Set());
-  const newChatDefaultsRef = useRef<{
-    activeModelId: string | null;
-    parameterOverrides: ParameterOverrides;
-    providerForm: ProviderFormState;
-    streamingEnabled: boolean;
-    toolCollectionIds: string[];
-  } | null>(null);
-  const chatHydrationPendingRef = useRef(false);
-  const reasoningCacheRef = useRef<Map<string, ReasoningTraceSegment[]>>(new Map());
-  const messageOrderRef = useRef<Map<string, number>>(new Map());
-  const nextMessageOrderRef = useRef(1);
 
   const hasLiveText = liveResponse.trim().length > 0;
   const hasLiveReasoning = liveReasoningSegments.length > 0;
@@ -216,12 +255,12 @@ export function ChatStudio() {
   const shouldShowStreamingReasoningBubble =
     Boolean(activeStreamEntryKey) && hasDisplayedLiveReasoning;
 
-  const isPendingSession = useMemo(() => {
-    if (!selectedSessionId) {
-      return false;
-    }
-    return pendingSessionIdsRef.current.has(selectedSessionId);
-  }, [selectedSessionId]);
+  // Computed fresh every render rather than memoised on selectedSessionId alone,
+  // so it reflects the current pending set even when handleSend / applyChatResponse
+  // mutate it without changing the selected session.
+  const isPendingSession = selectedSessionId
+    ? pendingSessionIdsRef.current.has(selectedSessionId)
+    : false;
 
   const syncMessages = useCallback(
     (
@@ -239,11 +278,8 @@ export function ChatStudio() {
         ensureMessageOrder(messageOrderRef.current, nextMessageOrderRef, next);
         return next;
       });
-      if (hydrate) {
-        chatHydrationPendingRef.current = true;
-        if (shouldResetStreamKeys) {
-          resetStreamKeys();
-        }
+      if (hydrate && shouldResetStreamKeys) {
+        resetStreamKeys();
       }
     },
     [resetStreamKeys],
@@ -569,8 +605,6 @@ export function ChatStudio() {
     if (!selectedSessionId) {
       setMessages([]);
       setToolTraces([]);
-      setChatEntryOrder([]);
-      chatHydrationPendingRef.current = true;
       setUsage(null);
       setContextConsumed(0);
       return;
@@ -578,7 +612,6 @@ export function ChatStudio() {
     if (pendingSessionIdsRef.current.has(selectedSessionId)) {
       setMessages([]);
       setToolTraces([]);
-      chatHydrationPendingRef.current = true;
       setUsage(null);
       setContextConsumed(0);
       return;
@@ -718,17 +751,6 @@ export function ChatStudio() {
     }
   }, [historyOpen, isOverlayMode, telemetryOpen, setTelemetryOpen]);
 
-  const getPersistedReasoningSegments = useCallback(
-    (messageId: string, segments: ReasoningTraceSegment[]) => {
-      if (segments.length > 0) {
-        reasoningCacheRef.current.set(messageId, segments);
-        return segments;
-      }
-      return reasoningCacheRef.current.get(messageId) ?? segments;
-    },
-    [],
-  );
-
   useLayoutEffect(() => {
     if (!editingMessageId) {
       editScrollSnapshotRef.current = null;
@@ -765,46 +787,6 @@ export function ChatStudio() {
     textarea.style.height = `${clampedHeight}px`;
     textarea.style.overflowY = fullHeight > CHAT_INPUT_MAX_HEIGHT ? "auto" : "hidden";
   }, [draft]);
-
-  const toolTraceMap = useMemo(() => {
-    const map = new Map<string, ToolCallTrace>();
-    toolTraces.forEach((trace) => map.set(trace.id, trace));
-    return map;
-  }, [toolTraces]);
-
-  const chatEntries = useMemo<ChatEntry[]>(
-    () =>
-      buildChatEntries({
-        messages,
-        optimisticMessages,
-        messageOrder: messageOrderRef.current,
-        toolTraceMap,
-        getPersistedReasoningSegments,
-        formatToolLabel,
-      }),
-    [getPersistedReasoningSegments, messages, optimisticMessages, toolTraceMap],
-  );
-
-  const chatEntryMap = useMemo(() => {
-    const map = new Map<string, ChatEntry>();
-    chatEntries.forEach((entry) => map.set(entry.id, entry));
-    return map;
-  }, [chatEntries]);
-
-  const normalizedChatEntryIds = useMemo(() => chatEntries.map((entry) => entry.id), [chatEntries]);
-
-  useEffect(() => {
-    setChatEntryOrder((prev) => {
-      const sameOrder =
-        prev.length === normalizedChatEntryIds.length &&
-        prev.every((id, index) => id === normalizedChatEntryIds[index]);
-      if (sameOrder) {
-        return prev;
-      }
-      return normalizedChatEntryIds;
-    });
-    chatHydrationPendingRef.current = false;
-  }, [normalizedChatEntryIds]);
 
   const chatInputPlaceholder = toolsEnabled
     ? "Ask about the selected collections…"
@@ -866,7 +848,6 @@ export function ChatStudio() {
     setSessions,
     setMessages,
     setToolTraces,
-    setChatEntryOrder,
     setUsage,
     setContextConsumed,
     setOptimisticMessages,
@@ -881,7 +862,6 @@ export function ChatStudio() {
     setEditingDraft,
     setDeletingSessionId,
     pendingSessionIdsRef,
-    chatHydrationPendingRef,
     skipHistoryFetchSessionRef,
     branchedSessionOriginRef,
     newChatDefaultsRef,

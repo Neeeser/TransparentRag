@@ -87,7 +87,6 @@ export interface UseChatMutationParams {
   setSessions: Dispatch<ChatSession[]>;
   setMessages: Dispatch<ChatMessage[]>;
   setToolTraces: Dispatch<ToolCallTrace[]>;
-  setChatEntryOrder: Dispatch<string[]>;
   setUsage: Dispatch<UsageBreakdown | null>;
   setContextConsumed: Dispatch<number>;
   setOptimisticMessages: Dispatch<ChatMessage[]>;
@@ -103,7 +102,6 @@ export interface UseChatMutationParams {
   setDeletingSessionId: Dispatch<string | null>;
   // Refs
   pendingSessionIdsRef: React.MutableRefObject<Set<string>>;
-  chatHydrationPendingRef: React.MutableRefObject<boolean>;
   skipHistoryFetchSessionRef: React.MutableRefObject<string | null>;
   branchedSessionOriginRef: React.MutableRefObject<Map<string, "edit" | "manual">>;
   newChatDefaultsRef: React.MutableRefObject<NewChatDefaults | null>;
@@ -168,7 +166,6 @@ export function useChatMutation(params: UseChatMutationParams): UseChatMutationR
     setSessions,
     setMessages,
     setToolTraces,
-    setChatEntryOrder,
     setUsage,
     setContextConsumed,
     setOptimisticMessages,
@@ -183,7 +180,6 @@ export function useChatMutation(params: UseChatMutationParams): UseChatMutationR
     setEditingDraft,
     setDeletingSessionId,
     pendingSessionIdsRef,
-    chatHydrationPendingRef,
     skipHistoryFetchSessionRef,
     branchedSessionOriginRef,
     newChatDefaultsRef,
@@ -435,8 +431,6 @@ export function useChatMutation(params: UseChatMutationParams): UseChatMutationR
       pendingSessionIdsRef.current.add(sessionId);
       setMessages([]);
       setToolTraces([]);
-      setChatEntryOrder([]);
-      chatHydrationPendingRef.current = true;
       setUsage(null);
       setContextConsumed(0);
       setOptimisticMessages([]);
@@ -462,12 +456,6 @@ export function useChatMutation(params: UseChatMutationParams): UseChatMutationR
     };
     ensureMessageOrder(messageOrderRef.current, nextMessageOrderRef, [placeholderMessage]);
     setOptimisticMessages((prev) => [...prev, placeholderMessage]);
-    setChatEntryOrder((prev) => {
-      if (prev.includes(placeholderMessageId)) {
-        return prev;
-      }
-      return isNewSession ? [placeholderMessageId] : [...prev, placeholderMessageId];
-    });
 
     resetLiveMessage();
     try {
@@ -596,8 +584,6 @@ export function useChatMutation(params: UseChatMutationParams): UseChatMutationR
         setUsage(calculateSessionUsage(branchedMessages));
         setContextConsumed(branchedSession.context_tokens ?? 0);
         setToolTraces(deriveToolTraces(branchedMessages));
-        setChatEntryOrder([]);
-        chatHydrationPendingRef.current = true;
         resetChatStream();
         setEditingMessageId(null);
         setEditingDraft("");
@@ -618,13 +604,11 @@ export function useChatMutation(params: UseChatMutationParams): UseChatMutationR
     [
       authToken,
       branchedSessionOriginRef,
-      chatHydrationPendingRef,
       deriveToolTraces,
       navigateToChat,
       resetChatStream,
       selectedSessionId,
       setActiveModelId,
-      setChatEntryOrder,
       setContextConsumed,
       setEditingDraft,
       setEditingMessageId,
@@ -701,8 +685,6 @@ export function useChatMutation(params: UseChatMutationParams): UseChatMutationR
     toolCollectionsDirtyRef.current = false;
     setMessages([]);
     setToolTraces([]);
-    setChatEntryOrder([]);
-    chatHydrationPendingRef.current = true;
     resetChatStream();
     setUsage(null);
     setContextConsumed(0);
