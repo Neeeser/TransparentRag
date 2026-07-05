@@ -2,37 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChunkPreviewOverlay } from "@/components/chunks/ChunkPreviewOverlay";
+import { makeChunk, makeChunkDetail } from "@/test/fixtures";
 
 import type { ChunkDetail } from "@/lib/types";
 
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
-
-const detail: ChunkDetail = {
-  document: {
-    id: "doc-1",
-    collection_id: "col-1",
-    name: "Doc",
-    content_type: "text/plain",
-    status: "ready",
-    num_chunks: 1,
-    num_tokens: 10,
-    chunk_size: 256,
-    chunk_overlap: 0,
-    chunk_strategy: "token",
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-  },
-  chunk: {
-    id: "chunk-1",
-    document_id: "doc-1",
-    chunk_index: 0,
-    text: "Hello",
-    metadata: {},
-    chunk_size: 256,
-    chunk_strategy: "token",
-    created_at: baseTimestamp,
-  },
-};
+const detail = makeChunkDetail({ chunk: makeChunk({ text: "Hello" }) });
 
 describe("ChunkPreviewOverlay", () => {
   it("renders nothing when closed or missing detail", () => {
@@ -54,11 +28,7 @@ describe("ChunkPreviewOverlay", () => {
     expect(screen.getByText("Hello")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Plain"));
     expect(screen.getByText("Hello")).toBeInTheDocument();
-    const closeButton = document.querySelector('button[aria-label="Close preview"]');
-    if (!closeButton) {
-      throw new Error("Close button not found");
-    }
-    fireEvent.click(closeButton);
+    fireEvent.click(screen.getByLabelText("Close preview"));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -108,6 +78,7 @@ describe("ChunkPreviewOverlay", () => {
     rerender(<ChunkPreviewOverlay isOpen onClose={() => {}} detail={otherDetail} />);
 
     expect(screen.getByText("World")).toBeInTheDocument();
+    // Active tab state is only expressed through styling (no aria-pressed handle).
     const plainButton = screen.getByText("Plain");
     expect(plainButton.className).toContain("bg-violet-500/20");
   });

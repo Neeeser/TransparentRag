@@ -4,24 +4,18 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest";
 
 import { CollectionDocuments } from "@/components/collections/detail/CollectionDocuments";
+import * as apiModule from "@/lib/api";
+import { makeChunk, makeDocument, makeIngestionResponse } from "@/test/fixtures";
 
-import type { Chunk, Document } from "@/lib/types";
 
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-const api = {
-  fetchDocuments: vi.fn(),
-  fetchDocumentChunks: vi.fn(),
-  fetchDocumentTrace: vi.fn(),
-  uploadDocument: vi.fn(),
-};
+const api = vi.mocked(apiModule);
 
-vi.mock("@/lib/api", () => ({
-  fetchDocuments: (...args: unknown[]) => api.fetchDocuments(...args),
-  fetchDocumentChunks: (...args: unknown[]) => api.fetchDocumentChunks(...args),
-  fetchDocumentTrace: (...args: unknown[]) => api.fetchDocumentTrace(...args),
-  uploadDocument: (...args: unknown[]) => api.uploadDocument(...args),
-}));
+const FILE_INPUT_SELECTOR = 'input[type="file"]';
+const VIEW_TRACE_LABEL = "View ingestion trace";
+const UPLOAD_FAILED_MESSAGE = "Upload failed.";
+const makeTextFile = () => new File(["hello"], "note.txt", { type: "text/plain" });
 
 vi.mock("@/components/traces/PipelineTraceViewer", () => ({
   PipelineTraceViewer: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
@@ -34,37 +28,24 @@ vi.mock("@/components/traces/PipelineTraceViewer", () => ({
     ) : null,
 }));
 
+const getFileInput = (root: ParentNode = window.document): HTMLInputElement => {
+  const input = root.querySelector(FILE_INPUT_SELECTOR) as HTMLInputElement | null;
+  if (!input) {
+    throw new Error("File input not found");
+  }
+  return input;
+};
+
 describe("CollectionDocuments", () => {
-  const doc: Document = {
-    id: "doc-1",
-    collection_id: "col-1",
-    name: "Doc",
-    content_type: "text/plain",
-    status: "ready",
-    num_chunks: 1,
-    num_tokens: 10,
-    chunk_size: 256,
-    chunk_overlap: 0,
-    chunk_strategy: "token",
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-  };
-  const chunk: Chunk = {
-    id: "chunk-1",
-    document_id: "doc-1",
-    chunk_index: 0,
-    text: "Chunk text",
-    metadata: { source: "doc" },
-    chunk_size: 256,
-    chunk_strategy: "token",
-    created_at: baseTimestamp,
-  };
+  const doc = makeDocument({ name: "Doc" });
+  const chunk = makeChunk({ metadata: { source: "doc" } });
 
   it("renders loading and empty states", async () => {
     api.fetchDocuments.mockImplementationOnce(() => new Promise(() => {}));
     const { container, unmount } = render(
       <CollectionDocuments collectionId="col-1" token="token" />,
     );
+    // Loader is a decorative <span> with no accessible role.
     expect(container.querySelector("span")).toBeInTheDocument();
     await waitFor(() => {
       expect(api.fetchDocuments).toHaveBeenCalledTimes(1);
@@ -82,8 +63,7 @@ describe("CollectionDocuments", () => {
 
   it("expands documents, loads chunks, and opens trace", async () => {
     api.fetchDocuments.mockResolvedValueOnce([{ ...doc, ingestion_run_id: "run-123" }]);
-    api.fetchDocumentChunks.mockResolvedValueOnce({ chunks: [chunk] });
-    api.fetchDocumentTrace.mockResolvedValueOnce({ run: { id: "run-1" } });
+    api.fetchDocumentChunks.mockResolvedValueOnce({ document: doc, chunks: [chunk] });
 
     render(<CollectionDocuments collectionId="col-1" token="token" />);
 
@@ -96,7 +76,7 @@ describe("CollectionDocuments", () => {
       expect(screen.getByText("Chunk text")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "View ingestion trace" }));
+    fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
     await waitFor(() => {
       expect(screen.getByTestId("trace-viewer")).toBeInTheDocument();
     });
@@ -117,7 +97,7 @@ describe("CollectionDocuments", () => {
   it("handles chunk and upload errors", async () => {
     api.fetchDocuments.mockResolvedValueOnce([doc]);
     api.fetchDocumentChunks.mockRejectedValueOnce(new Error("Chunk error"));
-    api.uploadDocument.mockRejectedValueOnce(new Error("Upload failed."));
+    api.uploadDocument.mockRejectedValueOnce(new Error(UPLOAD_FAILED_MESSAGE));
     api.fetchDocuments.mockResolvedValueOnce([doc]);
 
     render(<CollectionDocuments collectionId="col-1" token="token" />);
@@ -130,18 +110,13 @@ describe("CollectionDocuments", () => {
       expect(screen.getByText("Chunk error")).toBeInTheDocument();
     });
 
-    const fileInput = window.document.querySelector(
-      'input[type="file"]',
-    ) as HTMLInputElement | null;
-    if (!fileInput) {
-      throw new Error("File input not found");
-    }
-    const file = new File(["hello"], "note.txt", { type: "text/plain" });
+    const fileInput = getFileInput();
+    const file = makeTextFile();
     await act(async () => {
       fireEvent.change(fileInput, { target: { files: [file] } });
     });
     await waitFor(() => {
-      expect(screen.getByText("Upload failed.")).toBeInTheDocument();
+      expect(screen.getByText(UPLOAD_FAILED_MESSAGE)).toBeInTheDocument();
     });
   });
 
@@ -155,10 +130,7 @@ describe("CollectionDocuments", () => {
       ).toBeInTheDocument();
     });
 
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement | null;
-    if (!fileInput) {
-      throw new Error("Expected file input to be rendered");
-    }
+    const fileInput = getFileInput(container);
     const clickSpy = vi.spyOn(fileInput, "click");
 
     fireEvent.click(screen.getByRole("button", { name: "Upload document" }));
@@ -175,7 +147,7 @@ describe("CollectionDocuments", () => {
 
     unmount();
     api.fetchDocuments.mockResolvedValueOnce([doc]);
-    api.fetchDocumentChunks.mockResolvedValueOnce({ chunks: [] });
+    api.fetchDocumentChunks.mockResolvedValueOnce({ document: doc, chunks: [] });
     api.fetchDocumentTrace.mockRejectedValueOnce("no trace");
 
     render(<CollectionDocuments collectionId="col-1" token="token" />);
@@ -184,7 +156,7 @@ describe("CollectionDocuments", () => {
     });
 
     fireEvent.click(screen.getByText("Doc"));
-    fireEvent.click(screen.getByRole("button", { name: "View ingestion trace" }));
+    fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
     await waitFor(() => {
       expect(screen.getByText("Unable to load trace.")).toBeInTheDocument();
     });
@@ -200,7 +172,7 @@ describe("CollectionDocuments", () => {
 
     unmount();
     api.fetchDocuments.mockResolvedValueOnce([doc]);
-    api.fetchDocumentChunks.mockResolvedValueOnce({ chunks: [] });
+    api.fetchDocumentChunks.mockResolvedValueOnce({ document: doc, chunks: [] });
     api.fetchDocumentTrace.mockRejectedValueOnce(new Error("Trace boom"));
 
     render(<CollectionDocuments collectionId="col-1" token="token" />);
@@ -209,7 +181,7 @@ describe("CollectionDocuments", () => {
     });
 
     fireEvent.click(screen.getByText("Doc"));
-    fireEvent.click(screen.getByRole("button", { name: "View ingestion trace" }));
+    fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
     await waitFor(() => {
       expect(screen.getByText("Trace boom")).toBeInTheDocument();
     });
@@ -232,32 +204,27 @@ describe("CollectionDocuments", () => {
       expect(screen.getByText("Unable to load chunks.")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "View ingestion trace" }));
+    fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
     await waitFor(() => {
       expect(screen.getByText("Unable to load trace.")).toBeInTheDocument();
     });
 
-    const fileInput = window.document.querySelector(
-      'input[type="file"]',
-    ) as HTMLInputElement | null;
-    if (!fileInput) {
-      throw new Error("File input not found");
-    }
+    const fileInput = getFileInput();
     fireEvent.change(fileInput, { target: { files: [] } });
     expect(api.uploadDocument).not.toHaveBeenCalled();
 
-    const file = new File(["hello"], "note.txt", { type: "text/plain" });
+    const file = makeTextFile();
     await act(async () => {
       fireEvent.change(fileInput, { target: { files: [file] } });
     });
     await waitFor(() => {
-      expect(screen.getByText("Upload failed.")).toBeInTheDocument();
+      expect(screen.getByText(UPLOAD_FAILED_MESSAGE)).toBeInTheDocument();
     });
   });
 
   it("uploads documents and refreshes the list", async () => {
     api.fetchDocuments.mockResolvedValueOnce([doc]);
-    api.uploadDocument.mockResolvedValueOnce(undefined);
+    api.uploadDocument.mockResolvedValueOnce(makeIngestionResponse());
     api.fetchDocuments.mockResolvedValueOnce([doc]);
 
     render(<CollectionDocuments collectionId="col-1" token="token" />);
@@ -265,13 +232,8 @@ describe("CollectionDocuments", () => {
       expect(screen.getByText("Doc")).toBeInTheDocument();
     });
 
-    const fileInput = window.document.querySelector(
-      'input[type="file"]',
-    ) as HTMLInputElement | null;
-    if (!fileInput) {
-      throw new Error("File input not found");
-    }
-    const file = new File(["hello"], "note.txt", { type: "text/plain" });
+    const fileInput = getFileInput();
+    const file = makeTextFile();
     await act(async () => {
       fireEvent.change(fileInput, { target: { files: [file] } });
     });

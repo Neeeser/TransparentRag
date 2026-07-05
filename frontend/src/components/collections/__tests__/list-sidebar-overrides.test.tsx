@@ -6,11 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 import { CollectionSidebar } from "@/components/collections/detail/CollectionSidebar";
 import { CollectionsList } from "@/components/collections/list/CollectionsList";
 import { PipelineOverridesEditor } from "@/components/collections/PipelineOverridesEditor";
+import { makeCollection, makeCollectionStats, makeNodeSpec, makePipeline } from "@/test/fixtures";
 import { getMockRouter } from "@/test/test-utils";
 
-import type { Collection, CollectionStats, NodeSpec, Pipeline } from "@/lib/types";
+import type { NodeSpec, Pipeline } from "@/lib/types";
 
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
+const NODE_TYPE = "node.type";
+const NODE_EMPTY_TYPE = "node.empty";
 
 describe("collections list and sidebar", () => {
   it("shows empty list message", () => {
@@ -22,21 +24,13 @@ describe("collections list and sidebar", () => {
 
   it("renders collections and handles navigation and delete", () => {
     const onDeleteRequest = vi.fn();
-    const collection: Collection = {
-      id: "col-1",
-      user_id: "user-1",
-      name: "Collection",
-      description: "  ",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-    };
-    const stats: CollectionStats = {
-      collection_id: "col-1",
+    const collection = makeCollection({ name: "Collection", description: "  " });
+    const stats = makeCollectionStats({
       document_count: 0,
       chunk_count: 0,
       average_latency_ms: null,
       last_used_at: null,
-    };
+    });
     render(
       <CollectionsList
         collections={[collection]}
@@ -58,27 +52,14 @@ describe("collections list and sidebar", () => {
   });
 
   it("renders latency and default stats when missing", () => {
-    const collectionA: Collection = {
-      id: "col-a",
-      user_id: "user-1",
-      name: "Alpha",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-    };
-    const collectionB: Collection = {
-      id: "col-b",
-      user_id: "user-1",
-      name: "Beta",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-    };
-    const stats: CollectionStats = {
+    const collectionA = makeCollection({ id: "col-a", name: "Alpha" });
+    const collectionB = makeCollection({ id: "col-b", name: "Beta" });
+    const stats = makeCollectionStats({
       collection_id: "col-b",
       document_count: 2,
       chunk_count: 4,
       average_latency_ms: 120.4,
-      last_used_at: baseTimestamp,
-    };
+    });
 
     render(
       <CollectionsList
@@ -93,14 +74,7 @@ describe("collections list and sidebar", () => {
 
   it("renders the sidebar and handles actions", () => {
     const onSelectView = vi.fn();
-    const collection: Collection = {
-      id: "col-1",
-      user_id: "user-1",
-      name: "Collection",
-      description: "Primary collection",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-    };
+    const collection = makeCollection({ name: "Collection", description: "Primary collection" });
     const { rerender } = render(
       <CollectionSidebar
         collection={collection}
@@ -123,6 +97,17 @@ describe("collections list and sidebar", () => {
   });
 });
 
+const makeOverridesNodeSpec = (overrides: Partial<NodeSpec>): NodeSpec =>
+  makeNodeSpec({
+    type: NODE_TYPE,
+    label: "Node",
+    category: "test",
+    description: "",
+    input_ports: [],
+    output_ports: [],
+    ...overrides,
+  });
+
 describe("PipelineOverridesEditor", () => {
   it("renders empty state without a pipeline", () => {
     render(
@@ -139,34 +124,17 @@ describe("PipelineOverridesEditor", () => {
 
   it("handles config edits and nullable values", () => {
     const onOverridesChange = vi.fn();
-    const pipeline: Pipeline = {
+    const pipeline = makePipeline({
       id: "pipe-1",
-      user_id: "user-1",
       name: "Pipeline",
       kind: "ingestion",
-      current_version: 1,
-      is_default: false,
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
       definition: {
-        nodes: [
-          {
-            id: "node-1",
-            type: "node.type",
-            name: "Node",
-            config: { count: 2 },
-          },
-        ],
+        nodes: [{ id: "node-1", type: NODE_TYPE, name: "Node", config: { count: 2 } }],
         edges: [],
       },
-    };
+    });
     const nodeSpecs: NodeSpec[] = [
-      {
-        type: "node.type",
-        label: "Node",
-        category: "test",
-        example: "",
-        description: "",
+      makeOverridesNodeSpec({
         config_schema: {
           properties: {
             count: { type: "integer", default: 1 },
@@ -174,10 +142,7 @@ describe("PipelineOverridesEditor", () => {
             note: { type: ["string", "null"] },
           },
         },
-        default_config: {},
-        input_ports: [],
-        output_ports: [],
-      },
+      }),
     ];
 
     render(
@@ -205,44 +170,26 @@ describe("PipelineOverridesEditor", () => {
 
   it("clears invalid numeric values and nullable text", () => {
     const onOverridesChange = vi.fn();
-    const pipeline: Pipeline = {
+    const pipeline = makePipeline({
       id: "pipe-nan",
-      user_id: "user-1",
       name: "Pipeline",
       kind: "retrieval",
-      current_version: 1,
-      is_default: false,
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
       definition: {
         nodes: [
-          {
-            id: "node-nan",
-            type: "node.type",
-            name: "Node",
-            config: { threshold: 0.2, note: "keep" },
-          },
+          { id: "node-nan", type: NODE_TYPE, name: "Node", config: { threshold: 0.2, note: "keep" } },
         ],
         edges: [],
       },
-    };
+    });
     const nodeSpecs: NodeSpec[] = [
-      {
-        type: "node.type",
-        label: "Node",
-        category: "test",
-        example: "",
-        description: "",
+      makeOverridesNodeSpec({
         config_schema: {
           properties: {
             threshold: { type: "number" },
             note: { type: ["string", "null"] },
           },
         },
-        default_config: {},
-        input_ports: [],
-        output_ports: [],
-      },
+      }),
     ];
 
     render(
@@ -270,34 +217,17 @@ describe("PipelineOverridesEditor", () => {
 
   it("handles numeric parsing edge cases and required fields", () => {
     const onOverridesChange = vi.fn();
-    const pipeline: Pipeline = {
+    const pipeline = makePipeline({
       id: "pipe-2",
-      user_id: "user-1",
       name: "Pipeline",
       kind: "retrieval",
-      current_version: 1,
-      is_default: false,
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
       definition: {
-        nodes: [
-          {
-            id: "node-2",
-            type: "node.type",
-            name: "Node Two",
-            config: { ratio: 1.25 },
-          },
-        ],
+        nodes: [{ id: "node-2", type: NODE_TYPE, name: "Node Two", config: { ratio: 1.25 } }],
         edges: [],
       },
-    };
+    });
     const nodeSpecs: NodeSpec[] = [
-      {
-        type: "node.type",
-        label: "Node",
-        category: "test",
-        example: "",
-        description: "",
+      makeOverridesNodeSpec({
         config_schema: {
           required: ["required_text"],
           properties: {
@@ -307,10 +237,7 @@ describe("PipelineOverridesEditor", () => {
             required_text: { type: "string" },
           },
         },
-        default_config: {},
-        input_ports: [],
-        output_ports: [],
-      },
+      }),
     ];
 
     render(
@@ -330,17 +257,9 @@ describe("PipelineOverridesEditor", () => {
     fireEvent.change(ratioInput, { target: { value: "2.5" } });
     fireEvent.change(countInput, { target: { value: "3.7" } });
 
-    const noteCard = screen.getByText("Note").closest("div.rounded-2xl");
-    const requiredCard = screen.getByText("Required Text").closest("div.rounded-2xl");
-    if (!noteCard || !requiredCard) {
-      throw new Error("Expected config cards for note and required text");
-    }
-    const noteInput = noteCard.querySelector("input");
-    const requiredInput = requiredCard.querySelector("input");
-    if (!noteInput || !requiredInput) {
-      throw new Error("Expected config inputs for note and required text");
-    }
-
+    // The two text fields (note, then required_text) are the only textboxes rendered,
+    // in schema-property order.
+    const [noteInput, requiredInput] = screen.getAllByRole("textbox");
     fireEvent.change(noteInput, { target: { value: "note" } });
     fireEvent.change(noteInput, { target: { value: "" } });
     fireEvent.change(requiredInput, { target: { value: "required" } });
@@ -358,39 +277,17 @@ describe("PipelineOverridesEditor", () => {
   });
 
   it("skips nodes without config fields", () => {
-    const pipeline: Pipeline = {
+    const pipeline = makePipeline({
       id: "pipe-3",
-      user_id: "user-1",
       name: "Pipeline",
       kind: "retrieval",
-      current_version: 1,
-      is_default: false,
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
       definition: {
-        nodes: [
-          {
-            id: "node-3",
-            type: "node.empty",
-            name: "Empty",
-            config: {},
-          },
-        ],
+        nodes: [{ id: "node-3", type: NODE_EMPTY_TYPE, name: "Empty", config: {} }],
         edges: [],
       },
-    };
+    });
     const nodeSpecs: NodeSpec[] = [
-      {
-        type: "node.empty",
-        label: "Empty",
-        category: "test",
-        example: "",
-        description: "",
-        config_schema: {},
-        default_config: {},
-        input_ports: [],
-        output_ports: [],
-      },
+      makeOverridesNodeSpec({ type: NODE_EMPTY_TYPE, label: "Empty", config_schema: {} }),
     ];
 
     render(
@@ -407,15 +304,10 @@ describe("PipelineOverridesEditor", () => {
   });
 
   it("skips nodes without schemas and merges null configs", () => {
-    const pipeline: Pipeline = {
+    const pipeline: Pipeline = makePipeline({
       id: "pipe-null",
-      user_id: "user-1",
       name: "Pipeline",
       kind: "ingestion",
-      current_version: 1,
-      is_default: false,
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
       definition: {
         nodes: [
           {
@@ -425,43 +317,18 @@ describe("PipelineOverridesEditor", () => {
             // Deliberately malformed to exercise the component's null-config guard.
             config: null as unknown as Record<string, unknown>,
           },
-          {
-            id: "node-empty",
-            type: "node.empty",
-            name: "Node Without Schema",
-            config: {},
-          },
+          { id: "node-empty", type: NODE_EMPTY_TYPE, name: "Node Without Schema", config: {} },
         ],
         edges: [],
       },
-    };
+    });
     const nodeSpecs: NodeSpec[] = [
-      {
+      makeOverridesNodeSpec({
         type: "node.schema",
-        label: "Node",
-        category: "test",
-        example: "",
-        description: "",
-        config_schema: {
-          properties: {
-            foo: { type: "string", default: "default" },
-          },
-        },
+        config_schema: { properties: { foo: { type: "string", default: "default" } } },
         default_config: { foo: "default" },
-        input_ports: [],
-        output_ports: [],
-      },
-      {
-        type: "node.empty",
-        label: "Node",
-        category: "test",
-        example: "",
-        description: "",
-        config_schema: {},
-        default_config: {},
-        input_ports: [],
-        output_ports: [],
-      },
+      }),
+      makeOverridesNodeSpec({ type: NODE_EMPTY_TYPE, config_schema: {} }),
     ];
 
     render(

@@ -4,26 +4,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CollectionDetail } from "@/components/collections/detail/CollectionDetail";
+import * as apiModule from "@/lib/api";
+import { makeCollection, makeCollectionStats, makePipeline } from "@/test/fixtures";
+import { resetMockAuth, setMockAuth } from "@/test/mocks";
 
 import type { Collection, CollectionStats, Pipeline } from "@/lib/types";
 
-const api = {
-  fetchCollection: vi.fn(),
-  fetchCollectionStatsById: vi.fn(),
-  fetchPipelines: vi.fn(),
-};
+vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth());
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-let mockToken: string | null = "token";
-
-vi.mock("@/providers/auth-provider", () => ({
-  useAuth: () => ({ token: mockToken }),
-}));
-
-vi.mock("@/lib/api", () => ({
-  fetchCollection: (...args: unknown[]) => api.fetchCollection(...args),
-  fetchCollectionStatsById: (...args: unknown[]) => api.fetchCollectionStatsById(...args),
-  fetchPipelines: (...args: unknown[]) => api.fetchPipelines(...args),
-}));
+const api = vi.mocked(apiModule);
 
 vi.mock("@/components/collections/detail/CollectionSidebar", () => ({
   CollectionSidebar: ({
@@ -65,51 +55,28 @@ vi.mock("@/components/collections/detail/visualize/CollectionVisualization", () 
 }));
 
 describe("CollectionDetail", () => {
-  const baseTimestamp = "2024-01-01T00:00:00.000Z";
-  const collection: Collection = {
-    id: "col-1",
-    user_id: "user-1",
-    name: "Collection",
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-  };
-  const stats: CollectionStats = {
-    collection_id: "col-1",
-    document_count: 1,
-    chunk_count: 2,
-    average_latency_ms: null,
-    last_used_at: null,
-  };
-  const pipeline: Pipeline = {
-    id: "pipe-1",
-    user_id: "user-1",
-    name: "Pipeline",
-    kind: "ingestion",
-    current_version: 1,
-    is_default: false,
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-    definition: { nodes: [], edges: [] },
-  };
+  const collection = makeCollection();
+  const stats = makeCollectionStats();
+  const pipeline = makePipeline({ kind: "ingestion" });
 
   beforeEach(() => {
-    mockToken = "token";
-    api.fetchCollection.mockReset();
-    api.fetchCollectionStatsById.mockReset();
-    api.fetchPipelines.mockReset();
+    resetMockAuth();
     api.fetchCollection.mockResolvedValue(collection);
     api.fetchCollectionStatsById.mockResolvedValue(stats);
     api.fetchPipelines.mockResolvedValue([pipeline]);
   });
 
-  it("renders a loader while fetching", async () => {
+  it("renders a loader while fetching", () => {
     api.fetchCollection.mockImplementation(() => new Promise(() => {}));
     const { container } = render(<CollectionDetail collectionId="col-1" />);
+    // Loader is a decorative <span> with no accessible role; assert the loading
+    // state by confirming the loader renders and no content/error is shown yet.
     expect(container.querySelector("span")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview")).not.toBeInTheDocument();
   });
 
   it("shows a message when token is missing", async () => {
-    mockToken = null;
+    setMockAuth({ token: null, user: null });
     render(<CollectionDetail collectionId="col-1" />);
     await waitFor(() => {
       expect(screen.getByText("Sign in to view this collection.")).toBeInTheDocument();

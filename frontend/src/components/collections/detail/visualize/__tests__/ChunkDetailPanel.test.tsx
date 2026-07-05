@@ -2,11 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChunkDetailPanel } from "@/components/collections/detail/visualize/ChunkDetailPanel";
+import { makeChunk, makeChunkDetail, makeDocument } from "@/test/fixtures";
 
-import type { ChunkDetail, UmapPoint } from "@/lib/types";
+import type { UmapPoint } from "@/lib/types";
 
 describe("ChunkDetailPanel", () => {
-  const baseTimestamp = "2024-01-01T00:00:00.000Z";
   const selectedPoint: UmapPoint = {
     id: "point-1",
     chunk_id: "chunk-1",
@@ -16,32 +16,10 @@ describe("ChunkDetailPanel", () => {
     y: 2,
   };
 
-  const detail: ChunkDetail = {
-    document: {
-      id: "doc-1",
-      collection_id: "col-1",
-      name: "Doc",
-      content_type: "text/plain",
-      status: "ready",
-      num_chunks: 1,
-      num_tokens: 10,
-      chunk_size: 12,
-      chunk_overlap: 0,
-      chunk_strategy: "token",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-    },
-    chunk: {
-      id: "chunk-1",
-      document_id: "doc-1",
-      chunk_index: 0,
-      text: "Chunk text",
-      metadata: { source: "manual" },
-      chunk_size: 12,
-      chunk_strategy: "token",
-      created_at: baseTimestamp,
-    },
-  };
+  const detail = makeChunkDetail({
+    document: makeDocument({ name: "Doc", chunk_size: 12 }),
+    chunk: makeChunk({ chunk_size: 12, metadata: { source: "manual" } }),
+  });
 
   it("shows placeholder states", () => {
     const { rerender, container } = render(
@@ -52,6 +30,7 @@ describe("ChunkDetailPanel", () => {
     rerender(
       <ChunkDetailPanel detail={null} loading selectedPoint={selectedPoint} errorMessage={null} />,
     );
+    // Loader is a decorative <span> with no accessible role.
     expect(container.querySelector("span")).toBeInTheDocument();
 
     rerender(
