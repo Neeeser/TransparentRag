@@ -140,6 +140,14 @@ component-driven, well-named files that one person can hold in their head at onc
 - **`Button loading` keeps its children visible** (spinner + `aria-busy` + disabled).
   Never swap button content for placeholder text; it causes layout shift and breaks
   accessible names.
+- **Nested dialogs: Escape closes only the topmost.** ModalOverlay maintains an internal
+  overlay stack for this — you get correct stacking for free by using it. If you ever
+  need custom close behavior, preserve the one-layer-per-Escape convention.
+- **Clear stale feedback at the start of each attempt.** A retryable action (create,
+  save, submit) clears its error AND success channels at the top of every attempt —
+  otherwise a stale "failed" banner survives next to a fresh success message. When a
+  handler moves into a hook, this reset is the easiest line to lose; the hook should own
+  it (e.g. an `onCreateStart` callback), not hope the caller remembers.
 - **`cn` resolves Tailwind conflicts via `tailwind-merge`** — a later class deterministically
   wins over an earlier conflicting one. Don't rely on stylesheet order, and don't use `cn`
   for non-class strings (e.g. joining ARIA id lists — use a plain join).
