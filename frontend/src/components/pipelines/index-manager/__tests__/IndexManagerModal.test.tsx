@@ -108,7 +108,7 @@ describe("IndexManagerModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: deleteIndexLabel }));
     expect(screen.getByText(/Confirm index deletion/)).toBeInTheDocument();
-    const confirmInput = screen.getByPlaceholderText(/Enter index name/);
+    const confirmInput = screen.getByLabelText(/Type/);
     fireEvent.change(confirmInput, { target: { value: "wrong" } });
     let deleteButtons = screen.getAllByRole("button", { name: deleteIndexLabel });
     expect(deleteButtons[deleteButtons.length - 1]).toBeDisabled();
@@ -138,7 +138,7 @@ describe("IndexManagerModal", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: deleteIndexLabel }));
-    fireEvent.change(screen.getByPlaceholderText(/Enter index name/), {
+    fireEvent.change(screen.getByLabelText(/Type/), {
       target: { value: "alpha" },
     });
     const deleteButtons = screen.getAllByRole("button", { name: deleteIndexLabel });
