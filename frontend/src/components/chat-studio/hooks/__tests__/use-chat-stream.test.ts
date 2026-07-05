@@ -5,7 +5,7 @@ import {
   initialChatStreamState,
   upsertLiveToolEvents,
   type ChatStreamState,
-} from "@/components/chat-studio/hooks/use-chat-stream";
+} from "@/components/chat-studio/hooks/chat-stream-reducer";
 
 import type { ReasoningTraceSegment } from "@/lib/types";
 
