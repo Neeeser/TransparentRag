@@ -7,10 +7,9 @@
  *
  *   import * as apiModule from "@/lib/api";
  *
- *   vi.mock("@/lib/api", async () => {
- *     const { mockApi } = await import("@/test/mocks");
- *     return mockApi();               // or mockApi({ chat: vi.fn(...) }) for file-wide overrides
- *   });
+ *   vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
+ *   // or, for file-wide overrides:
+ *   // vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi({ chat: vi.fn() }));
  *
  *   const api = vi.mocked(apiModule); // api.fetchCollections.mockResolvedValue(...) per test
  *
@@ -18,11 +17,8 @@
  * global `restoreMocks: true` clears call history between tests while keeping
  * the default implementations passed to vi.fn().
  *
- * Auth:
- *   vi.mock("@/providers/auth-provider", async () => {
- *     const { mockAuth } = await import("@/test/mocks");
- *     return mockAuth();              // signed-in default; pass overrides to change
- *   });
+ * Auth (signed-in default; pass overrides to change):
+ *   vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth());
  *   import { setMockAuth, resetMockAuth } from "@/test/mocks";
  *   // beforeEach(resetMockAuth); per test: setMockAuth({ token: null, user: null });
  */
