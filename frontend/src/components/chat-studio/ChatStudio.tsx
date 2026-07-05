@@ -32,6 +32,7 @@ import {
 import { ChatStudioHeader } from "@/components/chat-studio/ChatStudioHeader";
 import { ChatStudioMessages } from "@/components/chat-studio/ChatStudioMessages";
 import { ChatStudioView } from "@/components/chat-studio/ChatStudioView";
+import { useAutoScroll } from "@/components/chat-studio/hooks/use-auto-scroll";
 import { useRunSettingsOrder } from "@/components/chat-studio/hooks/use-run-settings-order";
 import { HistoryPanel } from "@/components/chat-studio/HistoryPanel";
 import { PromptEditorOverlay } from "@/components/chat-studio/PromptEditorOverlay";
@@ -263,11 +264,8 @@ export function ChatStudio() {
   const [liveToolEvents, setLiveToolEvents] = useState<ToolCallTrace[]>([]);
   const [liveToolOrder, setLiveToolOrder] = useState<string[]>([]);
   const [liveToolPhaseById, setLiveToolPhaseById] = useState<Record<string, number>>({});
-  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
   const [liveResponseAnimationKey, setLiveResponseAnimationKey] = useState(0);
   const [liveReasoningAnimationKey, setLiveReasoningAnimationKey] = useState(0);
-  const endRef = useRef<HTMLDivElement | null>(null);
-  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const chatPanelRef = useRef<HTMLDivElement | null>(null);
   const [chatPanelWidth, setChatPanelWidth] = useState(() => {
     if (typeof window === "undefined") {
@@ -276,9 +274,20 @@ export function ChatStudio() {
     return window.innerWidth;
   });
   const isOverlayMode = chatPanelWidth > 0 && chatPanelWidth < OVERLAY_TRIGGER_WIDTH_PX;
-  const scrollAnimationFrameRef = useRef<number | null>(null);
-  const programmaticScrollRef = useRef(false);
-  const programmaticScrollTimeoutRef = useRef<number | null>(null);
+  const {
+    autoScrollEnabled,
+    setAutoScrollEnabled,
+    endRef,
+    messagesContainerRef,
+    scrollAnimationFrameRef,
+    handleScroll,
+    handleReenableAutoScroll,
+  } = useAutoScroll({
+    selectedSessionId,
+    chatEntryOrder,
+    liveResponse,
+    liveReasoningSegments,
+  });
   const chatPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const promptEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
@@ -1205,57 +1214,6 @@ export function ChatStudio() {
     setProviderSearchTerm("");
   }, [providerModelSlug]);
 
-  const markProgrammaticScroll = useCallback((duration = 150) => {
-    if (programmaticScrollTimeoutRef.current) {
-      window.clearTimeout(programmaticScrollTimeoutRef.current);
-    }
-    programmaticScrollRef.current = true;
-    programmaticScrollTimeoutRef.current = window.setTimeout(() => {
-      programmaticScrollRef.current = false;
-      programmaticScrollTimeoutRef.current = null;
-    }, duration);
-  }, []);
-
-  const scrollToBottom = useCallback(
-    (behavior: ScrollBehavior = "smooth") => {
-      if (!endRef.current) {
-        return;
-      }
-      if (scrollAnimationFrameRef.current) {
-        window.cancelAnimationFrame(scrollAnimationFrameRef.current);
-      }
-      markProgrammaticScroll(behavior === "smooth" ? 600 : 150);
-      scrollAnimationFrameRef.current = window.requestAnimationFrame(() => {
-        endRef.current?.scrollIntoView({ behavior });
-        scrollAnimationFrameRef.current = null;
-      });
-    },
-    [markProgrammaticScroll],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (scrollAnimationFrameRef.current) {
-        window.cancelAnimationFrame(scrollAnimationFrameRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!autoScrollEnabled) {
-      return;
-    }
-    scrollToBottom("smooth");
-    const timeout = setTimeout(() => {
-      scrollToBottom("smooth");
-    }, 100);
-    return () => clearTimeout(timeout);
-  }, [autoScrollEnabled, chatEntryOrder, liveReasoningSegments, liveResponse, scrollToBottom]);
-
-  useEffect(() => {
-    setAutoScrollEnabled(true);
-  }, [selectedSessionId]);
-
   useEffect(() => {
     reasoningCacheRef.current.clear();
   }, [selectedSessionId]);
@@ -1296,15 +1254,6 @@ export function ChatStudio() {
     [],
   );
 
-  useEffect(
-    () => () => {
-      if (programmaticScrollTimeoutRef.current) {
-        window.clearTimeout(programmaticScrollTimeoutRef.current);
-      }
-    },
-    [],
-  );
-
   useEffect(() => {
     if (liveReasoningSegments.length > 0) {
       setPersistedLiveReasoningSegments(liveReasoningSegments);
@@ -1331,32 +1280,6 @@ export function ChatStudio() {
     container.style.scrollBehavior = previousBehavior;
     editScrollSnapshotRef.current = null;
   }, [editingMessageId]);
-
-  const handleScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container) {
-      return;
-    }
-    if (programmaticScrollRef.current) {
-      return;
-    }
-    const distanceFromBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (distanceFromBottom > 12) {
-      if (autoScrollEnabled) {
-        setAutoScrollEnabled(false);
-      }
-      return;
-    }
-    if (!autoScrollEnabled && distanceFromBottom <= 2) {
-      setAutoScrollEnabled(true);
-    }
-  }, [autoScrollEnabled]);
-
-  const handleReenableAutoScroll = useCallback(() => {
-    setAutoScrollEnabled(true);
-    scrollToBottom("smooth");
-  }, [scrollToBottom]);
 
   const showFollowButton =
     !autoScrollEnabled && (chatEntryOrder.length > 0 || hasLiveText || hasDisplayedLiveReasoning);
