@@ -37,9 +37,17 @@ component-driven, well-named files that one person can hold in their head at onc
 - **Derive, don't duplicate types.** When one type is a subset/variant of another, derive
   it (`Extract<...>`, `Omit<...>`, `Pick<...>`) instead of maintaining a parallel
   interface that will drift.
-- **Constants are defined once.** Sentinel strings (`"__create__"`), size constants, and
-  default flags live in one exported constant; a second definition that "must stay in
+- **Constants are defined once.** Sentinel strings (`CREATE_SENTINEL`), size constants,
+  and default flags live in one exported constant; a second definition that "must stay in
   sync" with the first is a latent bug.
+- **UI state lives in the component that uses it.** Search terms, sort orders, and other
+  view-local state belong inside the component (or its own hook) — not lifted to a parent
+  that just drills them back down. Lifting state a parent never reads created a 10-prop
+  card and a triplicated filter pipeline. (Corollary: state that must survive the
+  component unmounting is the exception — then it genuinely belongs to the parent.)
+- **Library monkey-patches are quarantined.** If a prototype patch is truly unavoidable,
+  it lives in its own `*-patches.ts` module with an idempotence guard and a comment
+  explaining why — never inline in a component file.
 
 ## TypeScript
 
