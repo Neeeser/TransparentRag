@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatStudio } from "@/components/chat-studio/ChatStudio";
 import {
@@ -630,7 +630,7 @@ describe("ChatStudio", () => {
     const telemetryProps = mockTelemetryPanelProps as {
       onSectionOrderChange?: (order: RunSettingsSectionKey[]) => void;
     };
-    const reversed = [...baseUser.run_settings_order].reverse() as RunSettingsSectionKey[];
+    const reversed = [...(baseUser.run_settings_order ?? [])].reverse() as RunSettingsSectionKey[];
 
     vi.useFakeTimers();
     act(() => {
@@ -698,7 +698,7 @@ describe("ChatStudio", () => {
 
     vi.stubGlobal("crypto", {
       randomUUID: undefined,
-    } as Crypto);
+    } as unknown as Crypto);
 
     render(<ChatStudio />);
 

@@ -157,7 +157,11 @@ describe("collections pages", () => {
   const nodeSpec: NodeSpec = {
     type: "node",
     label: "Node",
+    category: "test",
+    example: "",
     description: "",
+    config_schema: {},
+    default_config: {},
     input_ports: [],
     output_ports: [],
   };

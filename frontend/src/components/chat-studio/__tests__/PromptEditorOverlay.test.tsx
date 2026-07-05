@@ -10,6 +10,7 @@ import type { PromptDetails } from "@/lib/types";
 describe("PromptEditorOverlay", () => {
   const details: PromptDetails = {
     template: "Hello",
+    rendered: "Hello",
     is_custom: true,
     variables: [{ name: "collection", description: "Collection name", example: "Support" }],
     context: { collection: "Support" },
@@ -165,7 +166,7 @@ describe("PromptEditorOverlay", () => {
             id: "tool",
             label: "Tool",
             scope: "collection",
-            details: { template: "", is_custom: false, variables: [], context: {} },
+            details: { template: "", rendered: "", is_custom: false, variables: [], context: {} },
             draft: "",
             hasChanges: false,
             saving: false,

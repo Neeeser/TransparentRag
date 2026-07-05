@@ -1,7 +1,7 @@
 "use client";
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreateCollectionWizard } from "@/components/collections/list/CreateCollectionWizard";
 
@@ -65,8 +65,11 @@ describe("CreateCollectionWizard", () => {
     {
       type: "node.type",
       label: "Node",
+      category: "test",
+      example: "",
       description: "",
       config_schema: { properties: { foo: { type: "string" } } },
+      default_config: {},
       input_ports: [],
       output_ports: [],
     },
@@ -175,6 +178,8 @@ describe("CreateCollectionWizard", () => {
       {
         type: "node.type",
         label: "Node",
+        category: "test",
+        example: "",
         description: "",
         config_schema: {
           properties: {

@@ -167,18 +167,11 @@ export const markdownComponents: Components = {
       {children}
     </a>
   ),
-  code: ({ inline, className, children }) => {
-    const isInline = inline !== false;
-    return isInline ? (
-      <code
-        className={cn("rounded bg-white/10 px-1 py-0.5 text-[0.85em] text-cyan-200", className)}
-      >
-        {children}
-      </code>
-    ) : (
-      <code className={cn("text-xs text-slate-100", className)}>{children}</code>
-    );
-  },
+  code: ({ className, children }) => (
+    <code className={cn("rounded bg-white/10 px-1 py-0.5 text-[0.85em] text-cyan-200", className)}>
+      {children}
+    </code>
+  ),
   pre: ({ children }) => (
     <pre className="mt-3 overflow-auto rounded-2xl bg-slate-900/70 p-3 text-xs text-slate-100">
       {children}

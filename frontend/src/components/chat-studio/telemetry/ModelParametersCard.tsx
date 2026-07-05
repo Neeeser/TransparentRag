@@ -103,12 +103,12 @@ export const ModelParametersCard = ({
         <ParameterInput
           input={definition.input}
           value={currentValue}
-          min={definition.min}
-          max={definition.max}
-          step={definition.step}
-          placeholder={definition.placeholder}
-          options={definition.options}
-          rows={definition.rows}
+          min={"min" in definition ? definition.min : undefined}
+          max={"max" in definition ? definition.max : undefined}
+          step={"step" in definition ? definition.step : undefined}
+          placeholder={"placeholder" in definition ? definition.placeholder : undefined}
+          options={"options" in definition ? definition.options : undefined}
+          rows={"rows" in definition ? definition.rows : undefined}
           onChange={handleValueChange}
         />
       </ParameterFieldCard>

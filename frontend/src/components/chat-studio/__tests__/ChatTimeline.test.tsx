@@ -6,7 +6,7 @@ import { markdownComponents } from "@/components/chat-studio/chat-utils";
 import { ChatTimeline } from "@/components/chat-studio/ChatTimeline";
 
 import type { ChatEntry } from "@/components/chat-studio/chat-types";
-import type { ChatMessage, ToolCallTrace } from "@/lib/types";
+import type { ChatMessage, ReasoningTraceSegment, ToolCallTrace } from "@/lib/types";
 
 vi.mock("@/components/chat-studio/Tooling", () => ({
   ToolCallBubble: ({ label, footer }: { label: string; footer?: React.ReactNode }) => (
@@ -91,6 +91,7 @@ const baseProps = (overrides: Partial<ChatTimelineProps> = {}): ChatTimelineProp
   branchedFromSessionId: null,
   branchedFromSessionTitle: null,
   branchedFromMessageId: null,
+  branchedFromOrigin: "manual",
   onNavigateToSession: vi.fn(),
   ...overrides,
 });
@@ -210,7 +211,7 @@ describe("ChatTimeline", () => {
       createdAt: baseTimestamp,
     };
 
-    const chatEntryMap = new Map([
+    const chatEntryMap = new Map<string, ChatEntry>([
       [toolEntry.id, toolEntry],
       [reasoningEntry.id, reasoningEntry],
     ]);
@@ -242,13 +243,15 @@ describe("ChatTimeline", () => {
       id: "a-tool",
       tool_name: "helper",
     });
-    const entry: ChatEntry = {
+    // "custom" is an unrecognized entry type used to exercise ChatTimeline's fallback
+    // rendering; it doesn't correspond to a real ChatEntry variant, hence the cast.
+    const entry = {
       id: "entry-custom",
-      type: "custom" as ChatEntry["type"],
+      type: "custom",
       message: assistantMessage,
       content: assistantMessage.content,
       createdAt: assistantMessage.created_at,
-    };
+    } as unknown as ChatEntry;
 
     render(
       <ChatTimeline
@@ -791,7 +794,7 @@ describe("ChatTimeline", () => {
   });
 
   it("shows assistant subtitle when live reasoning types are non-string", () => {
-    const entries = [
+    const entries: ChatEntry[] = [
       {
         id: "entry-1",
         type: "assistant",
@@ -827,11 +830,14 @@ describe("ChatTimeline", () => {
         name: "search",
         arguments: { query: "hi" },
         response: {},
-        reasoning: "Looking up results",
+        // The legacy wire format also allows a bare string; cast around the
+        // narrower object-shaped type to exercise that normalization path.
+        reasoning: "Looking up results" as unknown as ReasoningTraceSegment,
       },
       {
         id: "tool-2",
         name: "summarize",
+        arguments: {},
       },
     ];
     const userMessage = buildMessage("user", "Hi", { id: "u1" });

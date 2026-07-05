@@ -133,7 +133,7 @@ const Harness = (props: {
       providerDirectoryError={props.providerDirectoryError}
       providerModelSlug={props.providerModelSlug}
       providerSearchTerm={providerSearchTerm}
-      setProviderSearchTerm={setProviderSearchTerm}
+      onProviderSearchChange={setProviderSearchTerm}
       providerRuleCount={props.providerRuleCount}
       resetProviderPreferences={() => undefined}
     />
@@ -151,7 +151,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug="openai/gpt-4"
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={0}
         resetProviderPreferences={() => undefined}
       />,
@@ -168,7 +168,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError="Error"
         providerModelSlug="openai/gpt-4"
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={0}
         resetProviderPreferences={() => undefined}
       />,
@@ -184,7 +184,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug={null}
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={0}
         resetProviderPreferences={() => undefined}
       />,
@@ -200,7 +200,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug="openai/gpt-4"
         providerSearchTerm="missing"
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={0}
         resetProviderPreferences={() => undefined}
       />,
@@ -216,7 +216,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug="openai/gpt-4"
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={0}
         resetProviderPreferences={() => undefined}
       />,
@@ -236,7 +236,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug="openai/gpt-4"
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={1}
         resetProviderPreferences={resetProviderPreferences}
       />,
@@ -256,7 +256,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug="openai/gpt-4"
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={1}
         resetProviderPreferences={() => undefined}
       />,
@@ -274,7 +274,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug="openai/gpt-4"
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={1}
         resetProviderPreferences={() => undefined}
       />,
@@ -360,7 +360,7 @@ describe("ProviderRoutingCard", () => {
         providerDirectoryError={null}
         providerModelSlug="openai/gpt-4"
         providerSearchTerm=""
-        setProviderSearchTerm={() => undefined}
+        onProviderSearchChange={() => undefined}
         providerRuleCount={0}
         resetProviderPreferences={() => undefined}
       />,

@@ -49,7 +49,7 @@ describe("ConsoleLayout", () => {
     render(<ConsoleLayout>Child</ConsoleLayout>);
 
     expect(screen.getByText("Control Room")).toBeInTheDocument();
-    const avatarButton = document.querySelector('button[aria-haspopup="menu"]');
+    const avatarButton = document.querySelector<HTMLElement>('button[aria-haspopup="menu"]');
     if (!avatarButton) {
       throw new Error("Avatar button not found");
     }
@@ -87,7 +87,7 @@ describe("ConsoleLayout", () => {
     };
     render(<ConsoleLayout>Child</ConsoleLayout>);
 
-    const avatarButton = document.querySelector('button[aria-haspopup="menu"]');
+    const avatarButton = document.querySelector<HTMLElement>('button[aria-haspopup="menu"]');
     if (!avatarButton) {
       throw new Error("Avatar button not found");
     }

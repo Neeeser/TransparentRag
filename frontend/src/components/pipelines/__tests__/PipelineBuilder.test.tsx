@@ -5,6 +5,7 @@ import { PipelineBuilder } from "@/components/pipelines/PipelineBuilder";
 
 import type { NodeSpec, Pipeline, PipelineVersion } from "@/lib/types";
 import type { Connection, Edge, Node } from "@xyflow/react";
+import type { DragEvent } from "react";
 
 const api = {
   activatePipelineVersion: vi.fn(),
@@ -67,7 +68,7 @@ vi.mock("@xyflow/react", async () => {
   const ReactModule = await import("react");
   return {
     addEdge: (edge: Edge, edges: Edge[]) => [...edges, edge],
-    useNodesState: <T,>(initial: Node<T>[]) => {
+    useNodesState: <T extends Record<string, unknown>>(initial: Node<T>[]) => {
       const [nodes, setNodes] = ReactModule.useState(initial);
       return [nodes, setNodes, vi.fn()];
     },

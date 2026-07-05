@@ -34,7 +34,11 @@ vi.mock("@xyflow/react", () => ({
 const trace: PipelineTraceResponse = {
   run: {
     id: runId,
+    kind: "ingestion",
+    user_id: "user-1",
+    collection_id: "col-1",
     status: "completed",
+    started_at: baseTimestamp,
     created_at: baseTimestamp,
     updated_at: baseTimestamp,
     pipeline_id: "pipe-1",
@@ -76,7 +80,7 @@ const trace: PipelineTraceResponse = {
       node_type: ingestionNodeType,
       node_name: "Input",
       sequence_index: 0,
-      status: "success",
+      status: "completed",
       started_at: baseTimestamp,
       completed_at: baseTimestamp,
       summary: {
@@ -93,7 +97,7 @@ const trace: PipelineTraceResponse = {
       node_type: indexerNodeType,
       node_name: "Index",
       sequence_index: 1,
-      status: "success",
+      status: "completed",
       started_at: baseTimestamp,
       completed_at: baseTimestamp,
       summary: {
@@ -335,7 +339,12 @@ describe("PipelineTraceViewer", () => {
       node_io: [
         {
           ...trace.node_io[0],
-          payload: [{ item: { chunk_id: "chunk-1" } }, { item: { chunk_id: "chunk-2" } }],
+          // Real payloads can also be arrays; containsChunkId() traverses either shape,
+          // so this exercises that path even though the declared type is object-shaped.
+          payload: [
+            { item: { chunk_id: "chunk-1" } },
+            { item: { chunk_id: "chunk-2" } },
+          ] as unknown as Record<string, unknown>,
         },
       ],
     };

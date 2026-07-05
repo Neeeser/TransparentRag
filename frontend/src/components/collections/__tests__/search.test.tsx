@@ -43,6 +43,9 @@ describe("CollectionSearch", () => {
 
   it("runs queries and renders results", async () => {
     const result: CollectionQueryResult = {
+      query: "test query",
+      top_k: 3,
+      usage: {},
       query_event_id: "event-1",
       chunks: [
         {
@@ -59,14 +62,14 @@ describe("CollectionSearch", () => {
           chunk_index: 1,
           score: 0,
           text: "Empty score",
-          metadata: null,
+          metadata: null as unknown as Record<string, unknown> | undefined,
         },
         {
           id: "chunk-3",
           chunk_index: 2,
           score: 0.4,
           text: "Fallback id",
-          metadata: null,
+          metadata: null as unknown as Record<string, unknown> | undefined,
         },
       ],
     };

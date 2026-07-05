@@ -52,10 +52,9 @@ export function CollectionOverview({
   );
 
   const pipelineNameById = useMemo(() => {
-    const entries = [...ingestionPipelines, ...retrievalPipelines].map((pipeline) => [
-      pipeline.id,
-      pipeline.name,
-    ]);
+    const entries = [...ingestionPipelines, ...retrievalPipelines].map(
+      (pipeline): [string, string] => [pipeline.id, pipeline.name],
+    );
     return new Map(entries);
   }, [ingestionPipelines, retrievalPipelines]);
 

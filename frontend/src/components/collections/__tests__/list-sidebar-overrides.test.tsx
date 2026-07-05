@@ -164,6 +164,8 @@ describe("PipelineOverridesEditor", () => {
       {
         type: "node.type",
         label: "Node",
+        category: "test",
+        example: "",
         description: "",
         config_schema: {
           properties: {
@@ -172,6 +174,7 @@ describe("PipelineOverridesEditor", () => {
             note: { type: ["string", "null"] },
           },
         },
+        default_config: {},
         input_ports: [],
         output_ports: [],
       },
@@ -227,6 +230,8 @@ describe("PipelineOverridesEditor", () => {
       {
         type: "node.type",
         label: "Node",
+        category: "test",
+        example: "",
         description: "",
         config_schema: {
           properties: {
@@ -234,6 +239,7 @@ describe("PipelineOverridesEditor", () => {
             note: { type: ["string", "null"] },
           },
         },
+        default_config: {},
         input_ports: [],
         output_ports: [],
       },
@@ -289,6 +295,8 @@ describe("PipelineOverridesEditor", () => {
       {
         type: "node.type",
         label: "Node",
+        category: "test",
+        example: "",
         description: "",
         config_schema: {
           required: ["required_text"],
@@ -299,6 +307,7 @@ describe("PipelineOverridesEditor", () => {
             required_text: { type: "string" },
           },
         },
+        default_config: {},
         input_ports: [],
         output_ports: [],
       },
@@ -374,8 +383,11 @@ describe("PipelineOverridesEditor", () => {
       {
         type: "node.empty",
         label: "Empty",
+        category: "test",
+        example: "",
         description: "",
         config_schema: {},
+        default_config: {},
         input_ports: [],
         output_ports: [],
       },
@@ -410,7 +422,8 @@ describe("PipelineOverridesEditor", () => {
             id: "node-schema",
             type: "node.schema",
             name: "Node With Schema",
-            config: null,
+            // Deliberately malformed to exercise the component's null-config guard.
+            config: null as unknown as Record<string, unknown>,
           },
           {
             id: "node-empty",
@@ -426,6 +439,8 @@ describe("PipelineOverridesEditor", () => {
       {
         type: "node.schema",
         label: "Node",
+        category: "test",
+        example: "",
         description: "",
         config_schema: {
           properties: {
@@ -439,7 +454,11 @@ describe("PipelineOverridesEditor", () => {
       {
         type: "node.empty",
         label: "Node",
+        category: "test",
+        example: "",
         description: "",
+        config_schema: {},
+        default_config: {},
         input_ports: [],
         output_ports: [],
       },

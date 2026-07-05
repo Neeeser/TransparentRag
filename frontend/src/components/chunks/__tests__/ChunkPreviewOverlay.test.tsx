@@ -82,7 +82,8 @@ describe("ChunkPreviewOverlay", () => {
   it("renders empty text when chunk text is missing", () => {
     const noTextDetail: ChunkDetail = {
       ...detail,
-      chunk: { ...detail.chunk, text: undefined },
+      // Deliberately malformed to exercise the missing-text rendering path.
+      chunk: { ...detail.chunk, text: undefined as unknown as string },
     };
 
     render(<ChunkPreviewOverlay isOpen onClose={() => {}} detail={noTextDetail} />);

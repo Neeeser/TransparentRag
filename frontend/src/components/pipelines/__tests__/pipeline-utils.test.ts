@@ -150,7 +150,7 @@ describe("pipeline-utils", () => {
   });
 
   it("defaults missing node position and config when mapping to flow nodes", () => {
-    const definition: PipelineDefinition = {
+    const definition = {
       nodes: [
         {
           id: "node-a",
@@ -160,7 +160,7 @@ describe("pipeline-utils", () => {
       ],
       edges: [],
       viewport: {},
-    };
+    } as unknown as PipelineDefinition;
     const nodes = toFlowNodes(definition, []);
     expect(nodes[0].position).toEqual({ x: 0, y: 0 });
     expect(nodes[0].data.config).toEqual({});

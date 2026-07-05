@@ -171,7 +171,11 @@ describe("Tooling", () => {
     const trace: PipelineTraceResponse = {
       run: {
         id: "trace-1",
+        kind: "ingestion",
+        user_id: "user-1",
+        collection_id: "col-1",
         status: "completed",
+        started_at: baseTimestamp,
         created_at: baseTimestamp,
         updated_at: baseTimestamp,
         pipeline_id: "pipe-1",
@@ -250,7 +254,11 @@ describe("Tooling", () => {
     const trace: PipelineTraceResponse = {
       run: {
         id: "trace-2",
+        kind: "ingestion",
+        user_id: "user-1",
+        collection_id: "col-1",
         status: "completed",
+        started_at: baseTimestamp,
         created_at: baseTimestamp,
         updated_at: baseTimestamp,
         pipeline_id: "pipe-1",

@@ -32,11 +32,21 @@ const buildNode = (data: Partial<PipelineNodeData> & { nodeType: string }, id = 
 describe("pipeline-io", () => {
   it("validates missing connection data and self connections", () => {
     const nodes: Node<PipelineNodeData>[] = [];
-    const noTarget: Connection = { source: "a", target: null };
+    const noTarget = {
+      source: "a",
+      target: null,
+      sourceHandle: null,
+      targetHandle: null,
+    } as unknown as Connection;
     expect(validatePipelineConnection(noTarget, nodes)).toEqual(
       expect.objectContaining({ valid: false }),
     );
-    const self: Connection = { source: "a", target: "a" };
+    const self: Connection = {
+      source: "a",
+      target: "a",
+      sourceHandle: null,
+      targetHandle: null,
+    };
     expect(validatePipelineConnection(self, nodes)).toEqual(
       expect.objectContaining({ valid: false }),
     );
@@ -56,6 +66,8 @@ describe("pipeline-io", () => {
     const missingHandle: Connection = {
       source: parserNodeType,
       target: chunkerNodeType,
+      sourceHandle: null,
+      targetHandle: null,
     };
     expect(validatePipelineConnection(missingHandle, nodes).valid).toBe(false);
 

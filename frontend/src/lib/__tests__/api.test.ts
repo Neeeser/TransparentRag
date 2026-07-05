@@ -181,7 +181,7 @@ describe("api", () => {
     fetchMock.mockResolvedValueOnce(createJsonResponse({ id: "doc-1" }));
     const file = new File(["hello"], "note.txt", { type: "text/plain" });
 
-    await uploadDocument(file, "col-1", "token");
+    await uploadDocument("col-1", file, "token");
     const [, options] = fetchMock.mock.calls[0];
     const headers = options?.headers as Headers;
     expect(headers.get("Content-Type")).toBeNull();
@@ -255,8 +255,8 @@ describe("api", () => {
       fetchCollections("token"),
       fetchCollectionStats("token"),
       fetchCollectionStatsById("col-1", "token"),
-      createCollection({ name: "Col" }, "token"),
-      updateCollection("col-1", { name: "Updated" }, "token"),
+      createCollection("token", { name: "Col" }),
+      updateCollection("col-1", "token", { name: "Updated" }),
       deleteCollection("col-1", "token"),
       updateRunSettingsOrder("token", ["usage"]),
       fetchPipelines("token", "ingestion"),
@@ -339,7 +339,7 @@ describe("api", () => {
       activatePipelineVersion("pipe-1", 1, "token"),
       getChatHistory("session-1", "token"),
       branchChatSession("session-1", { message_id: "msg-1" }, "token"),
-      chat({ messages: [], model: "model" }, "token"),
+      chat({ content: "Hello", chat_model: "model" }, "token"),
     ]);
   });
 
@@ -383,8 +383,10 @@ describe("api", () => {
       onError: vi.fn(),
     };
 
-    const payload = await streamChat({ messages: [], model: "model" }, "token", handlers);
-    expect(payload?.id).toBe("resp-1");
+    const payload = await streamChat({ content: "Hello", chat_model: "model" }, "token", handlers);
+    // The mocked SSE payload uses a raw completion shape to test passthrough,
+    // which the current ChatCompletionPayload type does not model.
+    expect((payload as unknown as { id?: string } | null)?.id).toBe("resp-1");
     expect(handlers.onToken).toHaveBeenCalledWith("Hi");
     expect(handlers.onToolCall).toHaveBeenCalled();
     expect(handlers.onToolResult).toHaveBeenCalled();
@@ -400,8 +402,8 @@ describe("api", () => {
     fetchMock.mockResolvedValueOnce(createStreamResponse(reader));
 
     const handlers = { onReasoning: vi.fn() };
-    const payload = await streamChat({ messages: [], model: "model" }, "token", handlers);
-    expect(payload?.id).toBe("resp-2");
+    const payload = await streamChat({ content: "Hello", chat_model: "model" }, "token", handlers);
+    expect((payload as unknown as { id?: string } | null)?.id).toBe("resp-2");
     expect(handlers.onReasoning).toHaveBeenCalledWith([]);
   });
 
@@ -413,7 +415,7 @@ describe("api", () => {
     });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerError));
     const handlers = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers)).rejects.toThrow(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token", handlers)).rejects.toThrow(
       "bad",
     );
     expect(handlers.onError).toHaveBeenCalledWith("bad");
@@ -422,14 +424,14 @@ describe("api", () => {
       throwOnRead: new DOMException("Aborted", "AbortError"),
     });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerAbort));
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toBeInstanceOf(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token")).rejects.toBeInstanceOf(
       DOMException,
     );
 
     const readerBoom = createMockReader([], { throwOnRead: new Error("boom") });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerBoom));
     const handlers2 = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers2)).rejects.toThrow(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token", handlers2)).rejects.toThrow(
       "boom",
     );
     expect(handlers2.onError).toHaveBeenCalledWith("boom");
@@ -437,7 +439,7 @@ describe("api", () => {
     const readerNonError = createMockReader([], { throwOnRead: "oops" });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerNonError));
     const handlers3 = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers3)).rejects.toBe(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token", handlers3)).rejects.toBe(
       "oops",
     );
     expect(handlers3.onError).toHaveBeenCalledWith("Streaming request failed.");
@@ -447,7 +449,7 @@ describe("api", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as typeof fetch;
     fetchMock.mockResolvedValueOnce(createStreamResponse(createMockReader([]), false));
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token")).rejects.toThrow(
       "Server Error",
     );
 
@@ -457,12 +459,12 @@ describe("api", () => {
       statusText: "Bad",
       json: vi.fn().mockResolvedValue({ detail: { message: "down" } }),
     });
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token")).rejects.toThrow(
       JSON.stringify({ message: "down" }),
     );
 
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, statusText: "OK", body: null });
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token")).rejects.toThrow(
       "Streaming response body is not readable.",
     );
   });
@@ -473,7 +475,7 @@ describe("api", () => {
     const reader = createMockReader(['data: {"type":"error","message":"  "}\n\n']);
     fetchMock.mockResolvedValueOnce(createStreamResponse(reader));
     const handlers = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers)).rejects.toThrow(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token", handlers)).rejects.toThrow(
       "Streaming request failed.",
     );
     expect(handlers.onError).toHaveBeenCalledWith("Streaming request failed.");
@@ -484,7 +486,7 @@ describe("api", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     fetchMock.mockResolvedValueOnce(createErrorResponse("", { detail: "" }));
 
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
+    await expect(streamChat({ content: "Hello", chat_model: "model" }, "token")).rejects.toThrow(
       "Streaming request failed.",
     );
   });

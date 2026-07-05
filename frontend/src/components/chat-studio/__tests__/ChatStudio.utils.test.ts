@@ -97,7 +97,9 @@ describe("ChatStudio helpers", () => {
       tool_name: "payload",
       tool_call_id: null,
       tool_payload: { arguments: { q: "hi" }, response: { ok: true } },
-      reasoning_trace: [{ type: "text", content: "step" }],
+      // The legacy wire format also allows a bare segments array; cast around the
+      // narrower object-shaped type to exercise that normalization path.
+      reasoning_trace: [{ type: "text", content: "step" }] as unknown as ChatMessage["reasoning_trace"],
       created_at: baseTimestamp,
     };
     const payloadTraces = deriveToolTracesFromMessages([payloadMessage]);

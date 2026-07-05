@@ -137,7 +137,9 @@ const baseOrder: RunSettingsSectionKey[] = [
   "usage",
 ];
 
-const buildProps = (overrides: Partial<React.ComponentProps<typeof TelemetryPanel>> = {}) => ({
+const buildProps = (
+  overrides: Partial<React.ComponentProps<typeof TelemetryPanel>> = {},
+): React.ComponentProps<typeof TelemetryPanel> => ({
   onClose: vi.fn(),
   sectionIds,
   sectionOrder: baseOrder,
@@ -273,7 +275,7 @@ describe("TelemetryPanel", () => {
   });
 
   it("renders dynamic section descriptions", () => {
-    const baseOverrides = {
+    const baseOverrides: Partial<React.ComponentProps<typeof TelemetryPanel>> = {
       promptSections: [{ id: "base", label: "Base", scope: "base", isCustom: false }],
       selectedToolCollectionIds: ["col-1", "col-2"],
       providerRuleCount: 2,

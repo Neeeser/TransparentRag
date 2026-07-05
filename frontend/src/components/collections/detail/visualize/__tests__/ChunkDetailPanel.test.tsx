@@ -19,10 +19,15 @@ describe("ChunkDetailPanel", () => {
   const detail: ChunkDetail = {
     document: {
       id: "doc-1",
-      user_id: "user-1",
+      collection_id: "col-1",
       name: "Doc",
       content_type: "text/plain",
-      size_bytes: 42,
+      status: "ready",
+      num_chunks: 1,
+      num_tokens: 10,
+      chunk_size: 12,
+      chunk_overlap: 0,
+      chunk_strategy: "token",
       created_at: baseTimestamp,
       updated_at: baseTimestamp,
     },

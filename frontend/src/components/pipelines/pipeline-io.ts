@@ -1,5 +1,5 @@
 import type { PipelineNodeData } from "./PipelineNode";
-import type { Connection, Node } from "@xyflow/react";
+import type { Connection, Edge, Node } from "@xyflow/react";
 
 type PortCompatibilityMap = Record<string, Set<string>>;
 
@@ -59,7 +59,7 @@ const validateDimensionConnection = (
 };
 
 export const validatePipelineConnection = (
-  connection: Connection,
+  connection: Connection | Edge,
   nodes: Node<PipelineNodeData>[],
   configOverrides?: Record<string, Record<string, unknown>>,
 ) => {

@@ -174,7 +174,7 @@ export function UmapCanvas({
     if (!containerSize.width || !containerSize.height) {
       return null;
     }
-    const zoom = viewState.zoom ?? 0;
+    const zoom = typeof viewState.zoom === "number" ? viewState.zoom : 0;
     const scale = Math.pow(2, zoom);
     const halfWidth = containerSize.width / 2 / scale;
     const halfHeight = containerSize.height / 2 / scale;
@@ -233,7 +233,7 @@ export function UmapCanvas({
     if (!containerSize.width || !containerSize.height) {
       return [];
     }
-    const zoom = viewState.zoom ?? 0;
+    const zoom = typeof viewState.zoom === "number" ? viewState.zoom : 0;
     const scale = Math.pow(2, zoom);
     const worldStep = computeGridStep(GRID_PIXEL_STEP / scale);
     const halfWidth = containerSize.width / 2 / scale;
@@ -270,10 +270,13 @@ export function UmapCanvas({
   );
 
   const handleZoom = useCallback((delta: number) => {
-    setViewState((previous) => ({
-      ...previous,
-      zoom: Math.max(-10, Math.min(14, previous.zoom + delta)),
-    }));
+    setViewState((previous) => {
+      const previousZoom = typeof previous.zoom === "number" ? previous.zoom : 0;
+      return {
+        ...previous,
+        zoom: Math.max(-10, Math.min(14, previousZoom + delta)),
+      };
+    });
   }, []);
 
   const handleResetView = useCallback(() => {
@@ -303,7 +306,9 @@ export function UmapCanvas({
         getColor: [148, 163, 184, 90],
         getWidth: 1,
         widthUnits: "pixels",
-        parameters: { depthTest: false },
+        // `depthTest: false` (old WebGL-style parameter) is now expressed as an
+        // always-passing depth comparison in luma.gl's WebGPU-style Parameters type.
+        parameters: { depthCompare: "always" },
       }),
       new ScatterplotLayer<UmapPoint>({
         id: "umap-points",
@@ -347,7 +352,7 @@ export function UmapCanvas({
               }
             : null
         }
-        style={{ position: "absolute", inset: 0 }}
+        style={{ position: "absolute", inset: "0" }}
       />
       <div className="absolute bottom-4 left-4 z-10 flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 text-slate-200">
         <button

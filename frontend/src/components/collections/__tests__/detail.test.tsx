@@ -160,9 +160,9 @@ describe("CollectionDetail", () => {
   });
 
   it("avoids state updates after unmount", async () => {
-    let resolveCollection: (value: Collection) => void;
-    let resolveStats: (value: CollectionStats) => void;
-    let resolvePipelines: (value: Pipeline[]) => void;
+    let resolveCollection!: (value: Collection) => void;
+    let resolveStats!: (value: CollectionStats) => void;
+    let resolvePipelines!: (value: Pipeline[]) => void;
     const collectionPromise = new Promise<Collection>((resolve) => {
       resolveCollection = resolve;
     });

@@ -12,6 +12,8 @@ import {
   sanitizeModelSlug,
 } from "@/components/chat-studio/chat-utils";
 
+import type { ReasoningTraceSegment } from "@/lib/types";
+
 describe("chat-utils", () => {
   it("parses JSON safely", () => {
     expect(safeParseJSON()).toBeNull();
@@ -69,21 +71,21 @@ describe("chat-utils", () => {
     expect(mixed[0]).toEqual(expect.objectContaining({ type: "text", content: "Alpha" }));
 
     const fromTextField = normalizeReasoningSegments([
-      { type: "text", text: "Inline text", content: 123 } as ReasoningTraceSegment,
+      { type: "text", text: "Inline text", content: 123 } as unknown as ReasoningTraceSegment,
     ]);
     expect(fromTextField[0]).toEqual(
       expect.objectContaining({ text: "Inline text", content: "Inline text" }),
     );
 
     const fromContentField = normalizeReasoningSegments([
-      { type: "text", text: 5, content: "Content text" } as ReasoningTraceSegment,
+      { type: "text", text: 5, content: "Content text" } as unknown as ReasoningTraceSegment,
     ]);
     expect(fromContentField[0]).toEqual(
       expect.objectContaining({ text: "Content text", content: "Content text" }),
     );
 
     const usesPrevContentWhenTextMissing = normalizeReasoningSegments([
-      { type: "text", text: 0, content: "" } as ReasoningTraceSegment,
+      { type: "text", text: 0, content: "" } as unknown as ReasoningTraceSegment,
       { type: "text", content: "Merged" } as ReasoningTraceSegment,
     ]);
     expect(usesPrevContentWhenTextMissing).toHaveLength(1);
@@ -96,7 +98,7 @@ describe("chat-utils", () => {
     expect(doesNotMergeAcrossTypes).toHaveLength(2);
 
     const usesFallbackTextValue = normalizeReasoningSegments([
-      { type: "text", content: 123 } as ReasoningTraceSegment,
+      { type: "text", content: 123 } as unknown as ReasoningTraceSegment,
       { type: "text", content: "Next" } as ReasoningTraceSegment,
     ]);
     expect(usesFallbackTextValue).toHaveLength(1);
@@ -118,14 +120,14 @@ describe("chat-utils", () => {
     expect(mergesWithMissingPrevType[0].text).toBe("FirstSecond");
 
     const mergesWithNoPrevText = normalizeReasoningSegments([
-      { type: "text", text: 5, content: 10 } as ReasoningTraceSegment,
+      { type: "text", text: 5, content: 10 } as unknown as ReasoningTraceSegment,
       { type: "text", content: "Next" } as ReasoningTraceSegment,
     ]);
     expect(mergesWithNoPrevText).toHaveLength(1);
     expect(mergesWithNoPrevText[0].text).toBe("Next");
 
     const mergesWithNonStringPrevious = normalizeReasoningSegments([
-      { type: "text", content: 123 } as ReasoningTraceSegment,
+      { type: "text", content: 123 } as unknown as ReasoningTraceSegment,
       { type: "text", content: "Next" } as ReasoningTraceSegment,
     ]);
     expect(mergesWithNonStringPrevious).toHaveLength(1);
@@ -146,7 +148,7 @@ describe("chat-utils", () => {
     expect(mergesWithEmptyType[0].text).toBe("AlphaBeta");
 
     const mergesWithNonStringPrevContent = normalizeReasoningSegments([
-      { type: "text", content: 123 } as ReasoningTraceSegment,
+      { type: "text", content: 123 } as unknown as ReasoningTraceSegment,
       { type: "text", content: "Next" } as ReasoningTraceSegment,
     ]);
     expect(mergesWithNonStringPrevContent).toHaveLength(1);
@@ -160,7 +162,7 @@ describe("chat-utils", () => {
     expect(mergesWithContentFallback[0].text).toBe("AlphaBeta");
 
     const mergesWithNonStringPrevInContext = normalizeReasoningSegments([
-      { type: "text", content: 123, call_id: "ctx-3" } as ReasoningTraceSegment,
+      { type: "text", content: 123, call_id: "ctx-3" } as unknown as ReasoningTraceSegment,
       { type: "text", content: "Next", call_id: "ctx-3" } as ReasoningTraceSegment,
     ]);
     expect(mergesWithNonStringPrevInContext).toHaveLength(1);

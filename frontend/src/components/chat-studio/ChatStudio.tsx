@@ -237,7 +237,7 @@ export function ChatStudio() {
   );
   const [runSettingsOrder, setRunSettingsOrder] =
     useState<RunSettingsSectionKey[]>(DEFAULT_TELEMETRY_ORDER);
-  const runSettingsSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runSettingsSaveTimeoutRef = useRef<number | null>(null);
   const lastSavedRunSettingsOrderRef = useRef<string>(JSON.stringify(DEFAULT_TELEMETRY_ORDER));
   const [streamingEnabled, setStreamingEnabled] = useState(DEFAULT_STREAMING_ENABLED);
   const [modelCatalog, setModelCatalog] = useState<ModelInfo[]>([]);
@@ -1767,7 +1767,16 @@ export function ChatStudio() {
   }, [basePromptDetails, basePromptDraft]);
 
   const promptSections = useMemo(() => {
-    const sections = [
+    const sections: Array<{
+      id: string;
+      label: string;
+      scope: "base" | "collection";
+      details: PromptDetails | null;
+      draft: string;
+      hasChanges: boolean;
+      saving: boolean;
+      error: string | null;
+    }> = [
       {
         id: "base",
         label: "Base",

@@ -59,6 +59,7 @@ describe("ModelParametersCard", () => {
   const model: ModelInfo = {
     id: "model-1",
     name: "Model",
+    supported_parameters: [],
   };
 
   it("renders error and loading states", () => {
@@ -149,7 +150,10 @@ describe("ModelParametersCard", () => {
     const handleClearParameter = vi.fn();
     const resetAllParameters = vi.fn();
 
-    const definitions: ParameterDefinition[] = [
+    // These fixtures use arbitrary keys/inputs to exercise ModelParametersCard's generic
+    // control-rendering logic; they don't correspond to the app's real, narrowly-typed
+    // PARAMETER_DEFINITIONS union, so the cast is required here.
+    const definitions = [
       { key: "temperature", label: "Temperature", input: "number", required: false },
       { key: "top_k", label: "Top K", input: "integer", required: false },
       { key: "use_tools", label: "Use Tools", input: "boolean", required: false },
@@ -161,7 +165,7 @@ describe("ModelParametersCard", () => {
         required: false,
       },
       { key: "prompt", label: "Prompt", input: "text", required: false },
-    ];
+    ] as unknown as ParameterDefinition[];
 
     render(
       <ModelParametersCard

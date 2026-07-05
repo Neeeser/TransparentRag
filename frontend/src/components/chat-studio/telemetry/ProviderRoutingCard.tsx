@@ -121,7 +121,7 @@ interface ProviderRoutingCardProps {
   providerDirectoryError: string | null;
   providerModelSlug: string | null;
   providerSearchTerm: string;
-  setProviderSearchTerm: (value: string) => void;
+  onProviderSearchChange: (value: string) => void;
   providerRuleCount: number;
   resetProviderPreferences: () => void;
 }
@@ -134,7 +134,7 @@ export const ProviderRoutingCard = ({
   providerDirectoryError,
   providerModelSlug,
   providerSearchTerm,
-  setProviderSearchTerm,
+  onProviderSearchChange,
   providerRuleCount,
   resetProviderPreferences,
 }: ProviderRoutingCardProps) => {
@@ -448,7 +448,7 @@ export const ProviderRoutingCard = ({
             className={cn(inputClasses, "pl-9 disabled:cursor-not-allowed disabled:opacity-60")}
             placeholder="Search provider slug, vendor, or tag"
             value={providerSearchTerm}
-            onChange={(event) => setProviderSearchTerm(event.target.value)}
+            onChange={(event) => onProviderSearchChange(event.target.value)}
             disabled={!providerModelSlug}
           />
         </div>

@@ -11,7 +11,7 @@ import { TypingAnimation } from "@/components/ui/typing-animation";
 import { cn } from "@/lib/utils";
 
 import type { ChatEntry } from "./chat-types";
-import type { ToolCallTrace, UsageBreakdown } from "@/lib/types";
+import type { ReasoningTraceSegment, ToolCallTrace, UsageBreakdown } from "@/lib/types";
 import type { Components } from "react-markdown";
 
 const roleVariants: Record<string, string> = {

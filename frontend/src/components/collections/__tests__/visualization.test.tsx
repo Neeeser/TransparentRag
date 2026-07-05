@@ -53,11 +53,27 @@ describe("CollectionVisualization", () => {
   const visualization: UmapVisualization = {
     projection: {
       id: "proj-1",
+      collection_id: "col-1",
       embedding_model: "model",
+      n_neighbors: 15,
+      min_dist: 0.1,
+      metric: "cosine",
+      n_components: 2,
+      random_state: 42,
       point_count: 1,
       created_at: baseTimestamp,
+      updated_at: baseTimestamp,
     },
-    points: [{ id: "point-1", chunk_id: "chunk-1", chunk_index: 0, x: 0.1, y: 0.2 }],
+    points: [
+      {
+        id: "point-1",
+        chunk_id: "chunk-1",
+        document_id: "doc-1",
+        chunk_index: 0,
+        x: 0.1,
+        y: 0.2,
+      },
+    ],
   };
   const chunkDetail: ChunkDetail = {
     document: {

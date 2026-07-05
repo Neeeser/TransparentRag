@@ -65,6 +65,23 @@ type PipelineBuilderProps = {
 const HIDDEN_NODE_TYPES = new Set(["chunker.collection"]);
 const PREVIEW_NODE_SIZE = { width: 180, height: 72 };
 
+type LegacyReactFlowInstance = {
+  project: (point: { x: number; y: number }) => { x: number; y: number };
+};
+
+// @xyflow/react v12 instances always expose screenToFlowPosition, but some callers
+// (and tests) still provide the pre-v12 `.project` API; support both. A `typeof`
+// check is used instead of `"x" in instance` narrowing because the v12 type makes
+// screenToFlowPosition non-optional, which would make the fallback branch
+// statically unreachable (and thus untypeable) under `in`-based narrowing.
+const resolveFlowPosition = (
+  instance: ReactFlowInstance<Node<PipelineNodeData>, Edge>,
+  point: { x: number; y: number },
+) =>
+  typeof instance.screenToFlowPosition === "function"
+    ? instance.screenToFlowPosition(point)
+    : (instance as unknown as LegacyReactFlowInstance).project(point);
+
 export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const { token } = useAuth();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -81,11 +98,14 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const [indexesError, setIndexesError] = useState<string | null>(null);
   const [versions, setVersions] = useState<PipelineVersion[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<PipelineNodeData>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<PipelineNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [previewSpec, setPreviewSpec] = useState<NodeSpec | null>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<
+    Node<PipelineNodeData>,
+    Edge
+  > | null>(null);
   const [dropPreviewPosition, setDropPreviewPosition] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -130,19 +150,20 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   const isPreview = Boolean(previewNode);
   const nodesWithPreview = useMemo(() => {
     if (!dropPreviewPosition) return nodes;
-    return [
-      ...nodes,
-      {
-        id: "drop-preview",
-        type: "dropPreview",
-        position: dropPreviewPosition,
-        data: { label: dropPreviewLabel ?? "Drop here" },
-        selectable: false,
-        draggable: false,
-        connectable: false,
-        focusable: false,
-      } satisfies Node,
-    ];
+    const dropPreviewNode = {
+      id: "drop-preview",
+      type: "dropPreview",
+      position: dropPreviewPosition,
+      data: { label: dropPreviewLabel ?? "Drop here" },
+      selectable: false,
+      draggable: false,
+      connectable: false,
+      focusable: false,
+    } satisfies Node;
+    // The drop-preview node carries DropPreviewNodeData, not PipelineNodeData; xyflow
+    // dispatches rendering by `type`, so the heterogeneous array is safe at runtime even
+    // though it can't be expressed without a discriminated Node union across this module.
+    return [...nodes, dropPreviewNode as unknown as Node<PipelineNodeData>];
   }, [dropPreviewLabel, dropPreviewPosition, nodes]);
 
   useEffect(() => {
@@ -270,11 +291,12 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
       setVersions([]);
       return;
     }
+    const pipelineId = selectedPipeline.id;
     let cancelled = false;
 
     async function loadVersions() {
       try {
-        const data = await listPipelineVersions(selectedPipeline.id, authToken);
+        const data = await listPipelineVersions(pipelineId, authToken);
         if (!cancelled) setVersions(data);
       } catch (error) {
         if (!cancelled) {
@@ -312,7 +334,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     return { edgeErrors: edgeValidation.edgeErrors, nodeErrors: mergedNodeErrors };
   }, [nodes, edges, configOverrides]);
 
-  const validateConnection = (connection: Connection) =>
+  const validateConnection = (connection: Connection | Edge) =>
     validatePipelineConnection(connection, nodes, configOverrides);
 
   const handleConnect = (connection: Connection) => {
@@ -545,7 +567,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     const selected = embeddingModels.find((model) => model.id === modelId);
     const nextDimension = selected?.dimension ?? undefined;
     setConfigDraft((prev) => {
-      const next = { ...prev, model_name: modelId };
+      const next: Record<string, unknown> = { ...prev, model_name: modelId };
       if (typeof nextDimension === "number") {
         next.dimension = nextDimension;
       } else {
@@ -585,10 +607,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
       x: event.clientX - PREVIEW_NODE_SIZE.width / 2,
       y: event.clientY - PREVIEW_NODE_SIZE.height / 2,
     };
-    const position =
-      "screenToFlowPosition" in reactFlowInstance
-        ? reactFlowInstance.screenToFlowPosition(point)
-        : reactFlowInstance.project(point);
+    const position = resolveFlowPosition(reactFlowInstance, point);
     setDropPreviewPosition(position);
     setDropPreviewLabel(spec.label);
   };
@@ -614,10 +633,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
       x: event.clientX - PREVIEW_NODE_SIZE.width / 2,
       y: event.clientY - PREVIEW_NODE_SIZE.height / 2,
     };
-    const position =
-      "screenToFlowPosition" in reactFlowInstance
-        ? reactFlowInstance.screenToFlowPosition(point)
-        : reactFlowInstance.project(point);
+    const position = resolveFlowPosition(reactFlowInstance, point);
     handleAddNode(spec, position);
   };
 
