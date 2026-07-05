@@ -89,6 +89,33 @@ component-driven, well-named files that one person can hold in their head at onc
   component's error channel (message state, notice banner). A `.catch` that only flips a
   boolean, or a `try/finally` with no `catch`, is a bug we've had to fix — twice.
 
+## UI primitives — use them, don't re-roll them
+
+- **Every overlay is `ModalOverlay`** (`components/ui/modal-overlay.tsx`). Never hand-roll
+  a `fixed inset-0 z-50` div: we had five of them, each with different Escape/backdrop/
+  focus behavior and half without `role="dialog"`. ModalOverlay owns Escape-to-close,
+  backdrop click, focus-into-dialog, focus restore, Tab containment, scroll lock, and
+  ARIA wiring. Dialogs pass `labelledBy` pointing at their title element.
+- **Every form control goes through `Field`/`TextInput`/`Select`/`TextArea`**
+  (`components/ui/field.tsx`). Field wires `htmlFor`/`id` via `useId` and `aria-describedby`
+  for hint/error text. The canonical input styling lives in the exported `inputClass`
+  constant — the raw class string was once copy-pasted 29 times; if you type
+  `rounded-2xl border border-white/10` by hand into a form control, stop.
+- **Confirmations use `ConfirmDialog`**, including destructive type-to-confirm flows via
+  its `confirmText` prop — don't build bespoke nested delete modals.
+- **Wizards use `WizardShell` + `WizardFooter`** — the Back/Next/Cancel cluster is one
+  component, not per-wizard JSX.
+- **`Button loading` keeps its children visible** (spinner + `aria-busy` + disabled).
+  Never swap button content for placeholder text; it causes layout shift and breaks
+  accessible names.
+- **`cn` resolves Tailwind conflicts via `tailwind-merge`** — a later class deterministically
+  wins over an earlier conflicting one. Don't rely on stylesheet order, and don't use `cn`
+  for non-class strings (e.g. joining ARIA id lists — use a plain join).
+- **Accessibility is part of done**, not polish: interactive elements need accessible
+  names (`aria-label` on icon buttons), labels need `htmlFor`, expanded/collapsed state
+  needs `aria-expanded`, and anything keyboard-reachable must actually work with a
+  keyboard (test with `user-event`, not `fireEvent`, when focus/keyboard semantics matter).
+
 ## Logging & debug artifacts
 
 - **No `console.log`/`console.debug` in committed code.** `console.warn`/`console.error`
