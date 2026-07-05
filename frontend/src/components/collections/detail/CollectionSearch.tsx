@@ -186,7 +186,6 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
       <PipelineTraceViewer
         key={trace?.run.id ?? "trace"}
         trace={trace}
-        token={token}
         isOpen={traceOpen}
         onClose={() => setTraceOpen(false)}
         highlightChunkId={traceChunkId}

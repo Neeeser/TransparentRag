@@ -278,7 +278,6 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
       <PipelineTraceViewer
         key={activeTrace?.run.id ?? activeTraceDocumentId ?? "trace"}
         trace={activeTrace}
-        token={token}
         isOpen={Boolean(activeTraceDocumentId)}
         onClose={() => {
           setActiveTraceDocumentId(null);

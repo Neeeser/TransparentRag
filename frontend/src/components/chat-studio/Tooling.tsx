@@ -483,7 +483,6 @@ export const ToolCallBubble = ({
       <PipelineTraceViewer
         key={trace?.run.id ?? "trace"}
         trace={trace}
-        token={token ?? ""}
         isOpen={traceOpen}
         onClose={() => setTraceOpen(false)}
         highlightChunkId={traceChunkId}

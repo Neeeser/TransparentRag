@@ -21,6 +21,10 @@ vi.mock("@/lib/api", () => ({
   fetchPipelineNodes: (...args: unknown[]) => api.fetchPipelineNodes(...args),
 }));
 
+vi.mock("@/providers/auth-provider", () => ({
+  useAuth: () => ({ token: "context-token" }),
+}));
+
 vi.mock("@xyflow/react", () => ({
   ReactFlow: (props: Record<string, unknown>) => {
     lastReactFlowProps = props;
@@ -427,5 +431,28 @@ describe("PipelineTraceViewer", () => {
     expect(screen.getByText("Short preview")).toBeInTheDocument();
     expect(screen.getByText(/length 20/)).toBeInTheDocument();
     expect(screen.getByText("Scalar string")).toBeInTheDocument();
+  });
+
+  it("falls back to the auth context token when no token prop is given", async () => {
+    render(<PipelineTraceViewer trace={trace} isOpen onClose={() => undefined} />);
+
+    await waitFor(() => {
+      expect(api.fetchPipelineNodes).toHaveBeenCalledWith("context-token");
+    });
+  });
+
+  it("skips fetching node specs when they are provided directly", () => {
+    render(
+      <PipelineTraceViewer
+        trace={trace}
+        token="token"
+        nodeSpecs={[]}
+        isOpen
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText(/Pipeline trace/)).toBeInTheDocument();
+    expect(api.fetchPipelineNodes).not.toHaveBeenCalled();
   });
 });
