@@ -33,6 +33,9 @@ import { ChatStudioHeader } from "@/components/chat-studio/ChatStudioHeader";
 import { ChatStudioMessages } from "@/components/chat-studio/ChatStudioMessages";
 import { ChatStudioView } from "@/components/chat-studio/ChatStudioView";
 import { useAutoScroll } from "@/components/chat-studio/hooks/use-auto-scroll";
+import { useModelCatalog } from "@/components/chat-studio/hooks/use-model-catalog";
+import { useModelParameters } from "@/components/chat-studio/hooks/use-model-parameters";
+import { useProviderPreferences } from "@/components/chat-studio/hooks/use-provider-preferences";
 import { useRunSettingsOrder } from "@/components/chat-studio/hooks/use-run-settings-order";
 import { useSessionHistoryPolling } from "@/components/chat-studio/hooks/use-session-history-polling";
 import { HistoryPanel } from "@/components/chat-studio/HistoryPanel";
@@ -50,14 +53,10 @@ import {
   getChatHistory,
   getCollectionPrompt,
   listChatSessions,
-  listModelEndpoints,
-  listModels,
   streamChat,
   updateBasePrompt,
   updateCollectionPrompt,
 } from "@/lib/api";
-import { PARAMETER_DEFINITIONS } from "@/lib/chat-parameters";
-import { sortChatModels } from "@/lib/model-sorting";
 import { useAuth } from "@/providers/auth-provider";
 
 import {
@@ -65,32 +64,21 @@ import {
   safeParseJSON,
   markdownComponents,
   normalizeReasoningSegments,
-  parsePriceInput,
   sanitizeFileName,
-  sanitizeModelSlug,
 } from "./chat-utils";
 
 import type { ChatEntry } from "./chat-types";
 import type { ProviderFormState } from "@/components/chat-studio/types";
-import type {
-  ModelParameterKey,
-  ParameterDefinition,
-  ParameterOverrides,
-  ParameterValue,
-} from "@/lib/chat-parameters";
-import type { ChatModelSortOption } from "@/lib/model-sorting";
+import type { ParameterOverrides } from "@/lib/chat-parameters";
 import type {
   ChatCompletionPayload,
   ChatMessage,
   ChatRequestPayload,
   ChatSession,
   Collection,
-  ModelEndpointDirectory,
-  ModelInfo,
   Pipeline,
   PromptDetails,
   ProviderPreferences,
-  ProviderSortOption,
   ReasoningTraceSegment,
   ToolCallTrace,
   UsageBreakdown,
@@ -101,15 +89,6 @@ const TELEMETRY_PANEL_WIDTH_PX = 416;
 const MIN_CENTER_PANEL_WIDTH_PX = 720;
 const OVERLAY_TRIGGER_WIDTH_PX =
   HISTORY_PANEL_WIDTH_PX + TELEMETRY_PANEL_WIDTH_PX + MIN_CENTER_PANEL_WIDTH_PX;
-
-const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
-  PARAMETER_DEFINITIONS.reduce(
-    (acc, definition) => {
-      acc[definition.key] = definition;
-      return acc;
-    },
-    {} as Record<ModelParameterKey, ParameterDefinition>,
-  );
 
 const usePersistentToggle = (key: string, defaultValue: boolean) => {
   const [value, setValue] = useState(() => {
@@ -214,21 +193,8 @@ export function ChatStudio() {
     true,
   );
   const [streamingEnabled, setStreamingEnabled] = useState(DEFAULT_STREAMING_ENABLED);
-  const [modelCatalog, setModelCatalog] = useState<ModelInfo[]>([]);
-  const [modelsLoading, setModelsLoading] = useState(false);
-  const [modelsError, setModelsError] = useState<string | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
-  const [modelSearchTerm, setModelSearchTerm] = useState("");
-  const [modelSortOption, setModelSortOption] = useState<ChatModelSortOption>("price");
-  const [parameterOverrides, setParameterOverrides] = useState<ParameterOverrides>({});
-  const [providerForm, setProviderForm] = useState<ProviderFormState>(() =>
-    createDefaultProviderForm(),
-  );
   const previousModelIdRef = useRef<string | null>(null);
-  const [providerDirectory, setProviderDirectory] = useState<ModelEndpointDirectory | null>(null);
-  const [providerDirectoryLoading, setProviderDirectoryLoading] = useState(false);
-  const [providerDirectoryError, setProviderDirectoryError] = useState<string | null>(null);
-  const [providerSearchTerm, setProviderSearchTerm] = useState("");
   const applyNewChatDefaultsRef = useRef(true);
   const [basePromptDetails, setBasePromptDetails] = useState<PromptDetails | null>(null);
   const [basePromptLoading, setBasePromptLoading] = useState(false);
@@ -576,6 +542,66 @@ export function ChatStudio() {
     setUsage,
   });
 
+  const toolsEnabled = selectedToolCollectionIds.length > 0;
+
+  const {
+    modelCatalog,
+    modelsLoading,
+    modelsError,
+    modelSearchTerm,
+    setModelSearchTerm,
+    modelSortOption,
+    setModelSortOption,
+    currentModelInfo,
+    providerModelSlug,
+    supportedParameterKeys,
+    visibleParameterDefinitions,
+    toolReadyModels,
+    sortedModelCatalog,
+    selectedModelKey,
+  } = useModelCatalog({
+    authToken,
+    authLoading,
+    openrouterConfigured,
+    activeModelId,
+    toolsEnabled,
+  });
+
+  const {
+    parameterOverrides,
+    setParameterOverrides,
+    activeParameterCount,
+    handleNumberParameterChange,
+    handleBooleanParameterChange,
+    handleTextParameterChange,
+    handleSelectParameterChange,
+    handleClearParameter,
+    resetAllParameters,
+    formatDefaultParameter,
+    buildParameterPayload,
+  } = useModelParameters({
+    currentModelInfo,
+    modelCatalog,
+    supportedParameterKeys,
+  });
+
+  const {
+    providerForm,
+    setProviderForm,
+    providerDirectory,
+    providerDirectoryLoading,
+    providerDirectoryError,
+    providerSearchTerm,
+    setProviderSearchTerm,
+    providerPayload,
+    providerRuleCount,
+  } = useProviderPreferences({
+    authToken,
+    authLoading,
+    openrouterConfigured,
+    providerModelSlug,
+  });
+
   const sortSessions = useCallback((items: ChatSession[]) => {
     const pendingIds = pendingSessionIdsRef.current;
     return [...items].sort((a, b) => {
@@ -820,47 +846,6 @@ export function ChatStudio() {
   }, [authLoading, authToken, collectionPromptDetails, selectedToolCollectionIds]);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadModels = async () => {
-      if (authLoading) {
-        return;
-      }
-      if (!authToken) {
-        setModelCatalog([]);
-        setModelsLoading(false);
-        setModelsError("Sign in to load models.");
-        return;
-      }
-      if (!openrouterConfigured) {
-        setModelCatalog([]);
-        setModelsLoading(false);
-        setModelsError("Add your OpenRouter API key in Settings to load models.");
-        return;
-      }
-      setModelsLoading(true);
-      try {
-        const items = await listModels(authToken || undefined);
-        if (!cancelled) {
-          setModelCatalog(items);
-          setModelsError(null);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setModelsError(error instanceof Error ? error.message : "Unable to load model metadata.");
-        }
-      } finally {
-        if (!cancelled) {
-          setModelsLoading(false);
-        }
-      }
-    };
-    loadModels();
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, authToken, openrouterConfigured]);
-
-  useEffect(() => {
     if (!selectedSessionId) {
       return;
     }
@@ -1042,102 +1027,6 @@ export function ChatStudio() {
     );
   }, [activeSession, sessions]);
 
-  const currentModelInfo = useMemo(() => {
-    const lookupId = activeModelId;
-    if (!lookupId) return null;
-    return (
-      modelCatalog.find((model) => model.id === lookupId || model.canonical_slug === lookupId) ??
-      null
-    );
-  }, [activeModelId, modelCatalog]);
-
-  const providerModelSlug = useMemo(() => {
-    const slugSource = currentModelInfo?.canonical_slug ?? currentModelInfo?.id ?? null;
-    return sanitizeModelSlug(slugSource);
-  }, [currentModelInfo?.canonical_slug, currentModelInfo?.id]);
-
-  const supportedParameterKeys = useMemo(() => {
-    const supported = new Set<ModelParameterKey>();
-    if (!currentModelInfo) {
-      return supported;
-    }
-    (currentModelInfo.supported_parameters || []).forEach((param) => {
-      const normalized = param.toLowerCase();
-      if (normalized in PARAMETER_DEFINITION_MAP) {
-        supported.add(normalized as ModelParameterKey);
-      }
-    });
-    return supported;
-  }, [currentModelInfo]);
-
-  const visibleParameterDefinitions = useMemo(
-    () => PARAMETER_DEFINITIONS.filter((definition) => supportedParameterKeys.has(definition.key)),
-    [supportedParameterKeys],
-  );
-
-  const activeParameterCount = useMemo(() => {
-    return Object.keys(parameterOverrides).filter((key) =>
-      supportedParameterKeys.has(key as ModelParameterKey),
-    ).length;
-  }, [parameterOverrides, supportedParameterKeys]);
-
-  const providerPayload = useMemo<ProviderPreferences>(() => {
-    const payload: ProviderPreferences = {};
-    if (providerForm.order.length > 0) {
-      payload.order = providerForm.order;
-    }
-    if (providerForm.only.length > 0) {
-      payload.only = providerForm.only;
-    }
-    if (providerForm.ignore.length > 0) {
-      payload.ignore = providerForm.ignore;
-    }
-    if (providerForm.quantizations.length > 0) {
-      payload.quantizations = providerForm.quantizations.map((entry) => entry.toLowerCase());
-    }
-    if (providerForm.sort) {
-      payload.sort = providerForm.sort as ProviderSortOption;
-    }
-    if (!providerForm.allowFallbacks) {
-      payload.allow_fallbacks = false;
-    }
-    if (providerForm.requireParameters) {
-      payload.require_parameters = true;
-    }
-    if (providerForm.dataCollection === "deny") {
-      payload.data_collection = "deny";
-    }
-    if (providerForm.zdr) {
-      payload.zdr = true;
-    }
-    if (providerForm.enforceDistillableText) {
-      payload.enforce_distillable_text = true;
-    }
-    const maxPrice: ProviderPreferences["max_price"] = {};
-    const promptPrice = parsePriceInput(providerForm.maxPrompt);
-    if (promptPrice !== null) {
-      maxPrice.prompt = promptPrice;
-    }
-    const completionPrice = parsePriceInput(providerForm.maxCompletion);
-    if (completionPrice !== null) {
-      maxPrice.completion = completionPrice;
-    }
-    const requestPrice = parsePriceInput(providerForm.maxRequest);
-    if (requestPrice !== null) {
-      maxPrice.request = requestPrice;
-    }
-    const imagePrice = parsePriceInput(providerForm.maxImage);
-    if (imagePrice !== null) {
-      maxPrice.image = imagePrice;
-    }
-    if (maxPrice && Object.keys(maxPrice).length > 0) {
-      payload.max_price = maxPrice;
-    }
-    return payload;
-  }, [providerForm]);
-
-  const providerRuleCount = useMemo(() => Object.keys(providerPayload).length, [providerPayload]);
-
   const overrideSections = useMemo(() => {
     const sections: Array<{ id: string; label: string }> = [];
     if (basePromptDetails?.is_custom) {
@@ -1163,62 +1052,6 @@ export function ChatStudio() {
     selectedToolCollectionIds.length,
     streamingEnabled,
   ]);
-
-  useEffect(() => {
-    if (!providerModelSlug) {
-      setProviderDirectory(null);
-      setProviderDirectoryError(null);
-      setProviderDirectoryLoading(false);
-      return;
-    }
-    if (authLoading) {
-      return;
-    }
-    if (!authToken) {
-      setProviderDirectory(null);
-      setProviderDirectoryError("Sign in to load providers.");
-      setProviderDirectoryLoading(false);
-      return;
-    }
-    if (!openrouterConfigured) {
-      setProviderDirectory(null);
-      setProviderDirectoryError("Add your OpenRouter API key in Settings to load providers.");
-      setProviderDirectoryLoading(false);
-      return;
-    }
-    const [author, ...rest] = providerModelSlug.split("/");
-    const slugPart = rest.join("/");
-    if (!author || !slugPart) {
-      setProviderDirectory(null);
-      return;
-    }
-    let cancelled = false;
-    setProviderDirectoryLoading(true);
-    setProviderDirectoryError(null);
-    listModelEndpoints(authToken || undefined, author, slugPart)
-      .then((response) => {
-        if (cancelled) return;
-        setProviderDirectory(response.data);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : "Unable to load provider catalog.";
-        setProviderDirectoryError(message);
-        setProviderDirectory(null);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setProviderDirectoryLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, authToken, openrouterConfigured, providerModelSlug]);
-
-  useEffect(() => {
-    setProviderSearchTerm("");
-  }, [providerModelSlug]);
 
   useEffect(() => {
     reasoningCacheRef.current.clear();
@@ -1468,37 +1301,9 @@ export function ChatStudio() {
     chatHydrationPendingRef.current = false;
   }, [normalizedChatEntryIds]);
 
-  const toolsEnabled = selectedToolCollectionIds.length > 0;
   const chatInputPlaceholder = toolsEnabled
     ? "Ask about the selected collections…"
     : "Ask anything…";
-  const toolReadyModels = useMemo(() => {
-    if (!toolsEnabled) {
-      return modelCatalog;
-    }
-    return modelCatalog.filter((model) =>
-      (model.supported_parameters || []).some((param) => param.toLowerCase() === "tools"),
-    );
-  }, [modelCatalog, toolsEnabled]);
-
-  const filteredModelCatalog = useMemo(() => {
-    const query = modelSearchTerm.trim().toLowerCase();
-    if (!query) return toolReadyModels;
-    return toolReadyModels.filter((model) => {
-      const haystack = [model.name, model.id, model.canonical_slug, model.description]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [modelSearchTerm, toolReadyModels]);
-
-  const sortedModelCatalog = useMemo(
-    () => sortChatModels(filteredModelCatalog, modelSortOption),
-    [filteredModelCatalog, modelSortOption],
-  );
-
-  const selectedModelKey = useMemo(() => activeModelId || "", [activeModelId]);
 
   const substitutePromptVariables = useCallback(
     (templateValue: string, context?: Record<string, string>) => {
@@ -2369,143 +2174,6 @@ export function ChatStudio() {
     }
   };
 
-  const updateParameterValue = useCallback(
-    (key: ModelParameterKey, value?: ParameterValue | null) => {
-      setParameterOverrides((prev) => {
-        const next = { ...prev };
-        if (value === undefined || value === null) {
-          delete next[key];
-        } else if (typeof value === "string" && value.trim() === "") {
-          delete next[key];
-        } else {
-          next[key] = value;
-        }
-        return next;
-      });
-    },
-    [],
-  );
-
-  const handleNumberParameterChange = useCallback(
-    (key: ModelParameterKey, rawValue: string, asInteger = false) => {
-      if (rawValue === "") {
-        updateParameterValue(key, undefined);
-        return;
-      }
-      const parsed = Number(rawValue);
-      if (Number.isNaN(parsed)) {
-        updateParameterValue(key, undefined);
-        return;
-      }
-      updateParameterValue(key, asInteger ? Math.round(parsed) : parsed);
-    },
-    [updateParameterValue],
-  );
-
-  const handleBooleanParameterChange = useCallback(
-    (key: ModelParameterKey, checked: boolean) => {
-      updateParameterValue(key, checked ? true : undefined);
-    },
-    [updateParameterValue],
-  );
-
-  const handleTextParameterChange = useCallback(
-    (key: ModelParameterKey, value: string) => {
-      updateParameterValue(key, value);
-    },
-    [updateParameterValue],
-  );
-
-  const handleSelectParameterChange = useCallback(
-    (key: ModelParameterKey, value: string) => {
-      updateParameterValue(key, value ? value : undefined);
-    },
-    [updateParameterValue],
-  );
-
-  const handleClearParameter = useCallback(
-    (key: ModelParameterKey) => {
-      updateParameterValue(key, undefined);
-    },
-    [updateParameterValue],
-  );
-
-  const resetAllParameters = useCallback(() => {
-    setParameterOverrides({});
-  }, []);
-
-  const formatDefaultParameter = useCallback(
-    (key: ModelParameterKey) => {
-      if (!currentModelInfo?.default_parameters) return null;
-      const rawValue = currentModelInfo.default_parameters[key];
-      if (rawValue === undefined || rawValue === null) return null;
-      if (Array.isArray(rawValue)) {
-        return rawValue.join(", ");
-      }
-      if (typeof rawValue === "object") {
-        try {
-          return JSON.stringify(rawValue);
-        } catch {
-          return String(rawValue);
-        }
-      }
-      return String(rawValue);
-    },
-    [currentModelInfo],
-  );
-
-  const buildParameterPayload = useCallback(
-    (overrides: ParameterOverrides = parameterOverrides, modelIdOverride?: string | null) => {
-      const targetModelId = modelIdOverride ?? currentModelInfo?.id ?? null;
-      const modelInfo =
-        targetModelId === currentModelInfo?.id
-          ? currentModelInfo
-          : (modelCatalog.find(
-              (model) => model.id === targetModelId || model.canonical_slug === targetModelId,
-            ) ?? null);
-      if (!modelInfo) {
-        return {};
-      }
-      const supportedSet = new Set(
-        (modelInfo.supported_parameters || []).map((param) => param.toLowerCase()),
-      );
-      const payload: Record<string, unknown> = {};
-      Object.entries(overrides).forEach(([key, rawValue]) => {
-        const normalizedKey = key.toLowerCase();
-        if (!supportedSet.has(normalizedKey)) {
-          return;
-        }
-        if (rawValue === undefined || rawValue === null) {
-          return;
-        }
-        if (normalizedKey === "reasoning") {
-          if (typeof rawValue === "string") {
-            const trimmedReasoning = rawValue.trim().toLowerCase();
-            if (!trimmedReasoning) {
-              return;
-            }
-            payload[normalizedKey] = { effort: trimmedReasoning };
-            return;
-          }
-          if (typeof rawValue === "object") {
-            payload[normalizedKey] = rawValue;
-          }
-          return;
-        }
-        if (typeof rawValue === "string") {
-          const trimmed = rawValue.trim();
-          if (!trimmed) {
-            return;
-          }
-          payload[normalizedKey] = trimmed;
-          return;
-        }
-        payload[normalizedKey] = rawValue;
-      });
-      return payload;
-    },
-    [currentModelInfo, modelCatalog, parameterOverrides],
-  );
 
   const performChatMutation = useCallback(
     async (
