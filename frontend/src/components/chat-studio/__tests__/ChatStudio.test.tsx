@@ -696,6 +696,29 @@ describe("ChatStudio", () => {
       expect(getMockRouter().push).toHaveBeenCalledWith(expect.stringContaining("session-2"));
     });
 
+    it("toggles the provider preferences section", async () => {
+      render(<ChatStudio />);
+      await waitFor(() => {
+        expect(mockTelemetryPanelProps).not.toBeNull();
+      });
+
+      const initialOpen = (mockTelemetryPanelProps as { providerPreferencesOpen?: boolean })
+        .providerPreferencesOpen;
+
+      await act(async () => {
+        (
+          mockTelemetryPanelProps as { onProviderPreferencesToggle?: () => void }
+        ).onProviderPreferencesToggle?.();
+      });
+
+      await waitFor(() => {
+        expect(
+          (mockTelemetryPanelProps as { providerPreferencesOpen?: boolean })
+            .providerPreferencesOpen,
+        ).toBe(!initialOpen);
+      });
+    });
+
     it("persists a debounced run settings order change and refreshes the profile", async () => {
       vi.useFakeTimers();
       window.sessionStorage.setItem(CHAT_STUDIO_LOADED_KEY, "true");

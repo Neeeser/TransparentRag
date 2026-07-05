@@ -65,7 +65,9 @@ describe("DashboardPage", () => {
 
   it("renders the loading state, not dashboard content, when the token is missing", () => {
     setMockAuth({ token: null, user: null });
-    render(<DashboardPage />);
+    const { container } = render(<DashboardPage />);
+    // The Loader spinner exposes no role/text; span presence is the only handle.
+    expect(container.querySelector("span")).toBeInTheDocument();
     expect(screen.queryByText(COLLECTIONS_LIVE)).not.toBeInTheDocument();
   });
 
