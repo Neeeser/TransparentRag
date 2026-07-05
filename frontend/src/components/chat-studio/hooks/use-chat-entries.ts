@@ -9,7 +9,7 @@ import {
   mergeMessageHistory,
   sortMessagesChronologically,
 } from "@/components/chat-studio/chat-entry-helpers";
-import { formatToolLabel } from "@/components/chat-studio/Tooling";
+import { formatToolLabel } from "@/components/chat-studio/ToolPayloadPrimitives";
 
 import type { ChatEntry } from "@/components/chat-studio/chat-types";
 import type { ChatMessage, ReasoningTraceSegment, ToolCallTrace } from "@/lib/types";

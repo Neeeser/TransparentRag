@@ -1,15 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToolCallBubble } from "@/components/chat-studio/Tooling";
 import {
   JsonBlock,
   ToolValue,
-  ToolCallBubble,
   ToolChunkList,
   ToolKeyValueGrid,
   ToolPayloadSection,
   formatToolLabel,
-} from "@/components/chat-studio/Tooling";
+} from "@/components/chat-studio/ToolPayloadPrimitives";
 import * as apiModule from "@/lib/api";
 import { makeTraceResponse } from "@/test/fixtures";
 import { resetMockAuth, setMockAuth } from "@/test/mocks";
