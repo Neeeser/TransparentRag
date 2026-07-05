@@ -310,12 +310,16 @@ describe("PipelineTraceViewer", () => {
     vi.useRealTimers();
   });
 
-  it("handles fetch errors", async () => {
+  it("handles fetch errors by surfacing a non-blocking notice", async () => {
     api.fetchPipelineNodes.mockRejectedValueOnce(new Error("boom"));
     render(<PipelineTraceViewer trace={trace} token="token" isOpen onClose={() => undefined} />);
     await waitFor(() => {
       expect(api.fetchPipelineNodes).toHaveBeenCalled();
     });
+    await waitFor(() => {
+      expect(screen.getByText(/Node details are unavailable right now/)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("reactflow")).toBeInTheDocument();
   });
 
   it("highlights chunk ids and previews array payloads", () => {

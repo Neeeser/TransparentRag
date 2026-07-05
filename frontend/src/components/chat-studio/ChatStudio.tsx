@@ -93,26 +93,6 @@ import type {
   RunSettingsSectionKey,
 } from "@/lib/types";
 
-export {
-  areArraysEqual,
-  attachUsageToLastAssistantMessage,
-  buildCollectionsQuery,
-  calculateSessionUsage,
-  createDefaultProviderForm,
-  createProviderFormFromPreferences,
-  deriveToolTracesFromMessages,
-  ensureMessageOrder,
-  generateClientMessageId,
-  generateClientSessionId,
-  isOptimisticDuplicate,
-  isToolReasoningSegment,
-  mergeMessageHistory,
-  normalizeRunSettingsOrder,
-  parseCollectionIdsParam,
-  pruneHistoryForEdit,
-  sortMessagesChronologically,
-} from "@/components/chat-studio/chat-helpers";
-
 const HISTORY_PANEL_WIDTH_PX = 288;
 const TELEMETRY_PANEL_WIDTH_PX = 416;
 const MIN_CENTER_PANEL_WIDTH_PX = 720;
@@ -469,10 +449,6 @@ export function ChatStudio() {
   }, [isStreamingResponse]);
 
   useEffect(() => {
-    console.debug("[chat] chatEntryOrder updated", { chatEntryOrder });
-  }, [chatEntryOrder]);
-
-  useEffect(() => {
     const hadLiveText = hadLiveTextRef.current;
     hadLiveTextRef.current = hasLiveText;
     if (!hasLiveText || hadLiveText) {
@@ -598,13 +574,11 @@ export function ChatStudio() {
 
   const resolveChatSettings = useCallback((pipeline: Pipeline | null) => {
     if (!pipeline) {
-      return { chatModel: null, contextWindow: 0 };
+      return { contextWindow: 0 };
     }
     const settingsNode = pipeline.definition.nodes.find((node) => node.type === "chat.settings");
-    const chatModel = settingsNode?.config?.chat_model;
     const contextWindow = settingsNode?.config?.context_window;
     return {
-      chatModel: typeof chatModel === "string" ? chatModel : null,
       contextWindow: typeof contextWindow === "number" ? contextWindow : 0,
     };
   }, []);
@@ -1347,8 +1321,6 @@ export function ChatStudio() {
     }
   }, [historyOpen, isOverlayMode, telemetryOpen, setTelemetryOpen]);
 
-  const handleReasoningToggle = useCallback(() => {}, []);
-
   const getPersistedReasoningSegments = useCallback(
     (messageId: string, segments: ReasoningTraceSegment[]) => {
       if (segments.length > 0) {
@@ -1425,22 +1397,6 @@ export function ChatStudio() {
   const showFollowButton =
     !autoScrollEnabled && (chatEntryOrder.length > 0 || hasLiveText || hasDisplayedLiveReasoning);
 
-  useEffect(() => {
-    console.debug("[chat] stream visibility", {
-      showStreamingBubble,
-      activeStreamEntryKey,
-      hasLiveText,
-      liveResponseLength: liveResponse.length,
-      isStreamingResponse,
-    });
-  }, [
-    activeStreamEntryKey,
-    hasLiveText,
-    isStreamingResponse,
-    liveResponse.length,
-    showStreamingBubble,
-  ]);
-
   useLayoutEffect(() => {
     const textarea = chatPromptRef.current;
     if (!textarea) return;
@@ -1473,11 +1429,6 @@ export function ChatStudio() {
         syncMessages(history, { hydrate: true });
         setToolTraces(deriveToolTraces(history));
         setUsage(calculateSessionUsage(history));
-        console.debug("[chat] polled session history", {
-          sessionId,
-          messageCount: history.length,
-          hasUsage: Boolean(history.at(-1)?.usage),
-        });
       } catch {
         // swallow transient polling errors
       }
@@ -1679,7 +1630,6 @@ export function ChatStudio() {
       if (sameOrder) {
         return prev;
       }
-      console.debug("[chat] normalized entries", { normalizedChatEntryIds });
       return normalizedChatEntryIds;
     });
     chatHydrationPendingRef.current = false;
@@ -1892,10 +1842,6 @@ export function ChatStudio() {
 
   const applyChatResponse = useCallback(
     (response: ChatCompletionPayload) => {
-      console.debug("[chat] applyChatResponse start", {
-        activeStreamEntryKey: activeStreamEntryKeyRef.current,
-        responseMessages: response.messages.length,
-      });
       finalizeLiveReasoningBlock();
       const streamedReasoningSegments = streamedReasoningAllRef.current;
       setLiveResponse("");
@@ -1947,11 +1893,6 @@ export function ChatStudio() {
       );
       // Always hydrate when streaming to prevent delayed message reveals
       syncMessages(enrichedMessages, { hydrate: true });
-      console.debug("[chat] applied chat response", {
-        messages: response.messages.length,
-        toolTraces: response.tool_traces?.length ?? 0,
-        usage: response.usage,
-      });
       const nextToolTraces =
         response.tool_traces && response.tool_traces.length > 0
           ? response.tool_traces
@@ -2748,12 +2689,6 @@ export function ChatStudio() {
         setStatus(PINECONE_KEY_REQUIRED_MESSAGE);
         throw new Error("Pinecone API key is not configured.");
       }
-      /* c8 ignore stop */
-      console.debug("[chat] performChatMutation start", {
-        stream: payload.stream,
-        sessionId,
-        hasAbortController: Boolean(abortControllerRef.current),
-      });
       const controller = new AbortController();
       abortControllerRef.current?.abort();
       abortControllerRef.current = controller;
@@ -2873,10 +2808,6 @@ export function ChatStudio() {
         setSending(false);
         setIsStopping(false);
         abortControllerRef.current = null;
-        console.debug("[chat] performChatMutation finished", {
-          stream: payload.stream,
-          succeeded: true,
-        });
       }
     },
     [
@@ -3072,7 +3003,6 @@ export function ChatStudio() {
         onEditSubmit: handleEditSubmit,
         onRetryAssistant: handleRetryAssistant,
         onBranchMessage: handleBranchMessage,
-        onReasoningToggle: handleReasoningToggle,
         markdownComponents,
         overrideSections,
         onOverrideSelect: handleOverrideSelect,

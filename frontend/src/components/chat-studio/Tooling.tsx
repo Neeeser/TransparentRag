@@ -322,6 +322,7 @@ export const ToolCallBubble = ({
   const [traceLoading, setTraceLoading] = useState(false);
   const [traceChunkId, setTraceChunkId] = useState<string | null>(null);
   const [traceOpen, setTraceOpen] = useState(false);
+  const [traceError, setTraceError] = useState<string | null>(null);
   const responseMeta: Record<string, unknown> = { ...response };
   const rawChunks = responseMeta.chunks;
   if (Object.prototype.hasOwnProperty.call(responseMeta, "chunks")) {
@@ -369,6 +370,9 @@ export const ToolCallBubble = ({
       setTrace(payload);
       setTraceChunkId(chunkId ?? null);
       setTraceOpen(true);
+      setTraceError(null);
+    } catch (error) {
+      setTraceError(error instanceof Error ? error.message : "Unable to load the retrieval trace.");
     } finally {
       setTraceLoading(false);
     }
@@ -448,7 +452,8 @@ export const ToolCallBubble = ({
                       >
                         {trace ? "Refresh trace" : "Open trace"}
                       </Button>
-                      {!trace && (
+                      {traceError && <p className="text-xs text-red-300">{traceError}</p>}
+                      {!trace && !traceError && (
                         <p className="text-xs text-slate-400">
                           Load the trace to inspect node inputs and outputs.
                         </p>

@@ -53,12 +53,6 @@ export default function LandingPage() {
               Launch the console
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="https://github.com"
-              className="rounded-full border border-white/20 px-6 py-3 text-base text-slate-200 transition hover:border-white hover:text-white"
-            >
-              Read the playbook
-            </Link>
           </div>
         </header>
 

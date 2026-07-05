@@ -18,7 +18,7 @@ import {
   parseCollectionIdsParam,
   pruneHistoryForEdit,
   sortMessagesChronologically,
-} from "@/components/chat-studio/ChatStudio";
+} from "@/components/chat-studio/chat-helpers";
 
 import type {
   ChatMessage,
@@ -99,7 +99,9 @@ describe("ChatStudio helpers", () => {
       tool_payload: { arguments: { q: "hi" }, response: { ok: true } },
       // The legacy wire format also allows a bare segments array; cast around the
       // narrower object-shaped type to exercise that normalization path.
-      reasoning_trace: [{ type: "text", content: "step" }] as unknown as ChatMessage["reasoning_trace"],
+      reasoning_trace: [
+        { type: "text", content: "step" },
+      ] as unknown as ChatMessage["reasoning_trace"],
       created_at: baseTimestamp,
     };
     const payloadTraces = deriveToolTracesFromMessages([payloadMessage]);

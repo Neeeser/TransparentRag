@@ -3,11 +3,6 @@ import { cn } from "@/lib/utils";
 import type { ReasoningTraceSegment } from "@/lib/types";
 import type { Components } from "react-markdown";
 
-const joinTextWithSpacing = (left: string, right: string): string => {
-  if (!left) return right;
-  return `${left}${right}`;
-};
-
 export const safeParseJSON = (value?: string | null) => {
   if (!value) return null;
   try {
@@ -100,7 +95,7 @@ const appendReasoningSegment = (
             typeof prev.content === "string"
             ? prev.content
             : "") ?? "";
-      const combined = joinTextWithSpacing(existing, textValue);
+      const combined = `${existing}${textValue}`;
       prev.text = combined;
       prev.content = combined;
       return;

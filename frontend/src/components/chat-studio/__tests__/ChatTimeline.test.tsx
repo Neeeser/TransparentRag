@@ -72,7 +72,6 @@ const baseProps = (overrides: Partial<ChatTimelineProps> = {}): ChatTimelineProp
   onEditSubmit: vi.fn(),
   onRetryAssistant: vi.fn(),
   onBranchMessage: vi.fn(),
-  onReasoningToggle: vi.fn(),
   markdownComponents,
   overrideSections: [],
   onOverrideSelect: vi.fn(),

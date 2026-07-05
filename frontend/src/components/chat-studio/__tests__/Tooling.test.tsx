@@ -214,6 +214,32 @@ describe("Tooling", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close trace" }));
   });
 
+  it("surfaces an error when loading the trace fails", async () => {
+    api.fetchQueryEventTrace.mockRejectedValueOnce(new Error("trace fetch failed"));
+
+    render(
+      <ToolCallBubble
+        label="vector_search"
+        variantClass=""
+        args={{ query: "hello" }}
+        response={{
+          query_event_id: "q1",
+          chunks: [{ chunk_id: "c1", text: "chunk text" }],
+          query: "hello",
+        }}
+        rawPayload={{}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Summary/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("trace fetch failed")).toBeInTheDocument();
+    });
+  });
+
   it("uses response metadata for tool summaries", () => {
     render(
       <ToolCallBubble

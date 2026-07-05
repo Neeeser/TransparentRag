@@ -1022,10 +1022,6 @@ describe("ChatStudio", () => {
     act(() => {
       (timelineProps.onEditStart as (messageId: string, content: string) => void)("msg-2", "Hello");
       (timelineProps.onEditChange as (value: string) => void)("Edited message");
-      (timelineProps.onReasoningToggle as (messageId: string, isOpen: boolean) => void)(
-        "msg-3",
-        true,
-      );
       (timelineProps.onOverrideSelect as (sectionId: string) => void)("telemetry-model-routing");
       (timelineProps.onNavigateToSession as (sessionId: string) => void)("session-2");
     });

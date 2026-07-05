@@ -281,6 +281,7 @@ export function PipelineTraceViewer({
 }: PipelineTraceViewerProps) {
   const [nodeSpecs, setNodeSpecs] = useState<NodeSpec[]>([]);
   const [specsLoaded, setSpecsLoaded] = useState(false);
+  const [nodeSpecsError, setNodeSpecsError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -299,11 +300,15 @@ export function PipelineTraceViewer({
         if (!cancelled) {
           setNodeSpecs(specs);
           setSpecsLoaded(true);
+          setNodeSpecsError(null);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setSpecsLoaded(true);
+          setNodeSpecsError(
+            "Node details are unavailable right now; showing the trace without them.",
+          );
         }
       });
     return () => {
@@ -485,6 +490,11 @@ export function PipelineTraceViewer({
         </div>
 
         <div className="flex h-[calc(100%-64px)] flex-col gap-4 overflow-y-auto p-6">
+          {nodeSpecsError && (
+            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+              {nodeSpecsError}
+            </div>
+          )}
           <GlassCard className="relative min-h-[420px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
             <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
               <Button

@@ -60,7 +60,6 @@ type ChatTimelineProps = {
   onEditSubmit: () => void;
   onRetryAssistant: (messageId: string) => void;
   onBranchMessage: (messageId: string) => void;
-  onReasoningToggle: (messageId: string, isOpen: boolean) => void;
   markdownComponents: Components;
   overrideSections: Array<{
     id: string;
@@ -104,7 +103,6 @@ export function ChatTimeline({
   onEditSubmit,
   onRetryAssistant,
   onBranchMessage,
-  onReasoningToggle,
   markdownComponents,
   overrideSections,
   onOverrideSelect,
@@ -334,7 +332,6 @@ export function ChatTimeline({
                   subtitle={phaseIndex === 0 ? liveReasoningSubtitle : undefined}
                   isAutoOpen={false}
                   preventAutoClose
-                  onManualToggle={onReasoningToggle}
                   className={cn(
                     "chat-bubble chat-bubble-enter max-w-[75%]",
                     roleVariants.reasoning,
@@ -363,7 +360,6 @@ export function ChatTimeline({
           subtitle={liveReasoningSubtitle}
           isAutoOpen={false}
           preventAutoClose
-          onManualToggle={onReasoningToggle}
           className={cn(
             "live-stream-reasoning chat-bubble chat-bubble-enter max-w-[75%]",
             roleVariants.reasoning,
@@ -456,7 +452,6 @@ export function ChatTimeline({
               subtitle={entry.subtitle}
               isAutoOpen={false}
               preventAutoClose
-              onManualToggle={onReasoningToggle}
               className={cn("chat-bubble", roleVariants.reasoning)}
             />
           </div>
