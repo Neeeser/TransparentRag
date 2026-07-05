@@ -1,6 +1,5 @@
 "use client";
 
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -14,7 +13,6 @@ import {
   areArraysEqual,
   attachUsageToLastAssistantMessage,
   buildChatEntries,
-  buildCollectionsQuery,
   calculateSessionUsage,
   createDefaultProviderForm,
   createProviderFormFromPreferences,
@@ -32,6 +30,7 @@ import { ChatStudioHeader } from "@/components/chat-studio/ChatStudioHeader";
 import { ChatStudioMessages } from "@/components/chat-studio/ChatStudioMessages";
 import { ChatStudioView } from "@/components/chat-studio/ChatStudioView";
 import { useAutoScroll } from "@/components/chat-studio/hooks/use-auto-scroll";
+import { useChatSessionRouting } from "@/components/chat-studio/hooks/use-chat-session-routing";
 import { useCollectionTools } from "@/components/chat-studio/hooks/use-collection-tools";
 import { useModelCatalog } from "@/components/chat-studio/hooks/use-model-catalog";
 import { useModelParameters } from "@/components/chat-studio/hooks/use-model-parameters";
@@ -100,20 +99,14 @@ const usePersistentToggle = (key: string, defaultValue: boolean) => {
 };
 
 export function ChatStudio() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const params = useParams<{ sessionId?: string | string[] }>();
-  const rawSessionId = params.sessionId;
-  const sessionIdParam = Array.isArray(rawSessionId)
-    ? (rawSessionId[0] ?? null)
-    : (rawSessionId ?? null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(sessionIdParam);
-  const pendingUrlSessionRef = useRef<{ value: string | null; active: boolean }>({
-    value: null,
-    active: false,
-  });
-  const urlCollectionsValue = searchParams.get("collections");
+  const {
+    activeSessionId,
+    sessionIdParam,
+    urlCollectionsValue,
+    buildChatUrl,
+    navigateToChat,
+    replaceUrl,
+  } = useChatSessionRouting();
   const { token, user, loading: authLoading, refreshProfile } = useAuth();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const selectedSessionId = activeSessionId;
@@ -240,47 +233,6 @@ export function ChatStudio() {
     Boolean(activeStreamEntryKey) && hasDisplayedLiveReasoning;
   const hadLiveTextRef = useRef(false);
   const hadLiveReasoningRef = useRef(false);
-
-  const buildChatUrl = useCallback((sessionId: string | null, collectionIds: string[]) => {
-    const basePath = sessionId ? `/chat/${sessionId}` : "/chat";
-    const query = buildCollectionsQuery(collectionIds);
-    return query ? `${basePath}?${query}` : basePath;
-  }, []);
-
-  const currentUrl = useMemo(() => {
-    const query = searchParams.toString();
-    return query ? `${pathname}?${query}` : pathname;
-  }, [pathname, searchParams]);
-
-  const navigateToChat = useCallback(
-    (sessionId: string | null, collectionIds: string[]) => {
-      const target = buildChatUrl(sessionId, collectionIds);
-      if (target !== currentUrl) {
-        pendingUrlSessionRef.current = { value: sessionId, active: true };
-        setActiveSessionId(sessionId);
-        router.push(target);
-        return;
-      }
-      if (sessionId !== activeSessionId) {
-        setActiveSessionId(sessionId);
-      }
-    },
-    [activeSessionId, buildChatUrl, currentUrl, router],
-  );
-
-  useEffect(() => {
-    const pending = pendingUrlSessionRef.current;
-    if (pending.active) {
-      if (sessionIdParam === pending.value) {
-        pendingUrlSessionRef.current = { value: null, active: false };
-      } else {
-        return;
-      }
-    }
-    if (sessionIdParam !== activeSessionId) {
-      setActiveSessionId(sessionIdParam);
-    }
-  }, [activeSessionId, sessionIdParam]);
 
   const isPendingSession = useMemo(() => {
     if (!selectedSessionId) {
@@ -460,15 +412,11 @@ export function ChatStudio() {
     if (sessionIdParam !== selectedSessionId) {
       return;
     }
-    const target = buildChatUrl(selectedSessionId, selectedToolCollectionIds);
-    if (target !== currentUrl) {
-      router.replace(target);
-    }
+    replaceUrl(buildChatUrl(selectedSessionId, selectedToolCollectionIds));
   }, [
     buildChatUrl,
-    currentUrl,
+    replaceUrl,
     isPendingSession,
-    router,
     selectedSessionId,
     sessionIdParam,
     selectedToolCollectionIds,
