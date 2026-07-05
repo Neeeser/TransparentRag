@@ -3,32 +3,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CollectionDetailPage from "@/app/(console)/collections/[collectionId]/page";
 import CollectionsPage from "@/app/(console)/collections/page";
+import * as apiModule from "@/lib/api";
+import { makeCollection, makeCollectionStats, makeNodeSpec, makePipeline } from "@/test/fixtures";
+import { resetMockAuth, setMockAuth } from "@/test/mocks";
 import { setMockParams } from "@/test/test-utils";
 
 import type { Collection, CollectionStats, NodeSpec, Pipeline } from "@/lib/types";
 
-const api = {
-  deleteCollection: vi.fn(),
-  fetchCollectionStats: vi.fn(),
-  fetchCollections: vi.fn(),
-  fetchPipelineNodes: vi.fn(),
-  fetchPipelines: vi.fn(),
-};
-
-let mockToken: string | null = "token";
 const baseTimestamp = "2024-01-01T00:00:00.000Z";
+const COLLECTION_COUNT_TESTID = "collection-count";
+const DELETE_FIRST = "Delete first";
+const CONFIRM_DELETE = "Confirm delete";
+const NO_COLLECTIONS = "No collections";
+const PIPELINE_FAIL = "Pipeline fail";
 
-vi.mock("@/providers/auth-provider", () => ({
-  useAuth: () => ({ token: mockToken }),
-}));
+vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth({ token: "token" }));
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-vi.mock("@/lib/api", () => ({
-  deleteCollection: (...args: unknown[]) => api.deleteCollection(...args),
-  fetchCollectionStats: (...args: unknown[]) => api.fetchCollectionStats(...args),
-  fetchCollections: (...args: unknown[]) => api.fetchCollections(...args),
-  fetchPipelineNodes: (...args: unknown[]) => api.fetchPipelineNodes(...args),
-  fetchPipelines: (...args: unknown[]) => api.fetchPipelines(...args),
-}));
+const api = vi.mocked(apiModule);
 
 vi.mock("@/components/collections/list/CollectionsList", () => ({
   CollectionsList: ({
@@ -129,55 +121,23 @@ vi.mock("@/components/ui/notification", () => ({
 }));
 
 describe("collections pages", () => {
-  const collection: Collection = {
-    id: "col-1",
-    user_id: "user-1",
-    name: "Collection",
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-  };
-  const stats: CollectionStats = {
+  const collection = makeCollection({ name: "Collection", description: null });
+  const stats = makeCollectionStats({
     collection_id: "col-1",
     document_count: 1,
     chunk_count: 2,
     average_latency_ms: null,
     last_used_at: null,
-  };
-  const pipeline: Pipeline = {
-    id: "pipe-1",
-    user_id: "user-1",
-    name: "Pipe",
-    kind: "ingestion",
-    current_version: 1,
-    is_default: false,
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-    definition: { nodes: [], edges: [] },
-  };
-  const nodeSpec: NodeSpec = {
-    type: "node",
-    label: "Node",
-    category: "test",
-    example: "",
-    description: "",
-    config_schema: {},
-    default_config: {},
-    input_ports: [],
-    output_ports: [],
-  };
+  });
+  const pipeline = makePipeline({ name: "Pipe", kind: "ingestion" });
+  const nodeSpec = makeNodeSpec({ type: "node", label: "Node", category: "test", description: "" });
 
   beforeEach(() => {
-    mockToken = "token";
-    api.deleteCollection.mockReset();
-    api.fetchCollectionStats.mockReset();
-    api.fetchCollections.mockReset();
-    api.fetchPipelineNodes.mockReset();
-    api.fetchPipelines.mockReset();
+    resetMockAuth();
     api.fetchCollections.mockResolvedValue([collection]);
     api.fetchCollectionStats.mockResolvedValue([stats]);
     api.fetchPipelines.mockResolvedValue([pipeline]);
     api.fetchPipelineNodes.mockResolvedValue([nodeSpec]);
-    api.deleteCollection.mockResolvedValue({ status: "ok" });
   });
 
   const createDeferred = <T,>() => {
@@ -189,11 +149,11 @@ describe("collections pages", () => {
   };
 
   it("shows empty state when no token", async () => {
-    mockToken = null;
-    const { rerender } = render(<CollectionsPage />);
+    setMockAuth({ token: null });
+    render(<CollectionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("collection-count")).toHaveTextContent("0");
+      expect(screen.getByTestId(COLLECTION_COUNT_TESTID)).toHaveTextContent("0");
     });
   });
 
@@ -201,7 +161,7 @@ describe("collections pages", () => {
     render(<CollectionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("collection-count")).toHaveTextContent("1");
+      expect(screen.getByTestId(COLLECTION_COUNT_TESTID)).toHaveTextContent("1");
     });
 
     fireEvent.click(screen.getByText("Create collection"));
@@ -210,12 +170,12 @@ describe("collections pages", () => {
     fireEvent.click(screen.getByText("Create now"));
     expect(screen.getByText("Collection created.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Delete first"));
+    fireEvent.click(screen.getByText(DELETE_FIRST));
     fireEvent.click(screen.getByText("Cancel"));
-    expect(screen.queryByText("Confirm delete")).not.toBeInTheDocument();
+    expect(screen.queryByText(CONFIRM_DELETE)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Delete first"));
-    fireEvent.click(screen.getByText("Confirm delete"));
+    fireEvent.click(screen.getByText(DELETE_FIRST));
+    fireEvent.click(screen.getByText(CONFIRM_DELETE));
     await waitFor(() => {
       expect(api.deleteCollection).toHaveBeenCalledWith("token", "col-2");
     });
@@ -227,16 +187,16 @@ describe("collections pages", () => {
   });
 
   it("handles collection load errors", async () => {
-    api.fetchCollections.mockRejectedValueOnce(new Error("No collections"));
+    api.fetchCollections.mockRejectedValueOnce(new Error(NO_COLLECTIONS));
     render(<CollectionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("No collections")).toBeInTheDocument();
+      expect(screen.getByText(NO_COLLECTIONS)).toBeInTheDocument();
     });
   });
 
   it("handles collection load errors without error objects", async () => {
-    api.fetchCollections.mockRejectedValueOnce("No collections");
+    api.fetchCollections.mockRejectedValueOnce(NO_COLLECTIONS);
     render(<CollectionsPage />);
 
     await waitFor(() => {
@@ -245,16 +205,16 @@ describe("collections pages", () => {
   });
 
   it("handles pipeline load errors", async () => {
-    api.fetchPipelines.mockRejectedValueOnce(new Error("Pipeline fail"));
+    api.fetchPipelines.mockRejectedValueOnce(new Error(PIPELINE_FAIL));
     render(<CollectionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Pipeline fail")).toBeInTheDocument();
+      expect(screen.getByText(PIPELINE_FAIL)).toBeInTheDocument();
     });
   });
 
   it("handles pipeline load errors without error objects", async () => {
-    api.fetchPipelines.mockRejectedValueOnce("Pipeline fail");
+    api.fetchPipelines.mockRejectedValueOnce(PIPELINE_FAIL);
     render(<CollectionsPage />);
 
     await waitFor(() => {
@@ -300,11 +260,11 @@ describe("collections pages", () => {
     const { rerender } = render(<CollectionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("collection-count")).toHaveTextContent("1");
+      expect(screen.getByTestId(COLLECTION_COUNT_TESTID)).toHaveTextContent("1");
     });
 
-    fireEvent.click(screen.getByText("Delete first"));
-    fireEvent.click(screen.getByText("Confirm delete"));
+    fireEvent.click(screen.getByText(DELETE_FIRST));
+    fireEvent.click(screen.getByText(CONFIRM_DELETE));
 
     await waitFor(() => {
       expect(screen.getByText("Unable to delete collection.")).toBeInTheDocument();
@@ -312,17 +272,17 @@ describe("collections pages", () => {
     expect(api.deleteCollection).toHaveBeenCalledTimes(1);
 
     api.deleteCollection.mockRejectedValueOnce(new Error("Delete error"));
-    fireEvent.click(screen.getByText("Delete first"));
-    fireEvent.click(screen.getByText("Confirm delete"));
+    fireEvent.click(screen.getByText(DELETE_FIRST));
+    fireEvent.click(screen.getByText(CONFIRM_DELETE));
     await waitFor(() => {
       expect(screen.getByText("Delete error")).toBeInTheDocument();
     });
     expect(api.deleteCollection).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByText("Delete first"));
-    mockToken = null;
+    fireEvent.click(screen.getByText(DELETE_FIRST));
+    setMockAuth({ token: null });
     rerender(<CollectionsPage />);
-    fireEvent.click(screen.getByText("Confirm delete"));
+    fireEvent.click(screen.getByText(CONFIRM_DELETE));
     expect(api.deleteCollection).toHaveBeenCalledTimes(2);
   });
 

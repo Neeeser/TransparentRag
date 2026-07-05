@@ -2,54 +2,28 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "@/app/(console)/settings/page";
+import * as apiModule from "@/lib/api";
+import { makeUser } from "@/test/fixtures";
+import { setMockAuth } from "@/test/mocks";
 
-import type { User, UserKeyValidation } from "@/lib/types";
+import type { UserKeyValidation } from "@/lib/types";
 
-const api = {
-  updateUserSettings: vi.fn(),
-  validateUserKeys: vi.fn(),
-};
+vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth({ token: "token" }));
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-let mockAuth: {
-  user: User | null;
-  token: string | null;
-  refreshProfile: () => Promise<void>;
-} = {
-  user: null,
-  token: null,
-  refreshProfile: vi.fn(),
-};
+const api = vi.mocked(apiModule);
 
-vi.mock("@/providers/auth-provider", () => ({
-  useAuth: () => mockAuth,
-}));
+const KEY_PLACEHOLDER = "Key saved (hidden)";
+const SAVE_BUTTON = "Save settings";
+const TOKEN = "token";
+const UPDATE_FAILED = "Update failed";
+const VALIDATION_DOWN = "Validation down";
 
-vi.mock("@/lib/api", () => ({
-  updateUserSettings: (...args: unknown[]) => api.updateUserSettings(...args),
-  validateUserKeys: (...args: unknown[]) => api.validateUserKeys(...args),
-}));
-
-const baseUser: User = {
-  id: "user-1",
-  email: "user@example.com",
-  full_name: "Test User",
-  is_active: true,
-  openrouter_configured: true,
-  pinecone_configured: true,
-  created_at: "2024-01-01T00:00:00.000Z",
-  updated_at: "2024-01-01T00:00:00.000Z",
-};
-const formNotFoundMessage = "Form not found";
+const submitForm = () => fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON }));
 
 describe("SettingsPage", () => {
   beforeEach(() => {
-    mockAuth = {
-      user: baseUser,
-      token: "token",
-      refreshProfile: vi.fn().mockResolvedValue(undefined),
-    };
-    api.updateUserSettings.mockReset();
-    api.validateUserKeys.mockReset();
+    setMockAuth({ user: makeUser({ full_name: "Test User" }) });
   });
 
   it("shows validation state while checking", () => {
@@ -59,14 +33,11 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("Checking").length).toBeGreaterThan(0);
   });
 
-  it("requires a token to save settings", async () => {
-    mockAuth = { ...mockAuth, token: null };
+  it("requires a token to save settings", () => {
+    setMockAuth({ token: null });
     render(<SettingsPage />);
-    const form = document.querySelector("form");
-    if (!form) {
-      throw new Error(formNotFoundMessage);
-    }
-    fireEvent.submit(form);
+
+    submitForm();
     expect(screen.getByText("Sign in to update your settings.")).toBeInTheDocument();
   });
 
@@ -81,44 +52,25 @@ describe("SettingsPage", () => {
       expect(screen.getAllByText("Missing").length).toBeGreaterThan(0);
     });
 
-    const form = document.querySelector("form");
-    if (!form) {
-      throw new Error(formNotFoundMessage);
-    }
-    fireEvent.submit(form);
+    submitForm();
     expect(screen.getByText("No changes to save.")).toBeInTheDocument();
   });
 
   it("saves updated settings and refreshes validation", async () => {
-    api.validateUserKeys
-      .mockResolvedValueOnce({
-        openrouter: { configured: true, valid: true },
-        pinecone: { configured: true, valid: true },
-      })
-      .mockResolvedValueOnce({
-        openrouter: { configured: true, valid: true },
-        pinecone: { configured: true, valid: true },
-      });
-    api.updateUserSettings.mockResolvedValue(baseUser);
-
     render(<SettingsPage />);
 
     const connectedBadges = await screen.findAllByText("Connected");
     expect(connectedBadges.length).toBeGreaterThan(0);
 
-    const inputs = screen.getAllByPlaceholderText("Key saved (hidden)");
+    const inputs = screen.getAllByPlaceholderText(KEY_PLACEHOLDER);
     fireEvent.change(inputs[0], { target: { value: "or-abc" } });
 
-    const form = document.querySelector("form");
-    if (!form) {
-      throw new Error(formNotFoundMessage);
-    }
     await act(async () => {
-      fireEvent.submit(form);
+      submitForm();
     });
 
     await waitFor(() => {
-      expect(api.updateUserSettings).toHaveBeenCalledWith("token", {
+      expect(api.updateUserSettings).toHaveBeenCalledWith(TOKEN, {
         openrouter_api_key: "or-abc",
       });
     });
@@ -126,54 +78,34 @@ describe("SettingsPage", () => {
   });
 
   it("submits pending removals", async () => {
-    api.validateUserKeys.mockResolvedValue({
-      openrouter: { configured: true, valid: true },
-      pinecone: { configured: true, valid: true },
-    });
-    api.updateUserSettings.mockResolvedValue(baseUser);
-
     render(<SettingsPage />);
 
     fireEvent.click(screen.getAllByText("Remove")[0]);
     expect(screen.getByText("Will remove on save.")).toBeInTheDocument();
 
-    const form = document.querySelector("form");
-    if (!form) {
-      throw new Error(formNotFoundMessage);
-    }
     await act(async () => {
-      fireEvent.submit(form);
+      submitForm();
     });
 
     await waitFor(() => {
-      expect(api.updateUserSettings).toHaveBeenCalledWith("token", {
+      expect(api.updateUserSettings).toHaveBeenCalledWith(TOKEN, {
         openrouter_api_key: "",
       });
     });
   });
 
   it("saves pinecone keys and supports pending clears", async () => {
-    api.validateUserKeys.mockResolvedValue({
-      openrouter: { configured: true, valid: true },
-      pinecone: { configured: true, valid: true },
-    });
-    api.updateUserSettings.mockResolvedValue(baseUser);
-
     render(<SettingsPage />);
 
-    const inputs = screen.getAllByPlaceholderText("Key saved (hidden)");
+    const inputs = screen.getAllByPlaceholderText(KEY_PLACEHOLDER);
     fireEvent.change(inputs[1], { target: { value: "pc-123" } });
 
-    const form = document.querySelector("form");
-    if (!form) {
-      throw new Error(formNotFoundMessage);
-    }
     await act(async () => {
-      fireEvent.submit(form);
+      submitForm();
     });
 
     await waitFor(() => {
-      expect(api.updateUserSettings).toHaveBeenCalledWith("token", {
+      expect(api.updateUserSettings).toHaveBeenCalledWith(TOKEN, {
         pinecone_api_key: "pc-123",
       });
     });
@@ -182,11 +114,11 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Will remove on save.")).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.submit(form);
+      submitForm();
     });
 
     await waitFor(() => {
-      expect(api.updateUserSettings).toHaveBeenCalledWith("token", {
+      expect(api.updateUserSettings).toHaveBeenCalledWith(TOKEN, {
         pinecone_api_key: "",
       });
     });
@@ -197,29 +129,25 @@ describe("SettingsPage", () => {
       openrouter: { configured: true, valid: false, message: "Bad key" },
       pinecone: { configured: true, valid: false },
     });
-    api.updateUserSettings.mockRejectedValue(new Error("Update failed"));
+    api.updateUserSettings.mockRejectedValue(new Error(UPDATE_FAILED));
 
     render(<SettingsPage />);
 
     const invalidBadges = await screen.findAllByText("Invalid");
     expect(invalidBadges.length).toBeGreaterThan(0);
 
-    const form = document.querySelector("form");
-    if (!form) {
-      throw new Error(formNotFoundMessage);
-    }
-    const inputs = screen.getAllByPlaceholderText("Key saved (hidden)");
+    const inputs = screen.getAllByPlaceholderText(KEY_PLACEHOLDER);
     fireEvent.change(inputs[0], { target: { value: "or-invalid" } });
     await act(async () => {
-      fireEvent.submit(form);
+      submitForm();
     });
 
-    expect(await screen.findByText("Update failed")).toBeInTheDocument();
+    expect(await screen.findByText(UPDATE_FAILED)).toBeInTheDocument();
   });
 
   it("falls back to default status when validation is missing", async () => {
-    mockAuth = { user: null, token: "token", refreshProfile: vi.fn() };
-    api.validateUserKeys.mockRejectedValue("Validation down");
+    setMockAuth({ user: null });
+    api.validateUserKeys.mockRejectedValue(VALIDATION_DOWN);
 
     render(<SettingsPage />);
 
@@ -242,23 +170,15 @@ describe("SettingsPage", () => {
   });
 
   it("handles save errors without Error objects and dismisses notifications", async () => {
-    api.validateUserKeys.mockResolvedValue({
-      openrouter: { configured: true, valid: true },
-      pinecone: { configured: true, valid: true },
-    });
-    api.updateUserSettings.mockRejectedValue("Update failed");
+    api.updateUserSettings.mockRejectedValue(UPDATE_FAILED);
 
     render(<SettingsPage />);
 
-    const inputs = await screen.findAllByPlaceholderText("Key saved (hidden)");
+    const inputs = await screen.findAllByPlaceholderText(KEY_PLACEHOLDER);
     fireEvent.change(inputs[0], { target: { value: "or-abc" } });
 
-    const form = document.querySelector("form");
-    if (!form) {
-      throw new Error(formNotFoundMessage);
-    }
     await act(async () => {
-      fireEvent.submit(form);
+      submitForm();
     });
 
     expect(await screen.findByText("Unable to update settings.")).toBeInTheDocument();
@@ -269,11 +189,11 @@ describe("SettingsPage", () => {
   });
 
   it("shows validation error message when key checks fail", async () => {
-    api.validateUserKeys.mockRejectedValue(new Error("Validation down"));
+    api.validateUserKeys.mockRejectedValue(new Error(VALIDATION_DOWN));
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Validation down")).toBeInTheDocument();
+      expect(screen.getByText(VALIDATION_DOWN)).toBeInTheDocument();
     });
   });
 });

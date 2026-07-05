@@ -2,74 +2,37 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDashboardData } from "@/app/(console)/dashboard/use-dashboard-data";
+import * as apiModule from "@/lib/api";
+import { makeCollection, makeDocument } from "@/test/fixtures";
+import { resetMockAuth, setMockAuth } from "@/test/mocks";
 
 import type { Collection, Document } from "@/lib/types";
 
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
+vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth());
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-const api = {
-  fetchCollections: vi.fn(),
-  fetchDocuments: vi.fn(),
-  fetchPipelines: vi.fn(),
-  listChatSessions: vi.fn(),
-};
-
-let mockToken: string | null = "token";
-
-vi.mock("@/providers/auth-provider", () => ({
-  useAuth: () => ({ token: mockToken }),
-}));
-
-vi.mock("@/lib/api", () => ({
-  fetchCollections: (...args: unknown[]) => api.fetchCollections(...args),
-  fetchDocuments: (...args: unknown[]) => api.fetchDocuments(...args),
-  fetchPipelines: (...args: unknown[]) => api.fetchPipelines(...args),
-  listChatSessions: (...args: unknown[]) => api.listChatSessions(...args),
-}));
+const api = vi.mocked(apiModule);
 
 const collections: Collection[] = [
-  {
-    id: "col-1",
-    user_id: "user-1",
-    name: "One",
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-    retrieval_pipeline_id: "pipe-1",
-  },
-  {
-    id: "col-2",
-    user_id: "user-1",
-    name: "Two",
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-    retrieval_pipeline_id: "pipe-2",
-  },
+  makeCollection({ id: "col-1", name: "One", retrieval_pipeline_id: "pipe-1" }),
+  makeCollection({ id: "col-2", name: "Two", retrieval_pipeline_id: "pipe-2" }),
 ];
 
-const docFor = (collectionId: string): Document => ({
-  id: `doc-${collectionId}`,
-  collection_id: collectionId,
-  name: `Doc ${collectionId}`,
-  content_type: "text/plain",
-  status: "ready",
-  num_chunks: 2,
-  num_tokens: 50,
-  chunk_size: 250,
-  chunk_overlap: 0,
-  chunk_strategy: "token",
-  created_at: baseTimestamp,
-  updated_at: baseTimestamp,
-});
+const docFor = (collectionId: string): Document =>
+  makeDocument({
+    id: `doc-${collectionId}`,
+    collection_id: collectionId,
+    name: `Doc ${collectionId}`,
+    content_type: "text/plain",
+    num_chunks: 2,
+    num_tokens: 50,
+    chunk_size: 250,
+    chunk_overlap: 0,
+  });
 
 describe("useDashboardData", () => {
   beforeEach(() => {
-    mockToken = "token";
-    api.fetchCollections.mockReset();
-    api.fetchDocuments.mockReset();
-    api.fetchPipelines.mockReset();
-    api.listChatSessions.mockReset();
-    api.fetchPipelines.mockResolvedValue([]);
-    api.listChatSessions.mockResolvedValue([]);
+    resetMockAuth();
   });
 
   it("tolerates one collection's document fetch failing without sinking the dashboard", async () => {
@@ -137,7 +100,7 @@ describe("useDashboardData", () => {
   });
 
   it("does nothing when there is no auth token", () => {
-    mockToken = null;
+    setMockAuth({ token: null });
     const { result } = renderHook(() => useDashboardData());
 
     expect(result.current.loading).toBe(true);

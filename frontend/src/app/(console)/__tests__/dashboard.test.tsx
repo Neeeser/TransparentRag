@@ -2,16 +2,19 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "@/app/(console)/dashboard/page";
+import * as apiModule from "@/lib/api";
 import { makeChatSession, makeCollection, makeDocument, makePipeline } from "@/test/fixtures";
 import { resetMockAuth, setMockAuth } from "@/test/mocks";
 
-import * as apiModule from "@/lib/api";
 import type { Collection, Document, Pipeline } from "@/lib/types";
 
 vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth());
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
 const api = vi.mocked(apiModule);
+
+const COLLECTIONS_LIVE = "Collections live";
+const LOAD_FAILED = "Load failed";
 
 describe("DashboardPage", () => {
   const collections: Collection[] = [
@@ -63,7 +66,7 @@ describe("DashboardPage", () => {
   it("renders the loading state, not dashboard content, when the token is missing", () => {
     setMockAuth({ token: null, user: null });
     render(<DashboardPage />);
-    expect(screen.queryByText("Collections live")).not.toBeInTheDocument();
+    expect(screen.queryByText(COLLECTIONS_LIVE)).not.toBeInTheDocument();
   });
 
   it("loads dashboard metrics and handles document errors", async () => {
@@ -71,7 +74,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Collections live")).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
     });
     expect(screen.getByText(/Hello .*telemetry/)).toBeInTheDocument();
   });
@@ -101,11 +104,11 @@ describe("DashboardPage", () => {
   });
 
   it("shows error state on load failure", async () => {
-    api.fetchCollections.mockRejectedValueOnce(new Error("Load failed"));
+    api.fetchCollections.mockRejectedValueOnce(new Error(LOAD_FAILED));
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Load failed")).toBeInTheDocument();
+      expect(screen.getByText(LOAD_FAILED)).toBeInTheDocument();
     });
   });
 
@@ -130,7 +133,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Collections live")).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
     });
     expect(screen.getByText("0% context utilization")).toBeInTheDocument();
   });
@@ -142,7 +145,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Collections live")).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
     });
     expect(screen.getAllByText("Retrieval pipeline").length).toBeGreaterThan(0);
   });

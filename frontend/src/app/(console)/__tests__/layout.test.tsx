@@ -1,44 +1,25 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ConsoleLayout from "@/app/(console)/layout";
+import { makeUser } from "@/test/fixtures";
+import { setMockAuth } from "@/test/mocks";
 import { getMockRouter, setMockPathname } from "@/test/test-utils";
 
-import type { User } from "@/lib/types";
+vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth());
 
-let mockAuthState: {
-  user: User | null;
-  loading: boolean;
-  signOut: () => void;
-};
-
-const baseUser: User = {
-  id: "user-1",
-  email: "user@example.com",
-  full_name: "Test User",
-  is_active: true,
-  openrouter_configured: true,
-  pinecone_configured: true,
-  created_at: "2024-01-01T00:00:00.000Z",
-  updated_at: "2024-01-01T00:00:00.000Z",
-};
-
-vi.mock("@/providers/auth-provider", () => ({
-  useAuth: () => mockAuthState,
-}));
+const signOutName = "Sign out";
 
 describe("ConsoleLayout", () => {
+  let auth: ReturnType<typeof setMockAuth>;
+
   beforeEach(() => {
-    mockAuthState = {
-      user: baseUser,
-      loading: false,
-      signOut: vi.fn(),
-    };
+    auth = setMockAuth();
     setMockPathname("/dashboard");
   });
 
   it("redirects to sign-in when user is missing", () => {
-    mockAuthState = { user: null, loading: false, signOut: vi.fn() };
+    setMockAuth({ user: null });
     render(<ConsoleLayout>Child</ConsoleLayout>);
 
     expect(screen.getByText(/Preparing your workspace/)).toBeInTheDocument();
@@ -49,49 +30,35 @@ describe("ConsoleLayout", () => {
     render(<ConsoleLayout>Child</ConsoleLayout>);
 
     expect(screen.getByText("Control Room")).toBeInTheDocument();
-    const avatarButton = document.querySelector<HTMLElement>('button[aria-haspopup="menu"]');
-    if (!avatarButton) {
-      throw new Error("Avatar button not found");
-    }
+    const avatarButton = screen.getByRole("button", { expanded: false });
     fireEvent.click(avatarButton);
-    expect(screen.getByText("Sign out")).toBeInTheDocument();
+    expect(screen.getByText(signOutName)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Settings"));
-    expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+    expect(screen.queryByText(signOutName)).not.toBeInTheDocument();
 
     fireEvent.click(avatarButton);
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+    expect(screen.queryByText(signOutName)).not.toBeInTheDocument();
 
     fireEvent.click(avatarButton);
     fireEvent.mouseDown(document.body);
-    expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+    expect(screen.queryByText(signOutName)).not.toBeInTheDocument();
 
     fireEvent.click(avatarButton);
-    fireEvent.click(screen.getByText("Sign out"));
-    expect(mockAuthState.signOut).toHaveBeenCalled();
+    fireEvent.click(screen.getByText(signOutName));
+    expect(auth.signOut).toHaveBeenCalled();
     fireEvent.mouseDown(document.body);
-    expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+    expect(screen.queryByText(signOutName)).not.toBeInTheDocument();
   });
 
   it("renders avatar fallbacks when profile data is minimal", () => {
-    mockAuthState = {
-      user: {
-        ...baseUser,
-        id: "",
-        full_name: "",
-        email: "solo@example.com",
-      },
-      loading: false,
-      signOut: vi.fn(),
-    };
+    setMockAuth({
+      user: makeUser({ id: "", full_name: "", email: "solo@example.com" }),
+    });
     render(<ConsoleLayout>Child</ConsoleLayout>);
 
-    const avatarButton = document.querySelector<HTMLElement>('button[aria-haspopup="menu"]');
-    if (!avatarButton) {
-      throw new Error("Avatar button not found");
-    }
-    expect(within(avatarButton).getByText("S")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "S" })).toBeInTheDocument();
     expect(screen.getAllByText("solo@example.com").length).toBeGreaterThan(0);
   });
 
