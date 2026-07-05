@@ -1,5 +1,7 @@
 "use client";
 
+import { ApiError } from "@/lib/api-error";
+
 import type {
   ChatBranchPayload,
   ChatBranchResponse,
@@ -76,7 +78,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   if (!response.ok) {
     const errorData = await parseError(response);
     const detail = errorData?.detail || response.statusText || "Request failed";
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    throw new ApiError(
+      response.status,
+      typeof detail === "string" ? detail : JSON.stringify(detail),
+    );
   }
 
   if (response.status === 204) {

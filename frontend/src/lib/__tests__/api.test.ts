@@ -52,6 +52,7 @@ import {
   validatePipeline,
   validateUserKeys,
 } from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 
 import type { PipelineDefinition } from "@/lib/types";
 
@@ -201,6 +202,13 @@ describe("api", () => {
     fetchMock.mockResolvedValueOnce(createErrorResponse(badRequestStatus, new Error("bad json")));
 
     await expect(fetchCollection("col-1", "token")).rejects.toThrow(badRequestStatus);
+    fetchMock.mockResolvedValueOnce(createErrorResponse(badRequestStatus, new Error("bad json")));
+    await expect(fetchCollection("col-1", "token")).rejects.toBeInstanceOf(ApiError);
+    fetchMock.mockResolvedValueOnce(createErrorResponse(badRequestStatus, new Error("bad json")));
+    await expect(fetchCollection("col-1", "token")).rejects.toMatchObject({
+      status: 400,
+      detail: badRequestStatus,
+    });
   });
 
   it("stringifies non-string apiFetch errors", async () => {
