@@ -144,8 +144,16 @@ vi.mock("@/components/chat-studio/HistoryPanel", () => ({
 }));
 
 vi.mock("@/components/chat-studio/telemetry/TelemetryPanel", () => ({
-  TelemetryPanel: (props: Record<string, unknown>) => {
-    mockTelemetryPanelProps = props;
+  // TelemetryPanel now takes grouped props (sections/prompts/collections/streaming/
+  // model/provider/parameters/usage). Flatten them into a single object so these
+  // wiring assertions can read each field directly regardless of its group.
+  TelemetryPanel: (props: Record<string, Record<string, unknown> | unknown>) => {
+    const groups = ["sections", "prompts", "collections", "streaming", "model", "provider", "parameters", "usage"];
+    const flattened: Record<string, unknown> = { onClose: props.onClose };
+    for (const group of groups) {
+      Object.assign(flattened, props[group] as Record<string, unknown>);
+    }
+    mockTelemetryPanelProps = flattened;
     return <div data-testid="telemetry-panel" />;
   },
 }));

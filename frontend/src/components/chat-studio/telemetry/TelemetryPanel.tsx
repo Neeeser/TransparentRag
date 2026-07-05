@@ -28,9 +28,10 @@ import {
   Layers,
   GripVertical,
 } from "lucide-react";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { DEFAULT_STREAMING_ENABLED } from "@/components/chat-studio/chat-constants";
+import { markdownComponents } from "@/components/chat-studio/chat-utils";
 import { CollectionToolsCard } from "@/components/chat-studio/telemetry/CollectionToolsCard";
 import { CollectionVitalsCard } from "@/components/chat-studio/telemetry/CollectionVitalsCard";
 import { ModelParametersCard } from "@/components/chat-studio/telemetry/ModelParametersCard";
@@ -42,21 +43,17 @@ import { UsageCard } from "@/components/chat-studio/telemetry/UsageCard";
 import { TelemetrySection } from "@/components/chat-studio/TelemetrySection";
 import { Button } from "@/components/ui/button";
 
-import type { ProviderFormState } from "@/components/chat-studio/types";
 import type {
-  ModelParameterKey,
-  ParameterDefinition,
-  ParameterOverrides,
-} from "@/lib/chat-parameters";
-import type { ChatModelSortOption } from "@/lib/model-sorting";
-import type {
-  Collection,
-  ModelEndpointDirectory,
-  ModelInfo,
-  RunSettingsSectionKey,
-  UsageBreakdown,
-} from "@/lib/types";
-import type { Components } from "react-markdown";
+  TelemetryCollectionsProps,
+  TelemetryModelProps,
+  TelemetryParametersProps,
+  TelemetryPromptsProps,
+  TelemetryProviderProps,
+  TelemetrySectionsProps,
+  TelemetryStreamingProps,
+  TelemetryUsageProps,
+} from "@/components/chat-studio/types";
+import type { RunSettingsSectionKey } from "@/lib/types";
 
 interface TelemetrySectionConfig {
   title: string;
@@ -131,179 +128,109 @@ const SortableTelemetryItem = ({ id, config }: SortableTelemetryItemProps) => {
 
 interface TelemetryPanelProps {
   onClose: () => void;
-  sectionIds: {
-    systemPrompt: string;
-    collectionTools: string;
-    streaming: string;
-    modelRouting: string;
-    providerRouting: string;
-    modelParameters: string;
-    vitals: string;
-    usage: string;
-  };
-  sectionOrder: RunSettingsSectionKey[];
-  onSectionOrderChange: (order: RunSettingsSectionKey[]) => void;
-  systemPromptCustom: boolean;
-  promptSections: Array<{
-    id: string;
-    label: string;
-    scope: "base" | "collection";
-    isCustom: boolean;
-  }>;
-  promptPreviewMarkdown: string;
-  promptLoading: boolean;
-  promptError: string | null;
-  promptGeneratedAt?: string | null;
-  systemPromptOpen: boolean;
-  onSystemPromptToggle: () => void;
-  onPromptEdit: () => void;
-  collections: Collection[];
-  selectedToolCollectionIds: string[];
-  onToggleToolCollection: (collectionId: string) => void;
-  onClearToolCollections: () => void;
-  collectionsLoading: boolean;
-  collectionsError: string | null;
-  pineconeConfigured: boolean;
-  collectionToolsOpen: boolean;
-  onCollectionToolsToggle: () => void;
-  streamingOptionsOpen: boolean;
-  onStreamingOptionsToggle: () => void;
-  streamingEnabled: boolean;
-  onStreamingToggle: (enabled: boolean) => void;
-  modelSelectorOpen: boolean;
-  onModelSelectorToggle: () => void;
-  modelSearchTerm: string;
-  onModelSearchChange: (value: string) => void;
-  modelSortOption: ChatModelSortOption;
-  onModelSortChange: (value: ChatModelSortOption) => void;
-  toolReadyModels: ModelInfo[];
-  filteredModelCatalog: ModelInfo[];
-  modelsLoading: boolean;
-  modelsError: string | null;
-  selectedModelKey: string;
-  onSelectModel: (id: string) => void;
-  currentModelInfo: ModelInfo | null;
-  toolsEnabled: boolean;
-  providerPreferencesOpen: boolean;
-  onProviderPreferencesToggle: () => void;
-  providerForm: ProviderFormState;
-  setProviderForm: (updater: (prev: ProviderFormState) => ProviderFormState) => void;
-  providerDirectory: ModelEndpointDirectory | null;
-  providerDirectoryLoading: boolean;
-  providerDirectoryError: string | null;
-  providerModelSlug: string | null;
-  providerSearchTerm: string;
-  onProviderSearchChange: (value: string) => void;
-  providerRuleCount: number;
-  resetProviderPreferences: () => void;
-  vitalsOpen: boolean;
-  onVitalsToggle: () => void;
-  collection: Collection | null;
-  collectionCount: number;
-  documentCount: number;
-  modelParametersOpen: boolean;
-  onModelParametersToggle: () => void;
-  visibleParameterDefinitions: ParameterDefinition[];
-  parameterOverrides: ParameterOverrides;
-  activeParameterCount: number;
-  resetAllParameters: () => void;
-  handleNumberParameterChange: (
-    key: ModelParameterKey,
-    rawValue: string,
-    asInteger?: boolean,
-  ) => void;
-  handleBooleanParameterChange: (key: ModelParameterKey, checked: boolean) => void;
-  handleTextParameterChange: (key: ModelParameterKey, value: string) => void;
-  handleSelectParameterChange: (key: ModelParameterKey, value: string) => void;
-  handleClearParameter: (key: ModelParameterKey) => void;
-  formatDefaultParameter: (key: ModelParameterKey) => string | null;
-  usageOpen: boolean;
-  onUsageToggle: () => void;
-  usage: UsageBreakdown | null;
-  contextWindow: number;
-  contextConsumed: number;
-  onExportChatHistory: () => void;
-  markdownComponents: Components;
+  sections: TelemetrySectionsProps;
+  prompts: TelemetryPromptsProps;
+  collections: TelemetryCollectionsProps;
+  streaming: TelemetryStreamingProps;
+  model: TelemetryModelProps;
+  provider: TelemetryProviderProps;
+  parameters: TelemetryParametersProps;
+  usage: TelemetryUsageProps;
 }
 
-export const TelemetryPanel = ({
+const TelemetryPanelComponent = ({
   onClose,
-  sectionIds,
-  sectionOrder,
-  onSectionOrderChange,
-  systemPromptCustom,
-  promptSections,
-  promptPreviewMarkdown,
-  promptLoading,
-  promptError,
-  promptGeneratedAt,
-  systemPromptOpen,
-  onSystemPromptToggle,
-  onPromptEdit,
+  sections,
+  prompts,
   collections,
-  selectedToolCollectionIds,
-  onToggleToolCollection,
-  onClearToolCollections,
-  collectionsLoading,
-  collectionsError,
-  pineconeConfigured,
-  collectionToolsOpen,
-  onCollectionToolsToggle,
-  streamingOptionsOpen,
-  onStreamingOptionsToggle,
-  streamingEnabled,
-  onStreamingToggle,
-  modelSelectorOpen,
-  onModelSelectorToggle,
-  modelSearchTerm,
-  onModelSearchChange,
-  modelSortOption,
-  onModelSortChange,
-  toolReadyModels,
-  filteredModelCatalog,
-  modelsLoading,
-  modelsError,
-  selectedModelKey,
-  onSelectModel,
-  currentModelInfo,
-  toolsEnabled,
-  providerPreferencesOpen,
-  onProviderPreferencesToggle,
-  providerForm,
-  setProviderForm,
-  providerDirectory,
-  providerDirectoryLoading,
-  providerDirectoryError,
-  providerModelSlug,
-  providerSearchTerm,
-  onProviderSearchChange,
-  providerRuleCount,
-  resetProviderPreferences,
-  vitalsOpen,
-  onVitalsToggle,
-  collection,
-  collectionCount,
-  documentCount,
-  modelParametersOpen,
-  onModelParametersToggle,
-  visibleParameterDefinitions,
-  parameterOverrides,
-  activeParameterCount,
-  resetAllParameters,
-  handleNumberParameterChange,
-  handleBooleanParameterChange,
-  handleTextParameterChange,
-  handleSelectParameterChange,
-  handleClearParameter,
-  formatDefaultParameter,
-  usageOpen,
-  onUsageToggle,
+  streaming,
+  model,
+  provider,
+  parameters,
   usage,
-  contextWindow,
-  contextConsumed,
-  onExportChatHistory,
-  markdownComponents,
 }: TelemetryPanelProps) => {
+  const { sectionIds, sectionOrder, onSectionOrderChange } = sections;
+  const {
+    systemPromptCustom,
+    promptSections,
+    promptPreviewMarkdown,
+    promptLoading,
+    promptError,
+    promptGeneratedAt,
+    systemPromptOpen,
+    onSystemPromptToggle,
+    onPromptEdit,
+  } = prompts;
+  const {
+    collections: collectionList,
+    selectedToolCollectionIds,
+    onToggleToolCollection,
+    onClearToolCollections,
+    collectionsLoading,
+    collectionsError,
+    pineconeConfigured,
+    collectionToolsOpen,
+    onCollectionToolsToggle,
+    vitalsOpen,
+    onVitalsToggle,
+    collection,
+    collectionCount,
+    documentCount,
+  } = collections;
+  const { streamingOptionsOpen, onStreamingOptionsToggle, streamingEnabled, onStreamingToggle } =
+    streaming;
+  const {
+    modelSelectorOpen,
+    onModelSelectorToggle,
+    modelSearchTerm,
+    onModelSearchChange,
+    modelSortOption,
+    onModelSortChange,
+    toolReadyModels,
+    filteredModelCatalog,
+    modelsLoading,
+    modelsError,
+    selectedModelKey,
+    onSelectModel,
+    currentModelInfo,
+    toolsEnabled,
+  } = model;
+  const {
+    providerPreferencesOpen,
+    onProviderPreferencesToggle,
+    providerForm,
+    setProviderForm,
+    providerDirectory,
+    providerDirectoryLoading,
+    providerDirectoryError,
+    providerModelSlug,
+    providerSearchTerm,
+    onProviderSearchChange,
+    providerRuleCount,
+    resetProviderPreferences,
+  } = provider;
+  const {
+    modelParametersOpen,
+    onModelParametersToggle,
+    visibleParameterDefinitions,
+    parameterOverrides,
+    activeParameterCount,
+    resetAllParameters,
+    handleNumberParameterChange,
+    handleBooleanParameterChange,
+    handleTextParameterChange,
+    handleSelectParameterChange,
+    handleClearParameter,
+    formatDefaultParameter,
+  } = parameters;
+  const {
+    usageOpen,
+    onUsageToggle,
+    usage: usageBreakdown,
+    contextWindow,
+    contextConsumed,
+    onExportChatHistory,
+  } = usage;
   const streamingOverrideActive = streamingEnabled !== DEFAULT_STREAMING_ENABLED;
   const promptDescription = promptLoading
     ? "Loading prompt..."
@@ -379,7 +306,7 @@ export const TelemetryPanel = ({
       overrideActive: selectedToolCollectionIds.length > 0,
       content: (
         <CollectionToolsCard
-          collections={collections}
+          collections={collectionList}
           selectedCollectionIds={selectedToolCollectionIds}
           onToggle={onToggleToolCollection}
           onClear={onClearToolCollections}
@@ -504,7 +431,7 @@ export const TelemetryPanel = ({
       sectionId: sectionIds.usage,
       content: (
         <UsageCard
-          usage={usage}
+          usage={usageBreakdown}
           contextWindow={contextWindow}
           contextConsumed={contextConsumed}
           onExport={onExportChatHistory}
@@ -574,3 +501,5 @@ export const TelemetryPanel = ({
     </div>
   );
 };
+
+export const TelemetryPanel = memo(TelemetryPanelComponent);

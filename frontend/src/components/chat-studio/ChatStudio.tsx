@@ -84,7 +84,10 @@ const usePersistentToggle = (key: string, defaultValue: boolean) => {
     window.localStorage.setItem(key, value ? "true" : "false");
   }, [key, value]);
 
-  return [value, setValue] as const;
+  // Stable toggle so memoised children don't see a fresh handler each render.
+  const toggle = useCallback(() => setValue((prev) => !prev), []);
+
+  return [value, setValue, toggle] as const;
 };
 
 export function ChatStudio() {
@@ -123,32 +126,28 @@ export function ChatStudio() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = usePersistentToggle("chat.historyOpen", true);
   const [telemetryOpen, setTelemetryOpen] = usePersistentToggle("chat.telemetryOpen", true);
-  const [modelSelectorOpen, setModelSelectorOpen] = usePersistentToggle(
+  const [modelSelectorOpen, setModelSelectorOpen, toggleModelSelector] = usePersistentToggle(
     "chat.telemetry.modelsOpen",
     true,
   );
-  const [systemPromptOpen, setSystemPromptOpen] = usePersistentToggle(
+  const [systemPromptOpen, setSystemPromptOpen, toggleSystemPrompt] = usePersistentToggle(
     "chat.telemetry.promptOpen",
     true,
   );
-  const [collectionToolsOpen, setCollectionToolsOpen] = usePersistentToggle(
+  const [collectionToolsOpen, setCollectionToolsOpen, toggleCollectionTools] = usePersistentToggle(
     "chat.telemetry.toolsOpen",
     true,
   );
-  const [vitalsOpen, setVitalsOpen] = usePersistentToggle("chat.telemetry.vitalsOpen", true);
-  const [usageOpen, setUsageOpen] = usePersistentToggle("chat.telemetry.usageOpen", true);
-  const [modelParametersOpen, setModelParametersOpen] = usePersistentToggle(
+  const [vitalsOpen, , toggleVitals] = usePersistentToggle("chat.telemetry.vitalsOpen", true);
+  const [usageOpen, , toggleUsage] = usePersistentToggle("chat.telemetry.usageOpen", true);
+  const [modelParametersOpen, setModelParametersOpen, toggleModelParameters] = usePersistentToggle(
     "chat.telemetry.parametersOpen",
     true,
   );
-  const [providerPreferencesOpen, setProviderPreferencesOpen] = usePersistentToggle(
-    "chat.telemetry.providersOpen",
-    true,
-  );
-  const [streamingOptionsOpen, setStreamingOptionsOpen] = usePersistentToggle(
-    "chat.telemetry.streamingOpen",
-    true,
-  );
+  const [providerPreferencesOpen, setProviderPreferencesOpen, toggleProviderPreferences] =
+    usePersistentToggle("chat.telemetry.providersOpen", true);
+  const [streamingOptionsOpen, setStreamingOptionsOpen, toggleStreamingOptions] =
+    usePersistentToggle("chat.telemetry.streamingOpen", true);
   const [streamingEnabled, setStreamingEnabled] = useState(DEFAULT_STREAMING_ENABLED);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const previousModelIdRef = useRef<string | null>(null);
@@ -976,6 +975,10 @@ export function ChatStudio() {
     setTelemetryOpen(false);
   }, [setTelemetryOpen]);
 
+  const handleResetProviderPreferences = useCallback(() => {
+    setProviderForm(createDefaultProviderForm());
+  }, [setProviderForm]);
+
   const handleHistoryOpen = useCallback(() => {
     setHistoryOpen(true);
     if (isOverlayMode) {
@@ -1008,84 +1011,203 @@ export function ChatStudio() {
     />
   );
 
+  const telemetrySections = useMemo(
+    () => ({
+      sectionIds: TELEMETRY_SECTION_IDS,
+      sectionOrder: runSettingsOrder,
+      onSectionOrderChange: setRunSettingsOrder,
+    }),
+    [runSettingsOrder, setRunSettingsOrder],
+  );
+
+  const telemetryPrompts = useMemo(
+    () => ({
+      systemPromptCustom: Boolean(basePromptDetails?.is_custom),
+      promptSections: promptSectionsSummary,
+      promptPreviewMarkdown,
+      promptLoading,
+      promptError,
+      promptGeneratedAt,
+      systemPromptOpen,
+      onSystemPromptToggle: toggleSystemPrompt,
+      onPromptEdit: handlePromptEditorOpen,
+    }),
+    [
+      basePromptDetails?.is_custom,
+      handlePromptEditorOpen,
+      promptError,
+      promptGeneratedAt,
+      promptLoading,
+      promptPreviewMarkdown,
+      promptSectionsSummary,
+      systemPromptOpen,
+      toggleSystemPrompt,
+    ],
+  );
+
+  const telemetryCollections = useMemo(
+    () => ({
+      collections,
+      selectedToolCollectionIds,
+      onToggleToolCollection: toggleToolCollection,
+      onClearToolCollections: clearToolCollections,
+      collectionsLoading,
+      collectionsError,
+      pineconeConfigured,
+      collectionToolsOpen,
+      onCollectionToolsToggle: toggleCollectionTools,
+      vitalsOpen,
+      onVitalsToggle: toggleVitals,
+      collection: primaryCollection,
+      collectionCount: selectedToolCollectionIds.length,
+      documentCount,
+    }),
+    [
+      clearToolCollections,
+      collectionToolsOpen,
+      collections,
+      collectionsError,
+      collectionsLoading,
+      documentCount,
+      pineconeConfigured,
+      primaryCollection,
+      selectedToolCollectionIds,
+      toggleCollectionTools,
+      toggleToolCollection,
+      toggleVitals,
+      vitalsOpen,
+    ],
+  );
+
+  const telemetryStreaming = useMemo(
+    () => ({
+      streamingOptionsOpen,
+      onStreamingOptionsToggle: toggleStreamingOptions,
+      streamingEnabled,
+      onStreamingToggle: setStreamingEnabled,
+    }),
+    [streamingEnabled, streamingOptionsOpen, toggleStreamingOptions],
+  );
+
+  const telemetryModel = useMemo(
+    () => ({
+      modelSelectorOpen,
+      onModelSelectorToggle: toggleModelSelector,
+      modelSearchTerm,
+      onModelSearchChange: setModelSearchTerm,
+      modelSortOption,
+      onModelSortChange: setModelSortOption,
+      toolReadyModels,
+      filteredModelCatalog: sortedModelCatalog,
+      modelsLoading,
+      modelsError,
+      selectedModelKey,
+      onSelectModel: setActiveModelId,
+      currentModelInfo,
+      toolsEnabled,
+    }),
+    [
+      currentModelInfo,
+      modelSearchTerm,
+      modelSelectorOpen,
+      modelSortOption,
+      modelsError,
+      modelsLoading,
+      selectedModelKey,
+      setModelSearchTerm,
+      setModelSortOption,
+      sortedModelCatalog,
+      toggleModelSelector,
+      toolReadyModels,
+      toolsEnabled,
+    ],
+  );
+
+  const telemetryProvider = useMemo(
+    () => ({
+      providerPreferencesOpen,
+      onProviderPreferencesToggle: toggleProviderPreferences,
+      providerForm,
+      setProviderForm,
+      providerDirectory,
+      providerDirectoryLoading,
+      providerDirectoryError,
+      providerModelSlug,
+      providerSearchTerm,
+      onProviderSearchChange: setProviderSearchTerm,
+      providerRuleCount,
+      resetProviderPreferences: handleResetProviderPreferences,
+    }),
+    [
+      handleResetProviderPreferences,
+      providerDirectory,
+      providerDirectoryError,
+      providerDirectoryLoading,
+      providerForm,
+      providerModelSlug,
+      providerPreferencesOpen,
+      providerRuleCount,
+      providerSearchTerm,
+      setProviderForm,
+      setProviderSearchTerm,
+      toggleProviderPreferences,
+    ],
+  );
+
+  const telemetryParameters = useMemo(
+    () => ({
+      modelParametersOpen,
+      onModelParametersToggle: toggleModelParameters,
+      visibleParameterDefinitions,
+      parameterOverrides,
+      activeParameterCount,
+      resetAllParameters,
+      handleNumberParameterChange,
+      handleBooleanParameterChange,
+      handleTextParameterChange,
+      handleSelectParameterChange,
+      handleClearParameter,
+      formatDefaultParameter,
+    }),
+    [
+      activeParameterCount,
+      formatDefaultParameter,
+      handleBooleanParameterChange,
+      handleClearParameter,
+      handleNumberParameterChange,
+      handleSelectParameterChange,
+      handleTextParameterChange,
+      modelParametersOpen,
+      parameterOverrides,
+      resetAllParameters,
+      toggleModelParameters,
+      visibleParameterDefinitions,
+    ],
+  );
+
+  const telemetryUsage = useMemo(
+    () => ({
+      usageOpen,
+      onUsageToggle: toggleUsage,
+      usage,
+      contextWindow,
+      contextConsumed,
+      onExportChatHistory: handleExportChatHistory,
+    }),
+    [contextConsumed, contextWindow, handleExportChatHistory, toggleUsage, usage, usageOpen],
+  );
+
   const telemetryPanel = (
     <TelemetryPanel
       onClose={handleTelemetryClose}
-      sectionIds={TELEMETRY_SECTION_IDS}
-      sectionOrder={runSettingsOrder}
-      onSectionOrderChange={setRunSettingsOrder}
-      systemPromptCustom={Boolean(basePromptDetails?.is_custom)}
-      promptSections={promptSectionsSummary}
-      promptPreviewMarkdown={promptPreviewMarkdown}
-      promptLoading={promptLoading}
-      promptError={promptError}
-      promptGeneratedAt={promptGeneratedAt}
-      systemPromptOpen={systemPromptOpen}
-      onSystemPromptToggle={() => setSystemPromptOpen((prev) => !prev)}
-      onPromptEdit={handlePromptEditorOpen}
-      collections={collections}
-      selectedToolCollectionIds={selectedToolCollectionIds}
-      onToggleToolCollection={toggleToolCollection}
-      onClearToolCollections={clearToolCollections}
-      collectionsLoading={collectionsLoading}
-      collectionsError={collectionsError}
-      pineconeConfigured={pineconeConfigured}
-      collectionToolsOpen={collectionToolsOpen}
-      onCollectionToolsToggle={() => setCollectionToolsOpen((prev) => !prev)}
-      streamingOptionsOpen={streamingOptionsOpen}
-      onStreamingOptionsToggle={() => setStreamingOptionsOpen((prev) => !prev)}
-      streamingEnabled={streamingEnabled}
-      onStreamingToggle={setStreamingEnabled}
-      modelSelectorOpen={modelSelectorOpen}
-      onModelSelectorToggle={() => setModelSelectorOpen((prev) => !prev)}
-      modelSearchTerm={modelSearchTerm}
-      onModelSearchChange={setModelSearchTerm}
-      modelSortOption={modelSortOption}
-      onModelSortChange={setModelSortOption}
-      toolReadyModels={toolReadyModels}
-      filteredModelCatalog={sortedModelCatalog}
-      modelsLoading={modelsLoading}
-      modelsError={modelsError}
-      selectedModelKey={selectedModelKey}
-      onSelectModel={setActiveModelId}
-      currentModelInfo={currentModelInfo}
-      toolsEnabled={toolsEnabled}
-      providerPreferencesOpen={providerPreferencesOpen}
-      onProviderPreferencesToggle={() => setProviderPreferencesOpen((prev) => !prev)}
-      providerForm={providerForm}
-      setProviderForm={setProviderForm}
-      providerDirectory={providerDirectory}
-      providerDirectoryLoading={providerDirectoryLoading}
-      providerDirectoryError={providerDirectoryError}
-      providerModelSlug={providerModelSlug}
-      providerSearchTerm={providerSearchTerm}
-      onProviderSearchChange={setProviderSearchTerm}
-      providerRuleCount={providerRuleCount}
-      resetProviderPreferences={() => setProviderForm(createDefaultProviderForm())}
-      vitalsOpen={vitalsOpen}
-      onVitalsToggle={() => setVitalsOpen((prev) => !prev)}
-      collection={primaryCollection}
-      collectionCount={selectedToolCollectionIds.length}
-      documentCount={documentCount}
-      modelParametersOpen={modelParametersOpen}
-      onModelParametersToggle={() => setModelParametersOpen((prev) => !prev)}
-      visibleParameterDefinitions={visibleParameterDefinitions}
-      parameterOverrides={parameterOverrides}
-      activeParameterCount={activeParameterCount}
-      resetAllParameters={resetAllParameters}
-      handleNumberParameterChange={handleNumberParameterChange}
-      handleBooleanParameterChange={handleBooleanParameterChange}
-      handleTextParameterChange={handleTextParameterChange}
-      handleSelectParameterChange={handleSelectParameterChange}
-      handleClearParameter={handleClearParameter}
-      formatDefaultParameter={formatDefaultParameter}
-      usageOpen={usageOpen}
-      onUsageToggle={() => setUsageOpen((prev) => !prev)}
-      usage={usage}
-      contextWindow={contextWindow}
-      contextConsumed={contextConsumed}
-      onExportChatHistory={handleExportChatHistory}
-      markdownComponents={markdownComponents}
+      sections={telemetrySections}
+      prompts={telemetryPrompts}
+      collections={telemetryCollections}
+      streaming={telemetryStreaming}
+      model={telemetryModel}
+      provider={telemetryProvider}
+      parameters={telemetryParameters}
+      usage={telemetryUsage}
     />
   );
 

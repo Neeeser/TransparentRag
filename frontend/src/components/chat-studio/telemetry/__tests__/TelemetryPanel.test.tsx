@@ -2,10 +2,19 @@ import { act, render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { markdownComponents } from "@/components/chat-studio/chat-utils";
 import { TelemetryPanel } from "@/components/chat-studio/telemetry/TelemetryPanel";
 
-import type { ProviderFormState } from "@/components/chat-studio/types";
+import type {
+  ProviderFormState,
+  TelemetryCollectionsProps,
+  TelemetryModelProps,
+  TelemetryParametersProps,
+  TelemetryPromptsProps,
+  TelemetryProviderProps,
+  TelemetrySectionsProps,
+  TelemetryStreamingProps,
+  TelemetryUsageProps,
+} from "@/components/chat-studio/types";
 import type { RunSettingsSectionKey } from "@/lib/types";
 
 type DndContextProps = React.PropsWithChildren<{
@@ -137,87 +146,194 @@ const baseOrder: RunSettingsSectionKey[] = [
   "usage",
 ];
 
+// Flat overrides get distributed into the grouped props below, so existing call
+// sites can keep tweaking a single field (e.g. { promptLoading: true }).
+type FlatOverrides = Partial<
+  TelemetrySectionsProps &
+    TelemetryPromptsProps &
+    TelemetryCollectionsProps &
+    TelemetryStreamingProps &
+    TelemetryModelProps &
+    TelemetryProviderProps &
+    TelemetryParametersProps &
+    TelemetryUsageProps & { onClose: () => void }
+>;
+
 const buildProps = (
-  overrides: Partial<React.ComponentProps<typeof TelemetryPanel>> = {},
-): React.ComponentProps<typeof TelemetryPanel> => ({
-  onClose: vi.fn(),
-  sectionIds,
-  sectionOrder: baseOrder,
-  onSectionOrderChange: vi.fn(),
-  systemPromptCustom: false,
-  promptSections: [],
-  promptPreviewMarkdown: "",
-  promptLoading: false,
-  promptError: null,
-  promptGeneratedAt: null,
-  systemPromptOpen: true,
-  onSystemPromptToggle: vi.fn(),
-  onPromptEdit: vi.fn(),
-  collections: [],
-  selectedToolCollectionIds: [],
-  onToggleToolCollection: vi.fn(),
-  onClearToolCollections: vi.fn(),
-  collectionsLoading: false,
-  collectionsError: null,
-  pineconeConfigured: true,
-  collectionToolsOpen: true,
-  onCollectionToolsToggle: vi.fn(),
-  streamingOptionsOpen: true,
-  onStreamingOptionsToggle: vi.fn(),
-  streamingEnabled: true,
-  onStreamingToggle: vi.fn(),
-  modelSelectorOpen: true,
-  onModelSelectorToggle: vi.fn(),
-  modelSearchTerm: "",
-  onModelSearchChange: vi.fn(),
-  modelSortOption: "price",
-  onModelSortChange: vi.fn(),
-  toolReadyModels: [],
-  filteredModelCatalog: [],
-  modelsLoading: false,
-  modelsError: null,
-  selectedModelKey: "",
-  onSelectModel: vi.fn(),
-  currentModelInfo: null,
-  toolsEnabled: false,
-  providerPreferencesOpen: true,
-  onProviderPreferencesToggle: vi.fn(),
-  providerForm: baseProviderForm,
-  setProviderForm: vi.fn(),
-  providerDirectory: null,
-  providerDirectoryLoading: false,
-  providerDirectoryError: null,
-  providerModelSlug: null,
-  providerSearchTerm: "",
-  onProviderSearchChange: vi.fn(),
-  providerRuleCount: 0,
-  resetProviderPreferences: vi.fn(),
-  vitalsOpen: true,
-  onVitalsToggle: vi.fn(),
-  collection: null,
-  collectionCount: 0,
-  documentCount: 0,
-  modelParametersOpen: true,
-  onModelParametersToggle: vi.fn(),
-  visibleParameterDefinitions: [],
-  parameterOverrides: {},
-  activeParameterCount: 0,
-  resetAllParameters: vi.fn(),
-  handleNumberParameterChange: vi.fn(),
-  handleBooleanParameterChange: vi.fn(),
-  handleTextParameterChange: vi.fn(),
-  handleSelectParameterChange: vi.fn(),
-  handleClearParameter: vi.fn(),
-  formatDefaultParameter: vi.fn(),
-  usageOpen: true,
-  onUsageToggle: vi.fn(),
-  usage: null,
-  contextWindow: 0,
-  contextConsumed: 0,
-  onExportChatHistory: vi.fn(),
-  markdownComponents,
-  ...overrides,
-});
+  overrides: FlatOverrides = {},
+): React.ComponentProps<typeof TelemetryPanel> => {
+  const f = {
+    onClose: vi.fn(),
+    sectionIds,
+    sectionOrder: baseOrder,
+    onSectionOrderChange: vi.fn(),
+    systemPromptCustom: false,
+    promptSections: [],
+    promptPreviewMarkdown: "",
+    promptLoading: false,
+    promptError: null,
+    promptGeneratedAt: null,
+    systemPromptOpen: true,
+    onSystemPromptToggle: vi.fn(),
+    onPromptEdit: vi.fn(),
+    collections: [],
+    selectedToolCollectionIds: [],
+    onToggleToolCollection: vi.fn(),
+    onClearToolCollections: vi.fn(),
+    collectionsLoading: false,
+    collectionsError: null,
+    pineconeConfigured: true,
+    collectionToolsOpen: true,
+    onCollectionToolsToggle: vi.fn(),
+    streamingOptionsOpen: true,
+    onStreamingOptionsToggle: vi.fn(),
+    streamingEnabled: true,
+    onStreamingToggle: vi.fn(),
+    modelSelectorOpen: true,
+    onModelSelectorToggle: vi.fn(),
+    modelSearchTerm: "",
+    onModelSearchChange: vi.fn(),
+    modelSortOption: "price" as const,
+    onModelSortChange: vi.fn(),
+    toolReadyModels: [],
+    filteredModelCatalog: [],
+    modelsLoading: false,
+    modelsError: null,
+    selectedModelKey: "",
+    onSelectModel: vi.fn(),
+    currentModelInfo: null,
+    toolsEnabled: false,
+    providerPreferencesOpen: true,
+    onProviderPreferencesToggle: vi.fn(),
+    providerForm: baseProviderForm,
+    setProviderForm: vi.fn(),
+    providerDirectory: null,
+    providerDirectoryLoading: false,
+    providerDirectoryError: null,
+    providerModelSlug: null,
+    providerSearchTerm: "",
+    onProviderSearchChange: vi.fn(),
+    providerRuleCount: 0,
+    resetProviderPreferences: vi.fn(),
+    vitalsOpen: true,
+    onVitalsToggle: vi.fn(),
+    collection: null,
+    collectionCount: 0,
+    documentCount: 0,
+    modelParametersOpen: true,
+    onModelParametersToggle: vi.fn(),
+    visibleParameterDefinitions: [],
+    parameterOverrides: {},
+    activeParameterCount: 0,
+    resetAllParameters: vi.fn(),
+    handleNumberParameterChange: vi.fn(),
+    handleBooleanParameterChange: vi.fn(),
+    handleTextParameterChange: vi.fn(),
+    handleSelectParameterChange: vi.fn(),
+    handleClearParameter: vi.fn(),
+    formatDefaultParameter: vi.fn(),
+    usageOpen: true,
+    onUsageToggle: vi.fn(),
+    usage: null,
+    contextWindow: 0,
+    contextConsumed: 0,
+    onExportChatHistory: vi.fn(),
+    ...overrides,
+  };
+  return {
+    onClose: f.onClose,
+    sections: {
+      sectionIds: f.sectionIds,
+      sectionOrder: f.sectionOrder,
+      onSectionOrderChange: f.onSectionOrderChange,
+    },
+    prompts: {
+      systemPromptCustom: f.systemPromptCustom,
+      promptSections: f.promptSections,
+      promptPreviewMarkdown: f.promptPreviewMarkdown,
+      promptLoading: f.promptLoading,
+      promptError: f.promptError,
+      promptGeneratedAt: f.promptGeneratedAt,
+      systemPromptOpen: f.systemPromptOpen,
+      onSystemPromptToggle: f.onSystemPromptToggle,
+      onPromptEdit: f.onPromptEdit,
+    },
+    collections: {
+      collections: f.collections,
+      selectedToolCollectionIds: f.selectedToolCollectionIds,
+      onToggleToolCollection: f.onToggleToolCollection,
+      onClearToolCollections: f.onClearToolCollections,
+      collectionsLoading: f.collectionsLoading,
+      collectionsError: f.collectionsError,
+      pineconeConfigured: f.pineconeConfigured,
+      collectionToolsOpen: f.collectionToolsOpen,
+      onCollectionToolsToggle: f.onCollectionToolsToggle,
+      vitalsOpen: f.vitalsOpen,
+      onVitalsToggle: f.onVitalsToggle,
+      collection: f.collection,
+      collectionCount: f.collectionCount,
+      documentCount: f.documentCount,
+    },
+    streaming: {
+      streamingOptionsOpen: f.streamingOptionsOpen,
+      onStreamingOptionsToggle: f.onStreamingOptionsToggle,
+      streamingEnabled: f.streamingEnabled,
+      onStreamingToggle: f.onStreamingToggle,
+    },
+    model: {
+      modelSelectorOpen: f.modelSelectorOpen,
+      onModelSelectorToggle: f.onModelSelectorToggle,
+      modelSearchTerm: f.modelSearchTerm,
+      onModelSearchChange: f.onModelSearchChange,
+      modelSortOption: f.modelSortOption,
+      onModelSortChange: f.onModelSortChange,
+      toolReadyModels: f.toolReadyModels,
+      filteredModelCatalog: f.filteredModelCatalog,
+      modelsLoading: f.modelsLoading,
+      modelsError: f.modelsError,
+      selectedModelKey: f.selectedModelKey,
+      onSelectModel: f.onSelectModel,
+      currentModelInfo: f.currentModelInfo,
+      toolsEnabled: f.toolsEnabled,
+    },
+    provider: {
+      providerPreferencesOpen: f.providerPreferencesOpen,
+      onProviderPreferencesToggle: f.onProviderPreferencesToggle,
+      providerForm: f.providerForm,
+      setProviderForm: f.setProviderForm,
+      providerDirectory: f.providerDirectory,
+      providerDirectoryLoading: f.providerDirectoryLoading,
+      providerDirectoryError: f.providerDirectoryError,
+      providerModelSlug: f.providerModelSlug,
+      providerSearchTerm: f.providerSearchTerm,
+      onProviderSearchChange: f.onProviderSearchChange,
+      providerRuleCount: f.providerRuleCount,
+      resetProviderPreferences: f.resetProviderPreferences,
+    },
+    parameters: {
+      modelParametersOpen: f.modelParametersOpen,
+      onModelParametersToggle: f.onModelParametersToggle,
+      visibleParameterDefinitions: f.visibleParameterDefinitions,
+      parameterOverrides: f.parameterOverrides,
+      activeParameterCount: f.activeParameterCount,
+      resetAllParameters: f.resetAllParameters,
+      handleNumberParameterChange: f.handleNumberParameterChange,
+      handleBooleanParameterChange: f.handleBooleanParameterChange,
+      handleTextParameterChange: f.handleTextParameterChange,
+      handleSelectParameterChange: f.handleSelectParameterChange,
+      handleClearParameter: f.handleClearParameter,
+      formatDefaultParameter: f.formatDefaultParameter,
+    },
+    usage: {
+      usageOpen: f.usageOpen,
+      onUsageToggle: f.onUsageToggle,
+      usage: f.usage,
+      contextWindow: f.contextWindow,
+      contextConsumed: f.contextConsumed,
+      onExportChatHistory: f.onExportChatHistory,
+    },
+  };
+};
 
 describe("TelemetryPanel", () => {
   it("renders headers and close action", () => {
@@ -240,7 +356,7 @@ describe("TelemetryPanel", () => {
       });
     });
 
-    expect(props.onSectionOrderChange).toHaveBeenCalled();
+    expect(props.sections.onSectionOrderChange).toHaveBeenCalled();
 
     act(() => {
       lastDndProps.onDragEnd?.({
@@ -275,7 +391,7 @@ describe("TelemetryPanel", () => {
   });
 
   it("renders dynamic section descriptions", () => {
-    const baseOverrides: Partial<React.ComponentProps<typeof TelemetryPanel>> = {
+    const baseOverrides: FlatOverrides = {
       promptSections: [{ id: "base", label: "Base", scope: "base", isCustom: false }],
       selectedToolCollectionIds: ["col-1", "col-2"],
       providerRuleCount: 2,
