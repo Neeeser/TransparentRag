@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";
 import { fetchDocumentChunks, fetchDocuments, fetchDocumentTrace, uploadDocument } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { cn, prettyJson, truncate } from "@/lib/utils";
 
 import type { Chunk, Document, PipelineTraceResponse } from "@/lib/types";
@@ -40,13 +41,13 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
       setLoading(true);
       setMessage(null);
       try {
-        const docs = await fetchDocuments(collectionId, token);
+        const docs = await fetchDocuments(token, collectionId);
         if (!cancelled) {
           setDocuments(docs);
         }
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load documents.");
+          setMessage(getErrorMessage(error, "Unable to load documents."));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -65,10 +66,10 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
   const loadChunks = async (documentId: string) => {
     setWorking((prev) => ({ ...prev, [documentId]: true }));
     try {
-      const payload = await fetchDocumentChunks(documentId, token);
+      const payload = await fetchDocumentChunks(token, documentId);
       setChunksByDocument((prev) => ({ ...prev, [documentId]: payload.chunks }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load chunks.");
+      setMessage(getErrorMessage(error, "Unable to load chunks."));
     } finally {
       setWorking((prev) => ({ ...prev, [documentId]: false }));
     }
@@ -88,12 +89,12 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
     setUploading(true);
     setMessage(null);
     try {
-      await uploadDocument(collectionId, file, token);
-      const docs = await fetchDocuments(collectionId, token);
+      await uploadDocument(token, collectionId, file);
+      const docs = await fetchDocuments(token, collectionId);
       setDocuments(docs);
       setMessage(`Uploaded ${file.name}. Chunking in progress.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Upload failed.");
+      setMessage(getErrorMessage(error, "Upload failed."));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -106,12 +107,12 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
     setTraceLoading((prev) => ({ ...prev, [documentId]: true }));
     setMessage(null);
     try {
-      const trace = await fetchDocumentTrace(documentId, token);
+      const trace = await fetchDocumentTrace(token, documentId);
       setTraceByDocument((prev) => ({ ...prev, [documentId]: trace }));
       setActiveTraceDocumentId(documentId);
       setActiveTraceChunkId(chunkId ?? null);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load trace.");
+      setMessage(getErrorMessage(error, "Unable to load trace."));
     } finally {
       setTraceLoading((prev) => ({ ...prev, [documentId]: false }));
     }
@@ -278,7 +279,6 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
       <PipelineTraceViewer
         key={activeTrace?.run.id ?? activeTraceDocumentId ?? "trace"}
         trace={activeTrace}
-        token={token}
         isOpen={Boolean(activeTraceDocumentId)}
         onClose={() => {
           setActiveTraceDocumentId(null);

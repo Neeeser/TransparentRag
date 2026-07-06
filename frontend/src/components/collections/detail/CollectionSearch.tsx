@@ -7,6 +7,7 @@ import { PipelineTraceViewer } from "@/components/traces/PipelineTraceViewer";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/panel";
 import { fetchQueryEventTrace, runCollectionQuery } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { truncate } from "@/lib/utils";
 
 import type { CollectionQueryResult, PipelineTraceResponse } from "@/lib/types";
@@ -34,13 +35,13 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     setWorking(true);
     setMessage(null);
     try {
-      const result = await runCollectionQuery(collectionId, { query, top_k: topK }, token);
+      const result = await runCollectionQuery(token, collectionId, { query, top_k: topK });
       setQueryResult(result);
       setTrace(null);
       setTraceChunkId(null);
       setTraceOpen(false);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Query failed.");
+      setMessage(getErrorMessage(error, "Query failed."));
     } finally {
       setWorking(false);
     }
@@ -54,12 +55,12 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     setTraceLoading(true);
     setMessage(null);
     try {
-      const payload = await fetchQueryEventTrace(queryResult.query_event_id, token);
+      const payload = await fetchQueryEventTrace(token, queryResult.query_event_id);
       setTrace(payload);
       setTraceChunkId(chunkId ?? null);
       setTraceOpen(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load trace.");
+      setMessage(getErrorMessage(error, "Unable to load trace."));
     } finally {
       setTraceLoading(false);
     }
@@ -186,7 +187,6 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
       <PipelineTraceViewer
         key={trace?.run.id ?? "trace"}
         trace={trace}
-        token={token}
         isOpen={traceOpen}
         onClose={() => setTraceOpen(false)}
         highlightChunkId={traceChunkId}

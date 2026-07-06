@@ -4,57 +4,26 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest";
 
 import { CollectionOverview } from "@/components/collections/detail/CollectionOverview";
+import * as apiModule from "@/lib/api";
+import { makeCollection, makeCollectionStats, makePipeline } from "@/test/fixtures";
 
-import type { Collection, CollectionStats, Pipeline } from "@/lib/types";
 
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-const api = {
-  updateCollection: vi.fn(),
-};
+const api = vi.mocked(apiModule);
 
-vi.mock("@/lib/api", () => ({
-  updateCollection: (...args: unknown[]) => api.updateCollection(...args),
-}));
+const applyPipelinesLabel = "Apply pipelines";
 
 describe("CollectionOverview", () => {
-  const collection: Collection = {
-    id: "col-1",
-    user_id: "user-1",
-    name: "Collection",
-    description: " ",
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-  };
-  const stats: CollectionStats = {
-    collection_id: "col-1",
+  const collection = makeCollection({ description: " ", retrieval_pipeline_id: null });
+  const stats = makeCollectionStats({
     document_count: 0,
     chunk_count: 0,
     average_latency_ms: Number.NaN,
     last_used_at: null,
-  };
-  const ingestion: Pipeline = {
-    id: "pipe-1",
-    user_id: "user-1",
-    name: "Ingestion",
-    kind: "ingestion",
-    current_version: 1,
-    is_default: true,
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-    definition: { nodes: [], edges: [] },
-  };
-  const retrieval: Pipeline = {
-    id: "pipe-2",
-    user_id: "user-1",
-    name: "Retrieval",
-    kind: "retrieval",
-    current_version: 1,
-    is_default: true,
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-    definition: { nodes: [], edges: [] },
-  };
+  });
+  const ingestion = makePipeline({ id: "pipe-1", name: "Ingestion", kind: "ingestion", is_default: true });
+  const retrieval = makePipeline({ id: "pipe-2", name: "Retrieval", kind: "retrieval", is_default: true });
 
   it("renders summary data and defaults", () => {
     render(
@@ -73,7 +42,7 @@ describe("CollectionOverview", () => {
   });
 
   it("updates pipeline bindings successfully", async () => {
-    api.updateCollection.mockResolvedValueOnce({ ...collection, name: "Updated" });
+    api.updateCollection.mockResolvedValueOnce(makeCollection({ name: "Updated" }));
     const onCollectionUpdated = vi.fn();
     render(
       <CollectionOverview
@@ -87,7 +56,7 @@ describe("CollectionOverview", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Apply pipelines"));
+      fireEvent.click(screen.getByText(applyPipelinesLabel));
     });
 
     await waitFor(() => {
@@ -110,7 +79,7 @@ describe("CollectionOverview", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Apply pipelines"));
+      fireEvent.click(screen.getByText(applyPipelinesLabel));
     });
 
     await waitFor(() => {
@@ -132,7 +101,7 @@ describe("CollectionOverview", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Apply pipelines"));
+      fireEvent.click(screen.getByText(applyPipelinesLabel));
     });
 
     await waitFor(() => {
@@ -141,17 +110,18 @@ describe("CollectionOverview", () => {
   });
 
   it("renders fallback pipeline labels and updates selections", () => {
-    const nextCollection: Collection = {
-      ...collection,
+    const nextCollection = makeCollection({
+      description: " ",
       ingestion_pipeline_id: "missing",
       retrieval_pipeline_id: "pipe-2",
       updated_at: "2024-01-02T00:00:00.000Z",
-    };
-    const nextStats: CollectionStats = {
-      ...stats,
+    });
+    const nextStats = makeCollectionStats({
+      document_count: 0,
+      chunk_count: 0,
       average_latency_ms: 12.4,
       last_used_at: "2024-01-01T00:00:00.000Z",
-    };
+    });
 
     render(
       <CollectionOverview
@@ -176,7 +146,7 @@ describe("CollectionOverview", () => {
   it("shows default pipeline labels when no pipelines exist", () => {
     render(
       <CollectionOverview
-        collection={{ ...collection, ingestion_pipeline_id: null, retrieval_pipeline_id: null }}
+        collection={makeCollection({ ingestion_pipeline_id: null, retrieval_pipeline_id: null })}
         stats={stats}
         ingestionPipelines={[]}
         retrievalPipelines={[]}
@@ -194,7 +164,7 @@ describe("CollectionOverview", () => {
 
     render(
       <CollectionOverview
-        collection={{ ...collection, ingestion_pipeline_id: null, retrieval_pipeline_id: null }}
+        collection={makeCollection({ ingestion_pipeline_id: null, retrieval_pipeline_id: null })}
         stats={stats}
         ingestionPipelines={[]}
         retrievalPipelines={[]}
@@ -204,11 +174,11 @@ describe("CollectionOverview", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Apply pipelines"));
+      fireEvent.click(screen.getByText(applyPipelinesLabel));
     });
 
     await waitFor(() => {
-      expect(api.updateCollection).toHaveBeenCalledWith("col-1", "token", {
+      expect(api.updateCollection).toHaveBeenCalledWith("token", "col-1", {
         ingestion_pipeline_id: null,
         retrieval_pipeline_id: null,
       });

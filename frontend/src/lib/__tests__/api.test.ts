@@ -52,6 +52,7 @@ import {
   validatePipeline,
   validateUserKeys,
 } from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 
 import type { PipelineDefinition } from "@/lib/types";
 
@@ -116,6 +117,7 @@ const pipelineDefinition: PipelineDefinition = { nodes: [], edges: [] };
 const testEmail = "test@example.com";
 const testPassword = "secret";
 const badRequestStatus = "Bad Request";
+const streamingRequestFailedMessage = "Streaming request failed.";
 
 describe("api", () => {
   it("exposes a default API base URL", () => {
@@ -181,7 +183,7 @@ describe("api", () => {
     fetchMock.mockResolvedValueOnce(createJsonResponse({ id: "doc-1" }));
     const file = new File(["hello"], "note.txt", { type: "text/plain" });
 
-    await uploadDocument(file, "col-1", "token");
+    await uploadDocument("token", "col-1", file);
     const [, options] = fetchMock.mock.calls[0];
     const headers = options?.headers as Headers;
     expect(headers.get("Content-Type")).toBeNull();
@@ -192,7 +194,7 @@ describe("api", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     fetchMock.mockResolvedValueOnce(createJsonResponse({}, { status: 204 }));
 
-    await expect(deleteChatSession("session-1", "token")).resolves.toBeUndefined();
+    await expect(deleteChatSession("token", "session-1")).resolves.toBeUndefined();
   });
 
   it("handles apiFetch errors with fallback parsing", async () => {
@@ -200,7 +202,14 @@ describe("api", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     fetchMock.mockResolvedValueOnce(createErrorResponse(badRequestStatus, new Error("bad json")));
 
-    await expect(fetchCollection("col-1", "token")).rejects.toThrow(badRequestStatus);
+    await expect(fetchCollection("token", "col-1")).rejects.toThrow(badRequestStatus);
+    fetchMock.mockResolvedValueOnce(createErrorResponse(badRequestStatus, new Error("bad json")));
+    await expect(fetchCollection("token", "col-1")).rejects.toBeInstanceOf(ApiError);
+    fetchMock.mockResolvedValueOnce(createErrorResponse(badRequestStatus, new Error("bad json")));
+    await expect(fetchCollection("token", "col-1")).rejects.toMatchObject({
+      status: 400,
+      detail: badRequestStatus,
+    });
   });
 
   it("stringifies non-string apiFetch errors", async () => {
@@ -210,7 +219,7 @@ describe("api", () => {
       createErrorResponse(badRequestStatus, { detail: { message: "bad" } }),
     );
 
-    await expect(fetchCollection("col-1", "token")).rejects.toThrow(
+    await expect(fetchCollection("token", "col-1")).rejects.toThrow(
       JSON.stringify({ message: "bad" }),
     );
   });
@@ -220,7 +229,7 @@ describe("api", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     fetchMock.mockResolvedValueOnce(createErrorResponse("", { detail: "" }));
 
-    await expect(fetchCollection("col-1", "token")).rejects.toThrow("Request failed");
+    await expect(fetchCollection("token", "col-1")).rejects.toThrow("Request failed");
   });
 
   it("builds chat session query params", async () => {
@@ -254,29 +263,29 @@ describe("api", () => {
       validateUserKeys("token"),
       fetchCollections("token"),
       fetchCollectionStats("token"),
-      fetchCollectionStatsById("col-1", "token"),
-      createCollection({ name: "Col" }, "token"),
-      updateCollection("col-1", { name: "Updated" }, "token"),
-      deleteCollection("col-1", "token"),
+      fetchCollectionStatsById("token", "col-1"),
+      createCollection("token", { name: "Col" }),
+      updateCollection("token", "col-1", { name: "Updated" }),
+      deleteCollection("token", "col-1"),
       updateRunSettingsOrder("token", ["usage"]),
       fetchPipelines("token", "ingestion"),
       fetchPipelines("token"),
-      fetchPipeline("pipe-1", "token"),
+      fetchPipeline("token", "pipe-1"),
       fetchPipelineNodes("token"),
       fetchEmbeddingModels("token"),
       fetchEmbeddingModels("token", true),
       listPineconeIndexes("token"),
-      describePineconeIndex("index", "token"),
+      describePineconeIndex("token", "index"),
       createPineconeIndex("token", { name: "index" }),
-      deletePineconeIndex("index", "token"),
+      deletePineconeIndex("token", "index"),
       validatePipeline("token", pipelineDefinition),
       createPipeline("token", {
         name: "Pipeline",
         kind: "ingestion",
         definition: pipelineDefinition,
       }),
-      updatePipeline("pipe-1", "token", { name: "Updated", definition: pipelineDefinition }),
-      deletePipeline("pipe-1", "token"),
+      updatePipeline("token", "pipe-1", { name: "Updated", definition: pipelineDefinition }),
+      deletePipeline("token", "pipe-1"),
     ]);
   });
 
@@ -306,15 +315,15 @@ describe("api", () => {
 
     await Promise.all([
       getBasePrompt("token"),
-      updateBasePrompt("template", "token"),
-      getCollectionPrompt("col-1", "token"),
-      updateCollectionPrompt("col-1", "template", "token"),
-      fetchDocuments("col-1", "token"),
-      fetchDocumentChunks("doc-1", "token"),
-      fetchChunkDetail("chunk-1", "token"),
-      fetchCollectionUmap("col-1", "token"),
-      computeCollectionUmap("col-1", "token"),
-      runCollectionQuery("col-1", { query: "hi" }, "token"),
+      updateBasePrompt("token", "template"),
+      getCollectionPrompt("token", "col-1"),
+      updateCollectionPrompt("token", "col-1", "template"),
+      fetchDocuments("token", "col-1"),
+      fetchDocumentChunks("token", "doc-1"),
+      fetchChunkDetail("token", "chunk-1"),
+      fetchCollectionUmap("token", "col-1"),
+      computeCollectionUmap("token", "col-1"),
+      runCollectionQuery("token", "col-1", { query: "hi" }),
     ]);
   });
 
@@ -332,14 +341,14 @@ describe("api", () => {
       .mockResolvedValueOnce(createJsonResponse({}));
 
     await Promise.all([
-      fetchPipelineRunTrace("run-1", "token"),
-      fetchDocumentTrace("doc-1", "token"),
-      fetchQueryEventTrace("session-1", "token"),
-      listPipelineVersions("pipe-1", "token"),
-      activatePipelineVersion("pipe-1", 1, "token"),
-      getChatHistory("session-1", "token"),
-      branchChatSession("session-1", { message_id: "msg-1" }, "token"),
-      chat({ messages: [], model: "model" }, "token"),
+      fetchPipelineRunTrace("token", "run-1"),
+      fetchDocumentTrace("token", "doc-1"),
+      fetchQueryEventTrace("token", "session-1"),
+      listPipelineVersions("token", "pipe-1"),
+      activatePipelineVersion("token", "pipe-1", 1),
+      getChatHistory("token", "session-1"),
+      branchChatSession("token", "session-1", { message_id: "msg-1" }),
+      chat("token", { content: "Hello", chat_model: "model" }),
     ]);
   });
 
@@ -353,9 +362,9 @@ describe("api", () => {
       .mockResolvedValueOnce(createJsonResponse({}));
 
     await listModels("token", true);
-    await listModelEndpoints("openai", "gpt-4o", "token");
+    await listModelEndpoints("token", "openai", "gpt-4o");
     await listModels();
-    await listModelEndpoints("openai", "gpt-4o");
+    await listModelEndpoints(undefined, "openai", "gpt-4o");
   });
 
   it("streams chat events and returns final payload", async () => {
@@ -383,8 +392,10 @@ describe("api", () => {
       onError: vi.fn(),
     };
 
-    const payload = await streamChat({ messages: [], model: "model" }, "token", handlers);
-    expect(payload?.id).toBe("resp-1");
+    const payload = await streamChat("token", { content: "Hello", chat_model: "model" }, handlers);
+    // The mocked SSE payload uses a raw completion shape to test passthrough,
+    // which the current ChatCompletionPayload type does not model.
+    expect((payload as unknown as { id?: string } | null)?.id).toBe("resp-1");
     expect(handlers.onToken).toHaveBeenCalledWith("Hi");
     expect(handlers.onToolCall).toHaveBeenCalled();
     expect(handlers.onToolResult).toHaveBeenCalled();
@@ -400,8 +411,8 @@ describe("api", () => {
     fetchMock.mockResolvedValueOnce(createStreamResponse(reader));
 
     const handlers = { onReasoning: vi.fn() };
-    const payload = await streamChat({ messages: [], model: "model" }, "token", handlers);
-    expect(payload?.id).toBe("resp-2");
+    const payload = await streamChat("token", { content: "Hello", chat_model: "model" }, handlers);
+    expect((payload as unknown as { id?: string } | null)?.id).toBe("resp-2");
     expect(handlers.onReasoning).toHaveBeenCalledWith([]);
   });
 
@@ -413,7 +424,7 @@ describe("api", () => {
     });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerError));
     const handlers = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers)).rejects.toThrow(
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" }, handlers)).rejects.toThrow(
       "bad",
     );
     expect(handlers.onError).toHaveBeenCalledWith("bad");
@@ -422,14 +433,14 @@ describe("api", () => {
       throwOnRead: new DOMException("Aborted", "AbortError"),
     });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerAbort));
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toBeInstanceOf(
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" })).rejects.toBeInstanceOf(
       DOMException,
     );
 
     const readerBoom = createMockReader([], { throwOnRead: new Error("boom") });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerBoom));
     const handlers2 = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers2)).rejects.toThrow(
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" }, handlers2)).rejects.toThrow(
       "boom",
     );
     expect(handlers2.onError).toHaveBeenCalledWith("boom");
@@ -437,17 +448,17 @@ describe("api", () => {
     const readerNonError = createMockReader([], { throwOnRead: "oops" });
     fetchMock.mockResolvedValueOnce(createStreamResponse(readerNonError));
     const handlers3 = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers3)).rejects.toBe(
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" }, handlers3)).rejects.toBe(
       "oops",
     );
-    expect(handlers3.onError).toHaveBeenCalledWith("Streaming request failed.");
+    expect(handlers3.onError).toHaveBeenCalledWith(streamingRequestFailedMessage);
   });
 
   it("throws on invalid stream responses", async () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as typeof fetch;
     fetchMock.mockResolvedValueOnce(createStreamResponse(createMockReader([]), false));
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" })).rejects.toThrow(
       "Server Error",
     );
 
@@ -457,12 +468,12 @@ describe("api", () => {
       statusText: "Bad",
       json: vi.fn().mockResolvedValue({ detail: { message: "down" } }),
     });
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" })).rejects.toThrow(
       JSON.stringify({ message: "down" }),
     );
 
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, statusText: "OK", body: null });
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" })).rejects.toThrow(
       "Streaming response body is not readable.",
     );
   });
@@ -473,10 +484,10 @@ describe("api", () => {
     const reader = createMockReader(['data: {"type":"error","message":"  "}\n\n']);
     fetchMock.mockResolvedValueOnce(createStreamResponse(reader));
     const handlers = { onError: vi.fn() };
-    await expect(streamChat({ messages: [], model: "model" }, "token", handlers)).rejects.toThrow(
-      "Streaming request failed.",
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" }, handlers)).rejects.toThrow(
+      streamingRequestFailedMessage,
     );
-    expect(handlers.onError).toHaveBeenCalledWith("Streaming request failed.");
+    expect(handlers.onError).toHaveBeenCalledWith(streamingRequestFailedMessage);
   });
 
   it("falls back to default stream errors when HTTP details are missing", async () => {
@@ -484,8 +495,8 @@ describe("api", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     fetchMock.mockResolvedValueOnce(createErrorResponse("", { detail: "" }));
 
-    await expect(streamChat({ messages: [], model: "model" }, "token")).rejects.toThrow(
-      "Streaming request failed.",
+    await expect(streamChat("token", { content: "Hello", chat_model: "model" })).rejects.toThrow(
+      streamingRequestFailedMessage,
     );
   });
 });

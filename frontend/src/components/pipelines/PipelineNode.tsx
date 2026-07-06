@@ -2,13 +2,13 @@
 
 import { Handle, Position } from "@xyflow/react";
 
-import { cn } from "@/lib/utils";
+import { cn, truncate } from "@/lib/utils";
 
-import { buildPipelineConfigFields } from "./pipeline-config";
-import { getNodeFamilyStyles, getPortTypeClasses, resolveNodeFamily } from "./pipeline-theme";
+import { buildPipelineConfigFields, formatConfigValue } from "./lib/pipeline-config";
+import { getNodeFamilyStyles, getPortTypeClasses, resolveNodeFamily } from "./lib/pipeline-theme";
 
 import type { NodeSpec, PipelineRunStatus } from "@/lib/types";
-import type { NodeProps } from "@xyflow/react";
+import type { Node, NodeProps } from "@xyflow/react";
 
 export type PipelineNodeExample = {
   input: string;
@@ -35,21 +35,7 @@ export type PipelineNodeData = {
 const portLeftPercent = (index: number, total: number) => `${((index + 1) / (total + 1)) * 100}%`;
 const CONFIG_PREVIEW_LIMIT = 48;
 
-const formatConfigValue = (value: unknown) => {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-};
-
-const truncate = (value: string, limit: number) =>
-  value.length > limit ? `${value.slice(0, limit - 3)}...` : value;
-
-export function PipelineNode({ data }: NodeProps<PipelineNodeData>) {
+export function PipelineNode({ data }: NodeProps<Node<PipelineNodeData>>) {
   const family = resolveNodeFamily(data.nodeType);
   const familyStyles = getNodeFamilyStyles(family);
   const configEntries = Object.entries(data.config ?? {});
@@ -174,7 +160,7 @@ export function PipelineNode({ data }: NodeProps<PipelineNodeData>) {
   );
 }
 
-export function DropPreviewNode({ data }: NodeProps<DropPreviewNodeData>) {
+export function DropPreviewNode({ data }: NodeProps<Node<DropPreviewNodeData>>) {
   return (
     <div className="pointer-events-none flex min-w-[180px] items-center justify-center rounded-2xl border border-dashed border-slate-400/60 bg-slate-900/40 px-3 py-6 text-xs uppercase tracking-[0.3em] text-slate-300">
       {data.label ?? "Drop here"}

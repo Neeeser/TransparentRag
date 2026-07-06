@@ -9,10 +9,11 @@ import {
 } from "@deck.gl/core";
 import { LineLayer, ScatterplotLayer } from "@deck.gl/layers";
 import DeckGL from "@deck.gl/react";
-import { CanvasContext } from "@luma.gl/core";
 import { webgl2Adapter } from "@luma.gl/webgl";
 import { Home, LocateFixed, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { ensureCanvasContextLimits } from "./luma-patches";
 
 import type { UmapPoint } from "@/lib/types";
 
@@ -29,31 +30,6 @@ const GRID_PIXEL_STEP = 40;
 const GRID_MARGIN_MULTIPLIER = 0.2;
 const MIN_POINT_RADIUS_PX = 4;
 const MAX_POINT_RADIUS_PX = 10;
-const DEFAULT_LIMIT_FALLBACK = 4096;
-
-// Guard against ResizeObserver running before the WebGL device limits are ready.
-const ensureCanvasContextLimits = (() => {
-  let patched = false;
-  return () => {
-    if (patched) {
-      return;
-    }
-    patched = true;
-    const original = CanvasContext.prototype.getMaxDrawingBufferSize;
-    CanvasContext.prototype.getMaxDrawingBufferSize = function getMaxDrawingBufferSizePatched() {
-      const maxTextureDimension = this.device?.limits?.maxTextureDimension2D;
-      if (Number.isFinite(maxTextureDimension) && maxTextureDimension > 0) {
-        return original.call(this);
-      }
-      const fallback = Math.max(
-        this.canvas?.width ?? 1,
-        this.canvas?.height ?? 1,
-        DEFAULT_LIMIT_FALLBACK,
-      );
-      return [fallback, fallback];
-    };
-  };
-})();
 
 function buildInitialViewState(points: UmapPoint[]): OrthographicViewState {
   if (points.length === 0) {
@@ -174,7 +150,7 @@ export function UmapCanvas({
     if (!containerSize.width || !containerSize.height) {
       return null;
     }
-    const zoom = viewState.zoom ?? 0;
+    const zoom = typeof viewState.zoom === "number" ? viewState.zoom : 0;
     const scale = Math.pow(2, zoom);
     const halfWidth = containerSize.width / 2 / scale;
     const halfHeight = containerSize.height / 2 / scale;
@@ -233,7 +209,7 @@ export function UmapCanvas({
     if (!containerSize.width || !containerSize.height) {
       return [];
     }
-    const zoom = viewState.zoom ?? 0;
+    const zoom = typeof viewState.zoom === "number" ? viewState.zoom : 0;
     const scale = Math.pow(2, zoom);
     const worldStep = computeGridStep(GRID_PIXEL_STEP / scale);
     const halfWidth = containerSize.width / 2 / scale;
@@ -270,10 +246,13 @@ export function UmapCanvas({
   );
 
   const handleZoom = useCallback((delta: number) => {
-    setViewState((previous) => ({
-      ...previous,
-      zoom: Math.max(-10, Math.min(14, previous.zoom + delta)),
-    }));
+    setViewState((previous) => {
+      const previousZoom = typeof previous.zoom === "number" ? previous.zoom : 0;
+      return {
+        ...previous,
+        zoom: Math.max(-10, Math.min(14, previousZoom + delta)),
+      };
+    });
   }, []);
 
   const handleResetView = useCallback(() => {
@@ -303,7 +282,9 @@ export function UmapCanvas({
         getColor: [148, 163, 184, 90],
         getWidth: 1,
         widthUnits: "pixels",
-        parameters: { depthTest: false },
+        // `depthTest: false` (old WebGL-style parameter) is now expressed as an
+        // always-passing depth comparison in luma.gl's WebGPU-style Parameters type.
+        parameters: { depthCompare: "always" },
       }),
       new ScatterplotLayer<UmapPoint>({
         id: "umap-points",
@@ -347,7 +328,7 @@ export function UmapCanvas({
               }
             : null
         }
-        style={{ position: "absolute", inset: 0 }}
+        style={{ position: "absolute", inset: "0" }}
       />
       <div className="absolute bottom-4 left-4 z-10 flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 text-slate-200">
         <button

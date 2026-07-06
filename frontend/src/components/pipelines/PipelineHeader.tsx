@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { PIPELINE_KINDS } from "./pipeline-kinds";
+import { PIPELINE_KINDS } from "./lib/pipeline-kinds";
 
 import type { PipelineKind } from "@/lib/types";
 

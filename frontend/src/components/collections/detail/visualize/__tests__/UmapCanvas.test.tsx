@@ -127,24 +127,25 @@ describe("UmapCanvas", () => {
     const layers = lastDeckProps?.layers as DeckLayer[] | undefined;
     const scatter = layers?.find((layer) => layer.id === "umap-points");
     const grid = layers?.find((layer) => layer.id === "umap-grid");
-    const gridLine = (
-      grid?.props.data as Array<{
-        source: [number, number];
-        target: [number, number];
-      }>
-    )[0];
+    type GridLine = { source: [number, number]; target: [number, number] };
+    const gridLine = (grid?.props.data as GridLine[])[0];
     if (grid && gridLine) {
-      expect(grid.props.getSourcePosition(gridLine)).toEqual(gridLine.source);
-      expect(grid.props.getTargetPosition(gridLine)).toEqual(gridLine.target);
+      const getSourcePosition = grid.props.getSourcePosition as (line: GridLine) => unknown;
+      const getTargetPosition = grid.props.getTargetPosition as (line: GridLine) => unknown;
+      expect(getSourcePosition(gridLine)).toEqual(gridLine.source);
+      expect(getTargetPosition(gridLine)).toEqual(gridLine.target);
     }
     const onClick = scatter?.props.onClick as (info: { object?: UmapPoint | null }) => void;
     onClick?.({ object: points[1] });
     expect(onSelectPoint).toHaveBeenCalledWith(points[1]);
     if (scatter) {
-      expect(scatter.props.getPosition(points[0])).toEqual([points[0].x, points[0].y]);
-      expect(scatter.props.getRadius()).toBeGreaterThan(0);
-      expect(scatter.props.getFillColor(points[0])).toEqual([248, 113, 113, 220]);
-      expect(scatter.props.getFillColor(points[1])).toEqual([129, 140, 248, 200]);
+      const getPosition = scatter.props.getPosition as (point: UmapPoint) => unknown;
+      const getRadius = scatter.props.getRadius as () => number;
+      const getFillColor = scatter.props.getFillColor as (point: UmapPoint) => unknown;
+      expect(getPosition(points[0])).toEqual([points[0].x, points[0].y]);
+      expect(getRadius()).toBeGreaterThan(0);
+      expect(getFillColor(points[0])).toEqual([248, 113, 113, 220]);
+      expect(getFillColor(points[1])).toEqual([129, 140, 248, 200]);
     }
 
     const tooltip = lastDeckProps?.getTooltip as (info: {
@@ -174,7 +175,7 @@ describe("UmapCanvas", () => {
     });
 
     const onViewStateChange = lastDeckProps?.onViewStateChange as
-      | ((params: { viewState: { zoom: number } }) => void)
+      | ((params: { viewState: { zoom: number; target?: number[] } }) => void)
       | undefined;
     act(() => {
       onViewStateChange?.({ viewState: { zoom: 5 } });
@@ -201,7 +202,14 @@ describe("UmapCanvas", () => {
       />,
     );
     const { CanvasContext } = await import("@luma.gl/core");
-    const context = new CanvasContext();
+    // The real CanvasContext is abstract; @luma.gl/core is mocked above with a concrete
+    // stand-in, so the constructor needs to be re-typed to match what's actually returned.
+    const MockCanvasContext = CanvasContext as unknown as new () => {
+      canvas?: { width?: number; height?: number };
+      device?: { limits?: { maxTextureDimension2D?: number } };
+      getMaxDrawingBufferSize(): number[];
+    };
+    const context = new MockCanvasContext();
     context.canvas = { width: 5, height: 8 };
     const result = context.getMaxDrawingBufferSize();
     expect(result).toEqual([4096, 4096]);

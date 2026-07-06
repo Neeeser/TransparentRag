@@ -1,9 +1,8 @@
-"use client";
-
 import { formatDistanceToNow, parseISO } from "date-fns";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
+  return twMerge(classes.filter(Boolean).join(" "));
 }
 
 export function timeAgo(dateLike?: string | Date | null) {

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   DropPreviewNode,
@@ -10,7 +10,7 @@ import {
   type PipelineNodeData,
 } from "@/components/pipelines/PipelineNode";
 
-import type { NodeProps } from "@xyflow/react";
+import type { Node, NodeProps } from "@xyflow/react";
 
 vi.mock("@xyflow/react", () => ({
   Handle: ({ id, type }: { id: string; type: string }) => <div data-testid={`${type}-${id}`} />,
@@ -24,8 +24,9 @@ describe("PipelineNode", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
 
-    const props: NodeProps<PipelineNodeData> = {
+    const props: NodeProps<Node<PipelineNodeData>> = {
       id: "node-1",
+      type: "pipelineNode",
       data: {
         label: "Node",
         nodeType: parserNodeType,
@@ -49,11 +50,14 @@ describe("PipelineNode", () => {
         active: true,
       },
       selected: false,
+      selectable: true,
+      deletable: true,
+      draggable: true,
       dragging: false,
       zIndex: 0,
       isConnectable: true,
-      xPos: 0,
-      yPos: 0,
+      positionAbsoluteX: 0,
+      positionAbsoluteY: 0,
     };
 
     render(<PipelineNode {...props} />);
@@ -61,14 +65,17 @@ describe("PipelineNode", () => {
     expect(screen.getByText("Node")).toBeInTheDocument();
     expect(screen.getByText(parserNodeType)).toBeInTheDocument();
     expect(screen.getByText("running")).toBeInTheDocument();
-    expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
+    // PipelineNode now reuses the shared lib/utils truncate, which appends a single
+    // ellipsis character rather than three literal dots.
+    expect(screen.getByText(/…/)).toBeInTheDocument();
     expect(screen.getByTestId("target-in")).toBeInTheDocument();
     expect(screen.getByTestId("source-out")).toBeInTheDocument();
   });
 
   it("renders default config entries when config is empty", () => {
-    const props: NodeProps<PipelineNodeData> = {
+    const props: NodeProps<Node<PipelineNodeData>> = {
       id: "node-2",
+      type: "pipelineNode",
       data: {
         label: "Defaults",
         nodeType: parserNodeType,
@@ -83,11 +90,14 @@ describe("PipelineNode", () => {
         },
       },
       selected: false,
+      selectable: true,
+      deletable: true,
+      draggable: true,
       dragging: false,
       zIndex: 0,
       isConnectable: true,
-      xPos: 0,
-      yPos: 0,
+      positionAbsoluteX: 0,
+      positionAbsoluteY: 0,
     };
 
     render(<PipelineNode {...props} />);
@@ -97,8 +107,9 @@ describe("PipelineNode", () => {
   });
 
   it("handles empty config without defaults", () => {
-    const props: NodeProps<PipelineNodeData> = {
+    const props: NodeProps<Node<PipelineNodeData>> = {
       id: "node-3",
+      type: "pipelineNode",
       data: {
         label: "Empty",
         nodeType: parserNodeType,
@@ -108,11 +119,14 @@ describe("PipelineNode", () => {
         configSchema: {},
       },
       selected: false,
+      selectable: true,
+      deletable: true,
+      draggable: true,
       dragging: false,
       zIndex: 0,
       isConnectable: true,
-      xPos: 0,
-      yPos: 0,
+      positionAbsoluteX: 0,
+      positionAbsoluteY: 0,
     };
 
     render(<PipelineNode {...props} />);
@@ -124,14 +138,18 @@ describe("DropPreviewNode", () => {
   it("renders default and custom labels", () => {
     const props = {
       id: "drop-1",
+      type: "dropPreview",
       data: {},
       selected: false,
+      selectable: false,
+      deletable: false,
+      draggable: false,
       dragging: false,
       zIndex: 0,
       isConnectable: false,
-      xPos: 0,
-      yPos: 0,
-    } as NodeProps<DropPreviewNodeData>;
+      positionAbsoluteX: 0,
+      positionAbsoluteY: 0,
+    } as NodeProps<Node<DropPreviewNodeData>>;
 
     const { rerender } = render(<DropPreviewNode {...props} />);
     expect(screen.getByText("Drop here")).toBeInTheDocument();

@@ -1,29 +1,15 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as apiModule from "@/lib/api";
 import { AuthProvider, useAuth } from "@/providers/auth-provider";
+import { makeUser } from "@/test/fixtures";
 
-import type { User } from "@/lib/types";
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-const api = {
-  getProfile: vi.fn(),
-  loginRequest: vi.fn(),
-};
+const api = vi.mocked(apiModule);
 
-vi.mock("@/lib/api", () => ({
-  getProfile: (...args: unknown[]) => api.getProfile(...args),
-  loginRequest: (...args: unknown[]) => api.loginRequest(...args),
-}));
-
-const baseUser: User = {
-  id: "user-1",
-  email: "user@example.com",
-  is_active: true,
-  openrouter_configured: true,
-  pinecone_configured: true,
-  created_at: "2024-01-01T00:00:00.000Z",
-  updated_at: "2024-01-01T00:00:00.000Z",
-};
+const baseUser = makeUser();
 
 function AuthStateView() {
   const auth = useAuth();
@@ -49,8 +35,6 @@ function AuthStateView() {
 describe("AuthProvider", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    api.getProfile.mockReset();
-    api.loginRequest.mockReset();
   });
 
   it("throws when used outside the provider", () => {
@@ -133,7 +117,6 @@ describe("AuthProvider", () => {
 
   it("supports sign in and sign out flows", async () => {
     api.loginRequest.mockResolvedValueOnce({ access_token: "token", token_type: "bearer" });
-    api.getProfile.mockResolvedValue(baseUser);
 
     render(
       <AuthProvider>

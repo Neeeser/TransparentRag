@@ -1,8 +1,9 @@
 "use client";
 
 import { Filter, PanelLeftClose, PlusCircle, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
+import { chipClass } from "@/components/chat-studio/lib/chat-constants";
 import { Button } from "@/components/ui/button";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -22,7 +23,7 @@ interface HistoryPanelProps {
   onClose: () => void;
 }
 
-export const HistoryPanel = ({
+const HistoryPanelComponent = ({
   collections,
   sessions,
   selectedSessionId,
@@ -43,8 +44,6 @@ export const HistoryPanel = ({
   );
   const filterActive = filterCollectionIds.length > 0 || filterIncludeUnassigned;
   const filterCount = filterCollectionIds.length + (filterIncludeUnassigned ? 1 : 0);
-  const chipClass =
-    "rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-slate-300";
 
   useEffect(() => {
     if (!filterOpen) {
@@ -280,3 +279,5 @@ export const HistoryPanel = ({
     </div>
   );
 };
+
+export const HistoryPanel = memo(HistoryPanelComponent);

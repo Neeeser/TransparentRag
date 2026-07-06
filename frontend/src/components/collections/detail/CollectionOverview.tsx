@@ -2,10 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  buildCollectionStatItems,
+  CollectionStatCard,
+} from "@/components/collections/CollectionStats";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/panel";
 import { updateCollection } from "@/lib/api";
-import { timeAgo } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errors";
 
 import type { Collection, CollectionStats, Pipeline } from "@/lib/types";
 
@@ -16,13 +20,6 @@ type CollectionOverviewProps = {
   retrievalPipelines: Pipeline[];
   token: string;
   onCollectionUpdated: (collection: Collection) => void;
-};
-
-const formatLatency = (latency?: number | null) => {
-  if (!latency || Number.isNaN(latency)) {
-    return "n/a";
-  }
-  return `${Math.round(latency)} ms`;
 };
 
 export function CollectionOverview({
@@ -52,10 +49,9 @@ export function CollectionOverview({
   );
 
   const pipelineNameById = useMemo(() => {
-    const entries = [...ingestionPipelines, ...retrievalPipelines].map((pipeline) => [
-      pipeline.id,
-      pipeline.name,
-    ]);
+    const entries = [...ingestionPipelines, ...retrievalPipelines].map(
+      (pipeline): [string, string] => [pipeline.id, pipeline.name],
+    );
     return new Map(entries);
   }, [ingestionPipelines, retrievalPipelines]);
 
@@ -70,41 +66,20 @@ export function CollectionOverview({
     setBinding(true);
     setMessage(null);
     try {
-      const updated = await updateCollection(collection.id, token, {
+      const updated = await updateCollection(token, collection.id, {
         ingestion_pipeline_id: pipelineBindings.ingestion || null,
         retrieval_pipeline_id: pipelineBindings.retrieval || null,
       });
       onCollectionUpdated(updated);
       setMessage("Pipeline bindings updated.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to update pipelines.");
+      setMessage(getErrorMessage(error, "Unable to update pipelines."));
     } finally {
       setBinding(false);
     }
   };
 
-  const summaryItems = [
-    {
-      label: "Documents",
-      value: stats?.document_count?.toLocaleString() ?? "0",
-    },
-    {
-      label: "Chunks",
-      value: stats?.chunk_count?.toLocaleString() ?? "0",
-    },
-    {
-      label: "Avg latency",
-      value: formatLatency(stats?.average_latency_ms),
-    },
-    {
-      label: "Last updated",
-      value: timeAgo(collection.updated_at),
-    },
-    {
-      label: "Last used",
-      value: stats?.last_used_at ? timeAgo(stats.last_used_at) : "n/a",
-    },
-  ];
+  const summaryItems = buildCollectionStatItems(collection, stats);
 
   return (
     <div className="space-y-6">
@@ -141,8 +116,7 @@ export function CollectionOverview({
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {summaryItems.map((item) => (
           <GlassCard key={item.label} className="rounded-3xl p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{item.label}</p>
-            <p className="mt-2 text-2xl font-semibold text-white">{item.value}</p>
+            <CollectionStatCard item={item} />
           </GlassCard>
         ))}
       </div>

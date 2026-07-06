@@ -4,24 +4,19 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest";
 
 import { CollectionVisualization } from "@/components/collections/detail/visualize/CollectionVisualization";
+import * as apiModule from "@/lib/api";
+import { makeChunkDetail, makeUmapVisualization } from "@/test/fixtures";
 
-import type { ChunkDetail, UmapVisualization } from "@/lib/types";
 import type { ReactNode } from "react";
 
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
+
+const api = vi.mocked(apiModule);
+
 const selectPointLabel = "Select point";
-
-const api = {
-  computeCollectionUmap: vi.fn(),
-  fetchChunkDetail: vi.fn(),
-  fetchCollectionUmap: vi.fn(),
-};
-
-vi.mock("@/lib/api", () => ({
-  computeCollectionUmap: (...args: unknown[]) => api.computeCollectionUmap(...args),
-  fetchChunkDetail: (...args: unknown[]) => api.fetchChunkDetail(...args),
-  fetchCollectionUmap: (...args: unknown[]) => api.fetchCollectionUmap(...args),
-}));
+const umapProjectionHeading = "UMAP Projection";
+const recomputeUmapLabel = "Recompute UMAP";
+const unableToLoadUmapMessage = "Unable to load UMAP.";
 
 vi.mock("@/components/collections/detail/visualize/UmapCanvas", () => ({
   UmapCanvas: () => null,
@@ -50,48 +45,15 @@ vi.mock("next/dynamic", () => ({
 }));
 
 describe("CollectionVisualization", () => {
-  const visualization: UmapVisualization = {
-    projection: {
-      id: "proj-1",
-      embedding_model: "model",
-      point_count: 1,
-      created_at: baseTimestamp,
-    },
-    points: [{ id: "point-1", chunk_id: "chunk-1", chunk_index: 0, x: 0.1, y: 0.2 }],
-  };
-  const chunkDetail: ChunkDetail = {
-    document: {
-      id: "doc-1",
-      collection_id: "col-1",
-      name: "Doc",
-      content_type: "text/plain",
-      status: "ready",
-      num_chunks: 1,
-      num_tokens: 10,
-      chunk_size: 256,
-      chunk_overlap: 0,
-      chunk_strategy: "token",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-    },
-    chunk: {
-      id: "chunk-1",
-      document_id: "doc-1",
-      chunk_index: 0,
-      text: "Chunk text",
-      metadata: {},
-      chunk_size: 256,
-      chunk_strategy: "token",
-      created_at: baseTimestamp,
-    },
-  };
+  const visualization = makeUmapVisualization();
+  const chunkDetail = makeChunkDetail();
 
   it("shows load errors and empty state", async () => {
-    api.fetchCollectionUmap.mockRejectedValueOnce(new Error("Unable to load UMAP."));
+    api.fetchCollectionUmap.mockRejectedValueOnce(new Error(unableToLoadUmapMessage));
     render(<CollectionVisualization collectionId="col-1" token="token" />);
 
     await waitFor(() => {
-      expect(screen.getByText("Unable to load UMAP.")).toBeInTheDocument();
+      expect(screen.getByText(unableToLoadUmapMessage)).toBeInTheDocument();
     });
     expect(
       screen.getByText("Upload documents and compute a projection to explore the collection."),
@@ -103,7 +65,7 @@ describe("CollectionVisualization", () => {
     render(<CollectionVisualization collectionId="col-1" token="token" />);
 
     await waitFor(() => {
-      expect(screen.getByText("Unable to load UMAP.")).toBeInTheDocument();
+      expect(screen.getByText(unableToLoadUmapMessage)).toBeInTheDocument();
     });
   });
 
@@ -115,16 +77,16 @@ describe("CollectionVisualization", () => {
     render(<CollectionVisualization collectionId="col-1" token="token" />);
 
     await waitFor(() => {
-      expect(screen.getByText("UMAP Projection")).toBeInTheDocument();
+      expect(screen.getByText(umapProjectionHeading)).toBeInTheDocument();
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Recompute UMAP"));
+      fireEvent.click(screen.getByText(recomputeUmapLabel));
     });
 
     fireEvent.click(screen.getByText(selectPointLabel));
     await waitFor(() => {
-      expect(api.fetchChunkDetail).toHaveBeenCalledWith("chunk-1", "token");
+      expect(api.fetchChunkDetail).toHaveBeenCalledWith("token", "chunk-1");
     });
     await waitFor(() => {
       expect(screen.getByText("Expand")).toBeInTheDocument();
@@ -142,11 +104,11 @@ describe("CollectionVisualization", () => {
     render(<CollectionVisualization collectionId="col-1" token="token" />);
 
     await waitFor(() => {
-      expect(screen.getByText("UMAP Projection")).toBeInTheDocument();
+      expect(screen.getByText(umapProjectionHeading)).toBeInTheDocument();
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Recompute UMAP"));
+      fireEvent.click(screen.getByText(recomputeUmapLabel));
     });
 
     await waitFor(() => {
@@ -161,7 +123,7 @@ describe("CollectionVisualization", () => {
     render(<CollectionVisualization collectionId="col-1" token="token" />);
 
     await waitFor(() => {
-      expect(screen.getByText("UMAP Projection")).toBeInTheDocument();
+      expect(screen.getByText(umapProjectionHeading)).toBeInTheDocument();
       expect(screen.getByText(/1 points/)).toBeInTheDocument();
     });
     await waitFor(() => {
@@ -173,7 +135,7 @@ describe("CollectionVisualization", () => {
     });
 
     await waitFor(() => {
-      expect(api.fetchChunkDetail).toHaveBeenCalledWith("chunk-1", "token");
+      expect(api.fetchChunkDetail).toHaveBeenCalledWith("token", "chunk-1");
       expect(screen.getByText("Trace failed.")).toBeInTheDocument();
     });
   });
@@ -186,11 +148,11 @@ describe("CollectionVisualization", () => {
     render(<CollectionVisualization collectionId="col-1" token="token" />);
 
     await waitFor(() => {
-      expect(screen.getByText("UMAP Projection")).toBeInTheDocument();
+      expect(screen.getByText(umapProjectionHeading)).toBeInTheDocument();
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Recompute UMAP"));
+      fireEvent.click(screen.getByText(recomputeUmapLabel));
     });
 
     await waitFor(() => {

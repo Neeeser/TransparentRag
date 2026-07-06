@@ -8,8 +8,8 @@ import { ChatTimeline } from "@/components/chat-studio/ChatTimeline";
 import type { ComponentProps, RefObject, UIEventHandler } from "react";
 
 type ChatStudioMessagesProps = {
-  messagesContainerRef: RefObject<HTMLDivElement>;
-  endRef: RefObject<HTMLDivElement>;
+  messagesContainerRef: RefObject<HTMLDivElement | null>;
+  endRef: RefObject<HTMLDivElement | null>;
   onScroll: UIEventHandler<HTMLDivElement>;
   showFollowButton: boolean;
   onFollow: () => void;

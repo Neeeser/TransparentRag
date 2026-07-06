@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Field, TextInput } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/panel";
 import { registerUser } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
 
 export default function SignInPage() {
@@ -32,7 +34,7 @@ export default function SignInPage() {
         setMode("login");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Something went wrong.");
+      setMessage(getErrorMessage(error, "Something went wrong."));
     } finally {
       setSubmitting(false);
     }
@@ -81,38 +83,35 @@ export default function SignInPage() {
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <label className="text-sm text-slate-300">Email</label>
-              <input
+            <Field label="Email">
+              <TextInput
                 type="email"
                 required
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-violet-400"
+                className="text-base"
                 value={form.email}
                 onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
               />
-            </div>
+            </Field>
             {mode === "register" && (
-              <div className="space-y-2">
-                <label className="text-sm text-slate-300">Full name</label>
-                <input
+              <Field label="Full name">
+                <TextInput
                   type="text"
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-violet-400"
+                  className="text-base"
                   value={form.full_name}
                   onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))}
                 />
-              </div>
+              </Field>
             )}
-            <div className="space-y-2">
-              <label className="text-sm text-slate-300">Password</label>
-              <input
+            <Field label="Password">
+              <TextInput
                 type="password"
                 required
+                className="text-base"
                 minLength={8}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-violet-400"
                 value={form.password}
                 onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
               />
-            </div>
+            </Field>
 
             {message && (
               <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">

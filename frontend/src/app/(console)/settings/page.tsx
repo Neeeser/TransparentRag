@@ -1,13 +1,13 @@
 "use client";
 
-import { Cloud, KeyRound, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { Button } from "@/components/ui/button";
+import { ApiKeysForm } from "@/components/settings/ApiKeysForm";
+import { ApiKeyStatusPanel } from "@/components/settings/ApiKeyStatusPanel";
 import { Notification } from "@/components/ui/notification";
 import { GlassCard } from "@/components/ui/panel";
 import { updateUserSettings, validateUserKeys } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
 
 import type { UserKeyValidation } from "@/lib/types";
@@ -34,7 +34,7 @@ export default function SettingsPage() {
       const result = await validateUserKeys(token);
       setValidation(result);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to validate API keys.");
+      setMessage(getErrorMessage(err, "Unable to validate API keys."));
     } finally {
       setChecking(false);
     }
@@ -86,7 +86,7 @@ export default function SettingsPage() {
       await loadValidation();
       setMessage("Settings saved.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to update settings.");
+      setMessage(getErrorMessage(err, "Unable to update settings."));
     } finally {
       setSaving(false);
     }
@@ -177,119 +177,37 @@ export default function SettingsPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <GlassCard className="rounded-3xl p-6">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <div className="flex items-center gap-2 text-sm text-white">
-                <KeyRound className="h-4 w-4 text-violet-300" />
-                OpenRouter API key
-                <div className="ml-auto flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
-                      openrouterBadge.className,
-                    )}
-                  >
-                    {openrouterBadge.label}
-                  </span>
-                  {openrouterConfigured && (
-                    <button
-                      type="button"
-                      className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
-                      onClick={() => setPendingClear((prev) => ({ ...prev, openrouter: true }))}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </div>
-              <input
-                type="password"
-                autoComplete="off"
-                placeholder={openrouterPlaceholder}
-                className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
-                value={form.openrouter_api_key}
-                onChange={(event) => {
-                  setPendingClear((prev) => ({ ...prev, openrouter: false }));
-                  setForm((prev) => ({ ...prev, openrouter_api_key: event.target.value }));
-                }}
-              />
-              <p className="mt-2 text-xs text-slate-400">
-                Used for embeddings, chat, and provider metadata.
-              </p>
-              {pendingClear.openrouter && (
-                <p className="mt-2 text-xs text-amber-300">Will remove on save.</p>
-              )}
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 text-sm text-white">
-                <Cloud className="h-4 w-4 text-cyan-300" />
-                Pinecone API key
-                <div className="ml-auto flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
-                      pineconeBadge.className,
-                    )}
-                  >
-                    {pineconeBadge.label}
-                  </span>
-                  {pineconeConfigured && (
-                    <button
-                      type="button"
-                      className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
-                      onClick={() => setPendingClear((prev) => ({ ...prev, pinecone: true }))}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </div>
-              <input
-                type="password"
-                autoComplete="off"
-                placeholder={pineconePlaceholder}
-                className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
-                value={form.pinecone_api_key}
-                onChange={(event) => {
-                  setPendingClear((prev) => ({ ...prev, pinecone: false }));
-                  setForm((prev) => ({ ...prev, pinecone_api_key: event.target.value }));
-                }}
-              />
-              <p className="mt-2 text-xs text-slate-400">
-                Powers vector indexing, retrieval, and namespace cleanup.
-              </p>
-              {pendingClear.pinecone && (
-                <p className="mt-2 text-xs text-amber-300">Will remove on save.</p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button type="submit" loading={saving}>
-                Save settings
-              </Button>
-              <p className="text-xs text-slate-400">
-                Leave fields blank to keep existing keys. Use Remove to clear a provider.
-              </p>
-            </div>
-          </form>
+          <ApiKeysForm
+            openrouterValue={form.openrouter_api_key}
+            pineconeValue={form.pinecone_api_key}
+            onChangeOpenrouter={(value) => {
+              setPendingClear((prev) => ({ ...prev, openrouter: false }));
+              setForm((prev) => ({ ...prev, openrouter_api_key: value }));
+            }}
+            onChangePinecone={(value) => {
+              setPendingClear((prev) => ({ ...prev, pinecone: false }));
+              setForm((prev) => ({ ...prev, pinecone_api_key: value }));
+            }}
+            openrouterBadge={openrouterBadge}
+            pineconeBadge={pineconeBadge}
+            openrouterConfigured={openrouterConfigured}
+            pineconeConfigured={pineconeConfigured}
+            openrouterPlaceholder={openrouterPlaceholder}
+            pineconePlaceholder={pineconePlaceholder}
+            pendingClearOpenrouter={pendingClear.openrouter}
+            pendingClearPinecone={pendingClear.pinecone}
+            onRemoveOpenrouter={() => setPendingClear((prev) => ({ ...prev, openrouter: true }))}
+            onRemovePinecone={() => setPendingClear((prev) => ({ ...prev, pinecone: true }))}
+            saving={saving}
+            onSubmit={handleSubmit}
+          />
         </GlassCard>
 
         <GlassCard className="rounded-3xl p-6">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-emerald-300" />
-            <h2 className="text-xl font-semibold text-white">Status</h2>
-          </div>
-          <div className="mt-4 space-y-4 text-sm text-slate-300">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">OpenRouter</p>
-              <p className="mt-2 text-sm text-white">{openrouterStatusText}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Pinecone</p>
-              <p className="mt-2 text-sm text-white">{pineconeStatusText}</p>
-            </div>
-          </div>
+          <ApiKeyStatusPanel
+            openrouterStatusText={openrouterStatusText}
+            pineconeStatusText={pineconeStatusText}
+          />
         </GlassCard>
       </div>
     </div>

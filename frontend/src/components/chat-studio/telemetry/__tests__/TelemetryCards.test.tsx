@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { markdownComponents } from "@/components/chat-studio/chat-utils";
+import { markdownComponents } from "@/components/chat-studio/lib/chat-utils";
 import { CollectionToolsCard } from "@/components/chat-studio/telemetry/CollectionToolsCard";
 import { CollectionVitalsCard } from "@/components/chat-studio/telemetry/CollectionVitalsCard";
 import { StreamingSettingsCard } from "@/components/chat-studio/telemetry/StreamingSettingsCard";

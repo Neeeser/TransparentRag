@@ -177,3 +177,51 @@ Object.defineProperty(URL, "revokeObjectURL", {
   writable: true,
   value: vi.fn(),
 });
+
+// Node >=22.4 ships a built-in `localStorage`/`sessionStorage` whose methods
+// throw without `--localstorage-file`, and it shadows jsdom's implementation
+// in the test environment. Replace both with a simple in-memory Storage.
+class MemoryStorage implements Storage {
+  private store = new Map<string, string>();
+
+  get length() {
+    return this.store.size;
+  }
+
+  clear() {
+    this.store.clear();
+  }
+
+  getItem(key: string) {
+    return this.store.has(key) ? this.store.get(key)! : null;
+  }
+
+  key(index: number) {
+    return Array.from(this.store.keys())[index] ?? null;
+  }
+
+  removeItem(key: string) {
+    this.store.delete(key);
+  }
+
+  setItem(key: string, value: string) {
+    this.store.set(key, String(value));
+  }
+}
+
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  writable: true,
+  value: new MemoryStorage(),
+});
+
+Object.defineProperty(globalThis, "sessionStorage", {
+  configurable: true,
+  writable: true,
+  value: new MemoryStorage(),
+});
+
+beforeEach(() => {
+  globalThis.localStorage.clear();
+  globalThis.sessionStorage.clear();
+});

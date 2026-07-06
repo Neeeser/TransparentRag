@@ -13,7 +13,7 @@ type ChatStudioViewProps = {
   status: string | null;
   onStatusDismiss: () => void;
   loading: boolean;
-  chatPanelRef: RefObject<HTMLDivElement>;
+  chatPanelRef: RefObject<HTMLDivElement | null>;
   isOverlayMode: boolean;
   historyOpen: boolean;
   telemetryOpen: boolean;

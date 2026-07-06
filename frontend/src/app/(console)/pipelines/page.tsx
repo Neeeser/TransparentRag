@@ -7,7 +7,7 @@ import {
   PIPELINE_KIND_STORAGE_KEY,
   PIPELINE_KINDS,
   isPipelineKind,
-} from "@/components/pipelines/pipeline-kinds";
+} from "@/components/pipelines/lib/pipeline-kinds";
 
 export default function PipelinesPage() {
   const router = useRouter();

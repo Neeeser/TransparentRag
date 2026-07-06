@@ -1,11 +1,12 @@
 "use client";
 
 import { X } from "lucide-react";
-import { type RefObject } from "react";
+import { type RefObject, useId } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
+import { ModalOverlay } from "@/components/ui/modal-overlay";
 import { cn } from "@/lib/utils";
 
 import type { PromptDetails } from "@/lib/types";
@@ -51,6 +52,8 @@ export const PromptEditorOverlay = ({
   inputRef,
   markdownComponents,
 }: PromptEditorOverlayProps) => {
+  const titleId = useId();
+
   if (!isOpen || sections.length === 0) {
     return null;
   }
@@ -62,13 +65,14 @@ export const PromptEditorOverlay = ({
   const headerLabel = activeSection.scope === "base" ? "Base prompt" : "Tool prompt";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex h-[85vh] w-full max-w-6xl flex-col rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
+    <ModalOverlay open onClose={onClose} labelledBy={titleId} backdropClassName="bg-black/80">
+      <div className="flex h-[85vh] w-full max-w-6xl flex-col rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.35em] text-slate-500">System prompt</p>
-            <h2 className="text-2xl font-semibold text-white">Edit prompt sections</h2>
+            <h2 id={titleId} className="text-2xl font-semibold text-white">
+              Edit prompt sections
+            </h2>
             <p className="text-sm text-slate-400">
               Tune the base instructions and tool snippets. The preview shows the full prompt that
               the model will see.
@@ -79,6 +83,7 @@ export const PromptEditorOverlay = ({
             size="sm"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 p-0 text-slate-300"
             onClick={onClose}
+            aria-label="Close prompt editor"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -219,6 +224,6 @@ export const PromptEditorOverlay = ({
           </div>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 };

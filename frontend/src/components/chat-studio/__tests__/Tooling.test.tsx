@@ -1,34 +1,30 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToolCallBubble } from "@/components/chat-studio/Tooling";
 import {
   JsonBlock,
   ToolValue,
-  ToolCallBubble,
   ToolChunkList,
   ToolKeyValueGrid,
   ToolPayloadSection,
   formatToolLabel,
-} from "@/components/chat-studio/Tooling";
+} from "@/components/chat-studio/ToolPayloadPrimitives";
+import * as apiModule from "@/lib/api";
+import { makeTraceResponse } from "@/test/fixtures";
+import { resetMockAuth, setMockAuth } from "@/test/mocks";
 
 import type { PipelineTraceResponse } from "@/lib/types";
 
-const api = {
-  fetchQueryEventTrace: vi.fn(),
-  fetchPipelineRunTrace: vi.fn(),
-};
-
-let mockToken: string | null = "token";
 const baseTimestamp = "2024-01-01T00:00:00.000Z";
 
-vi.mock("@/providers/auth-provider", () => ({
-  useAuth: () => ({ token: mockToken }),
-}));
+vi.mock("@/providers/auth-provider", async () =>
+  (await import("@/test/mocks")).mockAuth({ token: "token" }),
+);
 
-vi.mock("@/lib/api", () => ({
-  fetchQueryEventTrace: (...args: unknown[]) => api.fetchQueryEventTrace(...args),
-  fetchPipelineRunTrace: (...args: unknown[]) => api.fetchPipelineRunTrace(...args),
-}));
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
+
+const api = vi.mocked(apiModule);
 
 vi.mock("@/components/traces/PipelineTraceViewer", () => ({
   PipelineTraceViewer: ({
@@ -52,9 +48,7 @@ vi.mock("@/components/traces/PipelineTraceViewer", () => ({
 
 describe("Tooling", () => {
   beforeEach(() => {
-    api.fetchQueryEventTrace.mockReset();
-    api.fetchPipelineRunTrace.mockReset();
-    mockToken = "token";
+    resetMockAuth();
   });
 
   it("formats tool labels", () => {
@@ -168,19 +162,21 @@ describe("Tooling", () => {
   });
 
   it("renders tool call bubble and loads traces", async () => {
-    const trace: PipelineTraceResponse = {
+    const trace = makeTraceResponse({
       run: {
         id: "trace-1",
+        kind: "ingestion",
+        user_id: "user-1",
+        collection_id: "col-1",
         status: "completed",
+        started_at: baseTimestamp,
         created_at: baseTimestamp,
         updated_at: baseTimestamp,
         pipeline_id: "pipe-1",
         pipeline_version: 1,
       },
-      definition: { nodes: [], edges: [], viewport: {} },
       node_runs: [],
-      node_io: [],
-    };
+    });
 
     api.fetchQueryEventTrace.mockResolvedValueOnce(trace);
 
@@ -204,10 +200,36 @@ describe("Tooling", () => {
     fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
     fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
     await waitFor(() => {
-      expect(api.fetchQueryEventTrace).toHaveBeenCalledWith("q1", "token");
+      expect(api.fetchQueryEventTrace).toHaveBeenCalledWith("token", "q1");
     });
     expect(screen.getByTestId("trace-viewer")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close trace" }));
+  });
+
+  it("surfaces an error when loading the trace fails", async () => {
+    api.fetchQueryEventTrace.mockRejectedValueOnce(new Error("trace fetch failed"));
+
+    render(
+      <ToolCallBubble
+        label="vector_search"
+        variantClass=""
+        args={{ query: "hello" }}
+        response={{
+          query_event_id: "q1",
+          chunks: [{ chunk_id: "c1", text: "chunk text" }],
+          query: "hello",
+        }}
+        rawPayload={{}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Summary/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("trace fetch failed")).toBeInTheDocument();
+    });
   });
 
   it("uses response metadata for tool summaries", () => {
@@ -247,19 +269,21 @@ describe("Tooling", () => {
   });
 
   it("loads pipeline run traces when available", async () => {
-    const trace: PipelineTraceResponse = {
+    const trace = makeTraceResponse({
       run: {
         id: "trace-2",
+        kind: "ingestion",
+        user_id: "user-1",
+        collection_id: "col-1",
         status: "completed",
+        started_at: baseTimestamp,
         created_at: baseTimestamp,
         updated_at: baseTimestamp,
         pipeline_id: "pipe-1",
         pipeline_version: 1,
       },
-      definition: { nodes: [], edges: [], viewport: {} },
       node_runs: [],
-      node_io: [],
-    };
+    });
     api.fetchPipelineRunTrace.mockResolvedValueOnce(trace);
 
     render(
@@ -277,12 +301,12 @@ describe("Tooling", () => {
     fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
 
     await waitFor(() => {
-      expect(api.fetchPipelineRunTrace).toHaveBeenCalledWith("run-1", "token");
+      expect(api.fetchPipelineRunTrace).toHaveBeenCalledWith("token", "run-1");
     });
   });
 
   it("handles missing tokens and response-only payloads", () => {
-    mockToken = null;
+    setMockAuth({ token: null });
 
     render(
       <ToolCallBubble
@@ -302,7 +326,7 @@ describe("Tooling", () => {
   });
 
   it("skips trace loads when unauthenticated", () => {
-    mockToken = null;
+    setMockAuth({ token: null });
     render(
       <ToolCallBubble
         label="trace"

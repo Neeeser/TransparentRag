@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { markdownComponents } from "@/components/chat-studio/chat-utils";
+import { markdownComponents } from "@/components/chat-studio/lib/chat-utils";
 import { PromptEditorOverlay } from "@/components/chat-studio/PromptEditorOverlay";
 
 import type { PromptDetails } from "@/lib/types";
@@ -10,6 +10,7 @@ import type { PromptDetails } from "@/lib/types";
 describe("PromptEditorOverlay", () => {
   const details: PromptDetails = {
     template: "Hello",
+    rendered: "Hello",
     is_custom: true,
     variables: [{ name: "collection", description: "Collection name", example: "Support" }],
     context: { collection: "Support" },
@@ -99,7 +100,7 @@ describe("PromptEditorOverlay", () => {
       />,
     );
 
-    expect(screen.getByText("Edit prompt sections")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Edit prompt sections" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Tool/ }));
     expect(onSelectSection).toHaveBeenCalledWith("tool");
 
@@ -118,6 +119,40 @@ describe("PromptEditorOverlay", () => {
     expect(onSave).toHaveBeenCalledWith("base");
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("closes on Escape", () => {
+    const onClose = vi.fn();
+    render(
+      <PromptEditorOverlay
+        isOpen
+        onClose={onClose}
+        sections={[
+          {
+            id: "base",
+            label: "Base",
+            scope: "base",
+            details,
+            draft: "Hello",
+            hasChanges: false,
+            saving: false,
+            error: null,
+          },
+        ]}
+        activeSectionId="base"
+        onSelectSection={() => undefined}
+        onDraftChange={() => undefined}
+        onSave={() => undefined}
+        onReset={() => undefined}
+        onInsertVariable={() => undefined}
+        promptPreviewMarkdown=""
+        inputRef={React.createRef()}
+        markdownComponents={markdownComponents}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -151,7 +186,7 @@ describe("PromptEditorOverlay", () => {
     );
 
     expect(screen.getByText("Save failed")).toBeInTheDocument();
-    const saveButton = screen.getByRole("button", { name: /Working/ });
+    const saveButton = screen.getByRole("button", { name: "Save prompt" });
     expect(saveButton).toBeDisabled();
   });
 
@@ -165,7 +200,7 @@ describe("PromptEditorOverlay", () => {
             id: "tool",
             label: "Tool",
             scope: "collection",
-            details: { template: "", is_custom: false, variables: [], context: {} },
+            details: { template: "", rendered: "", is_custom: false, variables: [], context: {} },
             draft: "",
             hasChanges: false,
             saving: false,

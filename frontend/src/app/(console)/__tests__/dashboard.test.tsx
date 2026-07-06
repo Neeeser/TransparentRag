@@ -2,116 +2,53 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "@/app/(console)/dashboard/page";
+import * as apiModule from "@/lib/api";
+import { makeChatSession, makeCollection, makeDocument, makePipeline } from "@/test/fixtures";
+import { resetMockAuth, setMockAuth } from "@/test/mocks";
 
-import type { ChatSession, Collection, Document, Pipeline, User } from "@/lib/types";
+import type { Collection, Document, Pipeline } from "@/lib/types";
 
-const api = {
-  fetchCollections: vi.fn(),
-  fetchDocuments: vi.fn(),
-  fetchPipelines: vi.fn(),
-  listChatSessions: vi.fn(),
-};
+vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth());
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
-const docTimestamp = "2024-01-02T00:00:00.000Z";
+const api = vi.mocked(apiModule);
 
-let mockAuth: { token: string | null; user: User | null } = {
-  token: "token",
-  user: {
-    id: "user-1",
-    email: "user@example.com",
-    is_active: true,
-    openrouter_configured: true,
-    pinecone_configured: true,
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
-  },
-};
-
-vi.mock("@/providers/auth-provider", () => ({
-  useAuth: () => mockAuth,
-}));
-
-vi.mock("@/lib/api", () => ({
-  fetchCollections: (...args: unknown[]) => api.fetchCollections(...args),
-  fetchDocuments: (...args: unknown[]) => api.fetchDocuments(...args),
-  fetchPipelines: (...args: unknown[]) => api.fetchPipelines(...args),
-  listChatSessions: (...args: unknown[]) => api.listChatSessions(...args),
-}));
+const COLLECTIONS_LIVE = "Collections live";
+const LOAD_FAILED = "Load failed";
 
 describe("DashboardPage", () => {
   const collections: Collection[] = [
-    {
-      id: "col-1",
-      user_id: "user-1",
-      name: "One",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-      retrieval_pipeline_id: "pipe-1",
-    },
-    {
-      id: "col-2",
-      user_id: "user-1",
-      name: "Two",
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-      retrieval_pipeline_id: "pipe-2",
-    },
+    makeCollection({ id: "col-1", name: "One", description: null, retrieval_pipeline_id: "pipe-1" }),
+    makeCollection({ id: "col-2", name: "Two", description: null, retrieval_pipeline_id: "pipe-2" }),
   ];
   const docs: Document[] = [
-    {
+    makeDocument({
       id: "doc-1",
-      collection_id: "col-1",
       name: "Doc",
       content_type: "text/plain",
-      status: "ready",
       num_chunks: 2,
       num_tokens: 50,
       chunk_size: 250,
       chunk_overlap: 0,
-      chunk_strategy: "token",
-      created_at: docTimestamp,
-      updated_at: docTimestamp,
-    },
+      ingestion_run_id: null,
+    }),
   ];
   const pipelines: Pipeline[] = [
-    {
+    makePipeline({
       id: "pipe-1",
-      user_id: "user-1",
-      name: "Retrieval",
-      kind: "retrieval",
-      current_version: 1,
       is_default: true,
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
       definition: {
         nodes: [
           { id: "node-1", type: "chat.settings", name: "Settings", config: { context_window: 64 } },
         ],
         edges: [],
       },
-    },
+    }),
   ];
-  const sessions: ChatSession[] = [
-    {
-      id: "session-1",
-      user_id: "user-1",
-      title: "Session",
-      mode: "chat",
-      chat_model: "model",
-      context_tokens: 32,
-      tool_collection_ids: [],
-      created_at: baseTimestamp,
-      updated_at: baseTimestamp,
-    },
-  ];
+  const sessions = [makeChatSession({ id: "session-1", title: "Session", tool_collection_ids: [] })];
 
   beforeEach(() => {
-    mockAuth = { ...mockAuth, token: "token" };
-    api.fetchCollections.mockReset();
-    api.fetchDocuments.mockReset();
-    api.fetchPipelines.mockReset();
-    api.listChatSessions.mockReset();
+    resetMockAuth();
     api.fetchCollections.mockResolvedValue(collections);
     api.fetchPipelines.mockResolvedValue(pipelines);
     api.fetchDocuments.mockResolvedValue(docs);
@@ -126,10 +63,12 @@ describe("DashboardPage", () => {
     return { promise, resolve };
   };
 
-  it("shows loader when token is missing", () => {
-    mockAuth = { ...mockAuth, token: null };
+  it("renders the loading state, not dashboard content, when the token is missing", () => {
+    setMockAuth({ token: null, user: null });
     const { container } = render(<DashboardPage />);
-    expect(container.querySelector("span.animate-spin")).toBeInTheDocument();
+    // The Loader spinner exposes no role/text; span presence is the only handle.
+    expect(container.querySelector("span")).toBeInTheDocument();
+    expect(screen.queryByText(COLLECTIONS_LIVE)).not.toBeInTheDocument();
   });
 
   it("loads dashboard metrics and handles document errors", async () => {
@@ -137,7 +76,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Collections live")).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
     });
     expect(screen.getByText(/Hello .*telemetry/)).toBeInTheDocument();
   });
@@ -167,11 +106,11 @@ describe("DashboardPage", () => {
   });
 
   it("shows error state on load failure", async () => {
-    api.fetchCollections.mockRejectedValueOnce(new Error("Load failed"));
+    api.fetchCollections.mockRejectedValueOnce(new Error(LOAD_FAILED));
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Load failed")).toBeInTheDocument();
+      expect(screen.getByText(LOAD_FAILED)).toBeInTheDocument();
     });
   });
 
@@ -186,10 +125,9 @@ describe("DashboardPage", () => {
 
   it("handles missing chat settings in pipelines", async () => {
     const pipelineWithoutSettings = [
-      {
-        ...pipelines[0],
-        definition: { nodes: [{ id: "node-1", type: "other", config: {} }], edges: [] },
-      },
+      makePipeline({
+        definition: { nodes: [{ id: "node-1", type: "other", name: "Other", config: {} }], edges: [] },
+      }),
     ];
     api.fetchPipelines
       .mockResolvedValueOnce(pipelineWithoutSettings)
@@ -197,22 +135,19 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Collections live")).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
     });
     expect(screen.getByText("0% context utilization")).toBeInTheDocument();
   });
 
   it("falls back when retrieval pipeline names are missing", async () => {
     api.fetchCollections.mockResolvedValueOnce([
-      {
-        ...collections[0],
-        retrieval_pipeline_id: null,
-      },
+      makeCollection({ id: "col-1", name: "One", retrieval_pipeline_id: null }),
     ]);
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Collections live")).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
     });
     expect(screen.getAllByText("Retrieval pipeline").length).toBeGreaterThan(0);
   });

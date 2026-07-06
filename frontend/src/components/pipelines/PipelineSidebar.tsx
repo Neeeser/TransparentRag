@@ -5,7 +5,7 @@ import { GlassCard } from "@/components/ui/panel";
 import { PipelineCatalog } from "./PipelineCatalog";
 import { PipelineNodeLibrary } from "./PipelineNodeLibrary";
 
-import type { NodeFamily } from "./pipeline-theme";
+import type { NodeFamily } from "./lib/pipeline-theme";
 import type { NodeSpec, Pipeline } from "@/lib/types";
 
 type PipelineSidebarProps = {

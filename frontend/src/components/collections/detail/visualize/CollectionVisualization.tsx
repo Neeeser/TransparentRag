@@ -3,12 +3,13 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ChunkPreviewOverlay } from "@/components/chunks/ChunkPreviewOverlay";
 import { ChunkDetailPanel } from "@/components/collections/detail/visualize/ChunkDetailPanel";
+import { ChunkPreviewOverlay } from "@/components/collections/detail/visualize/ChunkPreviewOverlay";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";
 import { computeCollectionUmap, fetchChunkDetail, fetchCollectionUmap } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/utils";
 
 import type { ChunkDetail, UmapPoint, UmapVisualization } from "@/lib/types";
@@ -58,10 +59,10 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
     setLoading(true);
     setMessage(null);
     try {
-      const data = await fetchCollectionUmap(collectionId, token);
+      const data = await fetchCollectionUmap(token, collectionId);
       setVisualization(data);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Unable to load UMAP.";
+      const detail = getErrorMessage(error, "Unable to load UMAP.");
       setVisualization(null);
       setMessage(detail);
     } finally {
@@ -84,10 +85,10 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
     setComputing(true);
     setMessage(null);
     try {
-      const data = await computeCollectionUmap(collectionId, token);
+      const data = await computeCollectionUmap(token, collectionId);
       setVisualization(data);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Unable to compute UMAP.";
+      const detail = getErrorMessage(error, "Unable to compute UMAP.");
       setMessage(detail);
     } finally {
       setComputing(false);
@@ -101,10 +102,10 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
       setChunkDetail(null);
       setChunkError(null);
       try {
-        const detail = await fetchChunkDetail(point.chunk_id, token);
+        const detail = await fetchChunkDetail(token, point.chunk_id);
         setChunkDetail(detail);
       } catch (error) {
-        const detail = error instanceof Error ? error.message : "Unable to load chunk details.";
+        const detail = getErrorMessage(error, "Unable to load chunk details.");
         setChunkError(detail);
       } finally {
         setChunkLoading(false);
@@ -175,7 +176,6 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
         </GlassCard>
       )}
       <ChunkPreviewOverlay
-        key={`${chunkDetail?.chunk.id ?? "empty"}-${previewOpen ? "open" : "closed"}`}
         isOpen={previewOpen}
         onClose={() => setPreviewOpen(false)}
         detail={chunkDetail}

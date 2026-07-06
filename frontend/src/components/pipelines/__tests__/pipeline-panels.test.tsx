@@ -44,7 +44,7 @@ describe("pipeline panels", () => {
         validating={false}
       />,
     );
-    expect(screen.getByRole("button", { name: /Working/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save pipeline" })).toBeDisabled();
   });
 
   it("renders revisions and activation actions", () => {

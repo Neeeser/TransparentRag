@@ -28,15 +28,15 @@ type PipelineCanvasProps = {
   selectedPipeline: Pipeline | null;
   notice?: string | null;
   onNoticeDismiss?: () => void;
-  onNodesChange: OnNodesChange<PipelineNodeData>;
+  onNodesChange: OnNodesChange<Node<PipelineNodeData>>;
   onEdgesChange: OnEdgesChange<Edge>;
   onConnect: (connection: Connection) => void;
-  isValidConnection?: (connection: Connection) => boolean;
+  isValidConnection?: (connection: Edge | Connection) => boolean;
   onNodeSelect: (nodeId: string) => void;
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
   onDragOver: (event: DragEvent<HTMLDivElement>) => void;
   onDragLeave: () => void;
-  onInit: (instance: ReactFlowInstance) => void;
+  onInit: (instance: ReactFlowInstance<Node<PipelineNodeData>, Edge>) => void;
 };
 
 export function PipelineCanvas({

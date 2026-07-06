@@ -8,6 +8,10 @@ import type { PipelineNodeData } from "@/components/pipelines/PipelineNode";
 import type { EmbeddingModelInfo, PineconeIndex } from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
+const NODE_TYPE_EMBEDDER = "embedder.openrouter";
+const NODE_TYPE_INDEXER = "indexer.pinecone";
+const NODE_TYPE_PARSER = "parser.document";
+
 const parameterInputMock = vi.fn();
 let lastEmbeddingProps: Record<string, unknown> | null = null;
 
@@ -78,7 +82,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Embedder",
-        nodeType: "embedder.openrouter",
+        nodeType: NODE_TYPE_EMBEDDER,
         description: "",
         example: { input: "input", output: "output" },
         inputs: [],
@@ -113,14 +117,14 @@ describe("PipelineInspector", () => {
     expect(screen.queryByRole("button", { name: /Apply config/ })).not.toBeInTheDocument();
   });
 
-  it("provides fallback embedding handlers", () => {
+  it("defaults the embedding select handler to a no-op when the caller omits one", () => {
     const node: Node<PipelineNodeData> = {
       id: "node-embed",
       type: "pipelineNode",
       position: { x: 0, y: 0 },
       data: {
         label: "Embedder",
-        nodeType: "embedder.openrouter",
+        nodeType: NODE_TYPE_EMBEDDER,
         description: "",
         inputs: [],
         outputs: [],
@@ -146,9 +150,7 @@ describe("PipelineInspector", () => {
 
     expect(lastEmbeddingProps).not.toBeNull();
     expect(() => {
-      (lastEmbeddingProps?.onSearchChange as (value: string) => void)("query");
       (lastEmbeddingProps?.onSelectModel as (value: string) => void)("model-1");
-      (lastEmbeddingProps?.onSortChange as (value: string) => void)("price");
     }).not.toThrow();
   });
 
@@ -164,7 +166,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Indexer",
-        nodeType: "indexer.pinecone",
+        nodeType: NODE_TYPE_INDEXER,
         description: "",
         inputs: [],
         outputs: [],
@@ -230,7 +232,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Parser",
-        nodeType: "parser.document",
+        nodeType: NODE_TYPE_PARSER,
         description: "",
         inputs: [],
         outputs: [],
@@ -278,7 +280,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Indexer",
-        nodeType: "indexer.pinecone",
+        nodeType: NODE_TYPE_INDEXER,
         description: "",
         inputs: [],
         outputs: [],
@@ -314,7 +316,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Empty",
-        nodeType: "parser.document",
+        nodeType: NODE_TYPE_PARSER,
         description: "",
         inputs: [],
         outputs: [],
@@ -343,7 +345,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Indexer",
-        nodeType: "indexer.pinecone",
+        nodeType: NODE_TYPE_INDEXER,
         description: "",
         inputs: [],
         outputs: [],
@@ -378,7 +380,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Indexer",
-        nodeType: "indexer.pinecone",
+        nodeType: NODE_TYPE_INDEXER,
         description: "",
         inputs: [],
         outputs: [],
@@ -427,7 +429,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Config",
-        nodeType: "parser.document",
+        nodeType: NODE_TYPE_PARSER,
         description: "",
         inputs: [],
         outputs: [],
@@ -466,7 +468,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Embedder",
-        nodeType: "embedder.openrouter",
+        nodeType: NODE_TYPE_EMBEDDER,
         description: "",
         inputs: [],
         outputs: [],
@@ -489,9 +491,7 @@ describe("PipelineInspector", () => {
   });
 
   it("passes embedder selection state and callbacks", () => {
-    const onEmbeddingSearchChange = vi.fn();
     const onSelectEmbeddingModel = vi.fn();
-    const onEmbeddingModelSortChange = vi.fn();
     const embeddingModels: EmbeddingModelInfo[] = [{ id: "emb-1", name: "Embed" }];
     const node: Node<PipelineNodeData> = {
       id: "node-10",
@@ -499,7 +499,7 @@ describe("PipelineInspector", () => {
       position: { x: 0, y: 0 },
       data: {
         label: "Embedder",
-        nodeType: "embedder.openrouter",
+        nodeType: NODE_TYPE_EMBEDDER,
         description: "",
         inputs: [],
         outputs: [],
@@ -516,16 +516,12 @@ describe("PipelineInspector", () => {
         onLabelChange={() => undefined}
         onApplyConfig={() => undefined}
         embeddingModels={embeddingModels}
-        onEmbeddingSearchChange={onEmbeddingSearchChange}
         onSelectEmbeddingModel={onSelectEmbeddingModel}
-        embeddingModelSortOption="dimension"
-        onEmbeddingModelSortChange={onEmbeddingModelSortChange}
       />,
     );
 
     expect(lastEmbeddingProps?.selectedModelKey).toBe("emb-1");
-    expect(lastEmbeddingProps?.onSearchChange).toBe(onEmbeddingSearchChange);
+    expect(lastEmbeddingProps?.models).toBe(embeddingModels);
     expect(lastEmbeddingProps?.onSelectModel).toBe(onSelectEmbeddingModel);
-    expect(lastEmbeddingProps?.onSortChange).toBe(onEmbeddingModelSortChange);
   });
 });

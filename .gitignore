@@ -72,3 +72,7 @@ frontend/.cache/
 # External API documentation downloads
 external_api_documentation/openrouter-docs/
 external_api_documentation/pinecone-docs/
+
+# Local agent working files (keep local, never commit)
+.superpowers/
+docs/superpowers/
