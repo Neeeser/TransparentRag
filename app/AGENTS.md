@@ -58,7 +58,12 @@ app/
   clients/         typed external-API clients, one package per provider (openrouter/,
                    pinecone/)
   services/        business logic; orchestrates db + clients. `errors.py` holds
-                   the typed domain-error taxonomy every service raises
+                   the typed domain-error taxonomy every service raises.
+                   prompts/ splits by responsibility: templates.py (defaults +
+                   per-scope PromptVariable catalogs + get/set helpers),
+                   context.py (render-context construction from domain models),
+                   render.py (substitution + render_system_prompt's PromptContext
+                   model) — package __init__.py re-exports the flat surface
   db/              session, migrations
     models/        SQLModel tables, one module per domain (see below)
     repositories/  data access, one module per domain (see below)
@@ -296,6 +301,19 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
   code assumes valid data and stays on the happy path. Re-validating mid-stack is noise;
   *failing* to validate at the edge means garbage propagates until it crashes far from
   its source.
+- **A defensive raw-dict fallback living beside a Pydantic schema means the schema is
+  wrong or the fallback is dead — fix the schema, delete the fallback, and let
+  `ValidationError` surface.** `OpenRouterEmbedder._extract_vectors` used to carry an
+  `isinstance`/raw-dict fallback for envelope shapes `OpenRouterEmbeddingsResponse`
+  already validates; the client's `model_validate` call is the single place that shape
+  is enforced, so a second check downstream was either unreachable or, worse, silently
+  papering over a schema that didn't match reality. The one thing that's *not* covered
+  by this rule: a field genuinely typed `Any` because the schema can't pin its shape
+  down (e.g. `OpenRouterEmbeddingItem.embedding`) still needs a real check at first use —
+  that's not defending against the schema, it's doing the validation the schema
+  couldn't. **Protocol stub bodies are `...`, never `return None`** — a stub that returns
+  a real value looks like a default implementation instead of an unreachable structural
+  marker, and invites subclasses to rely on it.
 - **Data-oriented design: model the data first.** Most backend bugs here are shape bugs.
   Prefer explicit Pydantic models over dicts-of-dicts; prefer `Enum`/`Literal` over
   stringly-typed modes; make illegal states unrepresentable rather than checked. Any

@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.clients.pinecone import client as pinecone_client_module
 from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig
@@ -249,3 +250,63 @@ def test_init_with_api_key_instantiates_pinecone_client(
     pinecone_cls.assert_called_once_with(api_key="explicit-key")
     pinecone_instance.Index.assert_called_once_with(config.name)
     assert retriever._index is fake_index
+
+
+def test_retrieve_handles_none_metadata(
+    config: PineconeIndexConfig, query_vector: list[float]
+) -> None:
+    """`metadata=None` (Pinecone omits the field entirely) is not an error --
+    `PineconeMatch.from_sdk` normalizes it to an empty mapping."""
+    match = FakeMatch(match_id="chunk-none", score=0.2, metadata=None)
+    fake_index = FakeIndex([match])
+    client = FakePineconeClient(fake_index)
+    retriever = PineconeRetriever(index_config=config, client=client)
+    request = QueryRequest(text="No metadata at all", top_k=1)
+
+    response = retriever.retrieve(request, embedding=query_vector)
+
+    chunk = response.matches[0].chunk
+    assert chunk.document_id == "chunk-none"
+    assert chunk.text == ""
+    assert chunk.order == 0
+    assert chunk.metadata.data == {}
+
+
+def test_retrieve_raises_on_non_numeric_score(
+    config: PineconeIndexConfig, query_vector: list[float]
+) -> None:
+    """A score that can't be coerced to `float` is a schema violation at the
+    Pinecone client boundary -- it must surface as a `ValidationError`, not be
+    silently defaulted or swallowed."""
+    match = FakeMatch(
+        match_id="chunk-bad-score",
+        score="not-a-number",  # type: ignore[arg-type]
+        metadata={config.text_key: "bad score"},
+    )
+    fake_index = FakeIndex([match])
+    client = FakePineconeClient(fake_index)
+    retriever = PineconeRetriever(index_config=config, client=client)
+    request = QueryRequest(text="bad score", top_k=1)
+
+    with pytest.raises(ValidationError):
+        retriever.retrieve(request, embedding=query_vector)
+
+
+def test_retrieve_propagates_query_errors(
+    config: PineconeIndexConfig, query_vector: list[float]
+) -> None:
+    """The retriever does not swallow or wrap a Pinecone SDK failure -- it
+    propagates raw, matching the run-failed semantics `RetrievalService`
+    (via `PipelineTraceRecorder.mark_run_failed`) applies at the service
+    layer for any exception the pipeline raises."""
+
+    class _FailingIndex:
+        def query(self, **_kwargs: Any) -> None:
+            raise RuntimeError("pinecone unavailable")
+
+    client = FakePineconeClient(_FailingIndex())  # type: ignore[arg-type]
+    retriever = PineconeRetriever(index_config=config, client=client)
+    request = QueryRequest(text="boom", top_k=1)
+
+    with pytest.raises(RuntimeError, match="pinecone unavailable"):
+        retriever.retrieve(request, embedding=query_vector)

@@ -13,11 +13,12 @@ from app.clients.pinecone import get_pinecone_client
 from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import QueryRepository
-from app.pipelines.execution.runner import PipelineRunner
+from app.pipelines.execution.runner import PipelineRunHandle, PipelineRunner
 from app.pipelines.payloads import RetrievalPayload
+from app.pipelines.tracing.summaries import TokenUsage
 from app.schemas.retrieval import CollectionQueryResponse, RetrievedChunk
 from app.services.errors import InvalidInputError
-from app.services.pipeline_resolution import resolve_retrieval_pipeline
+from app.services.pipeline_resolution import ResolvedRetrievalPipeline, resolve_retrieval_pipeline
 from app.utils.file_storage import FileStorage
 
 
@@ -29,7 +30,7 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
         self.settings = get_settings()
         self.session = session
 
-    def query_collection(  # pylint: disable=too-many-locals
+    def query_collection(
         self,
         user: models.User,
         collection: models.Collection,
@@ -38,12 +39,59 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
     ) -> CollectionQueryResponse:
         """Run a query against a collection and return scored chunks."""
         start_time = perf_counter()
-        resolved = resolve_retrieval_pipeline(self.session, user, collection)
+        resolved = self._resolve_pipeline(user, collection)
+        runner = PipelineRunner(self.session)
+        handle = self._start_run(runner, resolved, user, collection, query, top_k)
+        try:
+            result = runner.execute(resolved.definition, handle)
+            payload = self._extract_retrieval_payload(result.terminal_outputs)
+            chunks = self._map_chunks(payload)
+            latency_ms = (perf_counter() - start_time) * 1000
+            event = self._record_query_event(
+                user=user,
+                collection=collection,
+                query=query,
+                top_k=top_k,
+                resolved=resolved,
+                payload=payload,
+                handle=handle,
+                latency_ms=latency_ms,
+            )
+            return CollectionQueryResponse(
+                query=query,
+                top_k=top_k,
+                chunks=chunks,
+                usage=payload.usage.model_dump(),
+                query_event_id=event.id,
+                pipeline_run_id=handle.run.id,
+            )
+        except Exception as exc:
+            handle.trace.mark_run_failed(exc)
+            raise
+
+    def _resolve_pipeline(
+        self,
+        user: models.User,
+        collection: models.Collection,
+    ) -> ResolvedRetrievalPipeline:
+        """Resolve the collection's retrieval pipeline, definition, and settings."""
+        return resolve_retrieval_pipeline(self.session, user, collection)
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    def _start_run(
+        self,
+        runner: PipelineRunner,
+        resolved: ResolvedRetrievalPipeline,
+        user: models.User,
+        collection: models.Collection,
+        query: str,
+        top_k: int,
+    ) -> PipelineRunHandle:
+        """Resolve provider clients and start the retrieval pipeline run."""
         openrouter = get_openrouter_client(user.openrouter_api_key or "")
         pinecone = get_pinecone_client(api_key=user.pinecone_api_key or "")
-        runner = PipelineRunner(self.session)
         version = resolved.service.get_current_version(resolved.pipeline)
-        handle = runner.start(
+        return runner.start(
             pipeline=resolved.pipeline,
             version=version,
             definition=resolved.definition,
@@ -57,59 +105,61 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
             query=query,
             top_k=top_k,
         )
-        try:
-            result = runner.execute(resolved.definition, handle)
-            payload = self._extract_retrieval_payload(result.terminal_outputs)
-            response = payload.response
-            chunks: list[RetrievedChunk] = []
-            for scored in response.matches:
-                chunks.append(
-                    RetrievedChunk(
-                        chunk_id=scored.chunk.chunk_id,
-                        document_id=scored.chunk.document_id,
-                        score=scored.score,
-                        text=scored.chunk.text,
-                        metadata=scored.chunk.metadata.data,
-                    )
-                )
-            latency_ms = (perf_counter() - start_time) * 1000
-            usage = payload.usage.model_dump()
-            event = QueryRepository(self.session).add_event(
-                models.QueryEvent(
-                    user_id=user.id,
-                    collection_id=collection.id,
-                    query_text=query,
-                    top_k=top_k,
-                    model=resolved.settings.embedding_model,
-                    context_tokens=self._usage_tokens(usage),
-                    latency_ms=latency_ms,
-                    response_payload={
-                        "match_count": len(response.matches),
-                        "max_score": max(
-                            (match.score for match in response.matches),
-                            default=0.0,
-                        ),
-                        "min_score": min(
-                            (match.score for match in response.matches),
-                            default=0.0,
-                        ),
-                        "pipeline_id": str(resolved.pipeline.id),
-                        "usage": usage,
-                    },
-                    pipeline_run_id=handle.run.id,
-                )
+
+    @staticmethod
+    def _map_chunks(payload: RetrievalPayload) -> list[RetrievedChunk]:
+        """Map scored retrieval matches onto the wire chunk shape."""
+        return [
+            RetrievedChunk(
+                chunk_id=scored.chunk.chunk_id,
+                document_id=scored.chunk.document_id,
+                score=scored.score,
+                text=scored.chunk.text,
+                metadata=scored.chunk.metadata.data,
             )
-            return CollectionQueryResponse(
-                query=query,
+            for scored in payload.response.matches
+        ]
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    def _record_query_event(
+        self,
+        *,
+        user: models.User,
+        collection: models.Collection,
+        query: str,
+        top_k: int,
+        resolved: ResolvedRetrievalPipeline,
+        payload: RetrievalPayload,
+        handle: PipelineRunHandle,
+        latency_ms: float,
+    ) -> models.QueryEvent:
+        """Persist a `QueryEvent` recording this query's outcome and usage."""
+        matches = payload.response.matches
+        usage = payload.usage.model_dump()
+        return QueryRepository(self.session).add_event(
+            models.QueryEvent(
+                user_id=user.id,
+                collection_id=collection.id,
+                query_text=query,
                 top_k=top_k,
-                chunks=chunks,
-                usage=usage,
-                query_event_id=event.id,
+                model=resolved.settings.embedding_model,
+                context_tokens=self._context_tokens(payload.usage),
+                latency_ms=latency_ms,
+                response_payload={
+                    "match_count": len(matches),
+                    "max_score": max((match.score for match in matches), default=0.0),
+                    "min_score": min((match.score for match in matches), default=0.0),
+                    "pipeline_id": str(resolved.pipeline.id),
+                    "usage": usage,
+                },
                 pipeline_run_id=handle.run.id,
             )
-        except Exception as exc:
-            handle.trace.mark_run_failed(exc)
-            raise
+        )
+
+    @staticmethod
+    def _context_tokens(usage: TokenUsage) -> int:
+        """Return the token count to record for a query, preferring the total."""
+        return usage.total_tokens or usage.prompt_tokens or 0
 
     @staticmethod
     def _extract_retrieval_payload(
@@ -120,13 +170,3 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
             if "result" in outputs:
                 return RetrievalPayload.model_validate(outputs["result"])
         raise InvalidInputError("Pipeline did not return a retrieval result payload.")
-
-    @staticmethod
-    def _usage_tokens(usage: dict[str, int]) -> int:
-        """Normalize usage payloads into a single token count."""
-        for key in ("total_tokens", "prompt_tokens", "input_tokens"):
-            value = usage.get(key)
-            if isinstance(value, (int, float)):
-                return int(value)
-        total = sum(value for value in usage.values() if isinstance(value, (int, float)))
-        return int(total)

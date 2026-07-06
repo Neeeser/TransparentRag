@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -17,18 +17,26 @@ class VectorIndexConfig(BaseModel):
     namespace: str | None = None
 
 
-class Indexer(Protocol):
-    """Protocol describing write access to a vector index."""
+ConfigT = TypeVar("ConfigT", bound=VectorIndexConfig, contravariant=True)
 
-    def ensure_index(self, config: VectorIndexConfig) -> None:
+
+class Indexer(Protocol[ConfigT]):
+    """Protocol describing write access to a vector index.
+
+    Generic over the config type so a concrete indexer can declare its own
+    `VectorIndexConfig` subtype (e.g. `PineconeIndexConfig`) as the parameter
+    type -- narrowing without a `# type: ignore[override]` at the implementation.
+    """
+
+    def ensure_index(self, config: ConfigT) -> None:
         """Create or verify the index exists in the backend."""
-        return None
+        ...
 
     def upsert(
         self,
-        config: VectorIndexConfig,
+        config: ConfigT,
         chunks: Sequence[DocumentChunk],
         namespace: str | None = None,
     ) -> None:
         """Upsert document chunks into the backend index."""
-        return None
+        ...

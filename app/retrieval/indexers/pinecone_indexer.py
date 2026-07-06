@@ -25,7 +25,7 @@ class PineconeIndexConfig(VectorIndexConfig):
     serverless_spec: dict[str, Any] | None = None
 
 
-class PineconeIndexer(Indexer):
+class PineconeIndexer(Indexer[PineconeIndexConfig]):
     """Indexer implementation backed by Pinecone."""
 
     def __init__(
@@ -41,14 +41,8 @@ class PineconeIndexer(Indexer):
         self._client = client if client is not None else get_pinecone_client(api_key or "")
         self._indexes: dict[str, Any] = {}
 
-    def ensure_index(self, config: PineconeIndexConfig) -> None:  # type: ignore[override]
-        """Create the Pinecone index if it does not already exist.
-
-        Note: `Indexer.ensure_index` is typed against the base `VectorIndexConfig`;
-        every concrete indexer today narrows to its own config subtype. Making
-        `Indexer` generic over the config type would fix this properly -- left
-        as-is since PineconeIndexer is currently the only implementation.
-        """
+    def ensure_index(self, config: PineconeIndexConfig) -> None:
+        """Create the Pinecone index if it does not already exist."""
         if self._client.has_index(config.name):
             return
 
@@ -65,16 +59,13 @@ class PineconeIndexer(Indexer):
             deletion_protection=config.deletion_protection,
         )
 
-    def upsert(  # type: ignore[override]
+    def upsert(
         self,
         config: PineconeIndexConfig,
         chunks: Sequence[DocumentChunk],
         namespace: str | None = None,
     ) -> None:
-        """Upsert chunk vectors into Pinecone.
-
-        Note: see `ensure_index` above -- same base-config narrowing.
-        """
+        """Upsert chunk vectors into Pinecone."""
         if not chunks:
             return
 

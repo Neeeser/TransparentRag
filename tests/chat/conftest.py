@@ -21,6 +21,7 @@ from sqlmodel import Session
 from app.chat import service as service_module
 from app.chat import setup as setup_module
 from app.db import models
+from app.pipelines.settings import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.schemas.models import ModelInfo
 from app.schemas.openrouter import OpenRouterChatResponse
 from app.schemas.retrieval import CollectionQueryResponse
@@ -148,8 +149,8 @@ def stub_pipeline_settings_fixture(monkeypatch):
     """
 
     def _stub(*, chat_model: str | None, context_window: int = 1024) -> None:
-        ingestion_settings = SimpleNamespace(
-            chunk_strategy="token",
+        ingestion_settings = IngestionPipelineSettings(
+            chunk_strategy=models.ChunkStrategy.TOKEN,
             chunk_size=128,
             chunk_overlap=8,
             embedding_model="embed",
@@ -158,12 +159,11 @@ def stub_pipeline_settings_fixture(monkeypatch):
             dimension=128,
             metric="cosine",
         )
-        retrieval_settings = SimpleNamespace(
+        retrieval_settings = RetrievalPipelineSettings(
             embedding_model="embed",
             index_name="idx",
             namespace="ns",
             dimension=128,
-            metric="cosine",
             chat_model=chat_model,
             context_window=context_window,
         )

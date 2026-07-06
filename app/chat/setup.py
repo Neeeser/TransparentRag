@@ -52,6 +52,7 @@ from app.services.pipeline_resolution import (
     resolve_retrieval_pipeline,
 )
 from app.services.prompts import (
+    PromptContext,
     collection_tool_name,
     get_system_prompt_template,
     render_system_prompt,
@@ -228,7 +229,7 @@ class ChatSetupBuilder:
     ) -> list[ProviderMessage]:
         """Build the typed message history, prefixed with the system prompt."""
         history = self.chat_repo.list_messages(session_model.id)
-        tool_contexts: list[dict[str, object]] = []
+        tool_contexts: list[PromptContext] = []
         for tool_context in tool_collections:
             template = get_system_prompt_template(tool_context.collection)
             context = system_prompt_context(
@@ -238,7 +239,7 @@ class ChatSetupBuilder:
                 retrieval_settings=tool_context.retrieval_settings,
                 tool_name=tool_context.tool_name,
             )
-            tool_contexts.append({"template": template, "context": context})
+            tool_contexts.append(PromptContext(template=template, context=context))
         system_prompt = render_system_prompt(tool_contexts, user)
         messages: list[ProviderMessage] = [SystemMessage(content=system_prompt)]
         messages.extend(provider_message_from_model(msg) for msg in history)

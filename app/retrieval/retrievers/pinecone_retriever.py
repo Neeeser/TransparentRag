@@ -78,5 +78,5 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
                 order=int(order),
                 metadata=DocumentMetadata(data=metadata_dict),
             )
-            scored.append(ScoredChunk(chunk=chunk, score=float(match.score)))
+            scored.append(ScoredChunk(chunk=chunk, score=match.score))
         return scored

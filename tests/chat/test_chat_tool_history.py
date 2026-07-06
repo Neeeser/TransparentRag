@@ -7,6 +7,7 @@ from typing import Any
 from app.chat import setup as chat_setup_module
 from app.chat.service import ChatService
 from app.db import models
+from app.pipelines.settings import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.schemas.chat import ChatMessageCreate
 from app.schemas.openrouter import OpenRouterChatResponse
 from app.schemas.retrieval import CollectionQueryResponse
@@ -136,8 +137,8 @@ def _stub_pipeline_helpers(monkeypatch) -> None:
     reads only `.settings` off each result, so that's the whole surface the
     stubs need to provide.
     """
-    ingestion_settings = SimpleNamespace(
-        chunk_strategy="token",
+    ingestion_settings = IngestionPipelineSettings(
+        chunk_strategy=models.ChunkStrategy.TOKEN,
         chunk_size=256,
         chunk_overlap=64,
         embedding_model="embed-model",
@@ -146,12 +147,11 @@ def _stub_pipeline_helpers(monkeypatch) -> None:
         dimension=128,
         metric="cosine",
     )
-    retrieval_settings = SimpleNamespace(
+    retrieval_settings = RetrievalPipelineSettings(
         embedding_model="embed-model",
         index_name="idx",
         namespace="ns",
         dimension=128,
-        metric="cosine",
         chat_model="openrouter/test-model",
         context_window=8192,
     )
