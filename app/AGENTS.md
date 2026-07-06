@@ -112,6 +112,10 @@ app/
                    chunker implementations live here and nowhere else (they
                    used to also exist as `app/services/chunking.py`, which
                    was a lockstep-drift risk, not a real second concern)
+  visualization/   embedding-visualization subsystems, one package per technique:
+    umap/          UMAP projection compute (service.py, UmapService) + persistence
+                   (repository.py, UmapRepository) — a subsystem package like
+                   chat/ or pipelines/, deliberately outside services/
   core/            settings, auth primitives, cross-cutting config
   utils/           small pure helpers only
 tests/             mirrors the app/ layout (tests/api, tests/services, …)
@@ -225,7 +229,10 @@ invert it:
   sequence and its ordering constraints live in one auditable place.
 - **Services are where behavior lives.** They take typed inputs, use repositories and
   clients, return typed results, and raise domain errors. They must not import from
-  `app.api` — a service that needs `HTTPException` is a route in disguise.
+  `app.api` — a service that needs `HTTPException` is a route in disguise. Subsystem
+  packages (`chat/`, `pipelines/`, `retrieval/`, `visualization/`) sit at the same
+  layer as `services/` and follow the same rules — a domain big enough to own several
+  cohesive modules gets its own package; `services/` holds the single-module domains.
 - **Services raise typed domain errors; a bare `ValueError` is not an API contract.**
   The taxonomy lives in `app/services/errors.py`: `NotFoundError` (→404),
   `InvalidInputError` (→400), `ExternalServiceError` (→502), all subclassing
@@ -297,7 +304,7 @@ The expected shape, in order:
    `app/db/models/`, migration in `app/db/migrations.py`, repository methods in
    the matching domain module under `app/db/repositories/`.
 3. **Service** — the behavior, in `app/services/<domain>.py` (or the owning subsystem:
-   `chat/`, `pipelines/`, `retrieval/`), typed end to end.
+   `chat/`, `pipelines/`, `retrieval/`, `visualization/`), typed end to end.
 4. **Route** — endpoint in `app/api/routes/<resource>.py` with `response_model`, auth
    via the existing `Depends` helpers, and error translation.
 5. **Tests** — service-level tests for the behavior, route-level tests for the contract
