@@ -62,7 +62,7 @@ def _prepare_environment() -> None:
 
 _prepare_environment()
 
-from app.api import config as api_config  # noqa: E402
+from app.core import config as api_config  # noqa: E402
 
 api_config.get_settings.cache_clear()
 

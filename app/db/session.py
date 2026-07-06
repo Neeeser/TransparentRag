@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db.migrations import apply_missing_columns, ensure_foreign_keys, ensure_indexes
 from app.db.schema import SchemaValidationResult, build_expected_schema, inspect_database_schema
 

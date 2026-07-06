@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.config import get_settings
 from app.api.routes import (
     auth,
     chat,
@@ -23,6 +22,7 @@ from app.api.routes import (
     traces,
     visualizations,
 )
+from app.core.config import get_settings
 from app.db.session import init_db, session_scope
 from app.services.pipelines import backfill_default_pipelines
 
@@ -59,7 +59,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db.models import ChunkStrategy
 from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.nodes.trace_utils import (

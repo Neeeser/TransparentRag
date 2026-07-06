@@ -75,6 +75,12 @@ does), not to house one file — colocate a single file with its consumer instea
 `routes → services → db/external clients`, with `schemas` used at the edges. Never
 invert it:
 
+- **Settings live in `app/core/config.py`.** Nothing below `app/api` may import from
+  `app.api` — `core` imports nothing above it, and the import direction is
+  `core ← schemas ← db/clients ← domain packages ← services ← api`. (We used to have
+  `Settings` in `app/api/config.py`, which forced every module that needed config —
+  `db/session.py`, `core/security.py`, `pipelines/`, `services/` — to import upward
+  from `app.api`; moved in Phase 2.)
 - **Routes are thin.** A route parses/validates input (via its Pydantic schema and
   `Depends`), calls one service function, and shapes the response. No business logic,
   no direct SQLModel queries, no external API calls in a route.

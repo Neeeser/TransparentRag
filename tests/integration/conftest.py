@@ -20,8 +20,8 @@ from fastapi.testclient import TestClient
 from pinecone import Pinecone, ServerlessSpec
 from pinecone.exceptions import NotFoundException
 
-from app.api import config as api_config
 from app.api.main import app
+from app.core import config as api_config
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
 from app.services.openrouter import get_openrouter_client
 

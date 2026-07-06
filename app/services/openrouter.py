@@ -12,7 +12,7 @@ from urllib.parse import quote
 import httpx
 from openai import OpenAI
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.schemas.models import EndpointsListResponse, ModelInfo
 
 

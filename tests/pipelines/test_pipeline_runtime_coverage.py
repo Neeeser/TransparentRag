@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import pytest
 from sqlmodel import Session
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db import models
 from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
 from app.pipelines.nodes.ingestion import EmbedderNode, IndexerNode

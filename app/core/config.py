@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import cast
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -82,6 +82,21 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Application mode / web
+    debug: bool = Field(
+        default=True,
+        validation_alias="DEBUG",
+        description=(
+            "Development mode flag. When false, startup fails fast on insecure "
+            "defaults (e.g. an unset JWT secret) instead of silently running with them."
+        ),
+    )
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000"],
+        validation_alias="CORS_ORIGINS",
+        description="Origins allowed to make credentialed cross-origin requests.",
+    )
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, value: str) -> str:
@@ -101,6 +116,20 @@ class Settings(BaseSettings):
         if not normalized.endswith("/api/v1"):
             normalized = f"{normalized}/api/v1"
         return normalized
+
+    @model_validator(mode="after")
+    def validate_jwt_secret_outside_debug(self) -> Settings:
+        """Fail fast on the default JWT secret once debug mode is off.
+
+        `changeme` is a fine default for local development, but it must never
+        reach a non-debug (i.e. deployed) process — that would mean every
+        issued access token is forgeable by anyone who has read this file.
+        """
+        if self.debug is False and self.jwt_secret_key == "changeme":
+            raise ValueError(
+                "JWT_SECRET_KEY must be set to a non-default value when DEBUG is false."
+            )
+        return self
 
 
 @lru_cache(maxsize=1)

@@ -7,7 +7,7 @@ import logging
 from fastapi import UploadFile
 from sqlmodel import Session
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import ChunkRepository
 from app.pipelines.config import IngestionPipelineSettings, resolve_ingestion_settings

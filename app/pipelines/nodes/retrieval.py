@@ -8,7 +8,7 @@ import logging
 
 from pydantic import BaseModel, Field
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.nodes.trace_utils import summarize_match_order, summarize_matches, summarize_text
 from app.pipelines.payloads import (

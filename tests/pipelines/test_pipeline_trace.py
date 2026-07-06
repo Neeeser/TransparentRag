@@ -7,7 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db import models
 from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
 from app.pipelines.runtime import (

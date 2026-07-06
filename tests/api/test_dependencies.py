@@ -8,7 +8,7 @@ from jose import jwt
 from sqlmodel import Session
 
 from app.api import dependencies
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db import models
 

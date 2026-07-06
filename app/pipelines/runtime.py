@@ -12,7 +12,7 @@ from pinecone import Pinecone
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
-from app.api.config import Settings
+from app.core.config import Settings
 from app.db import models
 from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.tracing import NodeTraceSummary, PipelineTraceRecorder

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.config import Settings, get_settings
+from app.core.config import Settings, get_settings
 
 
 def test_openrouter_base_url_appends_api_version() -> None:
@@ -41,3 +42,47 @@ def test_get_settings_creates_storage_path(tmp_path, monkeypatch) -> None:
     get_settings.cache_clear()
     monkeypatch.delenv("FILE_STORAGE_PATH", raising=False)
     monkeypatch.delenv("DATABASE_URL", raising=False)
+
+
+def test_default_jwt_secret_allowed_in_debug_mode() -> None:
+    settings = Settings.model_validate({"DEBUG": "true", "JWT_SECRET_KEY": "changeme"})
+
+    assert settings.jwt_secret_key == "changeme"
+
+
+def test_default_jwt_secret_rejected_outside_debug_mode() -> None:
+    with pytest.raises(ValueError, match="JWT_SECRET_KEY must be set"):
+        Settings.model_validate({"DEBUG": "false", "JWT_SECRET_KEY": "changeme"})
+
+
+def test_non_default_jwt_secret_allowed_outside_debug_mode() -> None:
+    settings = Settings.model_validate({"DEBUG": "false", "JWT_SECRET_KEY": "a-real-secret"})
+
+    assert settings.jwt_secret_key == "a-real-secret"
+
+
+def test_cors_origins_default_to_localhost_frontend() -> None:
+    settings = Settings.model_validate({})
+
+    assert settings.cors_origins == ["http://localhost:3000"]
+
+
+def test_app_cors_middleware_uses_configured_origins(monkeypatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", '["https://app.example.com"]')
+    get_settings.cache_clear()
+
+    import sys
+
+    if "app.api.main" in sys.modules:
+        del sys.modules["app.api.main"]
+    import app.api.main as main_module
+
+    cors_middleware = next(
+        m for m in main_module.app.user_middleware if m.cls is CORSMiddleware
+    )
+
+    assert cors_middleware.kwargs["allow_origins"] == ["https://app.example.com"]
+    assert cors_middleware.kwargs["allow_credentials"] is True
+
+    get_settings.cache_clear()
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)

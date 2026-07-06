@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlmodel import Session
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db import models
 from app.db.models import ChunkStrategy
 from app.pipelines.defaults import (

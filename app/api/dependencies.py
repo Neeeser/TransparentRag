@@ -10,7 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db.models import User
 from app.db.repositories import UserRepository

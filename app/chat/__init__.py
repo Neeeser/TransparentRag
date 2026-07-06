@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.api.config import get_settings
 from app.chat.service import ChatService
+from app.core.config import get_settings
 from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
 from app.schemas.openrouter import OpenRouterStreamChunk
 from app.services.openrouter import get_openrouter_client

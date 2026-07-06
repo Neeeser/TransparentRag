@@ -9,8 +9,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pinecone import ServerlessSpec  # pylint: disable=no-name-in-module
 
-from app.api.config import get_settings
 from app.api.dependencies import get_current_user
+from app.core.config import get_settings
 from app.db import models
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.pinecone_indexes import (

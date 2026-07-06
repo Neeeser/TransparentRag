@@ -8,7 +8,7 @@ from time import perf_counter
 
 from sqlmodel import Session
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import QueryRepository
 from app.pipelines.config import resolve_retrieval_settings

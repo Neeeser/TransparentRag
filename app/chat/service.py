@@ -11,7 +11,6 @@ from uuid import UUID, uuid4
 from fastapi.encoders import jsonable_encoder
 from sqlmodel import Session, select
 
-from app.api.config import get_settings
 from app.chat.persistence.records import (
     MessageRecord,
     RecordContext,
@@ -58,6 +57,7 @@ from app.chat.state import (
     ToolExecutionContext,
 )
 from app.chat.streaming.streaming import stream_model_completion
+from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import ChatRepository
 from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings

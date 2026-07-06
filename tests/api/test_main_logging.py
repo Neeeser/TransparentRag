@@ -3,8 +3,9 @@ from __future__ import annotations
 import importlib
 import logging
 import sys
+from typing import ClassVar
 
-from app.api import config as config_module
+from app.core import config as config_module
 
 
 def test_main_configures_logging_when_level_set(monkeypatch) -> None:
@@ -34,6 +35,7 @@ def test_main_configures_logging_when_level_set(monkeypatch) -> None:
 def test_main_skips_logging_when_level_unset(monkeypatch) -> None:
     class _StubSettings:
         log_level = None
+        cors_origins: ClassVar[list[str]] = ["http://localhost:3000"]
 
     monkeypatch.setattr(config_module, "get_settings", lambda: _StubSettings())
 

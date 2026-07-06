@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 
 
 class FileStorage:
