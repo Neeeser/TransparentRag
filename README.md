@@ -55,21 +55,13 @@ Multi-tenant workspaces with JWT auth. Upload PDFs and text; every chunk, embedd
 
 ## ⚙️ How it works
 
-```mermaid
-flowchart LR
-    subgraph Ingestion pipeline
-        U[📄 Upload] --> P[Parser] --> C[Chunker] --> E[Embedder] --> I[Indexer]
-    end
-    subgraph Retrieval pipeline
-        Q[❓ Query] --> QE[Embedder] --> R[Retriever] --> RR[Reranker]
-    end
-    I --> V[(Pinecone)]
-    V --> R
-    RR --> LLM[🤖 Chat LLM<br/>via OpenRouter]
-    P & C & E & I & QE & R & RR -.every node traced.-> T[(🔬 Trace store)]
-```
+Your RAG stack **is** a directed graph — so that's exactly how you build it. Drag typed nodes onto a canvas, wire their ports, and TransparentRAG validates the graph (port compatibility, embedding-dimension mismatches, cycles) before a single document flows through it:
 
-Both graphs are yours to edit. Swap the chunking strategy, change the embedding model, add a reranker — the validator checks the wiring, and the next run traces the new graph end to end.
+<p align="center">
+  <img src="docs/assets/pipeline-graph.svg" alt="TransparentRAG pipeline editor: ingestion graph (upload → parser → chunker → embedder → indexer → Pinecone) and retrieval graph (query → embedder → retriever → reranker → chat LLM), with every node recording its execution trace" width="100%"/>
+</p>
+
+Both graphs are yours to rewire. Swap the chunking strategy, change the embedding model, drop in a reranker — the validator checks the wiring, versions pin what actually ran, and the next run traces the new graph end to end, node by node.
 
 **Stack:** FastAPI + Pydantic v2 + SQLModel + Postgres on the backend, Next.js (App Router) + React 19 + TypeScript on the frontend, Pinecone for vectors, OpenRouter for models.
 
