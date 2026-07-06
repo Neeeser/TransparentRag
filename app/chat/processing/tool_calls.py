@@ -6,9 +6,71 @@ import json
 from typing import Any
 from uuid import uuid4
 
+from pydantic import BaseModel
+
 from app.chat.processing.reasoning import extend_reasoning_segments, normalize_reasoning_segments
 
 _CANDIDATE_TOOL_TYPES = {"tool_call", "tool_use", "tool_request", "call_tool", "function_call"}
+
+
+class ParsedToolCall(BaseModel):
+    """A tool call normalized into the fields `ChatService` needs to execute it."""
+
+    id: str | None
+    name: str
+    arguments: dict[str, Any]
+    query_text: str
+    top_k: int
+
+
+class ToolResultPayload(BaseModel):
+    """The persisted/replayed payload for one executed tool call.
+
+    Field order matches the historical dict literal
+    (`{"collection_id": ..., "collection_name": ..., "arguments": ...,
+    "response": ...}`) so `.model_dump()` reproduces it exactly for storage
+    (`tool_payload` column) and for the JSON string sent back to the
+    provider as the `tool` message content.
+    """
+
+    collection_id: str
+    collection_name: str
+    arguments: dict[str, Any]
+    response: Any
+
+
+def parse_tool_call(
+    tool_call: dict[str, Any],
+    *,
+    default_query: str,
+    use_fallback_id: bool,
+) -> ParsedToolCall:
+    """Parse a raw tool call payload into a `ParsedToolCall`.
+
+    `default_query` is the fallback search text (the user's message content)
+    when the tool call's own arguments don't specify a `query`/`text`.
+    """
+    function_block = tool_call.get("function") or {}
+    if not isinstance(function_block, dict):
+        function_block = {}
+    name = function_block.get("name") or "tool_call"
+    arguments = decode_tool_arguments(function_block.get("arguments"))
+    call_id = tool_call.get("id")
+    if use_fallback_id and not call_id:
+        call_id = f"tool_call_{uuid4().hex}"
+    query_text = arguments.get("query") or arguments.get("text") or default_query
+    try:
+        top_k = int(arguments.get("top_k", 5))
+    except (TypeError, ValueError):
+        top_k = 5
+    top_k = max(1, min(10, top_k))
+    return ParsedToolCall(
+        id=call_id,
+        name=name,
+        arguments=arguments,
+        query_text=query_text,
+        top_k=top_k,
+    )
 
 
 def _resolve_call_components(segment: dict[str, Any]) -> tuple[str, str, str] | None:

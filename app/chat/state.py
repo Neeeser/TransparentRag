@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.chat.usage import UsageSummary
 from app.db import models
 from app.pipelines.config import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.schemas.chat import ChatMessageCreate, ToolCallTrace
@@ -60,7 +61,7 @@ class RunState:
     """Mutable state for a chat request across iterations."""
 
     tool_traces: list[ToolCallTrace] = field(default_factory=list)
-    usage_aggregate: dict[str, float] = field(default_factory=dict)
+    usage_aggregate: UsageSummary = field(default_factory=UsageSummary)
     latest_usage_payload: dict[str, Any] = field(default_factory=dict)
     provider: str = "openrouter"
     reasoning_trace: list[dict[str, Any]] = field(default_factory=list)
@@ -111,9 +112,16 @@ class ProviderResponse:
 
 @dataclass(frozen=True)
 class StreamIterationResult:
-    """Streamed provider result including metadata."""
+    """Streamed provider result including metadata.
+
+    `finish_reason` is carried through so it's no longer silently dropped by
+    the data structure (it used to be index 3 of a 5-tuple that only ever
+    unpacked indices 0, 1, 2, 4). Whether `ChatService` acts on it is a
+    separate concern.
+    """
 
     message: dict[str, Any]
     usage: dict[str, Any]
     provider_name: str
     response_model_name: str | None
+    finish_reason: str | None = None

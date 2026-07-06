@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from app.chat.processing.parameters import (
+from app.chat.processing.parameters import normalize_reasoning_effort, prepare_reasoning_override
+from app.chat.usage import coerce_float_value, coerce_usage_value
+from app.schemas.chat_parameters import (
     coerce_bool_parameter,
     coerce_list_parameter,
     coerce_numeric_parameter,
-    normalize_reasoning_effort,
-    prepare_reasoning_override,
 )
-from app.chat.processing.usage import coerce_float_value, coerce_usage_value
 
 
 def test_coerce_usage_value_sums_nested_values() -> None:
@@ -28,6 +27,11 @@ def test_coerce_usage_value_rejects_invalid_inputs() -> None:
 def test_coerce_numeric_parameter_rejects_non_finite() -> None:
     assert coerce_numeric_parameter("nan") is None
     assert coerce_numeric_parameter(float("inf")) is None
+
+
+def test_coerce_float_value_accepts_numeric_types() -> None:
+    assert coerce_float_value(3) == 3.0
+    assert coerce_float_value(1.5) == 1.5
 
 
 def test_coerce_float_value_rejects_invalid_string() -> None:

@@ -6,11 +6,13 @@ import json
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi.encoders import jsonable_encoder
 from sqlmodel import Session
 
+from app.chat.events import FinalEvent, ToolCallEvent, ToolResultEvent
+from app.chat.messages import normalize_assistant_content
 from app.chat.persistence.records import (
     MessageRecord,
     RecordContext,
@@ -28,19 +30,14 @@ from app.chat.processing.parameters import (
     build_reasoning_options,
     prepare_reasoning_override,
     sanitize_parameter_overrides,
-    sanitize_provider_preferences,
 )
 from app.chat.processing.reasoning import normalize_reasoning_segments
 from app.chat.processing.tool_calls import (
-    decode_tool_arguments,
+    ParsedToolCall,
+    ToolResultPayload,
     extract_reasoning_tool_calls,
     normalize_tool_calls,
-)
-from app.chat.processing.usage import (
-    add_usage_value,
-    coerce_float_value,
-    coerce_usage_value,
-    extract_reasoning_tokens_from_usage,
+    parse_tool_call,
 )
 from app.chat.providers.base import ChatProvider, ChatRequest
 from app.chat.providers.openrouter import OpenRouterProvider
@@ -56,7 +53,8 @@ from app.chat.state import (
     ToolCollectionContext,
     ToolExecutionContext,
 )
-from app.chat.streaming.streaming import stream_model_completion
+from app.chat.streaming.streaming import StreamOutcome, stream_model_completion
+from app.chat.usage import UsageSummary, coerce_usage_value
 from app.clients.openrouter import OpenRouterClient, get_openrouter_client
 from app.core.config import get_settings
 from app.db import models
@@ -479,7 +477,7 @@ class ChatService:
             supported_parameters,
             reasoning_override,
         )
-        provider_preferences = sanitize_provider_preferences(payload.provider)
+        provider_preferences = payload.provider.to_request_payload() if payload.provider else None
         context_window = model_info.context_length or fallback_context_window
         return ModelSettings(
             active_model_name=active_model_name,
@@ -584,16 +582,9 @@ class ChatService:
         if not usage:
             return
         run_state.latest_usage_payload = usage
-        prompt_tokens = coerce_usage_value(usage.get("prompt_tokens"))
-        completion_tokens = coerce_usage_value(usage.get("completion_tokens"))
-        total_tokens = coerce_usage_value(usage.get("total_tokens"))
-        reasoning_tokens = extract_reasoning_tokens_from_usage(usage)
-        cost_value = coerce_float_value(usage.get("cost"))
-        add_usage_value(run_state.usage_aggregate, "prompt_tokens", prompt_tokens)
-        add_usage_value(run_state.usage_aggregate, "completion_tokens", completion_tokens)
-        add_usage_value(run_state.usage_aggregate, "total_tokens", total_tokens)
-        add_usage_value(run_state.usage_aggregate, "reasoning_tokens", reasoning_tokens)
-        add_usage_value(run_state.usage_aggregate, "cost", cost_value)
+        run_state.usage_aggregate = run_state.usage_aggregate.merged_with(
+            UsageSummary.from_raw(usage)
+        )
 
     def _resolve_tool_calls(
         self,
@@ -636,23 +627,13 @@ class ChatService:
         payload: ChatMessageCreate,
         *,
         use_fallback_id: bool,
-    ) -> tuple[str | None, str, dict[str, Any], str, int]:
-        """Parse tool call metadata into a normalized tuple."""
-        function_block = tool_call.get("function") or {}
-        if not isinstance(function_block, dict):
-            function_block = {}
-        name = function_block.get("name") or "tool_call"
-        arguments = decode_tool_arguments(function_block.get("arguments"))
-        call_id = tool_call.get("id")
-        if use_fallback_id and not call_id:
-            call_id = f"tool_call_{uuid4().hex}"
-        query_text = arguments.get("query") or arguments.get("text") or payload.content
-        try:
-            top_k = int(arguments.get("top_k", 5))
-        except (TypeError, ValueError):
-            top_k = 5
-        top_k = max(1, min(10, top_k))
-        return call_id, name, arguments, query_text, top_k
+    ) -> ParsedToolCall:
+        """Parse tool call metadata into a normalized `ParsedToolCall`."""
+        return parse_tool_call(
+            tool_call,
+            default_query=payload.content,
+            use_fallback_id=use_fallback_id,
+        )
 
     def _select_tool_reasoning(
         self,
@@ -738,9 +719,7 @@ class ChatService:
         )
         if not resolution.pending_tool_calls:
             return False
-        assistant_content = context.message.get("content")
-        if isinstance(assistant_content, list):
-            assistant_content = json.dumps(assistant_content)
+        assistant_content = normalize_assistant_content(context.message.get("content"))
         self._append_tool_call_assistant_message(
             session_model=context.setup.session_model,
             messages=context.setup.messages,
@@ -770,46 +749,46 @@ class ChatService:
     ) -> None:
         """Execute tool calls and persist the results."""
         for tool_call in tool_calls:
-            call_id, name, arguments, query_text, top_k = self._parse_tool_call(
+            parsed = self._parse_tool_call(
                 tool_call,
                 context.payload,
                 use_fallback_id=True,
             )
             collection = self._select_tool_collection(
-                tool_name=name,
+                tool_name=parsed.name,
                 tool_map=context.tool_collection_map,
             )
             retrieval_response = self.retrieval.query_collection(
                 context.user,
                 collection,
-                query_text,
-                top_k=top_k,
+                parsed.query_text,
+                top_k=parsed.top_k,
             )
             response_payload = jsonable_encoder(retrieval_response)
-            tool_payload = {
-                "collection_id": str(collection.id),
-                "collection_name": collection.name,
-                "arguments": arguments,
-                "response": response_payload,
-            }
-            tool_content = json.dumps(tool_payload)
+            tool_result = ToolResultPayload(
+                collection_id=str(collection.id),
+                collection_name=collection.name,
+                arguments=parsed.arguments,
+                response=response_payload,
+            )
+            tool_content = json.dumps(tool_result.model_dump())
             reasoning_payload = self._build_reasoning_payload(
-                call_id=call_id,
+                call_id=parsed.id,
                 run_state=context.run_state,
                 shared_tool_reasoning=context.shared_tool_reasoning,
             )
             context.messages.append(
                 {
                     "role": "tool",
-                    "tool_call_id": call_id,
+                    "tool_call_id": parsed.id,
                     "content": tool_content,
                 }
             )
             context.run_state.tool_traces.append(
                 ToolCallTrace(
-                    id=call_id,
-                    name=name,
-                    arguments=arguments,
+                    id=parsed.id,
+                    name=parsed.name,
+                    arguments=parsed.arguments,
                     response=response_payload,
                     reasoning=reasoning_payload,
                     collection_id=collection.id,
@@ -823,9 +802,9 @@ class ChatService:
                     role=models.ChatRole.TOOL,
                     content=tool_content,
                     tool=ToolCallRecord(
-                        name=name,
-                        call_id=call_id,
-                        payload=tool_payload,
+                        name=parsed.name,
+                        call_id=parsed.id,
+                        payload=tool_result.model_dump(),
                     ),
                     reasoning=reasoning_payload,
                 ),
@@ -840,70 +819,68 @@ class ChatService:
     ) -> Generator[dict[str, Any], None, None]:
         """Execute tool calls while emitting streaming events."""
         for tool_call in tool_calls:
-            call_id, name, arguments, query_text, top_k = self._parse_tool_call(
+            parsed = self._parse_tool_call(
                 tool_call,
                 context.payload,
                 use_fallback_id=True,
             )
             collection = self._select_tool_collection(
-                tool_name=name,
+                tool_name=parsed.name,
                 tool_map=context.tool_collection_map,
             )
             reasoning_entry = self._select_tool_reasoning(
-                call_id=call_id,
+                call_id=parsed.id,
                 run_state=context.run_state,
                 shared_tool_reasoning=context.shared_tool_reasoning,
             )
-            yield {
-                "type": "tool_call",
-                "id": call_id,
-                "name": name,
-                "arguments": arguments,
-                "reasoning": reasoning_entry,
-                "collection_id": str(collection.id),
-                "collection_name": collection.name,
-            }
+            yield ToolCallEvent(
+                id=parsed.id,
+                name=parsed.name,
+                arguments=parsed.arguments,
+                reasoning=reasoning_entry,
+                collection_id=str(collection.id),
+                collection_name=collection.name,
+            ).model_dump()
             retrieval_response = self.retrieval.query_collection(
                 context.user,
                 collection,
-                query_text,
-                top_k=top_k,
+                parsed.query_text,
+                top_k=parsed.top_k,
             )
             response_payload = jsonable_encoder(retrieval_response)
-            tool_payload = {
-                "collection_id": str(collection.id),
-                "collection_name": collection.name,
-                "arguments": arguments,
-                "response": response_payload,
-            }
-            tool_content = json.dumps(tool_payload)
+            tool_result = ToolResultPayload(
+                collection_id=str(collection.id),
+                collection_name=collection.name,
+                arguments=parsed.arguments,
+                response=response_payload,
+            )
+            tool_content = json.dumps(tool_result.model_dump())
             reasoning_payload = self._build_reasoning_payload(
-                call_id=call_id,
+                call_id=parsed.id,
                 run_state=context.run_state,
                 shared_tool_reasoning=context.shared_tool_reasoning,
             )
-            yield {
-                "type": "tool_result",
-                "id": call_id,
-                "name": name,
-                "arguments": arguments,
-                "response": retrieval_response,
-                "reasoning": reasoning_payload,
-                "collection_id": str(collection.id),
-                "collection_name": collection.name,
-            }
+            yield ToolResultEvent(
+                id=parsed.id,
+                name=parsed.name,
+                arguments=parsed.arguments,
+                response=retrieval_response,
+                reasoning=reasoning_payload,
+                collection_id=str(collection.id),
+                collection_name=collection.name,
+            ).model_dump()
             context.messages.append(
                 {
                     "role": "tool",
-                    "tool_call_id": call_id,
+                    "tool_call_id": parsed.id,
                     "content": tool_content,
                 }
             )
             context.run_state.tool_traces.append(
                 ToolCallTrace(
-                    id=call_id,
-                    name=name,
-                    arguments=arguments,
+                    id=parsed.id,
+                    name=parsed.name,
+                    arguments=parsed.arguments,
                     response=response_payload,
                     reasoning=reasoning_payload,
                     collection_id=collection.id,
@@ -917,9 +894,9 @@ class ChatService:
                     role=models.ChatRole.TOOL,
                     content=tool_content,
                     tool=ToolCallRecord(
-                        name=name,
-                        call_id=call_id,
-                        payload=tool_payload,
+                        name=parsed.name,
+                        call_id=parsed.id,
+                        payload=tool_result.model_dump(),
                     ),
                     reasoning=reasoning_payload,
                 ),
@@ -933,25 +910,16 @@ class ChatService:
         response: ProviderResponse,
     ) -> ChatCompletionResponse:
         """Persist the final assistant response and build API response."""
-        assistant_content = response.message.get("content")
-        if isinstance(assistant_content, list):
-            assistant_content = json.dumps(assistant_content)
-        content = assistant_content or ""
+        content = normalize_assistant_content(response.message.get("content"))
         reasoning_payload = None
         if run_state.reasoning_trace:
             reasoning_payload = {"segments": run_state.reasoning_trace}
         latest_usage_source = run_state.latest_usage_payload or response.usage or {}
         latest_usage_total = coerce_usage_value(latest_usage_source.get("total_tokens"))
         final_usage: dict[str, Any] = dict(run_state.latest_usage_payload or response.usage or {})
-        if run_state.usage_aggregate:
+        if not run_state.usage_aggregate.is_empty():
             final_usage = dict(final_usage) if final_usage else {}
-            final_usage.update(
-                {
-                    key: value
-                    for key, value in run_state.usage_aggregate.items()
-                    if value is not None
-                }
-            )
+            final_usage.update(run_state.usage_aggregate.model_dump(exclude_none=True))
         assistant_msg = record_message(
             RecordContext(session=self.session, chat_repo=self.chat_repo),
             MessageRecord(
@@ -967,7 +935,7 @@ class ChatService:
         setup.session_model.context_tokens = (
             latest_usage_total
             if latest_usage_total is not None
-            else run_state.usage_aggregate.get("total_tokens", 0)
+            else run_state.usage_aggregate.total_tokens or 0
         )
         self.session.add(setup.session_model)
         self.session.commit()
@@ -991,11 +959,7 @@ class ChatService:
         provider: ChatProvider,
         setup: ChatSetup,
         capture: StreamCapture,
-    ) -> Generator[
-        dict[str, Any],
-        None,
-        tuple[dict[str, Any], dict[str, Any], str, str | None, str | None],
-    ]:
+    ) -> Generator[dict[str, Any], None, StreamOutcome]:
         """Run one streaming iteration and yield events."""
         request = ChatRequest(
             messages=setup.messages,
@@ -1109,10 +1073,11 @@ class ChatService:
                 self._record_partial_stream_exit(capture=capture, setup=setup)
                 raise
             result = StreamIterationResult(
-                message=stream_result[0],
-                usage=stream_result[1],
-                provider_name=stream_result[2],
-                response_model_name=stream_result[4],
+                message=stream_result.message,
+                usage=stream_result.usage,
+                provider_name=stream_result.provider,
+                response_model_name=stream_result.response_model,
+                finish_reason=stream_result.finish_reason,
             )
             run_state.provider = result.provider_name or run_state.provider
             if result.usage:
@@ -1140,7 +1105,7 @@ class ChatService:
                     response_model_name=result.response_model_name,
                 ),
             )
-            yield {"type": "final", "payload": response.model_dump()}
+            yield FinalEvent(payload=response.model_dump()).model_dump()
             return
 
         raise RuntimeError("LLM did not complete within the allowed tool iteration limit.")
@@ -1187,9 +1152,9 @@ class ChatService:
                 combine_reasoning=False,
             )
             if resolution.pending_tool_calls:
-                assistant_content = parsed_response.message.get("content")
-                if isinstance(assistant_content, list):
-                    assistant_content = json.dumps(assistant_content)
+                assistant_content = normalize_assistant_content(
+                    parsed_response.message.get("content")
+                )
                 self._append_tool_call_assistant_message(
                     session_model=setup.session_model,
                     messages=setup.messages,

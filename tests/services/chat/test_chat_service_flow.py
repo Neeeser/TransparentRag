@@ -10,10 +10,12 @@ from sqlmodel import Session
 from app.chat import service as chat_service_module
 from app.chat.service import ChatService
 from app.chat.state import RunState, ToolExecutionContext
+from app.chat.streaming.streaming import StreamOutcome
 from app.db import models
 from app.schemas.chat import ChatMessageCreate
 from app.schemas.models import ModelInfo
 from app.schemas.openrouter import OpenRouterChatResponse
+from app.schemas.retrieval import CollectionQueryResponse
 
 
 @dataclass
@@ -388,9 +390,9 @@ def test_stream_message_handles_tool_calls_and_final(monkeypatch, session: Sessi
             collection: models.Collection,
             query: str,
             top_k: int = 5,
-        ):
+        ) -> CollectionQueryResponse:
             retrieval_calls.append({"collection": collection, "query": query, "top_k": top_k})
-            return {"chunks": [], "top_k": top_k}
+            return CollectionQueryResponse(query=query, top_k=top_k, chunks=[], usage={})
 
     def _make_stream(events, result):
         def _gen():
@@ -417,22 +419,22 @@ def test_stream_message_handles_tool_calls_and_final(monkeypatch, session: Sessi
                 {"type": "token", "content": "Calling"},
                 {"type": "reasoning", "segments": [{"type": "text", "content": "thinking"}]},
             ],
-            "result": (
-                tool_message,
-                {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-                "openrouter",
-                "tool_calls",
-                "tool-model",
+            "result": StreamOutcome(
+                message=tool_message,
+                usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                provider="openrouter",
+                finish_reason="tool_calls",
+                response_model="tool-model",
             ),
         },
         {
             "events": [{"type": "token", "content": "Final"}],
-            "result": (
-                final_message,
-                {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
-                "openrouter",
-                "stop",
-                "tool-model",
+            "result": StreamOutcome(
+                message=final_message,
+                usage={"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
+                provider="openrouter",
+                finish_reason="stop",
+                response_model="tool-model",
             ),
         },
     ]

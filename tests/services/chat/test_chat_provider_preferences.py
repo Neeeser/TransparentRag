@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from app.chat.processing.parameters import (
+import pytest
+from pydantic import ValidationError
+
+from app.schemas.chat_parameters import (
+    ProviderPreferences,
     coerce_data_collection,
     coerce_max_price,
     coerce_provider_sort,
@@ -37,6 +41,22 @@ def test_sanitize_provider_preferences_normalizes_aliases() -> None:
 
 def test_sanitize_provider_preferences_returns_none_for_unknown_keys() -> None:
     assert sanitize_provider_preferences({"unsupported": "value"}) is None
+
+
+def test_provider_preferences_model_drops_unknown_keys() -> None:
+    prefs = ProviderPreferences.model_validate({"unsupported": "value"})
+
+    assert prefs.to_request_payload() is None
+
+
+def test_provider_preferences_model_validate_rejects_non_dict_input() -> None:
+    """A non-dict payload must raise a clean ValidationError, not crash on `.items()`."""
+    with pytest.raises(ValidationError):
+        ProviderPreferences.model_validate(["not", "a", "dict"])
+
+
+def test_provider_preferences_none_input_returns_none() -> None:
+    assert sanitize_provider_preferences(None) is None
 
 
 def test_coerce_string_list_handles_tuple_values() -> None:

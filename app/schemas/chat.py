@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.chat_parameters import ChatParameters, ProviderPreferences
 from app.schemas.enums import ChatMode, ChatRole
 
 if TYPE_CHECKING:
@@ -120,8 +121,8 @@ class ChatMessageCreate(BaseModel):
     edit_message_id: UUID | None = None
     chat_model: str | None = None
     tool_collection_ids: list[UUID] | None = None
-    parameters: dict[str, Any] | None = None
-    provider: dict[str, Any] | None = None
+    parameters: ChatParameters | None = None
+    provider: ProviderPreferences | None = None
     stream: bool | None = False
 
 

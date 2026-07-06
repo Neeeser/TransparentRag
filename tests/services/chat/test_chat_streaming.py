@@ -12,7 +12,7 @@ from app.chat.persistence.records import RecordContext
 from app.chat.providers.base import ChatRequest, ParsedStreamChunk
 from app.chat.providers.openrouter import OpenRouterProvider
 from app.chat.service import ChatService
-from app.chat.streaming.streaming import stream_model_completion
+from app.chat.streaming.streaming import StreamOutcome, stream_model_completion
 from app.schemas.chat import ChatMessageCreate
 from app.schemas.openrouter import OpenRouterStreamChunk
 from app.services import chat as chat_module
@@ -51,7 +51,9 @@ class _StubOpenRouter:
             yield OpenRouterStreamChunk(**chunk)
 
 
-def _collect_stream_results(gen: Generator[dict[str, Any], None, tuple[dict[str, Any], dict[str, Any], str, str, str]]) -> tuple[list[dict[str, Any]], tuple[dict[str, Any], dict[str, Any], str, str, str]]:
+def _collect_stream_results(
+    gen: Generator[dict[str, Any], None, StreamOutcome],
+) -> tuple[list[dict[str, Any]], StreamOutcome]:
     events: list[dict[str, Any]] = []
     try:
         while True:
@@ -124,7 +126,8 @@ def test_stream_model_completion_yields_tokens_and_reasoning() -> None:
     gen = stream_model_completion(provider=provider, request=request)
 
     events, result = _collect_stream_results(gen)
-    message, usage, provider, finish_reason, response_model = result
+    message, usage, provider = result.message, result.usage, result.provider
+    finish_reason, response_model = result.finish_reason, result.response_model
 
     assert [event["content"] for event in events if event["type"] == "token"] == ["Hello", " world"]
     reasoning_events = [event for event in events if event["type"] == "reasoning"]
@@ -191,7 +194,8 @@ def test_stream_model_completion_orders_tool_calls_by_index() -> None:
     )
     gen = stream_model_completion(provider=provider, request=request)
     events, result = _collect_stream_results(gen)
-    message, usage, provider, finish_reason, response_model = result
+    message, usage, provider = result.message, result.usage, result.provider
+    finish_reason, response_model = result.finish_reason, result.response_model
 
     assert next(event for event in events if event["type"] == "token")["content"] == "done"
     call_ids = [call["id"] for call in message["tool_calls"]]
@@ -231,7 +235,8 @@ def test_stream_model_completion_handles_empty_deltas() -> None:
     request = ChatRequest(messages=[], tools=None, model="model", extra_body=None, parameters=None)
 
     events, result = _collect_stream_results(stream_model_completion(provider=provider, request=request))
-    message, usage, provider_name, finish_reason, response_model = result
+    message, usage, provider_name = result.message, result.usage, result.provider
+    finish_reason, response_model = result.finish_reason, result.response_model
 
     assert [event["content"] for event in events if event["type"] == "token"] == ["hi"]
     assert message["content"] == "hi"
@@ -263,7 +268,8 @@ def test_stream_model_completion_skips_empty_reasoning_updates() -> None:
     request = ChatRequest(messages=[], tools=None, model="model", extra_body=None, parameters=None)
 
     events, result = _collect_stream_results(stream_model_completion(provider=provider, request=request))
-    message, usage, provider_name, finish_reason, response_model = result
+    message, usage, provider_name = result.message, result.usage, result.provider
+    finish_reason, response_model = result.finish_reason, result.response_model
 
     assert events == []
     assert message["content"] == ""
@@ -322,7 +328,8 @@ def test_stream_model_completion_falls_back_on_invalid_chunks(monkeypatch) -> No
     )
     gen = stream_model_completion(provider=provider, request=request)
     events, result = _collect_stream_results(gen)
-    message, usage, provider, finish_reason, response_model = result
+    message, usage, provider = result.message, result.usage, result.provider
+    finish_reason, response_model = result.finish_reason, result.response_model
 
     assert any(event["type"] == "reasoning" for event in events)
     assert message["content"] == "Hi"

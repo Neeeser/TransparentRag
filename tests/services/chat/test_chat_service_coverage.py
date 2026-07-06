@@ -20,6 +20,8 @@ from app.chat.state import (
     StreamToolCallContext,
     ToolCallResolution,
 )
+from app.chat.streaming.streaming import StreamOutcome
+from app.chat.usage import UsageSummary
 from app.db import models
 from app.schemas.chat import ChatMessageCreate
 from app.schemas.models import ModelInfo
@@ -173,11 +175,11 @@ def test_build_reasoning_request_options_merges_override() -> None:
 def test_update_usage_aggregate_skips_empty_usage() -> None:
     service = ChatService.__new__(ChatService)  # type: ignore[call-arg]
     run_state = RunState(provider="openrouter")
-    run_state.usage_aggregate["prompt_tokens"] = 1
+    run_state.usage_aggregate = UsageSummary(prompt_tokens=1)
 
     service._update_usage_aggregate(run_state, {})
 
-    assert run_state.usage_aggregate["prompt_tokens"] == 1
+    assert run_state.usage_aggregate.prompt_tokens == 1
 
 
 def test_resolve_tool_calls_updates_reasoning_context(monkeypatch) -> None:
@@ -207,31 +209,31 @@ def test_parse_tool_call_handles_non_dict_function() -> None:
     service = ChatService.__new__(ChatService)  # type: ignore[call-arg]
     payload = ChatMessageCreate(content="query")
 
-    call_id, name, _, query_text, top_k = service._parse_tool_call(
+    parsed = service._parse_tool_call(
         {"function": "oops"},
         payload,
         use_fallback_id=False,
     )
 
-    assert call_id is None
-    assert name == "tool_call"
-    assert query_text == "query"
-    assert top_k == 5
+    assert parsed.id is None
+    assert parsed.name == "tool_call"
+    assert parsed.query_text == "query"
+    assert parsed.top_k == 5
 
 
 def test_parse_tool_call_applies_fallback_and_top_k_defaults() -> None:
     service = ChatService.__new__(ChatService)  # type: ignore[call-arg]
     payload = ChatMessageCreate(content="query")
 
-    call_id, _, _, _, top_k = service._parse_tool_call(
+    parsed = service._parse_tool_call(
         {"function": {"name": "pinecone_query", "arguments": {"top_k": "bad"}}},
         payload,
         use_fallback_id=True,
     )
 
-    assert isinstance(call_id, str)
-    assert call_id.startswith("tool_call_")
-    assert top_k == 5
+    assert isinstance(parsed.id, str)
+    assert parsed.id.startswith("tool_call_")
+    assert parsed.top_k == 5
 
 
 def test_build_reasoning_payload_wraps_segment() -> None:
@@ -318,7 +320,7 @@ def test_finalize_response_applies_usage_aggregate(monkeypatch) -> None:
     setup = _build_setup()
     run_state = RunState(provider="openrouter")
     run_state.latest_usage_payload = {"total_tokens": 4}
-    run_state.usage_aggregate = {"prompt_tokens": 1, "total_tokens": 7, "cost": None}
+    run_state.usage_aggregate = UsageSummary(prompt_tokens=1, total_tokens=7, cost=None)
 
     response = service._finalize_response(
         setup=setup,
@@ -448,7 +450,13 @@ def test_stream_message_updates_usage() -> None:
     def _stream_iteration(*_args, **_kwargs):
         if False:
             yield {}
-        return {"content": "done"}, {"prompt_tokens": 1}, "router", None, "model"
+        return StreamOutcome(
+            message={"content": "done"},
+            usage={"prompt_tokens": 1},
+            provider="router",
+            finish_reason=None,
+            response_model="model",
+        )
 
     def _no_tool_calls(*_args, **_kwargs):
         if False:
@@ -483,7 +491,13 @@ def test_stream_message_raises_after_max_iterations() -> None:
     def _stream_iteration(*_args, **_kwargs):
         if False:
             yield {}
-        return {"content": "tool"}, {}, "router", None, "model"
+        return StreamOutcome(
+            message={"content": "tool"},
+            usage={},
+            provider="router",
+            finish_reason=None,
+            response_model="model",
+        )
 
     def _tool_calls(*_args, **_kwargs):
         if False:

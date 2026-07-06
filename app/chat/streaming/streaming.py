@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
+from pydantic import BaseModel
+
 from app.chat.processing.reasoning import extend_reasoning_segments, normalize_reasoning_segments
 from app.chat.processing.tool_calls import accumulate_stream_tool_calls, coerce_stream_text
 from app.chat.providers.base import ChatProvider, ChatRequest, ParsedStreamChunk
@@ -25,15 +27,31 @@ class StreamState:
     response_model: str | None = None
 
 
+class StreamOutcome(BaseModel):
+    """Result of one streaming provider turn — replaces the old 5-tuple.
+
+    `message` and `usage` stay free-form dicts rather than typed models:
+    provider payloads carry extra, provider-specific keys that aren't a
+    stable key set (`reasoning` vs `reasoning_content`; usage's
+    `cost_details`/`completion_tokens_details`) and are read/passed through
+    verbatim elsewhere (`ChatService._resolve_tool_calls`,
+    `ChatCompletionResponse.usage`). Unlike the tuple it replaces, every
+    field — including `finish_reason` — is preserved structurally; whether
+    `ChatService` acts on `finish_reason` yet is a separate concern.
+    """
+
+    message: dict[str, Any]
+    usage: dict[str, Any]
+    provider: str
+    finish_reason: str | None
+    response_model: str | None
+
+
 def stream_model_completion(
     *,
     provider: ChatProvider,
     request: ChatRequest,
-) -> Generator[
-    dict[str, str],
-    None,
-    tuple[dict[str, Any], dict[str, Any], str, str | None, str | None],
-]:
+) -> Generator[dict[str, Any], None, StreamOutcome]:
     """Stream a chat completion and yield token/tool events."""
     stream = provider.chat_stream(request)
     state = StreamState(provider=provider.name)
@@ -48,7 +66,13 @@ def stream_model_completion(
             state.latest_usage = parsed.usage
 
     message = _finalize_stream_message(state)
-    return message, state.latest_usage, state.provider, state.finish_reason, state.response_model
+    return StreamOutcome(
+        message=message,
+        usage=state.latest_usage,
+        provider=state.provider,
+        finish_reason=state.finish_reason,
+        response_model=state.response_model,
+    )
 
 
 def _parse_chunk(provider: ChatProvider, chunk: dict) -> ParsedStreamChunk | None:

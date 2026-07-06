@@ -16,6 +16,7 @@ from app.api.dependencies import (
     oauth2_scheme,
     require_openrouter_key,
 )
+from app.chat.events import ErrorEvent
 from app.db import models
 from app.db.engine import engine
 from app.db.repositories import ChatRepository
@@ -138,7 +139,7 @@ def stream_chat(
                     break
         except Exception as exc:  # pylint: disable=broad-exception-caught
             message = str(exc) or "Streaming request failed."
-            yield format_event({"type": "error", "message": message})
+            yield format_event(ErrorEvent(message=message).model_dump())
         finally:
             yield "data: [DONE]\n\n"
             close_session()

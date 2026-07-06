@@ -175,7 +175,16 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
   its source.
 - **Data-oriented design: model the data first.** Most backend bugs here are shape bugs.
   Prefer explicit Pydantic models over dicts-of-dicts; prefer `Enum`/`Literal` over
-  stringly-typed modes; make illegal states unrepresentable rather than checked.
+  stringly-typed modes; make illegal states unrepresentable rather than checked. Any
+  dict that crosses a function boundary with a stable key set is a Pydantic model —
+  message dicts, event dicts, usage dicts were the bug farm here (see
+  `app/chat/events.py`, `app/chat/messages.py`, `app/chat/usage.py`). Discriminated
+  unions for event/message variants; hand-rolled coercion functions are Pydantic
+  validators in disguise (`app/schemas/chat_parameters.py`). The corollary: a dict with
+  a genuinely open-ended, provider-defined key set (raw OpenRouter usage payloads with
+  provider-specific extras) is *not* a stable key set — don't force one into a strict
+  model just to satisfy this rule; model the known aggregate separately and let the raw
+  payload pass through.
 - **OO where there's state, functions where there isn't.** Classes earn their existence
   by owning a resource or invariant (a repository owning a session, a client owning an
   `httpx.Client`). Stateless logic is a module-level function — don't wrap it in a
