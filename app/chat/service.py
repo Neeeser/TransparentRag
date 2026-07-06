@@ -1,7 +1,5 @@
 """Chat service orchestration for sessions, tools, and streaming."""
 
-# pylint: disable=too-many-lines
-
 from __future__ import annotations
 
 import json

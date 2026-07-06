@@ -11,8 +11,9 @@ Before finishing any backend change, run `make verify` — it chains, in order:
 1. `make typecheck` — `mypy app`, with `disallow_untyped_defs = true` globally. New and
    refactored code must be fully typed and pass with zero errors.
 2. `make lint` — `ruff check app tests` (imports, bugs, complexity, pytest style,
-   pyupgrade, simplify) plus a slim `pylint` kept only for the checks ruff doesn't
-   cover: module/function length and design (`too-many-*`).
+   pyupgrade, simplify) plus a slim `pylint` kept only for the design checks ruff
+   doesn't cover (`too-many-arguments/branches/statements/locals`), at
+   `--fail-under=10`. Module *length* is enforced by a guard test instead (below).
 3. `make test` — the unit suite (`uv run pytest`), which excludes `tests/integration/`
    by default (see below).
 
@@ -37,13 +38,15 @@ module is getting rewritten, not because typing it properly is hard. Do not add 
 override for code you're writing today — type it correctly instead. The same rule
 applies to `pyproject.toml`'s `[tool.ruff.lint.per-file-ignores]` burn-down entries.
 
-**Grandfathered oversize modules** (`too-many-lines` under pylint's 400-line
-`max-module-lines`): `app/pipelines/runtime.py`, `app/pipelines/nodes/ingestion.py`,
-`app/db/models.py`, `app/db/repositories.py`, `app/api/routes/collections.py`. These
-are tracked here, not silenced with a disable comment; `make lint` uses
-`--fail-under=9.5` so this known, visible debt doesn't block the gate while a genuinely
-new violation still would. Split these down when you touch them substantially — don't
-let a sixth module join the list.
+**Module size is enforced by `tests/test_module_size.py`, which is the single source
+of truth for the grandfathered list.** The rule: every module under `app/` stays at or
+under 400 lines. The currently-oversize modules are grandfathered in that test's
+`GRANDFATHERED` dict, each with a recorded line-count ceiling that may shrink but never
+grow — the test fails if a new module exceeds 400 lines, if a grandfathered module
+grows past its ceiling, or if an entry that has shrunk to ≤400 lines is still listed
+(so the list can't rot). Never add an entry for new code, and never silence an oversize
+module with a `# pylint: disable=too-many-lines` comment — one of those defeated the
+gate for a 1,200-line module once. Phases 2–6 shrink the dict to empty.
 
 ## Layout — where code goes
 

@@ -92,7 +92,7 @@ typecheck: env-backend
 
 lint: env-backend
 	$(UV) run ruff check app tests
-	$(UV) run pylint --score=y --fail-under=9.5 app
+	$(UV) run pylint --score=y --fail-under=10 app
 
 verify: typecheck lint test
 

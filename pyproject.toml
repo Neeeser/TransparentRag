@@ -164,19 +164,18 @@ py-version = "3.11"
 [tool.pylint.reports]
 score = true
 
-[tool.pylint.format]
-max-module-lines = 400
-
 [tool.pylint.design]
 max-args = 6
 
 [tool.pylint."messages control"]
-# Pylint is kept only as the file-length/design checker; ruff (see [tool.ruff])
-# covers everything else (imports, unused vars, complexity, style, bugbear,
-# pyupgrade, simplify, pytest-style, refactor hints).
+# Pylint is kept only as the design checker; ruff (see [tool.ruff]) covers
+# everything else (imports, unused vars, complexity, style, bugbear, pyupgrade,
+# simplify, pytest-style, refactor hints). Module length is NOT enforced here:
+# tests/test_module_size.py owns the 400-line ceiling and its grandfathered
+# burn-down list precisely (an aggregate score can't fail on a single new
+# oversize module without also passing the known grandfathered ones).
 disable = ["all"]
 enable = [
-    "too-many-lines",
     "too-many-arguments",
     "too-many-branches",
     "too-many-statements",
