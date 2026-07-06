@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from sentence_transformers import SentenceTransformer
 
@@ -22,7 +22,10 @@ class SentenceTransformerEmbedder(Embedder):
         """Initialize the transformer model for embeddings."""
         self.model_name = model_name
         self._normalize = normalize_embeddings
-        self._model = SentenceTransformer(model_name, **model_kwargs)
+        # `**model_kwargs` deliberately accepts any SentenceTransformer constructor
+        # kwarg the caller wants to pass through; mypy can't match a dynamic kwargs
+        # dict against the SDK's very specific overloaded constructor signature.
+        self._model = SentenceTransformer(model_name, **model_kwargs)  # type: ignore[arg-type]
 
     def embed_documents(self, chunks: Sequence[DocumentChunk]) -> Sequence[EmbeddingVector]:
         """Embed document chunks as vectors."""
@@ -46,4 +49,5 @@ class SentenceTransformerEmbedder(Embedder):
             normalize_embeddings=self._normalize,
             show_progress_bar=False,
         )
-        return embedding.astype(float).tolist()
+        # numpy's `.tolist()` stub returns `Any`; the runtime shape is `list[float]`.
+        return embedding.astype(float).tolist()  # type: ignore[no-any-return]

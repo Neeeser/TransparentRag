@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from datetime import datetime
-from typing import Iterable, List, Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import asc, delete as sa_delete, desc, exists
+from sqlalchemy import asc, desc, exists
+from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
 from app.db import models
@@ -19,12 +20,12 @@ class UserRepository:
         """Initialize the repository with a database session."""
         self.session = session
 
-    def get_by_email(self, email: str) -> Optional[models.User]:
+    def get_by_email(self, email: str) -> models.User | None:
         """Return a user by email if one exists."""
         statement = select(models.User).where(models.User.email == email)
         return self.session.exec(statement).first()
 
-    def get(self, user_id: UUID) -> Optional[models.User]:
+    def get(self, user_id: UUID) -> models.User | None:
         """Return a user by id if one exists."""
         return self.session.get(models.User, user_id)
 
@@ -52,8 +53,8 @@ class CollectionRepository:
     def get(
         self,
         collection_id: UUID,
-        user_id: Optional[UUID] = None,
-    ) -> Optional[models.Collection]:
+        user_id: UUID | None = None,
+    ) -> models.Collection | None:
         """Return a collection by id, optionally scoped to a user."""
         statement = select(models.Collection).where(models.Collection.id == collection_id)
         if user_id:
@@ -87,7 +88,7 @@ class DocumentRepository:
         self.session.flush()
         return document
 
-    def get(self, document_id: UUID) -> Optional[models.Document]:
+    def get(self, document_id: UUID) -> models.Document | None:
         """Return a document by id if one exists."""
         return self.session.get(models.Document, document_id)
 
@@ -128,8 +129,8 @@ class ChatRepository:
     def get_session(
         self,
         session_id: UUID,
-        user_id: Optional[UUID] = None,
-    ) -> Optional[models.ChatSession]:
+        user_id: UUID | None = None,
+    ) -> models.ChatSession | None:
         """Return a chat session by id, optionally scoped to a user."""
         statement = select(models.ChatSession).where(models.ChatSession.id == session_id)
         if user_id:
@@ -140,7 +141,7 @@ class ChatRepository:
         self,
         *,
         user_id: UUID,
-        collection_ids: Optional[Sequence[UUID]] = None,
+        collection_ids: Sequence[UUID] | None = None,
         include_unassigned: bool = False,
     ) -> Iterable[models.ChatSession]:
         """List chat sessions for a user, optionally filtered by tool collections."""
@@ -182,7 +183,7 @@ class ChatRepository:
         )
         return self.session.exec(filtered_statement).all()
 
-    def list_session_collection_ids(self, session_id: UUID) -> List[UUID]:
+    def list_session_collection_ids(self, session_id: UUID) -> list[UUID]:
         """List tool collection ids for a chat session."""
         statement = (
             select(models.ChatSessionCollection.collection_id)
@@ -194,7 +195,7 @@ class ChatRepository:
     def list_session_collection_ids_for_sessions(
         self,
         session_ids: Sequence[UUID],
-    ) -> dict[UUID, List[UUID]]:
+    ) -> dict[UUID, list[UUID]]:
         """Return tool collection ids grouped by session."""
         if not session_ids:
             return {}
@@ -206,7 +207,7 @@ class ChatRepository:
             .where(models.ChatSessionCollection.session_id.in_(session_ids))  # pylint: disable=no-member
             .order_by(asc(models.ChatSessionCollection.created_at))
         )
-        mapping: dict[UUID, List[UUID]] = {session_id: [] for session_id in session_ids}
+        mapping: dict[UUID, list[UUID]] = {session_id: [] for session_id in session_ids}
         for session_id, collection_id in self.session.exec(statement).all():
             mapping.setdefault(session_id, []).append(collection_id)
         return mapping
@@ -240,8 +241,8 @@ class ChatRepository:
     def get_message(
         self,
         message_id: UUID,
-        user_id: Optional[UUID] = None,
-    ) -> Optional[models.ChatMessage]:
+        user_id: UUID | None = None,
+    ) -> models.ChatMessage | None:
         """Return a chat message by id, optionally scoped to a user."""
         statement = select(models.ChatMessage).where(models.ChatMessage.id == message_id)
         if user_id:
@@ -275,7 +276,7 @@ class ChatRepository:
         self,
         session_id: UUID,
         timestamp: datetime,
-    ) -> Optional[models.ChatMessage]:
+    ) -> models.ChatMessage | None:
         """Return the last user message before a timestamp."""
         statement = (
             select(models.ChatMessage)
@@ -356,7 +357,7 @@ class PipelineRunRepository:  # pylint: disable=too-few-public-methods
         """Initialize the repository with a database session."""
         self.session = session
 
-    def get(self, run_id: UUID, user_id: Optional[UUID] = None) -> Optional[models.PipelineRun]:
+    def get(self, run_id: UUID, user_id: UUID | None = None) -> models.PipelineRun | None:
         """Return a pipeline run by id, optionally scoped to a user."""
         statement = select(models.PipelineRun).where(models.PipelineRun.id == run_id)
         if user_id:
@@ -393,7 +394,7 @@ class PipelineRepository:
         self,
         user_id: UUID,
         *,
-        kind: Optional[models.PipelineKind] = None,
+        kind: models.PipelineKind | None = None,
     ) -> Iterable[models.Pipeline]:
         """List pipelines for a user, optionally filtered by kind."""
         statement = select(models.Pipeline).where(models.Pipeline.user_id == user_id)
@@ -404,8 +405,8 @@ class PipelineRepository:
     def get(
         self,
         pipeline_id: UUID,
-        user_id: Optional[UUID] = None,
-    ) -> Optional[models.Pipeline]:
+        user_id: UUID | None = None,
+    ) -> models.Pipeline | None:
         """Return a pipeline by id, optionally scoped to a user."""
         statement = select(models.Pipeline).where(models.Pipeline.id == pipeline_id)
         if user_id:
@@ -416,7 +417,7 @@ class PipelineRepository:
         self,
         user_id: UUID,
         kind: models.PipelineKind,
-    ) -> Optional[models.Pipeline]:
+    ) -> models.Pipeline | None:
         """Return the default pipeline for a user and kind."""
         statement = select(models.Pipeline).where(
             models.Pipeline.user_id == user_id,
@@ -452,7 +453,7 @@ class PipelineVersionRepository:
         self,
         pipeline_id: UUID,
         version: int,
-    ) -> Optional[models.PipelineVersion]:
+    ) -> models.PipelineVersion | None:
         """Return a specific version for a pipeline."""
         statement = select(models.PipelineVersion).where(
             models.PipelineVersion.pipeline_id == pipeline_id,

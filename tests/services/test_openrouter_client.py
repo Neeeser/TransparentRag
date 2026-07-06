@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, ClassVar
 
 import pytest
 
@@ -32,7 +32,7 @@ class _StubResponse:
 
 
 class _StubHttpClient:
-    responses: dict[str, list[dict[str, Any]]] = {}
+    responses: ClassVar[dict[str, list[dict[str, Any]]]] = {}
 
     def __init__(self, base_url: str, headers: dict[str, str], timeout: float) -> None:
         self.base_url = base_url
@@ -98,7 +98,7 @@ class _StubOpenAI:
 
 
 @pytest.fixture
-def _client(monkeypatch) -> OpenRouterClient:
+def client(monkeypatch) -> OpenRouterClient:
     _StubHttpClient.responses = {}
     monkeypatch.setattr(openrouter_module, "get_settings", lambda: _StubSettings())
     monkeypatch.setattr(openrouter_module.httpx, "Client", _StubHttpClient)
@@ -106,7 +106,7 @@ def _client(monkeypatch) -> OpenRouterClient:
     return OpenRouterClient("test-key")
 
 
-def test_list_models_caches_and_refreshes(_client: OpenRouterClient) -> None:
+def test_list_models_caches_and_refreshes(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/models": [
             {"data": [{"id": "model-a", "name": "Model A"}]},
@@ -114,17 +114,17 @@ def test_list_models_caches_and_refreshes(_client: OpenRouterClient) -> None:
         ]
     }
 
-    first = _client.list_models()
-    second = _client.list_models()
-    refreshed = _client.list_models(force_refresh=True)
+    first = client.list_models()
+    second = client.list_models()
+    refreshed = client.list_models(force_refresh=True)
 
     assert [model.id for model in first] == ["model-a"]
     assert [model.id for model in second] == ["model-a"]
     assert [model.id for model in refreshed] == ["model-b"]
-    assert _client._http.get_calls.count("/models") == 2
+    assert client._http.get_calls.count("/models") == 2
 
 
-def test_get_model_refreshes_when_missing(_client: OpenRouterClient) -> None:
+def test_get_model_refreshes_when_missing(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/models": [
             {"data": []},
@@ -132,18 +132,18 @@ def test_get_model_refreshes_when_missing(_client: OpenRouterClient) -> None:
         ]
     }
 
-    model = _client.get_model("provider/model")
+    model = client.get_model("provider/model")
 
     assert isinstance(model, ModelInfo)
     assert model.id == "provider/model"
-    assert _client._http.get_calls.count("/models") == 2
+    assert client._http.get_calls.count("/models") == 2
 
 
-def test_get_model_returns_none_for_empty_id(_client: OpenRouterClient) -> None:
-    assert _client.get_model("") is None
+def test_get_model_returns_none_for_empty_id(client: OpenRouterClient) -> None:
+    assert client.get_model("") is None
 
 
-def test_get_model_matches_case_insensitive(_client: OpenRouterClient) -> None:
+def test_get_model_matches_case_insensitive(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/models": [
             {
@@ -158,13 +158,13 @@ def test_get_model_matches_case_insensitive(_client: OpenRouterClient) -> None:
         ]
     }
 
-    model = _client.get_model("openai/gpt-4")
+    model = client.get_model("openai/gpt-4")
 
     assert model
     assert model.id == "OpenAI/GPT-4"
 
 
-def test_get_model_matches_canonical_slug_case_insensitive(_client: OpenRouterClient) -> None:
+def test_get_model_matches_canonical_slug_case_insensitive(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/models": [
             {
@@ -179,13 +179,13 @@ def test_get_model_matches_canonical_slug_case_insensitive(_client: OpenRouterCl
         ]
     }
 
-    model = _client.get_model("OPENAI/GPT-4")
+    model = client.get_model("OPENAI/GPT-4")
 
     assert model
     assert model.id == "OpenAI/GPT-4"
 
 
-def test_get_model_matches_canonical_slug_when_id_differs(_client: OpenRouterClient) -> None:
+def test_get_model_matches_canonical_slug_when_id_differs(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/models": [
             {
@@ -200,13 +200,13 @@ def test_get_model_matches_canonical_slug_when_id_differs(_client: OpenRouterCli
         ]
     }
 
-    model = _client.get_model("OPENAI/GPT-4")
+    model = client.get_model("OPENAI/GPT-4")
 
     assert model
     assert model.id == "OpenAI/GPT-4-0314"
 
 
-def test_get_model_returns_none_when_missing(_client: OpenRouterClient) -> None:
+def test_get_model_returns_none_when_missing(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/models": [
             {
@@ -230,12 +230,12 @@ def test_get_model_returns_none_when_missing(_client: OpenRouterClient) -> None:
         ]
     }
 
-    model = _client.get_model("openai/gpt-5")
+    model = client.get_model("openai/gpt-5")
 
     assert model is None
 
 
-def test_get_model_matches_id_case_insensitive_without_canonical(_client: OpenRouterClient) -> None:
+def test_get_model_matches_id_case_insensitive_without_canonical(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/models": [
             {
@@ -250,25 +250,25 @@ def test_get_model_matches_id_case_insensitive_without_canonical(_client: OpenRo
         ]
     }
 
-    model = _client.get_model("openai/test")
+    model = client.get_model("openai/test")
 
     assert model
     assert model.id == "OpenAI/TEST"
 
 
-def test_list_model_endpoints_encodes_path(_client: OpenRouterClient) -> None:
+def test_list_model_endpoints_encodes_path(client: OpenRouterClient) -> None:
     response = EndpointsListResponse(data=ListEndpointsResponse(id="model", name="Model"))
     _StubHttpClient.responses = {
         "/models/open%20ai/gpt%2F4/endpoints": [response.model_dump()],
     }
 
-    payload = _client.list_model_endpoints("open ai", "gpt/4")
+    payload = client.list_model_endpoints("open ai", "gpt/4")
 
     assert payload.data.id == "model"
-    assert _client._http.get_calls == ["/models/open%20ai/gpt%2F4/endpoints"]
+    assert client._http.get_calls == ["/models/open%20ai/gpt%2F4/endpoints"]
 
 
-def test_list_embedding_models_caches_and_refreshes(_client: OpenRouterClient) -> None:
+def test_list_embedding_models_caches_and_refreshes(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/embeddings/models": [
             {"data": [{"id": "embed-a", "name": "Embed A"}]},
@@ -276,27 +276,27 @@ def test_list_embedding_models_caches_and_refreshes(_client: OpenRouterClient) -
         ]
     }
 
-    first = _client.list_embedding_models()
-    second = _client.list_embedding_models()
-    refreshed = _client.list_embedding_models(force_refresh=True)
+    first = client.list_embedding_models()
+    second = client.list_embedding_models()
+    refreshed = client.list_embedding_models(force_refresh=True)
 
     assert first[0]["id"] == "embed-a"
     assert second[0]["id"] == "embed-a"
     assert refreshed[0]["id"] == "embed-b"
-    assert _client._http.get_calls.count("/embeddings/models") == 2
+    assert client._http.get_calls.count("/embeddings/models") == 2
 
 
-def test_list_embedding_models_handles_invalid_payload(_client: OpenRouterClient) -> None:
+def test_list_embedding_models_handles_invalid_payload(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/embeddings/models": [{"data": {"id": "embed-a"}}],
     }
 
-    models = _client.list_embedding_models()
+    models = client.list_embedding_models()
 
     assert models == []
 
 
-def test_list_embedding_models_skips_invalid_entries(_client: OpenRouterClient) -> None:
+def test_list_embedding_models_skips_invalid_entries(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/embeddings/models": [
             {"data": ["bad-entry", {"name": "No Id"}, {"id": "embed-a", "name": "Embed A"}]}
@@ -306,9 +306,9 @@ def test_list_embedding_models_skips_invalid_entries(_client: OpenRouterClient) 
     def _raise_dimension(_model_id: str) -> int:
         raise ValueError("no dimension")
 
-    _client.get_embedding_dimension = _raise_dimension  # type: ignore[assignment]
+    client.get_embedding_dimension = _raise_dimension  # type: ignore[assignment]
 
-    models = _client.list_embedding_models()
+    models = client.list_embedding_models()
 
     assert len(models) == 2
     assert models[0]["name"] == "No Id"
@@ -316,127 +316,127 @@ def test_list_embedding_models_skips_invalid_entries(_client: OpenRouterClient) 
     assert models[1]["dimension"] is None
 
 
-def test_list_embedding_models_uses_dimension_cache(_client: OpenRouterClient) -> None:
+def test_list_embedding_models_uses_dimension_cache(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/embeddings/models": [{"data": [{"id": "embed-a", "name": "Embed A"}]}],
     }
-    _client._embedding_model_cache["dimensions"] = {"embed-a": 256}
+    client._embedding_model_cache["dimensions"] = {"embed-a": 256}
 
     def _raise_dimension(_model_id: str) -> int:
         raise AssertionError("dimension lookup should be skipped")
 
-    _client.get_embedding_dimension = _raise_dimension  # type: ignore[assignment]
+    client.get_embedding_dimension = _raise_dimension  # type: ignore[assignment]
 
-    models = _client.list_embedding_models(force_refresh=True)
+    models = client.list_embedding_models(force_refresh=True)
 
     assert models[0]["dimension"] == 256
 
 
-def test_get_embedding_dimension_returns_length(_client: OpenRouterClient) -> None:
-    dimension = _client.get_embedding_dimension("model-a")
+def test_get_embedding_dimension_returns_length(client: OpenRouterClient) -> None:
+    dimension = client.get_embedding_dimension("model-a")
 
     assert dimension == 1
 
 
-def test_embed_merges_extra_headers(_client: OpenRouterClient) -> None:
-    result = _client.embed(["hello"], extra_headers={"X-Extra": "value"})
+def test_embed_merges_extra_headers(client: OpenRouterClient) -> None:
+    result = client.embed(["hello"], extra_headers={"X-Extra": "value"})
 
-    call = _client._client.embeddings.calls[0]
+    call = client._client.embeddings.calls[0]
     assert call["extra_headers"]["X-Extra"] == "value"
     assert call["extra_headers"]["X-Title"] == "TransparentRag"
     assert result["data"][0]["embedding"] == [0.1]
 
 
-def test_embed_includes_dimensions(_client: OpenRouterClient) -> None:
-    _client.embed(["hello"], dimensions=1536)
+def test_embed_includes_dimensions(client: OpenRouterClient) -> None:
+    client.embed(["hello"], dimensions=1536)
 
-    call = _client._client.embeddings.calls[0]
+    call = client._client.embeddings.calls[0]
     assert call["dimensions"] == 1536
 
 
-def test_get_embedding_dimension_raises_on_missing_model_id(_client: OpenRouterClient) -> None:
+def test_get_embedding_dimension_raises_on_missing_model_id(client: OpenRouterClient) -> None:
     with pytest.raises(ValueError, match="must be provided"):
-        _client.get_embedding_dimension("")
+        client.get_embedding_dimension("")
 
 
-def test_get_embedding_dimension_raises_on_invalid_payload(_client: OpenRouterClient) -> None:
+def test_get_embedding_dimension_raises_on_invalid_payload(client: OpenRouterClient) -> None:
     def _stub_embed(*_args, **_kwargs):
         return {"data": []}
 
-    _client.embed = _stub_embed  # type: ignore[assignment]
+    client.embed = _stub_embed  # type: ignore[assignment]
 
     with pytest.raises(ValueError, match="missing data array"):
-        _client.get_embedding_dimension("model-a")
+        client.get_embedding_dimension("model-a")
 
 
-def test_get_embedding_dimension_raises_on_invalid_entry(_client: OpenRouterClient) -> None:
+def test_get_embedding_dimension_raises_on_invalid_entry(client: OpenRouterClient) -> None:
     def _stub_embed(*_args, **_kwargs):
         return {"data": ["bad"]}
 
-    _client.embed = _stub_embed  # type: ignore[assignment]
+    client.embed = _stub_embed  # type: ignore[assignment]
 
     with pytest.raises(ValueError, match="entry is invalid"):
-        _client.get_embedding_dimension("model-a")
+        client.get_embedding_dimension("model-a")
 
 
-def test_get_embedding_dimension_raises_on_missing_embedding(_client: OpenRouterClient) -> None:
+def test_get_embedding_dimension_raises_on_missing_embedding(client: OpenRouterClient) -> None:
     def _stub_embed(*_args, **_kwargs):
         return {"data": [{"embedding": "bad"}]}
 
-    _client.embed = _stub_embed  # type: ignore[assignment]
+    client.embed = _stub_embed  # type: ignore[assignment]
 
     with pytest.raises(ValueError, match="missing embedding values"):
-        _client.get_embedding_dimension("model-a")
+        client.get_embedding_dimension("model-a")
 
 
-def test_chat_includes_parameters_and_extra_body(_client: OpenRouterClient) -> None:
-    payload = _client.chat(
+def test_chat_includes_parameters_and_extra_body(client: OpenRouterClient) -> None:
+    payload = client.chat(
         messages=[{"role": "user", "content": "hi"}],
         extra_body={"usage": {"include": True}},
         parameters={"temperature": 0.2, "top_p": None},
     )
 
-    call = _client._client.chat.completions.calls[0]
+    call = client._client.chat.completions.calls[0]
     assert call["temperature"] == 0.2
     assert "top_p" not in call
     assert call["extra_body"] == {"usage": {"include": True}}
     assert payload["id"] == "chat-1"
 
 
-def test_chat_includes_tool_settings(_client: OpenRouterClient) -> None:
-    _client.chat(
+def test_chat_includes_tool_settings(client: OpenRouterClient) -> None:
+    client.chat(
         messages=[{"role": "user", "content": "hi"}],
         tools=[{"type": "function", "function": {"name": "tool"}}],
         tool_choice={"type": "function", "function": {"name": "tool"}},
         parallel_tool_calls=True,
     )
 
-    call = _client._client.chat.completions.calls[0]
+    call = client._client.chat.completions.calls[0]
     assert call["tools"]
     assert call["tool_choice"]["function"]["name"] == "tool"
     assert call["parallel_tool_calls"] is True
 
 
-def test_chat_stream_yields_chunks(_client: OpenRouterClient) -> None:
+def test_chat_stream_yields_chunks(client: OpenRouterClient) -> None:
     chunks = list(
-        _client.chat_stream(messages=[{"role": "user", "content": "hi"}], parameters={"top_p": 0.9})
+        client.chat_stream(messages=[{"role": "user", "content": "hi"}], parameters={"top_p": 0.9})
     )
 
-    call = _client._client.chat.completions.calls[0]
+    call = client._client.chat.completions.calls[0]
     assert call["stream"] is True
     assert call["top_p"] == 0.9
     assert chunks == [{"chunk": 1}, {"chunk": 2}]
 
 
-def test_chat_stream_skips_none_parameters(_client: OpenRouterClient) -> None:
+def test_chat_stream_skips_none_parameters(client: OpenRouterClient) -> None:
     list(
-        _client.chat_stream(
+        client.chat_stream(
             messages=[{"role": "user", "content": "hi"}],
             parameters={"top_p": None, "temperature": 0.1},
         )
     )
 
-    call = _client._client.chat.completions.calls[0]
+    call = client._client.chat.completions.calls[0]
     assert call["temperature"] == 0.1
     assert "top_p" not in call
 
@@ -461,9 +461,9 @@ def test_build_app_headers_skips_referer(monkeypatch) -> None:
     assert "HTTP-Referer" not in client._app_headers
 
 
-def test_chat_stream_includes_tool_settings(_client: OpenRouterClient) -> None:
+def test_chat_stream_includes_tool_settings(client: OpenRouterClient) -> None:
     chunks = list(
-        _client.chat_stream(
+        client.chat_stream(
             messages=[{"role": "user", "content": "hi"}],
             tools=[{"type": "function", "function": {"name": "tool"}}],
             tool_choice={"type": "function", "function": {"name": "tool"}},
@@ -472,7 +472,7 @@ def test_chat_stream_includes_tool_settings(_client: OpenRouterClient) -> None:
         )
     )
 
-    call = _client._client.chat.completions.calls[0]
+    call = client._client.chat.completions.calls[0]
     assert call["tools"]
     assert call["tool_choice"]["function"]["name"] == "tool"
     assert call["parallel_tool_calls"] is True

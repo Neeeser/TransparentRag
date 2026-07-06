@@ -6,13 +6,44 @@ verify gates, the bug-fix regression-test rule, commit conventions — live in t
 
 ## The gate
 
-Before finishing any backend change:
+Before finishing any backend change, run `make verify` — it chains, in order:
 
-- `make test` — full pytest suite must pass.
-- `make coverage` — review the `term-missing` output for untested lines you introduced.
-- `make lint` — pylint on `app/`; fix everything your diff introduces.
+1. `make typecheck` — `mypy app`, with `disallow_untyped_defs = true` globally. New and
+   refactored code must be fully typed and pass with zero errors.
+2. `make lint` — `ruff check app tests` (imports, bugs, complexity, pytest style,
+   pyupgrade, simplify) plus a slim `pylint` kept only for the checks ruff doesn't
+   cover: module/function length and design (`too-many-*`).
+3. `make test` — the unit suite (`uv run pytest`), which excludes `tests/integration/`
+   by default (see below).
 
-Use `make coverage-report` for non-blocking runs while iterating.
+All three must be green; `make verify` exits non-zero if any stage fails. Run
+`make coverage` separately and review the `term-missing` output for untested lines you
+introduced — coverage is not yet a blocking gate (a floor is planned for Phase 8).
+
+**The live integration suite is opt-in, not part of the gate.** `tests/integration/`
+hits real OpenRouter/Pinecone and needs `TEST_OPENROUTER_API_KEY`/`TEST_PINECONE_API_KEY`
+configured; run it explicitly with `make test-integration`. Every test under
+`tests/integration/` carries `pytestmark = pytest.mark.integration`, and its fixtures
+(live `client`, `user_context`, `collection_factory`, the Pinecone namespace tracker,
+etc.) live in `tests/integration/conftest.py`, not the root `tests/conftest.py`. The
+root conftest only does environment bootstrapping (env file loading, DB/storage
+redirection) and the function-scoped `session` fixture — it must never grow a hard
+requirement on live credentials, or the whole unit suite stops collecting without them.
+
+**mypy overrides are a burn-down list with a named owner-phase, never a pattern to
+copy.** Every `[[tool.mypy.overrides]]` block in `pyproject.toml` is commented with the
+phase that removes it (e.g. `# removed in Phase 5`) and exists only because that
+module is getting rewritten, not because typing it properly is hard. Do not add a new
+override for code you're writing today — type it correctly instead. The same rule
+applies to `pyproject.toml`'s `[tool.ruff.lint.per-file-ignores]` burn-down entries.
+
+**Grandfathered oversize modules** (`too-many-lines` under pylint's 400-line
+`max-module-lines`): `app/pipelines/runtime.py`, `app/pipelines/nodes/ingestion.py`,
+`app/db/models.py`, `app/db/repositories.py`, `app/api/routes/collections.py`. These
+are tracked here, not silenced with a disable comment; `make lint` uses
+`--fail-under=9.5` so this known, visible debt doesn't block the gate while a genuinely
+new violation still would. Split these down when you touch them substantially — don't
+let a sixth module join the list.
 
 ## Layout — where code goes
 

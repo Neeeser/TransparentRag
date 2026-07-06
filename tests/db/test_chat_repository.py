@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from uuid import uuid4
+from datetime import UTC, datetime
 
 from sqlmodel import Session
 
@@ -110,7 +109,7 @@ def test_chat_repository_filters_messages_by_user(session: Session) -> None:
         session_a,
         role=ChatRole.USER,
         content="hello",
-        created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
     )
 
     repo = ChatRepository(session)
@@ -123,7 +122,7 @@ def test_chat_repository_deletes_messages_after_anchor(session: Session) -> None
     user = _create_user(session, "a@example.com")
     collection = _create_collection(session, user)
     chat_session = _create_session(session, user, collection)
-    anchor_time = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    anchor_time = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
     anchor = _add_message(session, chat_session, role=ChatRole.USER, content="a", created_at=anchor_time)
     _add_message(session, chat_session, role=ChatRole.USER, content="b", created_at=anchor_time.replace(minute=1))
 
@@ -142,7 +141,7 @@ def test_chat_repository_tool_deletion_and_last_user_message(session: Session) -
     user = _create_user(session, "a@example.com")
     collection = _create_collection(session, user)
     chat_session = _create_session(session, user, collection)
-    t0 = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+    t0 = datetime(2024, 1, 1, 10, 0, tzinfo=UTC)
     _add_message(session, chat_session, role=ChatRole.USER, content="first", created_at=t0)
     _add_message(session, chat_session, role=ChatRole.TOOL, content="tool", created_at=t0.replace(minute=1))
     _add_message(session, chat_session, role=ChatRole.USER, content="second", created_at=t0.replace(minute=2))
@@ -161,7 +160,7 @@ def test_chat_repository_delete_session_removes_messages(session: Session) -> No
     user = _create_user(session, "a@example.com")
     collection = _create_collection(session, user)
     chat_session = _create_session(session, user, collection)
-    _add_message(session, chat_session, role=ChatRole.USER, content="hello", created_at=datetime.now(timezone.utc))
+    _add_message(session, chat_session, role=ChatRole.USER, content="hello", created_at=datetime.now(UTC))
 
     repo = ChatRepository(session)
     repo.delete_session(chat_session)

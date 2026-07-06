@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 from app.db.models import ChunkStrategy
 from app.retrieval.chunkers.base import DocumentChunker

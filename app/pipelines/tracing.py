@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 from uuid import UUID
 
 from fastapi.encoders import jsonable_encoder
@@ -76,7 +76,7 @@ class PipelineTraceRecorder:  # pylint: disable=too-few-public-methods
     def start_node(
         self,
         node_def: PipelineNodeDefinition,
-        inputs: Dict[str, object],
+        inputs: dict[str, object],
     ) -> models.PipelineNodeRun:
         """Record node execution start and its input payloads."""
         node_run = models.PipelineNodeRun(
@@ -99,7 +99,7 @@ class PipelineTraceRecorder:  # pylint: disable=too-few-public-methods
     def finish_node(
         self,
         node_run: models.PipelineNodeRun,
-        outputs: Dict[str, object],
+        outputs: dict[str, object],
         summary: NodeTraceSummary,
     ) -> None:
         """Record node execution completion and its outputs."""
@@ -163,7 +163,7 @@ class PipelineTraceRecorder:  # pylint: disable=too-few-public-methods
         self._session.add(io_record)
 
     @staticmethod
-    def _normalize_payload(payload: object) -> Dict[str, Any]:
+    def _normalize_payload(payload: object) -> dict[str, Any]:
         """Normalize payloads into dicts for persistence."""
         serialized = serialize_payload(payload)
         if isinstance(serialized, dict):

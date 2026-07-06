@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Optional, Protocol, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
 from pydantic import BaseModel
 
@@ -13,7 +14,7 @@ class VectorIndexConfig(BaseModel):
     """Configuration for a vector index."""
 
     name: str
-    namespace: Optional[str] = None
+    namespace: str | None = None
 
 
 class Indexer(Protocol):
@@ -27,7 +28,7 @@ class Indexer(Protocol):
         self,
         config: VectorIndexConfig,
         chunks: Sequence[DocumentChunk],
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         """Upsert document chunks into the backend index."""
         return None

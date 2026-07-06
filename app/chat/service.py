@@ -5,34 +5,15 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi.encoders import jsonable_encoder
 from sqlmodel import Session, select
 
 from app.api.config import get_settings
-from app.db import models
-from app.db.repositories import ChatRepository
-from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
-from app.schemas.chat import (
-    ChatBranchResponse,
-    ChatCompletionResponse,
-    ChatMessageCreate,
-    ChatMessageRead,
-    ChatSessionRead,
-    ToolCallTrace,
-)
-from app.chat.processing.parameters import (
-    build_openrouter_body,
-    build_reasoning_options,
-    prepare_reasoning_override,
-    sanitize_parameter_overrides,
-    sanitize_provider_preferences,
-)
-from app.chat.providers.base import ChatProvider, ChatRequest
-from app.chat.providers.openrouter import OpenRouterProvider
 from app.chat.persistence.records import (
     MessageRecord,
     RecordContext,
@@ -44,7 +25,28 @@ from app.chat.persistence.records import (
     record_tool_call_assistant_message,
     serialize_message,
 )
+from app.chat.persistence.sessions import SessionRequest, apply_edit, ensure_session
+from app.chat.processing.parameters import (
+    build_openrouter_body,
+    build_reasoning_options,
+    prepare_reasoning_override,
+    sanitize_parameter_overrides,
+    sanitize_provider_preferences,
+)
 from app.chat.processing.reasoning import normalize_reasoning_segments
+from app.chat.processing.tool_calls import (
+    decode_tool_arguments,
+    extract_reasoning_tool_calls,
+    normalize_tool_calls,
+)
+from app.chat.processing.usage import (
+    add_usage_value,
+    coerce_float_value,
+    coerce_usage_value,
+    extract_reasoning_tokens_from_usage,
+)
+from app.chat.providers.base import ChatProvider, ChatRequest
+from app.chat.providers.openrouter import OpenRouterProvider
 from app.chat.state import (
     ChatSetup,
     ModelSettings,
@@ -57,18 +59,17 @@ from app.chat.state import (
     ToolCollectionContext,
     ToolExecutionContext,
 )
-from app.chat.persistence.sessions import SessionRequest, apply_edit, ensure_session
 from app.chat.streaming.streaming import stream_model_completion
-from app.chat.processing.tool_calls import (
-    decode_tool_arguments,
-    extract_reasoning_tool_calls,
-    normalize_tool_calls,
-)
-from app.chat.processing.usage import (
-    add_usage_value,
-    coerce_float_value,
-    coerce_usage_value,
-    extract_reasoning_tokens_from_usage,
+from app.db import models
+from app.db.repositories import ChatRepository
+from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
+from app.schemas.chat import (
+    ChatBranchResponse,
+    ChatCompletionResponse,
+    ChatMessageCreate,
+    ChatMessageRead,
+    ChatSessionRead,
+    ToolCallTrace,
 )
 from app.services.openrouter import OpenRouterClient, get_openrouter_client
 from app.services.pipelines import PipelineService
@@ -86,18 +87,18 @@ from app.utils.time import utc_now
 class StreamCapture:
     """Track partial stream state for abort handling."""
 
-    content_parts: List[str] = field(default_factory=list)
-    reasoning_segments: List[Dict[str, Any]] = field(default_factory=list)
+    content_parts: list[str] = field(default_factory=list)
+    reasoning_segments: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class SessionPreferencesUpdate:
     """Normalized run settings persisted for sessions and users."""
 
-    parameter_overrides: Optional[Dict[str, Any]]
-    provider_preferences: Optional[Dict[str, Any]]
+    parameter_overrides: dict[str, Any] | None
+    provider_preferences: dict[str, Any] | None
     stream_enabled: bool
-    tool_collection_ids: List[UUID]
+    tool_collection_ids: list[UUID]
 
 
 class ChatService:
@@ -110,11 +111,11 @@ class ChatService:
         self.session = session
         self.settings = get_settings()
         self.chat_repo = ChatRepository(session)
-        self.openrouter: Optional[OpenRouterClient] = None
-        self.provider: Optional[ChatProvider] = None
+        self.openrouter: OpenRouterClient | None = None
+        self.provider: ChatProvider | None = None
         self.retrieval = RetrievalService(session)
         effort_value = (self.settings.openrouter_reasoning_effort or "").strip()
-        self.reasoning_effort: Optional[str] = effort_value or None
+        self.reasoning_effort: str | None = effort_value or None
 
     def _ensure_provider(self, user: models.User) -> ChatProvider:
         """Return the provider client for the current user."""
@@ -172,12 +173,12 @@ class ChatService:
         *,
         user: models.User,
         payload: ChatMessageCreate,
-        session_model: Optional[models.ChatSession],
-    ) -> Tuple[List[ToolCollectionContext], List[UUID]]:
+        session_model: models.ChatSession | None,
+    ) -> tuple[list[ToolCollectionContext], list[UUID]]:
         """Resolve tool collections for the request payload."""
         if payload.tool_collection_ids is None:
             if not session_model:
-                collection_ids: List[UUID] = []
+                collection_ids: list[UUID] = []
             else:
                 collection_ids = self.chat_repo.list_session_collection_ids(session_model.id)
         else:
@@ -220,8 +221,8 @@ class ChatService:
         user: models.User,
         payload: ChatMessageCreate,
         default_chat_model: str,
-        primary_collection_id: Optional[UUID],
-    ) -> Tuple[models.ChatSession, Optional[models.ChatMessage]]:
+        primary_collection_id: UUID | None,
+    ) -> tuple[models.ChatSession, models.ChatMessage | None]:
         """Resolve the chat session for the request payload."""
         if payload.edit_message_id:
             edit_target = self.chat_repo.get_message(payload.edit_message_id, user_id=user.id)
@@ -244,7 +245,7 @@ class ChatService:
         return session_model, None
 
     @staticmethod
-    def _resolve_branch_title(session_title: str, requested_title: Optional[str]) -> str:
+    def _resolve_branch_title(session_title: str, requested_title: str | None) -> str:
         """Return the new session title for a branched chat."""
         trimmed_title = (requested_title or "").strip()
         if trimmed_title:
@@ -256,10 +257,10 @@ class ChatService:
         self,
         *,
         branch_session_id: UUID,
-        messages: List[models.ChatMessage],
-    ) -> List[models.ChatMessage]:
+        messages: list[models.ChatMessage],
+    ) -> list[models.ChatMessage]:
         """Copy messages into a branched session, preserving source links."""
-        branched_messages: List[models.ChatMessage] = []
+        branched_messages: list[models.ChatMessage] = []
         for message in messages:
             branched_message = models.ChatMessage(
                 session_id=branch_session_id,
@@ -287,7 +288,7 @@ class ChatService:
         user: models.User,
         session_id: UUID,
         message_id: UUID,
-        title: Optional[str],
+        title: str | None,
     ) -> ChatBranchResponse:
         """Create a new chat session branched from a specific message."""
         session_model = self.chat_repo.get_session(session_id, user_id=user.id)
@@ -348,7 +349,7 @@ class ChatService:
         self,
         *,
         session_model: models.ChatSession,
-        edit_target: Optional[models.ChatMessage],
+        edit_target: models.ChatMessage | None,
         payload: ChatMessageCreate,
     ) -> None:
         """Apply an edit or append a user message to the session."""
@@ -416,11 +417,11 @@ class ChatService:
         *,
         user: models.User,
         session_model: models.ChatSession,
-        tool_collections: List[ToolCollectionContext],
-    ) -> List[Dict[str, Any]]:
+        tool_collections: list[ToolCollectionContext],
+    ) -> list[dict[str, Any]]:
         """Build the message history with the system prompt."""
         history = self.chat_repo.list_messages(session_model.id)
-        tool_contexts: List[Dict[str, object]] = []
+        tool_contexts: list[dict[str, object]] = []
         for tool_context in tool_collections:
             template = get_system_prompt_template(tool_context.collection)
             context = system_prompt_context(
@@ -439,9 +440,9 @@ class ChatService:
 
     def _build_reasoning_request_options(
         self,
-        supported_parameters: List[str],
-        reasoning_override: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        supported_parameters: list[str],
+        reasoning_override: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         """Build reasoning options for the current model."""
         override_effort = reasoning_override.get("effort") if reasoning_override else None
         options = build_reasoning_options(
@@ -583,7 +584,7 @@ class ChatService:
             model=model_settings,
         )
 
-    def _update_usage_aggregate(self, run_state: RunState, usage: Dict[str, Any]) -> None:
+    def _update_usage_aggregate(self, run_state: RunState, usage: dict[str, Any]) -> None:
         """Update usage aggregation with a new usage payload."""
         if not usage:
             return
@@ -602,7 +603,7 @@ class ChatService:
     def _resolve_tool_calls(
         self,
         *,
-        message: Dict[str, Any],
+        message: dict[str, Any],
         run_state: RunState,
         combine_reasoning: bool,
     ) -> ToolCallResolution:
@@ -621,7 +622,7 @@ class ChatService:
             pending_tool_calls = base_tool_calls + reasoning_tool_calls
         else:
             pending_tool_calls = base_tool_calls or reasoning_tool_calls
-        shared_tool_reasoning: Optional[Dict[str, Any]] = None
+        shared_tool_reasoning: dict[str, Any] | None = None
         if pending_tool_calls:
             if reasoning_context:
                 run_state.reasoning_call_segments.update(reasoning_context)
@@ -636,11 +637,11 @@ class ChatService:
 
     def _parse_tool_call(
         self,
-        tool_call: Dict[str, Any],
+        tool_call: dict[str, Any],
         payload: ChatMessageCreate,
         *,
         use_fallback_id: bool,
-    ) -> Tuple[Optional[str], str, Dict[str, Any], str, int]:
+    ) -> tuple[str | None, str, dict[str, Any], str, int]:
         """Parse tool call metadata into a normalized tuple."""
         function_block = tool_call.get("function") or {}
         if not isinstance(function_block, dict):
@@ -661,20 +662,20 @@ class ChatService:
     def _select_tool_reasoning(
         self,
         *,
-        call_id: Optional[str],
+        call_id: str | None,
         run_state: RunState,
-        shared_tool_reasoning: Optional[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+        shared_tool_reasoning: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
         """Select reasoning entry for tool call events."""
         return run_state.reasoning_call_segments.get(call_id) or shared_tool_reasoning
 
     def _build_reasoning_payload(
         self,
         *,
-        call_id: Optional[str],
+        call_id: str | None,
         run_state: RunState,
-        shared_tool_reasoning: Optional[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+        shared_tool_reasoning: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
         """Build reasoning payload for tool call results."""
         reasoning_segment = run_state.reasoning_call_segments.pop(call_id, None)
         if reasoning_segment is None and shared_tool_reasoning:
@@ -689,9 +690,9 @@ class ChatService:
         self,
         *,
         session_model: models.ChatSession,
-        messages: List[Dict[str, Any]],
-        assistant_content: Optional[str],
-        tool_calls: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        assistant_content: str | None,
+        tool_calls: list[dict[str, Any]],
     ) -> None:
         """Append assistant tool-call message to history and persist it."""
         messages.append(
@@ -733,7 +734,7 @@ class ChatService:
         self,
         *,
         context: StreamToolCallContext,
-    ) -> Generator[Dict[str, Any], None, bool]:
+    ) -> Generator[dict[str, Any], None, bool]:
         """Resolve and execute streaming tool calls if present."""
         resolution = self._resolve_tool_calls(
             message=context.message,
@@ -769,7 +770,7 @@ class ChatService:
     def _execute_tool_calls(
         self,
         *,
-        tool_calls: List[Dict[str, Any]],
+        tool_calls: list[dict[str, Any]],
         context: ToolExecutionContext,
     ) -> None:
         """Execute tool calls and persist the results."""
@@ -839,9 +840,9 @@ class ChatService:
     def _stream_tool_calls(
         self,
         *,
-        tool_calls: List[Dict[str, Any]],
+        tool_calls: list[dict[str, Any]],
         context: ToolExecutionContext,
-    ) -> Generator[Dict[str, Any], None, None]:
+    ) -> Generator[dict[str, Any], None, None]:
         """Execute tool calls while emitting streaming events."""
         for tool_call in tool_calls:
             call_id, name, arguments, query_text, top_k = self._parse_tool_call(
@@ -946,7 +947,7 @@ class ChatService:
             reasoning_payload = {"segments": run_state.reasoning_trace}
         latest_usage_source = run_state.latest_usage_payload or response.usage or {}
         latest_usage_total = coerce_usage_value(latest_usage_source.get("total_tokens"))
-        final_usage: Dict[str, Any] = dict(run_state.latest_usage_payload or response.usage or {})
+        final_usage: dict[str, Any] = dict(run_state.latest_usage_payload or response.usage or {})
         if run_state.usage_aggregate:
             final_usage = dict(final_usage) if final_usage else {}
             final_usage.update(
@@ -997,9 +998,9 @@ class ChatService:
         setup: ChatSetup,
         capture: StreamCapture,
     ) -> Generator[
-        Dict[str, Any],
+        dict[str, Any],
         None,
-        Tuple[Dict[str, Any], Dict[str, Any], str, Optional[str], Optional[str]],
+        tuple[dict[str, Any], dict[str, Any], str, str | None, str | None],
     ]:
         """Run one streaming iteration and yield events."""
         request = ChatRequest(
@@ -1031,13 +1032,13 @@ class ChatService:
             yield event
 
     def _tool_specs(
-        self, tool_collections: List[ToolCollectionContext]
-    ) -> Tuple[List[Dict[str, object]], Dict[str, models.Collection]]:
+        self, tool_collections: list[ToolCollectionContext]
+    ) -> tuple[list[dict[str, object]], dict[str, models.Collection]]:
         """Return tool schemas and collection mappings for chat completion requests."""
         if not tool_collections:
             return [], {}
-        tools: List[Dict[str, object]] = []
-        tool_map: Dict[str, models.Collection] = {}
+        tools: list[dict[str, object]] = []
+        tool_map: dict[str, models.Collection] = {}
         for tool_context in tool_collections:
             tool_name = tool_context.tool_name
             tool_map[tool_name] = tool_context.collection
@@ -1078,7 +1079,7 @@ class ChatService:
     def _select_tool_collection(
         *,
         tool_name: str,
-        tool_map: Dict[str, models.Collection],
+        tool_map: dict[str, models.Collection],
     ) -> models.Collection:
         """Return the collection for a tool call name."""
         if tool_name in tool_map:
@@ -1092,7 +1093,7 @@ class ChatService:
         *,
         user: models.User,
         payload: ChatMessageCreate,
-    ) -> Generator[Dict[str, Any], None, None]:
+    ) -> Generator[dict[str, Any], None, None]:
         """Stream a chat response while yielding intermediate events."""
         provider = self._ensure_provider(user)
         setup = self._prepare_chat_setup(

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
 import pytest
 from sqlmodel import Session
 
 from app.db import models
-from app.pipelines.defaults import build_default_ingestion_pipeline, build_default_retrieval_pipeline
-from app.services.pipelines import PipelineService
+from app.pipelines.defaults import (
+    build_default_ingestion_pipeline,
+    build_default_retrieval_pipeline,
+)
 from app.services.ingestion import IngestionService
+from app.services.pipelines import PipelineService
 
 
 def _create_user(session: Session) -> models.User:

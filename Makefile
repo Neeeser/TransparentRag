@@ -1,4 +1,4 @@
-.PHONY: help env env-backend env-frontend postgres server frontend run test test-verbose test-frontend coverage coverage-report coverage-open coverage-frontend coverage-report-frontend coverage-open-frontend lint lint-frontend format-frontend format-check-frontend
+.PHONY: help env env-backend env-frontend postgres server frontend run test test-verbose test-integration test-frontend coverage coverage-report coverage-open coverage-frontend coverage-report-frontend coverage-open-frontend typecheck lint verify lint-frontend format-frontend format-check-frontend
 
 UV ?= uv
 NPM ?= npm
@@ -20,8 +20,9 @@ help:
 	@echo "  make postgres  - ensure Postgres is running"
 	@echo "  make frontend  - run Next.js dev server"
 	@echo "  make run       - run server + frontend together"
-	@echo "  make test      - run pytest"
+	@echo "  make test      - run pytest (unit suite; integration excluded)"
 	@echo "  make test-verbose - run pytest with verbose output and durations"
+	@echo "  make test-integration - run the live-credential integration suite"
 	@echo "  make test-frontend - run frontend tests (vitest)"
 	@echo "  make coverage  - pytest + missing lines + html report"
 	@echo "  make coverage-report - same, but never fails"
@@ -29,7 +30,9 @@ help:
 	@echo "  make coverage-frontend - frontend coverage (vitest)"
 	@echo "  make coverage-report-frontend - frontend coverage, never fails"
 	@echo "  make coverage-open-frontend - open frontend/coverage/index.html"
-	@echo "  make lint      - run pylint on backend code"
+	@echo "  make typecheck - run mypy on app/"
+	@echo "  make lint      - run ruff + pylint on backend code"
+	@echo "  make verify    - typecheck -> lint -> test (the backend gate)"
 	@echo "  make lint-frontend - run eslint on frontend code"
 	@echo "  make format-frontend - run prettier on frontend code"
 	@echo "  make format-check-frontend - check prettier formatting on frontend code"
@@ -60,6 +63,9 @@ test: postgres
 test-verbose: postgres
 	$(UV) run pytest -vv --durations=0
 
+test-integration: postgres
+	$(UV) run pytest -m integration
+
 test-frontend: env-frontend
 	$(NPM) --prefix frontend run test:run
 
@@ -81,8 +87,14 @@ coverage-report-frontend: env-frontend
 coverage-open-frontend:
 	@test -f frontend/coverage/index.html && open frontend/coverage/index.html || (echo "No report found. Run: make coverage-frontend" && exit 1)
 
+typecheck: env-backend
+	$(UV) run mypy app
+
 lint: env-backend
-	$(UV) run pylint --score=y app
+	$(UV) run ruff check app tests
+	$(UV) run pylint --score=y --fail-under=9.5 app
+
+verify: typecheck lint test
 
 lint-frontend: env-frontend
 	$(NPM) --prefix frontend run lint

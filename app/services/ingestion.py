@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import List
 
 from fastapi import UploadFile
 from sqlmodel import Session
@@ -196,11 +195,11 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         self,
         document: models.Document,
         collection: models.Collection,
-        enriched_chunks: List[DocumentChunk],
+        enriched_chunks: list[DocumentChunk],
         resolved: IngestionPipelineSettings,
-    ) -> List[models.DocumentChunkRecord]:
+    ) -> list[models.DocumentChunkRecord]:
         """Persist embedded chunks and update document metadata."""
-        chunk_records: List[models.DocumentChunkRecord] = []
+        chunk_records: list[models.DocumentChunkRecord] = []
         for chunk in enriched_chunks:
             chunk_records.append(
                 models.DocumentChunkRecord(
@@ -229,7 +228,7 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         document: models.Document,
         embedding_model: str,
         usage: dict[str, int],
-        chunk_records: List[models.DocumentChunkRecord],
+        chunk_records: list[models.DocumentChunkRecord],
     ) -> None:
         """Record a successful ingestion event."""
         self.session.add(

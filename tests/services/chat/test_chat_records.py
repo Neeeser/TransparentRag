@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 from uuid import uuid4
 
-from app.db import models
 from app.chat.persistence import records as records_module
 from app.chat.persistence.records import (
     RecordContext,
@@ -12,6 +11,7 @@ from app.chat.persistence.records import (
     record_tool_call_assistant_message,
     serialize_message,
 )
+from app.db import models
 
 
 def test_serialize_message_for_tool_role() -> None:

@@ -138,7 +138,7 @@ def test_foreign_key_name_truncates_long_identifiers() -> None:
 
 def test_foreign_key_ddl_includes_ondelete_onupdate() -> None:
     metadata = MetaData()
-    parent = Table("parent", metadata, Column("id", Integer, primary_key=True))
+    Table("parent", metadata, Column("id", Integer, primary_key=True))
     child = Table(
         "child",
         metadata,
@@ -198,8 +198,8 @@ def test_table_is_empty_detects_rows() -> None:
 def test_ensure_indexes_creates_missing(monkeypatch) -> None:
     metadata = MetaData()
     table = Table("items", metadata, Column("id", Integer), Column("name", Integer))
-    idx_existing = Index("idx_existing", table.c.id)
-    idx_conflict = Index("idx_conflict", table.c.name)
+    Index("idx_existing", table.c.id)
+    Index("idx_conflict", table.c.name)
     idx_new = Index("idx_new", table.c.name)
 
     created: list[str] = []

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ class RetrievedChunk(BaseModel):
     document_id: str
     score: float
     text: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class CollectionQueryRequest(BaseModel):
@@ -30,7 +30,7 @@ class CollectionQueryResponse(BaseModel):
 
     query: str
     top_k: int
-    chunks: List[RetrievedChunk]
-    usage: Dict[str, Any]
+    chunks: list[RetrievedChunk]
+    usage: dict[str, Any]
     query_event_id: UUID | None = None
     pipeline_run_id: UUID | None = None

@@ -5,16 +5,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete as sa_delete, func, update as sa_update
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func
+from sqlalchemy import update as sa_update
 from sqlmodel import Session, select
 
 from app.api.dependencies import get_session, require_user_api_keys
+from app.api.routes.utils import get_collection_or_404
 from app.db import models
 from app.db.repositories import CollectionRepository
+from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
+from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.collections import (
     CollectionCreate,
     CollectionDeleteResponse,
@@ -25,8 +29,6 @@ from app.schemas.collections import (
     CollectionUpdate,
 )
 from app.services.pipelines import PipelineService
-from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
-from app.retrieval.pinecone import get_pinecone_client
 from app.services.prompts import (
     SYSTEM_PROMPT_METADATA_KEY,
     apply_prompt_template,
@@ -36,7 +38,6 @@ from app.services.prompts import (
     prompt_variables_payload,
     system_prompt_context,
 )
-from app.api.routes.utils import get_collection_or_404
 from app.utils.file_storage import FileStorage
 from app.utils.time import utc_now
 
@@ -115,12 +116,12 @@ def _is_missing_pinecone_namespace(error: Exception) -> bool:
 def _build_collection_stats(
     session: Session,
     user_id: UUID,
-    collection_ids: List[UUID],
-) -> Dict[UUID, CollectionStatsRead]:
+    collection_ids: list[UUID],
+) -> dict[UUID, CollectionStatsRead]:
     """Return aggregated stats for the given collections."""
     if not collection_ids:
         return {}
-    doc_rows: List[Tuple[UUID, int, int]] = session.exec(  # pylint: disable=not-callable
+    doc_rows: list[tuple[UUID, int, int]] = session.exec(  # pylint: disable=not-callable
         select(
             models.Document.collection_id,
             func.count(models.Document.id),  # pylint: disable=not-callable
@@ -132,7 +133,7 @@ def _build_collection_stats(
     ).all()
     doc_map = {row[0]: (int(row[1]), int(row[2])) for row in doc_rows}
 
-    query_rows: List[Tuple[UUID, Optional[float], Optional[datetime]]] = session.exec(
+    query_rows: list[tuple[UUID, float | None, datetime | None]] = session.exec(
         select(
             models.QueryEvent.collection_id,
             func.avg(models.QueryEvent.latency_ms),
@@ -144,7 +145,7 @@ def _build_collection_stats(
     ).all()
     query_map = {row[0]: (row[1], row[2]) for row in query_rows}
 
-    stats: Dict[UUID, CollectionStatsRead] = {}
+    stats: dict[UUID, CollectionStatsRead] = {}
     for collection_id in collection_ids:
         doc_count, chunk_count = doc_map.get(collection_id, (0, 0))
         avg_latency, last_used = query_map.get(collection_id, (None, None))
@@ -158,21 +159,21 @@ def _build_collection_stats(
     return stats
 
 
-@router.get("", response_model=List[CollectionRead])
+@router.get("", response_model=list[CollectionRead])
 def list_collections(
     current_user: models.User = Depends(require_user_api_keys),
     session: Session = Depends(get_session),
-) -> List[CollectionRead]:
+) -> list[CollectionRead]:
     """List collections owned by the current user."""
     repo = CollectionRepository(session)
     return [_to_schema(col) for col in repo.list_for_user(current_user.id)]
 
 
-@router.get("/stats", response_model=List[CollectionStatsRead])
+@router.get("/stats", response_model=list[CollectionStatsRead])
 def list_collection_stats(
     current_user: models.User = Depends(require_user_api_keys),
     session: Session = Depends(get_session),
-) -> List[CollectionStatsRead]:
+) -> list[CollectionStatsRead]:
     """Return aggregated stats for all collections."""
     repo = CollectionRepository(session)
     collections = list(repo.list_for_user(current_user.id))

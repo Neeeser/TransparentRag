@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
@@ -309,8 +309,8 @@ def test_finalize_response_applies_usage_aggregate(monkeypatch) -> None:
         "chat_model": "model",
         "context_tokens": 0,
         "tool_collection_ids": [],
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
     }
     monkeypatch.setattr(chat_service_module, "convert_session", lambda *_args, **_kwargs: session_payload)
     monkeypatch.setattr(chat_service_module, "convert_messages", lambda *_args, **_kwargs: [])
@@ -356,8 +356,8 @@ def test_finalize_response_without_usage_aggregate(monkeypatch) -> None:
             "chat_model": "model",
             "context_tokens": 0,
             "tool_collection_ids": [],
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
         },
     )
     monkeypatch.setattr(chat_service_module, "convert_messages", lambda *_args, **_kwargs: [])

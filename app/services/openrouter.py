@@ -5,7 +5,8 @@ from __future__ import annotations
 import threading
 import time
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from collections.abc import Callable, Iterable
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -53,14 +54,14 @@ class OpenRouterClient:
             "dimensions": {},
         }
 
-    def _build_app_headers(self) -> Dict[str, str]:
+    def _build_app_headers(self) -> dict[str, str]:
         """Build static headers required by OpenRouter."""
         headers = {"X-Title": self.settings.openrouter_site_name or "TransparentRag"}
         if self.settings.openrouter_site_url:
             headers["HTTP-Referer"] = self.settings.openrouter_site_url
         return headers
 
-    def _merge_extra_headers(self, extra_headers: Optional[Dict[str, str]]) -> Dict[str, str]:
+    def _merge_extra_headers(self, extra_headers: dict[str, str] | None) -> dict[str, str]:
         """Merge dynamic headers with the default app headers."""
         if extra_headers:
             merged = dict(self._app_headers)
@@ -68,7 +69,7 @@ class OpenRouterClient:
             return merged
         return dict(self._app_headers)
 
-    def list_models(self, force_refresh: bool = False) -> List[ModelInfo]:
+    def list_models(self, force_refresh: bool = False) -> list[ModelInfo]:
         """Return available models, caching for a short period."""
         now = time.time()
         if (
@@ -84,7 +85,7 @@ class OpenRouterClient:
         self._model_cache = {"ts": now, "data": models}
         return models
 
-    def list_embedding_models(self, force_refresh: bool = False) -> List[dict[str, Any]]:
+    def list_embedding_models(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         """Return available embedding models, caching for a short period."""
         now = time.time()
         if (
@@ -145,12 +146,12 @@ class OpenRouterClient:
         response.raise_for_status()
         return response.json()
 
-    def get_model(self, model_id: str) -> Optional[ModelInfo]:
+    def get_model(self, model_id: str) -> ModelInfo | None:
         """Find a model by id or canonical slug."""
         if not model_id:
             return None
 
-        def _match(models: List[ModelInfo]) -> Optional[ModelInfo]:
+        def _match(models: list[ModelInfo]) -> ModelInfo | None:
             """Return the first model that matches by id or slug."""
             for model in models:
                 if model_id in (model.id, model.canonical_slug):
@@ -183,13 +184,13 @@ class OpenRouterClient:
     def embed(
         self,
         texts: Iterable[str],
-        model: Optional[str] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        dimensions: Optional[int] = None,
+        model: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+        dimensions: int | None = None,
     ) -> dict[str, Any]:
         """Create embeddings for the provided texts."""
         headers = self._merge_extra_headers(extra_headers)
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": model or self.settings.default_embedding_model,
             "input": list(texts),
             "encoding_format": "float",
@@ -203,17 +204,17 @@ class OpenRouterClient:
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     def chat(
         self,
-        messages: List[Dict[str, Any]],
-        model: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        parallel_tool_calls: Optional[bool] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
-        parameters: Optional[Dict[str, Any]] = None,
+        messages: list[dict[str, Any]],
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: dict[str, Any] | None = None,
+        parameters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Create a chat completion with optional tools and parameters."""
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "messages": messages,
             "model": model or self.settings.default_chat_model,
         }
@@ -236,17 +237,17 @@ class OpenRouterClient:
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     def chat_stream(
         self,
-        messages: List[Dict[str, Any]],
-        model: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        parallel_tool_calls: Optional[bool] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
-        parameters: Optional[Dict[str, Any]] = None,
+        messages: list[dict[str, Any]],
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: dict[str, Any] | None = None,
+        parameters: dict[str, Any] | None = None,
     ):
         """Yield streaming chat completion chunks."""
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "messages": messages,
             "model": model or self.settings.default_chat_model,
         }
@@ -292,7 +293,7 @@ class _ClientCache:  # pylint: disable=too-few-public-methods
     def __init__(self, max_size: int) -> None:
         """Initialize an empty cache bounded to `max_size` entries."""
         self._max_size = max_size
-        self._entries: "OrderedDict[str, OpenRouterClient]" = OrderedDict()
+        self._entries: OrderedDict[str, OpenRouterClient] = OrderedDict()
         self._lock = threading.Lock()
 
     def get_or_create(

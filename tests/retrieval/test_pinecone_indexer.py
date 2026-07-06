@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
-from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig, PineconeIndexer
-from app.retrieval.indexers import pinecone_indexer as pinecone_module
 from app.retrieval import pinecone as pinecone_client_module
+from app.retrieval.indexers import pinecone_indexer as pinecone_module
+from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig, PineconeIndexer
 from app.retrieval.models import DocumentChunk, DocumentMetadata
 
 

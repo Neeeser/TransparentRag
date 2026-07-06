@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Protocol
+from typing import Any, Protocol
 
 from app.schemas.models import ModelInfo
 
@@ -12,34 +13,34 @@ from app.schemas.models import ModelInfo
 class ParsedChatResponse:
     """Normalized chat response extracted from provider payloads."""
 
-    message: Dict[str, Any]
-    usage: Dict[str, Any]
+    message: dict[str, Any]
+    usage: dict[str, Any]
     provider: str
-    response_model: Optional[str]
+    response_model: str | None
 
 
 @dataclass(frozen=True)
 class ParsedStreamChunk:
     """Normalized streaming delta extracted from provider payloads."""
 
-    provider: Optional[str]
-    response_model: Optional[str]
-    finish_reason: Optional[str]
+    provider: str | None
+    response_model: str | None
+    finish_reason: str | None
     delta_content: Any
-    tool_calls: Optional[List[Dict[str, Any]]]
+    tool_calls: list[dict[str, Any]] | None
     reasoning: Any
-    usage: Optional[Dict[str, Any]]
+    usage: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
 class ChatRequest:
     """Chat completion request payload for providers."""
 
-    messages: List[Dict[str, Any]]
-    tools: Optional[List[Dict[str, Any]]]
+    messages: list[dict[str, Any]]
+    tools: list[dict[str, Any]] | None
     model: str
-    extra_body: Optional[Dict[str, Any]]
-    parameters: Optional[Dict[str, Any]]
+    extra_body: dict[str, Any] | None
+    parameters: dict[str, Any] | None
 
 
 class ChatProvider(Protocol):
@@ -47,7 +48,7 @@ class ChatProvider(Protocol):
 
     name: str
 
-    def get_model(self, model_id: str) -> Optional[ModelInfo]:
+    def get_model(self, model_id: str) -> ModelInfo | None:
         """Return provider model metadata when available."""
 
     def chat(self, request: ChatRequest) -> dict:
@@ -59,5 +60,5 @@ class ChatProvider(Protocol):
     def parse_chat_response(self, response: dict) -> ParsedChatResponse:
         """Normalize a non-streaming chat response payload."""
 
-    def parse_stream_chunk(self, chunk: dict) -> Optional[ParsedStreamChunk]:
+    def parse_stream_chunk(self, chunk: dict) -> ParsedStreamChunk | None:
         """Normalize a streaming chunk payload."""

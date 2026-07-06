@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.api.dependencies import get_session, require_user_api_keys
-from app.db import models
 from app.api.routes.utils import get_collection_or_404
+from app.db import models
 from app.schemas.retrieval import CollectionQueryRequest, CollectionQueryResponse
 from app.services.retrieval import RetrievalService
 

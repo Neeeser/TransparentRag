@@ -3,17 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
-from uuid import uuid4
 
 import pytest
 from sqlmodel import Session
 
-from app.db import models
-from app.schemas.chat import ChatMessageCreate
-from app.schemas.models import ModelInfo
 from app.chat import service as chat_service_module
 from app.chat.service import ChatService
 from app.chat.state import RunState, ToolExecutionContext
+from app.db import models
+from app.schemas.chat import ChatMessageCreate
+from app.schemas.models import ModelInfo
 
 
 @dataclass
@@ -394,8 +393,7 @@ def test_stream_message_handles_tool_calls_and_final(monkeypatch, session: Sessi
 
     def _make_stream(events, result):
         def _gen():
-            for event in events:
-                yield event
+            yield from events
             return result
 
         return _gen()

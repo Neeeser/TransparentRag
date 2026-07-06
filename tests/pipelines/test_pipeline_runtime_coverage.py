@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pytest
 from sqlmodel import Session
 
+from app.api.config import get_settings
 from app.db import models
 from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
 from app.pipelines.nodes.ingestion import EmbedderNode, IndexerNode
@@ -13,13 +14,12 @@ from app.pipelines.runtime import (
     EmptyConfig,
     NodePort,
     NodeRegistry,
-    PipelineExecutor,
     PipelineExecutionError,
+    PipelineExecutor,
     PipelineNodeBase,
     PipelineRunContext,
     PipelineValidator,
 )
-from app.api.config import get_settings
 from app.utils.file_storage import FileStorage
 
 

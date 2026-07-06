@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Index, String, Text
@@ -84,35 +84,35 @@ class User(SQLModel, TimestampMixin, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     email: str = Field(sa_column=Column(String, unique=True, index=True, nullable=False))
-    full_name: Optional[str] = Field(default=None, sa_column=Column(String, nullable=True))
+    full_name: str | None = Field(default=None, sa_column=Column(String, nullable=True))
     hashed_password: str = Field(sa_column=Column(String, nullable=False))
-    openrouter_api_key: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    pinecone_api_key: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    system_prompt_template: Optional[str] = Field(
+    openrouter_api_key: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    pinecone_api_key: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    system_prompt_template: str | None = Field(
         default=None,
         sa_column=Column(Text, nullable=True),
     )
-    last_used_chat_model: Optional[str] = Field(
+    last_used_chat_model: str | None = Field(
         default=None,
         sa_column=Column(String, nullable=True),
     )
-    last_used_parameters: Optional[Dict[str, Any]] = Field(
+    last_used_parameters: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-    last_used_provider: Optional[Dict[str, Any]] = Field(
+    last_used_provider: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-    last_used_stream: Optional[bool] = Field(
+    last_used_stream: bool | None = Field(
         default=None,
         sa_column=Column(Boolean, nullable=True),
     )
-    last_used_tool_collection_ids: Optional[List[str]] = Field(
+    last_used_tool_collection_ids: list[str] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-    run_settings_order: Optional[List[str]] = Field(
+    run_settings_order: list[str] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
@@ -127,20 +127,20 @@ class Collection(SQLModel, TimestampMixin, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
     name: str = Field(sa_column=Column(String, nullable=False))
-    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    ingestion_pipeline_id: Optional[UUID] = Field(
+    description: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    ingestion_pipeline_id: UUID | None = Field(
         default=None,
         foreign_key="pipelines.id",
         nullable=True,
         index=True,
     )
-    retrieval_pipeline_id: Optional[UUID] = Field(
+    retrieval_pipeline_id: UUID | None = Field(
         default=None,
         foreign_key="pipelines.id",
         nullable=True,
         index=True,
     )
-    extra_metadata: Dict[str, Any] = Field(
+    extra_metadata: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column("metadata", JSON, nullable=False),
     )
@@ -154,7 +154,7 @@ class Pipeline(SQLModel, TimestampMixin, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
     name: str = Field(sa_column=Column(String, nullable=False))
-    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    description: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     kind: PipelineKind = Field(sa_column=Column(String, nullable=False, index=True))
     current_version: int = Field(default=1, nullable=False)
     is_default: bool = Field(default=False, nullable=False)
@@ -168,15 +168,15 @@ class PipelineVersion(SQLModel, TimestampMixin, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     pipeline_id: UUID = Field(foreign_key="pipelines.id", nullable=False, index=True)
     version: int = Field(nullable=False, index=True)
-    definition: Dict[str, Any] = Field(
+    definition: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False),
     )
-    change_summary: Optional[str] = Field(
+    change_summary: str | None = Field(
         default=None,
         sa_column=Column(Text, nullable=True),
     )
-    created_by: Optional[UUID] = Field(
+    created_by: UUID | None = Field(
         default=None,
         foreign_key="users.id",
         nullable=True,
@@ -191,13 +191,13 @@ class PipelineRun(SQLModel, TimestampMixin, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     pipeline_id: UUID = Field(foreign_key="pipelines.id", nullable=False, index=True)
-    pipeline_version_id: Optional[UUID] = Field(
+    pipeline_version_id: UUID | None = Field(
         default=None,
         foreign_key="pipeline_versions.id",
         nullable=True,
         index=True,
     )
-    pipeline_version: Optional[int] = Field(default=None, nullable=True)
+    pipeline_version: int | None = Field(default=None, nullable=True)
     kind: PipelineKind = Field(sa_column=Column(String, nullable=False, index=True))
     user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
     collection_id: UUID = Field(foreign_key="collections.id", nullable=False, index=True)
@@ -205,9 +205,9 @@ class PipelineRun(SQLModel, TimestampMixin, table=True):
         default=PipelineRunStatus.RUNNING,
         sa_column=Column(String, nullable=False),
     )
-    error_message: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    error_message: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     started_at: datetime = Field(default_factory=utc_now, nullable=False)
-    completed_at: Optional[datetime] = Field(default=None, nullable=True)
+    completed_at: datetime | None = Field(default=None, nullable=True)
 
 
 class PipelineNodeRun(SQLModel, TimestampMixin, table=True):
@@ -225,14 +225,14 @@ class PipelineNodeRun(SQLModel, TimestampMixin, table=True):
         default=PipelineRunStatus.RUNNING,
         sa_column=Column(String, nullable=False),
     )
-    error_message: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    summary: Dict[str, Any] = Field(
+    error_message: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    summary: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False),
     )
     started_at: datetime = Field(default_factory=utc_now, nullable=False)
-    completed_at: Optional[datetime] = Field(default=None, nullable=True)
-    duration_ms: Optional[float] = Field(default=None, sa_column=Column(Float, nullable=True))
+    completed_at: datetime | None = Field(default=None, nullable=True)
+    duration_ms: float | None = Field(default=None, sa_column=Column(Float, nullable=True))
 
 
 class PipelineNodeIO(SQLModel, TimestampMixin, table=True):
@@ -250,7 +250,7 @@ class PipelineNodeIO(SQLModel, TimestampMixin, table=True):
     node_id: str = Field(sa_column=Column(String, nullable=False, index=True))
     io_type: PipelineIOType = Field(sa_column=Column(String, nullable=False, index=True))
     port: str = Field(sa_column=Column(String, nullable=False))
-    payload: Dict[str, Any] = Field(
+    payload: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False),
     )
@@ -266,7 +266,7 @@ class Document(SQLModel, TimestampMixin, table=True):
     user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
     name: str = Field(sa_column=Column(String, nullable=False))
     content_type: str = Field(sa_column=Column(String, nullable=False))
-    source_path: Optional[str] = Field(default=None, sa_column=Column(String, nullable=True))
+    source_path: str | None = Field(default=None, sa_column=Column(String, nullable=True))
     status: DocumentStatus = Field(
         default=DocumentStatus.PENDING,
         sa_column=Column(String, nullable=False),
@@ -280,7 +280,7 @@ class Document(SQLModel, TimestampMixin, table=True):
         sa_column=Column(String, nullable=False),
     )
     embedding_model: str = Field(sa_column=Column(String, nullable=False))
-    ingestion_run_id: Optional[UUID] = Field(
+    ingestion_run_id: UUID | None = Field(
         default=None,
         foreign_key="pipeline_runs.id",
         nullable=True,
@@ -299,11 +299,11 @@ class DocumentChunkRecord(SQLModel, TimestampMixin, table=True):
     chunk_index: int = Field(nullable=False, index=True)
     text: str = Field(sa_column=Column(Text, nullable=False))
     embedding: list[float] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
-    chunk_metadata: Dict[str, Any] = Field(
+    chunk_metadata: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column("metadata", JSON, nullable=False),
     )
-    score: Optional[float] = Field(default=None, nullable=True)
+    score: float | None = Field(default=None, nullable=True)
     chunk_size: int = Field(default=0, nullable=False)
     chunk_overlap: int = Field(default=0, nullable=False)
     chunk_strategy: ChunkStrategy = Field(
@@ -358,7 +358,7 @@ class IngestionEvent(SQLModel, TimestampMixin, table=True):
     collection_id: UUID = Field(foreign_key="collections.id", nullable=False, index=True)
     event_type: str = Field(sa_column=Column(String, nullable=False))
     status: str = Field(sa_column=Column(String, nullable=False))
-    details: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    details: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
 
 
 class ChatSession(SQLModel, TimestampMixin, table=True):
@@ -368,7 +368,7 @@ class ChatSession(SQLModel, TimestampMixin, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
-    collection_id: Optional[UUID] = Field(
+    collection_id: UUID | None = Field(
         default=None,
         foreign_key="collections.id",
         nullable=True,
@@ -378,22 +378,22 @@ class ChatSession(SQLModel, TimestampMixin, table=True):
     mode: ChatMode = Field(default=ChatMode.CHAT, sa_column=Column(String, nullable=False))
     chat_model: str = Field(sa_column=Column(String, nullable=False))
     context_tokens: int = Field(default=0, nullable=False)
-    parameter_overrides: Optional[Dict[str, Any]] = Field(
+    parameter_overrides: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-    provider_preferences: Optional[Dict[str, Any]] = Field(
+    provider_preferences: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
     stream: bool = Field(default=False, sa_column=Column(Boolean, nullable=False))
-    branched_from_session_id: Optional[UUID] = Field(
+    branched_from_session_id: UUID | None = Field(
         default=None,
         foreign_key="chat_sessions.id",
         nullable=True,
         index=True,
     )
-    branched_from_message_id: Optional[UUID] = Field(
+    branched_from_message_id: UUID | None = Field(
         default=None,
         sa_column=Column(
             PGUUID(as_uuid=True),
@@ -435,24 +435,24 @@ class ChatMessage(SQLModel, TimestampMixin, table=True):
     session_id: UUID = Field(foreign_key="chat_sessions.id", nullable=False, index=True)
     role: ChatRole = Field(sa_column=Column(String, nullable=False))
     content: str = Field(sa_column=Column(Text, nullable=False))
-    model: Optional[str] = Field(default=None, sa_column=Column(String, nullable=True))
-    tool_name: Optional[str] = Field(default=None, sa_column=Column(String, nullable=True))
-    tool_call_id: Optional[str] = Field(default=None, sa_column=Column(String, nullable=True))
-    tool_payload: Optional[Dict[str, Any]] = Field(
+    model: str | None = Field(default=None, sa_column=Column(String, nullable=True))
+    tool_name: str | None = Field(default=None, sa_column=Column(String, nullable=True))
+    tool_call_id: str | None = Field(default=None, sa_column=Column(String, nullable=True))
+    tool_payload: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-    reasoning_trace: Optional[Dict[str, Any]] = Field(
+    reasoning_trace: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-    prompt_tokens: Optional[int] = Field(default=None, nullable=True)
-    completion_tokens: Optional[int] = Field(default=None, nullable=True)
-    usage: Optional[Dict[str, Any]] = Field(
+    prompt_tokens: int | None = Field(default=None, nullable=True)
+    completion_tokens: int | None = Field(default=None, nullable=True)
+    usage: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-    source_message_id: Optional[UUID] = Field(
+    source_message_id: UUID | None = Field(
         default=None,
         sa_column=Column(
             PGUUID(as_uuid=True),
@@ -480,11 +480,11 @@ class QueryEvent(SQLModel, TimestampMixin, table=True):
     model: str = Field(sa_column=Column(String, nullable=False))
     context_tokens: int = Field(default=0, nullable=False)
     latency_ms: float = Field(default=0.0, sa_column=Column(Float, nullable=False))
-    response_payload: Dict[str, Any] = Field(
+    response_payload: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False),
     )
-    pipeline_run_id: Optional[UUID] = Field(
+    pipeline_run_id: UUID | None = Field(
         default=None,
         foreign_key="pipeline_runs.id",
         nullable=True,

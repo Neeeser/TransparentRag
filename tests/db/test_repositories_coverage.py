@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
 
 from sqlmodel import Session
 
@@ -57,7 +56,7 @@ def test_chat_repository_message_queries(session: Session) -> None:
     chat_session = _create_session(session, user, collection)
 
     repo = ChatRepository(session)
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(UTC)
     message = models.ChatMessage(
         session_id=chat_session.id,
         role=models.ChatRole.USER,
@@ -125,7 +124,7 @@ def test_chat_repository_delete_messages_after(session: Session) -> None:
     chat_session = _create_session(session, user, collection)
 
     repo = ChatRepository(session)
-    anchor_time = datetime.now(timezone.utc)
+    anchor_time = datetime.now(UTC)
     repo.add_message(
         models.ChatMessage(
             session_id=chat_session.id,
@@ -157,7 +156,7 @@ def test_chat_repository_delete_tool_messages_since(session: Session) -> None:
     chat_session = _create_session(session, user, collection)
     repo = ChatRepository(session)
 
-    cutoff = datetime.now(timezone.utc)
+    cutoff = datetime.now(UTC)
     repo.add_message(
         models.ChatMessage(
             session_id=chat_session.id,

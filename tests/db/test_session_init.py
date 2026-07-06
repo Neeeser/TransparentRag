@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import ClassVar
 from uuid import uuid4
 
 import pytest
@@ -8,7 +9,8 @@ from sqlalchemy.engine.url import make_url
 from sqlmodel import SQLModel, create_engine
 
 from app.db.schema import SchemaValidationResult, build_expected_schema, inspect_database_schema
-from app.db.session import ensure_database_exists, init_db, engine as app_engine
+from app.db.session import engine as app_engine
+from app.db.session import ensure_database_exists, init_db
 
 
 def test_ensure_database_exists_requires_database_name() -> None:
@@ -18,8 +20,8 @@ def test_ensure_database_exists_requires_database_name() -> None:
 
 def test_init_db_raises_for_invalid_schema(monkeypatch) -> None:
     class _StubValidation:
-        missing_tables = {"missing"}
-        missing_columns = {"table": {"column"}}
+        missing_tables: ClassVar[set[str]] = {"missing"}
+        missing_columns: ClassVar[dict[str, set[str]]] = {"table": {"column"}}
 
         @property
         def is_valid(self) -> bool:

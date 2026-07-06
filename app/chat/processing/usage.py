@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def coerce_usage_value(value: object) -> Optional[int]:
+def coerce_usage_value(value: object) -> int | None:
     """Coerce usage values into integer token counts when possible."""
     if value is None:
         return None
@@ -28,7 +28,7 @@ def coerce_usage_value(value: object) -> Optional[int]:
     return None
 
 
-def coerce_float_value(value: object) -> Optional[float]:
+def coerce_float_value(value: object) -> float | None:
     """Coerce numeric-like values into floats when possible."""
     if value is None:
         return None
@@ -42,14 +42,14 @@ def coerce_float_value(value: object) -> Optional[float]:
     return None
 
 
-def add_usage_value(aggregate: Dict[str, float], key: str, value: Optional[float]) -> None:
+def add_usage_value(aggregate: dict[str, float], key: str, value: float | None) -> None:
     """Accumulate usage metrics into the aggregate bucket."""
     if value is None:
         return
     aggregate[key] = aggregate.get(key, 0) + value
 
 
-def extract_reasoning_tokens_from_usage(usage: Dict[str, Any]) -> Optional[int]:
+def extract_reasoning_tokens_from_usage(usage: dict[str, Any]) -> int | None:
     """Extract reasoning token counts from a usage payload."""
     if not usage:
         return None

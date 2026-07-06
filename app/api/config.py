@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, cast
+from typing import cast
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,12 +25,12 @@ class Settings(BaseSettings):
         default="https://openrouter.ai/api/v1",
         validation_alias="OPENROUTER_BASE_URL",
     )
-    openrouter_site_url: Optional[str] = Field(
+    openrouter_site_url: str | None = Field(
         default=None,
         validation_alias="OPENROUTER_SITE_URL",
         description="Optional Referer header so the project ranks correctly on openrouter.ai",
     )
-    openrouter_site_name: Optional[str] = Field(
+    openrouter_site_name: str | None = Field(
         default=None,
         validation_alias="OPENROUTER_SITE_NAME",
     )
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
         default="openai/gpt-oss-120b",
         validation_alias="OPENROUTER_DEFAULT_CHAT_MODEL",
     )
-    openrouter_reasoning_effort: Optional[str] = Field(
+    openrouter_reasoning_effort: str | None = Field(
         default="medium",
         validation_alias="OPENROUTER_REASONING_EFFORT",
         description="Default reasoning effort (minimal/low/medium/high). Set empty to disable.",
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
         default=60 * 24,
         validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES",
     )
-    log_level: Optional[str] = Field(
+    log_level: str | None = Field(
         default=None,
         validation_alias="LOG_LEVEL",
         description=(

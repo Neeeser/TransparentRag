@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from app.retrieval.models import DocumentChunk, ScoredChunk
 from app.retrieval.parsers.base import DocumentSource
@@ -60,9 +60,9 @@ def summarize_chunks(
 
 
 def _embedding_preview(
-    embedding: Optional[Sequence[float]],
+    embedding: Sequence[float] | None,
     limit: int = 12,
-) -> Optional[dict[str, object]]:
+) -> dict[str, object] | None:
     """Return a preview for an embedding vector."""
     if embedding is None:
         return None
@@ -77,7 +77,7 @@ def summarize_embeddings(
     limit: int = 2,
 ) -> dict[str, object]:
     """Summarize embeddings attached to chunks."""
-    dimension: Optional[int] = None
+    dimension: int | None = None
     samples: list[dict[str, object]] = []
     for chunk in chunks[:limit]:
         embedding_preview = _embedding_preview(chunk.embedding)
@@ -97,7 +97,7 @@ def summarize_embeddings(
 
 
 def summarize_query_embedding(
-    embedding: Optional[Sequence[float]],
+    embedding: Sequence[float] | None,
 ) -> dict[str, object]:
     """Summarize a query embedding vector."""
     return _embedding_preview(embedding) or {"preview": [], "total_values": 0}

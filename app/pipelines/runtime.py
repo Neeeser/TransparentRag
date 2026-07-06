@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import builtins
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Type, TypeVar, Literal
-
-from pydantic import BaseModel, Field
+from typing import Literal, TypeVar
 
 from pinecone import Pinecone
+from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from app.api.config import Settings
@@ -40,10 +41,10 @@ class NodeSpec(BaseModel):
     category: str
     description: str = Field(min_length=1)
     example: str = Field(min_length=1)
-    input_ports: List[NodePort] = Field(default_factory=list)
-    output_ports: List[NodePort] = Field(default_factory=list)
-    config_schema: Dict[str, object] = Field(default_factory=dict)
-    default_config: Dict[str, object] = Field(default_factory=dict)
+    input_ports: list[NodePort] = Field(default_factory=list)
+    output_ports: list[NodePort] = Field(default_factory=list)
+    config_schema: dict[str, object] = Field(default_factory=dict)
+    default_config: dict[str, object] = Field(default_factory=dict)
 
 
 class PipelineValidationIssue(BaseModel):
@@ -67,7 +68,7 @@ class PipelineNodeBase:
     example: str = ""
     input_ports: Sequence[NodePort] = ()
     output_ports: Sequence[NodePort] = ()
-    config_model: Type[BaseModel] = EmptyConfig
+    config_model: builtins.type[BaseModel] = EmptyConfig
 
     def __init__(self, config: BaseModel) -> None:
         """Initialize the node with its config."""
@@ -75,16 +76,16 @@ class PipelineNodeBase:
 
     def run(  # pylint: disable=unused-argument
         self,
-        inputs: Dict[str, object],
-        context: "PipelineRunContext",
-    ) -> Dict[str, object]:
+        inputs: dict[str, object],
+        context: PipelineRunContext,
+    ) -> dict[str, object]:
         """Execute the node and return outputs by port key."""
         raise NotImplementedError
 
     def summarize_io(
         self,
-        inputs: Dict[str, object],
-        outputs: Dict[str, object],
+        inputs: dict[str, object],
+        outputs: dict[str, object],
     ) -> NodeTraceSummary:
         """Return a summary of the node's key inputs and outputs."""
         raise NotImplementedError
@@ -94,8 +95,8 @@ class PipelineNodeBase:
         cls,
         _node: PipelineNodeDefinition,
         _definition: PipelineDefinition,
-        _registry: "NodeRegistry",
-    ) -> List[PipelineValidationIssue]:
+        _registry: NodeRegistry,
+    ) -> list[PipelineValidationIssue]:
         """Return validation issues for a node within a definition."""
         return []
 
@@ -128,7 +129,7 @@ class NodeRegistry:
         """Initialize the registry with node classes."""
         self._nodes = {node.type: node for node in nodes}
 
-    def node_types(self) -> Set[str]:
+    def node_types(self) -> set[str]:
         """Return the set of available node type ids."""
         return set(self._nodes.keys())
 
@@ -140,16 +141,16 @@ class NodeRegistry:
         config = node_cls.config_model.model_validate(definition.config)
         return node_cls(config)
 
-    def specs(self) -> List[NodeSpec]:
+    def specs(self) -> list[NodeSpec]:
         """Return specs for all registered nodes."""
         return [node.spec() for node in self._nodes.values()]
 
-    def get_spec(self, node_type: str) -> Optional[NodeSpec]:
+    def get_spec(self, node_type: str) -> NodeSpec | None:
         """Return a node spec for the requested type."""
         node_cls = self._nodes.get(node_type)
         return node_cls.spec() if node_cls else None
 
-    def get_node_class(self, node_type: str) -> Optional[type[PipelineNodeBase]]:
+    def get_node_class(self, node_type: str) -> type[PipelineNodeBase] | None:
         """Return the registered node class for the requested type."""
         return self._nodes.get(node_type)
 
@@ -158,15 +159,15 @@ class PipelineValidationResult(BaseModel):
     """Validation output for pipeline definitions."""
 
     valid: bool
-    errors: List[str] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class PipelineExecutionError(RuntimeError):
     """Raised when pipeline execution fails."""
 
 
-PORT_COMPATIBILITY: Dict[str, Set[str]] = {
+PORT_COMPATIBILITY: dict[str, set[str]] = {
     "document_source": {"document_source"},
     "document": {"document"},
     "chunk_batch": {"chunk_batch"},
@@ -191,22 +192,22 @@ class PipelineRunContext:  # pylint: disable=too-many-instance-attributes
     session: Session
     user: models.User
     collection: models.Collection
-    document: Optional[models.Document]
-    query: Optional[str]
-    top_k: Optional[int]
+    document: models.Document | None
+    query: str | None
+    top_k: int | None
     openrouter: OpenRouterClient
     pinecone: Pinecone
     storage: FileStorage
     settings: Settings
-    trace: Optional[PipelineTraceRecorder] = None
+    trace: PipelineTraceRecorder | None = None
 
 
 @dataclass
 class PipelineExecutionResult:  # pylint: disable=too-few-public-methods
     """Pipeline execution outputs."""
 
-    outputs_by_node: Dict[str, Dict[str, object]]
-    terminal_outputs: Dict[str, Dict[str, object]]
+    outputs_by_node: dict[str, dict[str, object]]
+    terminal_outputs: dict[str, dict[str, object]]
 
 
 class PipelineValidator:  # pylint: disable=too-few-public-methods
@@ -219,8 +220,8 @@ class PipelineValidator:  # pylint: disable=too-few-public-methods
     # pylint: disable=too-many-branches,too-many-locals
     def validate(self, definition: PipelineDefinition) -> PipelineValidationResult:
         """Validate the pipeline definition and return any errors."""
-        errors: List[str] = []
-        warnings: List[str] = []
+        errors: list[str] = []
+        warnings: list[str] = []
         node_map = definition.node_map()
         node_ids = {node.id for node in definition.nodes}
         if len(node_ids) != len(definition.nodes):
@@ -248,10 +249,10 @@ class PipelineValidator:  # pylint: disable=too-few-public-methods
                 )
                 if source_port is None:
                     errors.append(
-                        (
+
                             f"Edge '{edge.id}' references missing output port "
                             f"'{edge.source_port}' on '{edge.source}'."
-                        )
+
                     )
             if target_spec and edge.target_port:
                 target_port = next(
@@ -260,19 +261,20 @@ class PipelineValidator:  # pylint: disable=too-few-public-methods
                 )
                 if target_port is None:
                     errors.append(
-                        (
+
                             f"Edge '{edge.id}' references missing input port "
                             f"'{edge.target_port}' on '{edge.target}'."
-                        )
+
                     )
-            if source_port and target_port:
-                if not _ports_compatible(source_port.data_type, target_port.data_type):
-                    errors.append(
-                        (
-                            f"Edge '{edge.id}' connects incompatible port types "
-                            f"'{source_port.data_type}' -> '{target_port.data_type}'."
-                        )
-                    )
+            if (
+                source_port
+                and target_port
+                and not _ports_compatible(source_port.data_type, target_port.data_type)
+            ):
+                errors.append(
+                    f"Edge '{edge.id}' connects incompatible port types "
+                    f"'{source_port.data_type}' -> '{target_port.data_type}'."
+                )
 
         incoming = definition.incoming_edges()
         for node in definition.nodes:
@@ -304,13 +306,13 @@ class PipelineValidator:  # pylint: disable=too-few-public-methods
 
     def _has_cycle(self, definition: PipelineDefinition) -> bool:
         """Detect cycles using depth-first traversal."""
-        adjacency: Dict[str, List[str]] = {node.id: [] for node in definition.nodes}
+        adjacency: dict[str, list[str]] = {node.id: [] for node in definition.nodes}
         for edge in definition.edges:
             if edge.source in adjacency:
                 adjacency[edge.source].append(edge.target)
 
-        visited: Set[str] = set()
-        visiting: Set[str] = set()
+        visited: set[str] = set()
+        visiting: set[str] = set()
 
         def dfs(node_id: str) -> bool:
             if node_id in visiting:
@@ -365,12 +367,12 @@ class PipelineExecutor:  # pylint: disable=too-few-public-methods
         self,
         definition: PipelineDefinition,
         context: PipelineRunContext,
-    ) -> tuple[Dict[str, Dict[str, object]], Dict[str, Dict[str, object]]]:
+    ) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
         """Run nodes for a pipeline definition and return outputs."""
         node_map = definition.node_map()
         outgoing = definition.outgoing_edges()
-        inputs: Dict[str, Dict[str, object]] = {node_id: {} for node_id in node_map}
-        outputs: Dict[str, Dict[str, object]] = {}
+        inputs: dict[str, dict[str, object]] = {node_id: {} for node_id in node_map}
+        outputs: dict[str, dict[str, object]] = {}
         pending = set(node_map.keys())
         progressed = True
 

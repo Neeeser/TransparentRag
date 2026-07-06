@@ -7,9 +7,9 @@ from app.pipelines.nodes.ingestion import (
     DocumentParserNode,
     EmbedderNode,
     FileTypeRouterNode,
+    IndexerNode,
     IngestionInputNode,
     IngestionOutputNode,
-    IndexerNode,
     ParagraphChunkerNode,
     SemanticChunkerNode,
     SentenceChunkerNode,
@@ -18,9 +18,9 @@ from app.pipelines.nodes.ingestion import (
 from app.pipelines.nodes.retrieval import (
     ChatSettingsNode,
     PineconeRetrieverNode,
+    RerankerNode,
     RetrievalInputNode,
     RetrievalOutputNode,
-    RerankerNode,
 )
 from app.pipelines.runtime import NodeRegistry
 

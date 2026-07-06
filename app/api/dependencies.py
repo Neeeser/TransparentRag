@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -19,7 +20,7 @@ settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
-def get_db_session() -> Session:
+def get_db_session() -> Iterator[Session]:
     """Yield a database session for FastAPI dependencies."""
     yield from get_session()
 

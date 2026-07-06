@@ -10,7 +10,6 @@ from sqlmodel import Session
 from app.api.routes import auth as auth_routes
 from app.core.security import hash_password
 from app.db import models
-
 from app.schemas.auth import RunSettingsSection, UserCreate, UserSettingsUpdate
 
 

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator, cast
+from typing import cast
 
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
@@ -52,7 +53,6 @@ def ensure_database_exists(target_url: str) -> None:
 def init_db() -> None:
     """Initialize database schema metadata."""
     # Import inside to ensure models are registered before table creation.
-    import app.db.models  # pylint: disable=import-outside-toplevel,unused-import
 
     ensure_database_exists(database_url)
     expected = build_expected_schema()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
@@ -17,7 +17,7 @@ class ChunkEmbeddingRow(NamedTuple):
     chunk_id: UUID
     document_id: UUID
     chunk_index: int
-    embedding: List[float]
+    embedding: list[float]
     embedding_model: str
 
 
@@ -28,7 +28,7 @@ class UmapRepository:
         """Initialize the repository with a database session."""
         self.session = session
 
-    def list_chunk_embeddings(self, collection_id: UUID) -> List[ChunkEmbeddingRow]:
+    def list_chunk_embeddings(self, collection_id: UUID) -> list[ChunkEmbeddingRow]:
         """Return chunk embeddings for a collection."""
         statement = select(
             models.DocumentChunkRecord.id,
@@ -42,7 +42,7 @@ class UmapRepository:
 
     def get_latest_projection(
         self, collection_id: UUID
-    ) -> Optional[models.UmapProjectionRecord]:
+    ) -> models.UmapProjectionRecord | None:
         """Return the most recent projection for a collection."""
         statement = (
             select(models.UmapProjectionRecord)
@@ -52,7 +52,7 @@ class UmapRepository:
         )
         return self.session.exec(statement).first()
 
-    def list_points(self, projection_id: UUID) -> List[models.UmapPointRecord]:
+    def list_points(self, projection_id: UUID) -> list[models.UmapPointRecord]:
         """Return all points for a projection."""
         statement = (
             select(models.UmapPointRecord)

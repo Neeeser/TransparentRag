@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
 from uuid import UUID
 
 import numpy as np
@@ -35,7 +34,7 @@ class UmapService:
 
     def get_latest_projection(
         self, collection_id: UUID
-    ) -> Tuple[models.UmapProjectionRecord, List[models.UmapPointRecord]]:
+    ) -> tuple[models.UmapProjectionRecord, list[models.UmapPointRecord]]:
         """Return the latest projection and its points for a collection."""
         projection = self._repo.get_latest_projection(collection_id)
         if projection is None:
@@ -48,7 +47,7 @@ class UmapService:
         user: models.User,
         collection: models.Collection,
         config: UmapConfig,
-    ) -> Tuple[models.UmapProjectionRecord, List[models.UmapPointRecord]]:
+    ) -> tuple[models.UmapProjectionRecord, list[models.UmapPointRecord]]:
         """Compute and persist a UMAP projection for a collection."""
         chunk_rows = self._repo.list_chunk_embeddings(collection.id)
         if len(chunk_rows) < 3:
@@ -105,12 +104,12 @@ class UmapService:
     @staticmethod
     def _build_points(
         projection_id: UUID,
-        chunk_rows: List[ChunkEmbeddingRow],
+        chunk_rows: list[ChunkEmbeddingRow],
         coordinates: np.ndarray,
-    ) -> List[models.UmapPointRecord]:
+    ) -> list[models.UmapPointRecord]:
         """Build point records from coordinate outputs."""
-        points: List[models.UmapPointRecord] = []
-        for row, coord in zip(chunk_rows, coordinates):
+        points: list[models.UmapPointRecord] = []
+        for row, coord in zip(chunk_rows, coordinates, strict=True):
             points.append(
                 models.UmapPointRecord(
                     projection_id=projection_id,

@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
-def normalize_reasoning_segments(raw_reasoning: Any) -> List[Dict[str, Any]]:
+def normalize_reasoning_segments(raw_reasoning: Any) -> list[dict[str, Any]]:
     """Normalize reasoning payloads into a list of segment dicts."""
     if raw_reasoning is None:
         return []
-    segments: List[Dict[str, Any]]
+    segments: list[dict[str, Any]]
     if isinstance(raw_reasoning, str):
         segments = _normalize_string_reasoning(raw_reasoning)
     elif isinstance(raw_reasoning, dict):
@@ -22,7 +22,7 @@ def normalize_reasoning_segments(raw_reasoning: Any) -> List[Dict[str, Any]]:
     return merge_reasoning_segment_list(segments)
 
 
-def _normalize_string_reasoning(raw_reasoning: str) -> List[Dict[str, Any]]:
+def _normalize_string_reasoning(raw_reasoning: str) -> list[dict[str, Any]]:
     """Normalize string reasoning payloads."""
     if not raw_reasoning.strip():
         return [{"type": "text", "content": raw_reasoning}]
@@ -33,9 +33,9 @@ def _normalize_string_reasoning(raw_reasoning: str) -> List[Dict[str, Any]]:
     return normalize_reasoning_segments(parsed)
 
 
-def _normalize_list_reasoning(raw_reasoning: List[Any]) -> List[Dict[str, Any]]:
+def _normalize_list_reasoning(raw_reasoning: list[Any]) -> list[dict[str, Any]]:
     """Normalize list reasoning payloads."""
-    segments: List[Dict[str, Any]] = []
+    segments: list[dict[str, Any]] = []
     for item in raw_reasoning:
         if isinstance(item, dict):
             segments.append(dict(item))
@@ -48,16 +48,16 @@ def _normalize_list_reasoning(raw_reasoning: List[Any]) -> List[Dict[str, Any]]:
     return segments
 
 
-def merge_reasoning_segment_list(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def merge_reasoning_segment_list(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Merge a list of reasoning segments into normalized entries."""
-    merged: List[Dict[str, Any]] = []
+    merged: list[dict[str, Any]] = []
     extend_reasoning_segments(merged, segments)
     return merged
 
 
 def extend_reasoning_segments(
-    destination: List[Dict[str, Any]],
-    additions: List[Dict[str, Any]],
+    destination: list[dict[str, Any]],
+    additions: list[dict[str, Any]],
 ) -> None:
     """Append reasoning segments into a destination list."""
     for addition in additions:
@@ -65,7 +65,7 @@ def extend_reasoning_segments(
             append_reasoning_segment(destination, dict(addition))
 
 
-def append_reasoning_segment(target: List[Dict[str, Any]], segment: Dict[str, Any]) -> None:
+def append_reasoning_segment(target: list[dict[str, Any]], segment: dict[str, Any]) -> None:
     """Append or merge a reasoning segment into a target list."""
     if not segment:
         return
@@ -74,7 +74,7 @@ def append_reasoning_segment(target: List[Dict[str, Any]], segment: Dict[str, An
     if not segment_type and (entry.get("text") or entry.get("content")):
         segment_type = "text"
         entry["type"] = "text"
-    text_value: Optional[str] = None
+    text_value: str | None = None
     if isinstance(entry.get("text"), str):
         text_value = entry["text"]
     elif isinstance(entry.get("content"), str):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from fastapi import HTTPException
@@ -122,7 +122,7 @@ def test_as_dict_handles_model_dump_and_attributes() -> None:
         name = "beta"
         metric = "dotproduct"
         dimension = 42
-        status = {"state": "Ready"}
+        status: ClassVar[dict[str, str]] = {"state": "Ready"}
 
     assert indexes_routes._as_dict(_StubModelDump()) == {"name": "alpha", "metric": "cosine"}
     assert indexes_routes._as_dict(_StubAttrs())["name"] == "beta"

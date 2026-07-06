@@ -6,12 +6,20 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.api.config import get_settings
 from app.db.models import ChunkStrategy
+from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.nodes.trace_utils import (
+    summarize_chunks,
+    summarize_embeddings,
+    summarize_query_embedding,
+    summarize_source,
+    summarize_text,
+)
 from app.pipelines.payloads import (
     ChunkPayload,
     EmbeddingPayload,
@@ -21,20 +29,14 @@ from app.pipelines.payloads import (
     RetrievalRequestPayload,
     SourcePayload,
 )
-from app.pipelines.nodes.trace_utils import (
-    summarize_chunks,
-    summarize_embeddings,
-    summarize_query_embedding,
-    summarize_source,
-    summarize_text,
-)
-from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.runtime import (
     NodePort,
+    NodeRegistry,
     PipelineNodeBase,
     PipelineRunContext,
     PipelineValidationIssue,
 )
+from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.retrieval.embedders.openrouter_embedder import OpenRouterEmbedder
 from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig, PineconeIndexer
@@ -43,7 +45,6 @@ from app.retrieval.parsers.base import DocumentParser, DocumentSource
 from app.retrieval.parsers.pdf import PdfToTextParser
 from app.retrieval.parsers.txt import TxtDocumentParser
 from app.services.chunking import build_chunker
-from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -168,7 +169,7 @@ class DocumentParserNode(PipelineNodeBase):
             ],
         )
 
-    def _resolve_parser(self, content_type: Optional[str]) -> DocumentParser:
+    def _resolve_parser(self, content_type: str | None) -> DocumentParser:
         """Select a parser based on configuration and content type."""
         if self.config.mode == "pdf":
             return PdfToTextParser()
@@ -422,7 +423,7 @@ class EmbedderConfig(BaseModel):
     """Configuration for embedding nodes."""
 
     model_name: str = Field(default_factory=lambda: settings.default_embedding_model)
-    dimension: Optional[int] = Field(
+    dimension: int | None = Field(
         default=None,
         gt=0,
         description="Optional override for the embedding vector dimension.",
@@ -476,7 +477,7 @@ class EmbedderNode(PipelineNodeBase):
                 raise ValueError("Embedder returned mismatched embeddings.")
             enriched_chunks = [
                 chunk.with_embedding(embedding)
-                for chunk, embedding in zip(chunks, embeddings)
+                for chunk, embedding in zip(chunks, embeddings, strict=True)
             ]
             usage = embedder.usage or {}
             return {
@@ -549,7 +550,7 @@ class IndexerConfig(BaseModel):
 
     index_name: str = Field(default_factory=lambda: settings.pinecone_index_name)
     namespace: str = Field(default=DEFAULT_NAMESPACE_TEMPLATE)
-    dimension: Optional[int] = Field(default=None, gt=0)
+    dimension: int | None = Field(default=None, gt=0)
     metric: str = "cosine"
     ensure_index: bool = True
 
@@ -574,7 +575,7 @@ class IndexerNode(PipelineNodeBase):
         cls,
         node: PipelineNodeDefinition,
         definition: PipelineDefinition,
-        _registry: "NodeRegistry",
+        _registry: NodeRegistry,
     ) -> list[PipelineValidationIssue]:
         """Validate embedder/indexer dimension compatibility."""
         issues: list[PipelineValidationIssue] = []

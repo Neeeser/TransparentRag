@@ -11,8 +11,12 @@ from sqlmodel import Session
 from app.api.config import get_settings
 from app.db import models
 from app.db.models import ChunkStrategy
-from app.pipelines.defaults import build_default_ingestion_pipeline, build_default_retrieval_pipeline
+from app.pipelines.defaults import (
+    build_default_ingestion_pipeline,
+    build_default_retrieval_pipeline,
+)
 from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
+from app.pipelines.nodes.ingestion import ChunkerConfig, ChunkerNode
 from app.pipelines.payloads import (
     ChunkPayload,
     IndexingPayload,
@@ -20,7 +24,6 @@ from app.pipelines.payloads import (
     RetrievalPayload,
     SourcePayload,
 )
-from app.pipelines.nodes.ingestion import ChunkerConfig, ChunkerNode
 from app.pipelines.registry import build_default_registry
 from app.pipelines.runtime import (
     NodePort,
@@ -30,7 +33,13 @@ from app.pipelines.runtime import (
     PipelineRunContext,
 )
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
-from app.retrieval.models import Document, DocumentChunk, DocumentMetadata, RetrievalResponse, ScoredChunk
+from app.retrieval.models import (
+    Document,
+    DocumentChunk,
+    DocumentMetadata,
+    RetrievalResponse,
+    ScoredChunk,
+)
 from app.retrieval.parsers.base import DocumentSource
 from app.utils.file_storage import FileStorage
 
@@ -376,7 +385,7 @@ def test_reranker_node_rescores(monkeypatch, session: Session) -> None:
 
 
 def test_file_type_router_routes_pdf(session: Session) -> None:
-    from app.pipelines.nodes.ingestion import FileTypeRouterNode, FileTypeRouterConfig
+    from app.pipelines.nodes.ingestion import FileTypeRouterConfig, FileTypeRouterNode
 
     source = DocumentSource(
         document_id="doc",
@@ -394,7 +403,7 @@ def test_file_type_router_routes_pdf(session: Session) -> None:
 
 
 def test_ingestion_input_requires_document(session: Session) -> None:
-    from app.pipelines.nodes.ingestion import IngestionInputNode, IngestionInputConfig
+    from app.pipelines.nodes.ingestion import IngestionInputConfig, IngestionInputNode
 
     user = _build_user()
     collection = _build_collection(user)
@@ -406,7 +415,7 @@ def test_ingestion_input_requires_document(session: Session) -> None:
 
 
 def test_ingestion_input_requires_source_path(session: Session, tmp_path: Path) -> None:
-    from app.pipelines.nodes.ingestion import IngestionInputNode, IngestionInputConfig
+    from app.pipelines.nodes.ingestion import IngestionInputConfig, IngestionInputNode
 
     user = _build_user()
     collection = _build_collection(user)
@@ -436,7 +445,7 @@ def test_document_parser_node_resolves_modes(session: Session) -> None:
 
 
 def test_file_type_router_routes_text_and_other(session: Session) -> None:
-    from app.pipelines.nodes.ingestion import FileTypeRouterNode, FileTypeRouterConfig
+    from app.pipelines.nodes.ingestion import FileTypeRouterConfig, FileTypeRouterNode
 
     node = FileTypeRouterNode(FileTypeRouterConfig())
     user = _build_user()
@@ -465,12 +474,9 @@ def test_file_type_router_routes_text_and_other(session: Session) -> None:
 
 
 def test_file_type_router_summarizes_unknown_route(session: Session) -> None:
-    from app.pipelines.nodes.ingestion import FileTypeRouterNode, FileTypeRouterConfig
+    from app.pipelines.nodes.ingestion import FileTypeRouterConfig, FileTypeRouterNode
 
     node = FileTypeRouterNode(FileTypeRouterConfig())
-    user = _build_user()
-    collection = _build_collection(user)
-    context = _build_context(session, user, collection)
 
     payload = SourcePayload(
         source=DocumentSource(
@@ -487,7 +493,7 @@ def test_file_type_router_summarizes_unknown_route(session: Session) -> None:
 def test_embedder_node_raises_on_mismatched_embeddings(monkeypatch, session: Session) -> None:
     from app.pipelines.nodes.ingestion import EmbedderConfig, EmbedderNode
     from app.pipelines.payloads import ChunkPayload
-    from app.retrieval.models import DocumentChunk, DocumentMetadata, Document
+    from app.retrieval.models import Document, DocumentChunk, DocumentMetadata
 
     class _StubEmbedder:
         usage = {}
@@ -560,7 +566,7 @@ def test_embedder_node_embeds_query(monkeypatch, session: Session) -> None:
 def test_indexer_node_requires_dimension(monkeypatch, session: Session) -> None:
     from app.pipelines.nodes.ingestion import IndexerConfig, IndexerNode
     from app.pipelines.payloads import EmbeddingPayload
-    from app.retrieval.models import DocumentChunk, DocumentMetadata, Document
+    from app.retrieval.models import Document, DocumentChunk, DocumentMetadata
 
     class _StubIndexer:
         def __init__(self, client: object) -> None:
@@ -591,7 +597,7 @@ def test_indexer_node_requires_dimension(monkeypatch, session: Session) -> None:
 def test_indexer_node_skips_ensure_index(monkeypatch, session: Session) -> None:
     from app.pipelines.nodes.ingestion import IndexerConfig, IndexerNode
     from app.pipelines.payloads import EmbeddingPayload
-    from app.retrieval.models import DocumentChunk, DocumentMetadata, Document
+    from app.retrieval.models import Document, DocumentChunk, DocumentMetadata
 
     calls = {"ensure": 0, "upsert": 0}
 
@@ -626,7 +632,7 @@ def test_indexer_node_skips_ensure_index(monkeypatch, session: Session) -> None:
 def test_indexer_node_infers_dimension(monkeypatch, session: Session) -> None:
     from app.pipelines.nodes.ingestion import IndexerConfig, IndexerNode
     from app.pipelines.payloads import EmbeddingPayload
-    from app.retrieval.models import DocumentChunk, DocumentMetadata, Document
+    from app.retrieval.models import Document, DocumentChunk, DocumentMetadata
 
     captured: dict[str, object] = {}
 
@@ -668,7 +674,7 @@ def test_indexer_node_infers_dimension(monkeypatch, session: Session) -> None:
 def test_indexer_node_uses_configured_dimension(monkeypatch, session: Session) -> None:
     from app.pipelines.nodes.ingestion import IndexerConfig, IndexerNode
     from app.pipelines.payloads import EmbeddingPayload
-    from app.retrieval.models import DocumentChunk, DocumentMetadata, Document
+    from app.retrieval.models import Document, DocumentChunk, DocumentMetadata
 
     captured: dict[str, object] = {}
 
@@ -708,7 +714,7 @@ def test_indexer_node_uses_configured_dimension(monkeypatch, session: Session) -
 
 
 def test_retrieval_input_requires_query(session: Session) -> None:
-    from app.pipelines.nodes.retrieval import RetrievalInputNode, RetrievalInputConfig
+    from app.pipelines.nodes.retrieval import RetrievalInputConfig, RetrievalInputNode
 
     user = _build_user()
     collection = _build_collection(user)

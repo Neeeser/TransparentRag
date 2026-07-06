@@ -5,15 +5,15 @@ from app.pipelines.nodes.ingestion import (
     DocumentParserNode,
     EmbedderNode,
     FileTypeRouterNode,
+    IndexerNode,
     IngestionInputNode,
     IngestionOutputNode,
-    IndexerNode,
 )
 from app.pipelines.nodes.retrieval import (
     PineconeRetrieverNode,
+    RerankerNode,
     RetrievalInputNode,
     RetrievalOutputNode,
-    RerankerNode,
 )
 
 __all__ = [
@@ -21,11 +21,11 @@ __all__ = [
     "DocumentParserNode",
     "EmbedderNode",
     "FileTypeRouterNode",
+    "IndexerNode",
     "IngestionInputNode",
     "IngestionOutputNode",
-    "IndexerNode",
     "PineconeRetrieverNode",
+    "RerankerNode",
     "RetrievalInputNode",
     "RetrievalOutputNode",
-    "RerankerNode",
 ]

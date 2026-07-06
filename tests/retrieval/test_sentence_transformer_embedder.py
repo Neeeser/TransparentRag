@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any
 
 from app.retrieval.embedders import sentence_transformer as embedder_module
 from app.retrieval.embedders.sentence_transformer import SentenceTransformerEmbedder
@@ -8,13 +8,13 @@ from app.retrieval.models import DocumentChunk, DocumentMetadata
 
 
 class _FakeArray:
-    def __init__(self, values: List[float]) -> None:
+    def __init__(self, values: list[float]) -> None:
         self._values = list(values)
 
-    def astype(self, _dtype: Any) -> "_FakeArray":
+    def astype(self, _dtype: Any) -> _FakeArray:
         return self
 
-    def tolist(self) -> List[float]:
+    def tolist(self) -> list[float]:
         return list(self._values)
 
 

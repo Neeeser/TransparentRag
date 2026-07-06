@@ -10,6 +10,10 @@ from sqlmodel import Session
 from app.api.routes import collections as collections_routes
 from app.db import models
 from app.db.repositories import ChatRepository, CollectionRepository, UserRepository
+from app.pipelines.defaults import (
+    build_default_ingestion_pipeline,
+    build_default_retrieval_pipeline,
+)
 from app.schemas.collections import (
     CollectionCreate,
     CollectionPipelineOverrides,
@@ -17,7 +21,6 @@ from app.schemas.collections import (
     CollectionUpdate,
     PipelineNodeOverride,
 )
-from app.pipelines.defaults import build_default_ingestion_pipeline, build_default_retrieval_pipeline
 from app.services.pipelines import PipelineService
 
 
@@ -539,7 +542,9 @@ def test_update_collection_rejects_invalid_pipeline_kind(session: Session) -> No
     user = _create_user(session)
     collection = _create_collection(session, user)
     pipeline_service = PipelineService(session)
-    ingestion_pipeline = pipeline_service.create_pipeline(
+    # Created only to give the collection a real ingestion pipeline to keep alongside;
+    # the assertion below is about rejecting a retrieval-kind pipeline id.
+    pipeline_service.create_pipeline(
         user=user,
         name="Ingestion",
         kind=models.PipelineKind.INGESTION,

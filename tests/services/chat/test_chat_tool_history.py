@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from copy import deepcopy
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any
 
-from app.db import models
-from app.schemas.chat import ChatMessageCreate
 from app.chat import service as chat_service_module
 from app.chat.service import ChatService
+from app.db import models
+from app.schemas.chat import ChatMessageCreate
 
 
 class _NoOpSession:
-    def __init__(self, collections: List[models.Collection] | None = None) -> None:
+    def __init__(self, collections: list[models.Collection] | None = None) -> None:
         self._collections = list(collections or [])
 
     def add(self, *args: Any, **kwargs: Any) -> None:
@@ -25,10 +25,10 @@ class _NoOpSession:
 
     def exec(self, *_args: Any, **_kwargs: Any):
         class _Result:
-            def __init__(self, collections: List[models.Collection]) -> None:
+            def __init__(self, collections: list[models.Collection]) -> None:
                 self._collections = collections
 
-            def all(self) -> List[models.Collection]:
+            def all(self) -> list[models.Collection]:
                 return list(self._collections)
 
         return _Result(self._collections)
@@ -36,8 +36,8 @@ class _NoOpSession:
 
 class _StubChatRepository:
     def __init__(self) -> None:
-        self.sessions: Dict[str, models.ChatSession] = {}
-        self.messages: List[models.ChatMessage] = []
+        self.sessions: dict[str, models.ChatSession] = {}
+        self.messages: list[models.ChatMessage] = []
 
     def add_session(self, session_model: models.ChatSession) -> models.ChatSession:
         self.sessions[str(session_model.id)] = session_model
@@ -46,7 +46,7 @@ class _StubChatRepository:
     def get_session(self, session_id: Any, user_id: Any | None = None) -> models.ChatSession | None:
         return self.sessions.get(str(session_id))
 
-    def list_messages(self, session_id: Any) -> List[models.ChatMessage]:
+    def list_messages(self, session_id: Any) -> list[models.ChatMessage]:
         return [message for message in self.messages if str(message.session_id) == str(session_id)]
 
     def add_message(self, message: models.ChatMessage) -> None:
@@ -80,14 +80,14 @@ class _StubRetrieval:
         top_k: int,
         *args: Any,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return {"chunks": [], "query": query_text, "top_k": top_k}
 
 
 class _StubOpenRouter:
-    def __init__(self, responses: List[Dict[str, Any]]) -> None:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
         self._responses = list(responses)
-        self.calls: List[Dict[str, Any]] = []
+        self.calls: list[dict[str, Any]] = []
 
     def get_model(self, model_name: str) -> SimpleNamespace:
         return SimpleNamespace(
@@ -98,13 +98,13 @@ class _StubOpenRouter:
     def chat(
         self,
         *,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         model: str,
         parallel_tool_calls: bool,
-        extra_body: Dict[str, Any],
-        parameters: Dict[str, Any] | None,
-    ) -> Dict[str, Any]:
+        extra_body: dict[str, Any],
+        parameters: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         self.calls.append(
             {
                 "messages": deepcopy(messages),

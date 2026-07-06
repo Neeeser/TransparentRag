@@ -1,27 +1,25 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
-
-import pytest
 
 from app.db import models
 from app.pipelines.config import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.services import prompts
 from app.services.prompts import (
-  DEFAULT_BASE_PROMPT_TEMPLATE,
-  DEFAULT_SYSTEM_PROMPT_TEMPLATE,
-  SYSTEM_PROMPT_METADATA_KEY,
-  _stringify,
-  apply_prompt_template,
-  base_prompt_context,
-  collection_tool_name,
-  get_base_prompt_template,
-  get_system_prompt_template,
-  prompt_variables_payload,
-  render_system_prompt,
-  system_prompt_context,
+    DEFAULT_BASE_PROMPT_TEMPLATE,
+    DEFAULT_SYSTEM_PROMPT_TEMPLATE,
+    SYSTEM_PROMPT_METADATA_KEY,
+    _stringify,
+    apply_prompt_template,
+    base_prompt_context,
+    collection_tool_name,
+    get_base_prompt_template,
+    get_system_prompt_template,
+    prompt_variables_payload,
+    render_system_prompt,
+    system_prompt_context,
 )
 
 
@@ -109,7 +107,7 @@ def test_system_prompt_context_includes_collection_and_metadata():
 
 
 def test_render_system_prompt_uses_custom_template(monkeypatch):
-    fixed_now = datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    fixed_now = datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
     monkeypatch.setattr(prompts, "utc_now", lambda: fixed_now)
 
     base_template = "Base {{user.email}} at {{datetime.iso}}"
@@ -165,7 +163,7 @@ def test_prompt_variables_payload_exposes_expected_names():
 
 
 def test_base_prompt_context_includes_user_profile(monkeypatch):
-    fixed_now = datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    fixed_now = datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
     monkeypatch.setattr(prompts, "utc_now", lambda: fixed_now)
 
     user = _build_user(full_name=None, email="viewer@example.com")

@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from app.db import models
 
 DEFAULT_NAMESPACE_TEMPLATE = "col-{collection_id}"
 
 
 def resolve_collection_template(
-    value: Optional[str],
+    value: str | None,
     collection: models.Collection,
-) -> Optional[str]:
+) -> str | None:
     """Resolve collection placeholders inside a template string."""
     if value is None:
         return None

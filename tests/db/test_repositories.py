@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
-import pytest
 from sqlmodel import Session
 
 from app.db import models

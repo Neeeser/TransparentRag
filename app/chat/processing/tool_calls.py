@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 from uuid import uuid4
 
-from app.chat.processing.reasoning import extend_reasoning_segments
-from app.chat.processing.reasoning import normalize_reasoning_segments
+from app.chat.processing.reasoning import extend_reasoning_segments, normalize_reasoning_segments
 
 _CANDIDATE_TOOL_TYPES = {"tool_call", "tool_use", "tool_request", "call_tool", "function_call"}
 
 
-def _resolve_call_components(segment: Dict[str, Any]) -> Optional[Tuple[str, str, str]]:
+def _resolve_call_components(segment: dict[str, Any]) -> tuple[str, str, str] | None:
     """Extract call id, name, and arguments string from a reasoning segment."""
     segment_type = str(segment.get("type") or "").lower()
     has_function = isinstance(segment.get("function"), dict)
@@ -67,7 +66,7 @@ def ensure_arguments_string(arguments: Any) -> str:
     return json.dumps(arguments)
 
 
-def decode_tool_arguments(arguments: Any) -> Dict[str, Any]:
+def decode_tool_arguments(arguments: Any) -> dict[str, Any]:
     """Parse tool arguments into a dictionary payload."""
     if isinstance(arguments, dict):
         return arguments
@@ -85,11 +84,11 @@ def decode_tool_arguments(arguments: Any) -> Dict[str, Any]:
 
 
 def normalize_tool_calls(
-    tool_calls: List[Dict[str, Any]],
-    processed_ids: Set[str],
-) -> List[Dict[str, Any]]:
+    tool_calls: list[dict[str, Any]],
+    processed_ids: set[str],
+) -> list[dict[str, Any]]:
     """Normalize tool call payloads and deduplicate ids."""
-    normalized: List[Dict[str, Any]] = []
+    normalized: list[dict[str, Any]] = []
     for call in tool_calls:
         function_payload = call.get("function") or {}
         if not isinstance(function_payload, dict):
@@ -111,14 +110,14 @@ def normalize_tool_calls(
 
 
 def extract_reasoning_tool_calls(
-    reasoning_segments: List[Dict[str, Any]],
-    processed_ids: Set[str],
-) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
+    reasoning_segments: list[dict[str, Any]],
+    processed_ids: set[str],
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], list[dict[str, Any]]]:
     """Extract tool calls from reasoning segments."""
-    tool_calls: List[Dict[str, Any]] = []
-    context: Dict[str, Dict[str, Any]] = {}
-    residual_segments: List[Dict[str, Any]] = []
-    pending_context: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
+    context: dict[str, dict[str, Any]] = {}
+    residual_segments: list[dict[str, Any]] = []
+    pending_context: list[dict[str, Any]] = []
     for segment in reasoning_segments:
         pending_context.append(segment)
         resolved = _resolve_call_components(segment)
@@ -144,14 +143,14 @@ def extract_reasoning_tool_calls(
     return tool_calls, context, residual_segments
 
 
-def coerce_stream_text(content: Any) -> Optional[str]:
+def coerce_stream_text(content: Any) -> str | None:
     """Extract text content from streamed delta payloads."""
     if content is None:
         return None
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        parts: List[str] = []
+        parts: list[str] = []
         for item in content:
             if isinstance(item, str):
                 parts.append(item)
@@ -168,8 +167,8 @@ def coerce_stream_text(content: Any) -> Optional[str]:
 
 
 def accumulate_stream_tool_calls(
-    accumulator: Dict[int, Dict[str, Any]],
-    updates: List[Dict[str, Any]],
+    accumulator: dict[int, dict[str, Any]],
+    updates: list[dict[str, Any]],
 ) -> None:
     """Accumulate tool call deltas into a consolidated mapping."""
     for update in updates:
@@ -206,8 +205,8 @@ def accumulate_stream_tool_calls(
 
 def merge_reasoning_segments(
     reasoning: Any,
-    segments: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    segments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Normalize and append reasoning segments onto an existing list."""
     reasoning_update = normalize_reasoning_segments(reasoning)
     if reasoning_update:

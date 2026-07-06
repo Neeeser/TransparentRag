@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 from uuid import UUID
 
 from app.db import models
@@ -38,10 +37,10 @@ class PromptVariableDefinition:
 
     name: str
     description: str
-    example: Optional[str] = None
+    example: str | None = None
 
 
-BASE_PROMPT_VARIABLES: List[PromptVariableDefinition] = [
+BASE_PROMPT_VARIABLES: list[PromptVariableDefinition] = [
     PromptVariableDefinition(
         name="user.full_name",
         description="Full name from the authenticated user profile.",
@@ -78,7 +77,7 @@ BASE_PROMPT_VARIABLES: List[PromptVariableDefinition] = [
     ),
 ]
 
-COLLECTION_PROMPT_VARIABLES: List[PromptVariableDefinition] = [
+COLLECTION_PROMPT_VARIABLES: list[PromptVariableDefinition] = [
     PromptVariableDefinition(
         name="collection.name",
         description="Collection display name.",
@@ -180,12 +179,12 @@ def _stringify(value: object, default: str = "N/A") -> str:
 
 def system_prompt_context(
     collection: models.Collection,
-    user: Optional[models.User],
+    user: models.User | None,
     *,
-    ingestion_settings: Optional[IngestionPipelineSettings] = None,
-    retrieval_settings: Optional[RetrievalPipelineSettings] = None,
-    tool_name: Optional[str] = None,
-) -> Dict[str, str]:
+    ingestion_settings: IngestionPipelineSettings | None = None,
+    retrieval_settings: RetrievalPipelineSettings | None = None,
+    tool_name: str | None = None,
+) -> dict[str, str]:
     """Build the rendering context for system prompt templates."""
     now = utc_now()
     metadata = collection.extra_metadata or {}
@@ -207,7 +206,7 @@ def system_prompt_context(
     pinecone_index = ingestion_settings.index_name if ingestion_settings else None
     pinecone_namespace = ingestion_settings.namespace if ingestion_settings else None
 
-    context: Dict[str, str] = {
+    context: dict[str, str] = {
         "collection.id": str(collection.id),
         "collection.name": _stringify(collection.name, "Untitled collection"),
         "collection.description": _stringify(collection.description),
@@ -246,7 +245,7 @@ def system_prompt_context(
     return context
 
 
-def base_prompt_context(user: Optional[models.User]) -> Dict[str, str]:
+def base_prompt_context(user: models.User | None) -> dict[str, str]:
     """Build the rendering context for base prompt templates."""
     now = utc_now()
     user_display_name = getattr(user, "full_name", None) or getattr(user, "email", None)
@@ -277,7 +276,7 @@ def get_system_prompt_template(collection: models.Collection) -> str:
     return DEFAULT_SYSTEM_PROMPT_TEMPLATE
 
 
-def get_base_prompt_template(user: Optional[models.User]) -> str:
+def get_base_prompt_template(user: models.User | None) -> str:
     """Return the base system prompt template for a user."""
     if not user:
         return DEFAULT_BASE_PROMPT_TEMPLATE
@@ -285,7 +284,7 @@ def get_base_prompt_template(user: Optional[models.User]) -> str:
     return stored_value or DEFAULT_BASE_PROMPT_TEMPLATE
 
 
-def apply_prompt_template(template: str, context: Dict[str, str]) -> str:
+def apply_prompt_template(template: str, context: dict[str, str]) -> str:
     """Apply context variables to a prompt template."""
     def _replace(match: re.Match[str]) -> str:
         """Replace template placeholders with context values."""
@@ -296,8 +295,8 @@ def apply_prompt_template(template: str, context: Dict[str, str]) -> str:
 
 
 def render_system_prompt(
-    tool_contexts: List[Dict[str, object]],
-    user: Optional[models.User],
+    tool_contexts: list[dict[str, object]],
+    user: models.User | None,
 ) -> str:
     """Render the final system prompt for base and tool contexts."""
     base_template = get_base_prompt_template(user)
@@ -311,7 +310,7 @@ def render_system_prompt(
     return "\n\n".join(section.strip() for section in sections if str(section).strip())
 
 
-def prompt_variables_payload(scope: str = "collection") -> List[Dict[str, Optional[str]]]:
+def prompt_variables_payload(scope: str = "collection") -> list[dict[str, str | None]]:
     """Return prompt variable definitions for API clients."""
     variables = COLLECTION_PROMPT_VARIABLES if scope == "collection" else BASE_PROMPT_VARIABLES
     return [
@@ -331,7 +330,7 @@ def is_collection_prompt_custom(collection: models.Collection) -> bool:
     return isinstance(stored_value, str) and bool(stored_value.strip())
 
 
-def is_base_prompt_custom(user: Optional[models.User]) -> bool:
+def is_base_prompt_custom(user: models.User | None) -> bool:
     """Return True when a user has a custom base prompt template."""
     if not user:
         return False

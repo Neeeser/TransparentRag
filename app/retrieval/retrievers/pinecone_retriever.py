@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from pinecone import Pinecone
 
@@ -20,9 +21,9 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
     def __init__(
         self,
         index_config: PineconeIndexConfig,
-        client: Optional[Pinecone] = None,
-        api_key: Optional[str] = None,
-        reranker: Optional[Reranker] = None,
+        client: Pinecone | None = None,
+        api_key: str | None = None,
+        reranker: Reranker | None = None,
     ) -> None:
         """Initialize the retriever and Pinecone index handle."""
         self._client = get_pinecone_client(client=client, api_key=api_key)
@@ -35,7 +36,7 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
         namespace = request.namespace or self._index_config.namespace
 
         result = self._index.query(
-            vector=embedding,
+            vector=list(embedding),
             top_k=request.top_k,
             include_metadata=True,
             include_values=False,
@@ -43,7 +44,9 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
             filter=request.filter,
         )
 
-        scored_chunks = self._convert_matches(result.matches)
+        # We never pass `async_req`, so this call always returns a `QueryResponse`
+        # synchronously; the SDK's overloads still union in the async `ApplyResult`.
+        scored_chunks = self._convert_matches(result.matches)  # type: ignore[union-attr]
 
         if self._reranker is not None:
             reranked = self._reranker.rerank(

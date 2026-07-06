@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -83,12 +82,12 @@ def validate_pipeline(
     )
 
 
-@router.get("", response_model=List[PipelineRead])
+@router.get("", response_model=list[PipelineRead])
 def list_pipelines(
-    kind: Optional[models.PipelineKind] = None,
+    kind: models.PipelineKind | None = None,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> List[PipelineRead]:
+) -> list[PipelineRead]:
     """List pipelines for the current user."""
     service = PipelineService(session)
     pipelines = service.list_pipelines(current_user.id, kind=kind)
@@ -164,12 +163,12 @@ def update_pipeline(
     return _to_pipeline_read(pipeline, definition)
 
 
-@router.get("/{pipeline_id}/versions", response_model=List[PipelineVersionRead])
+@router.get("/{pipeline_id}/versions", response_model=list[PipelineVersionRead])
 def list_pipeline_versions(
     pipeline_id: UUID,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> List[PipelineVersionRead]:
+) -> list[PipelineVersionRead]:
     """List versions for a pipeline."""
     service = PipelineService(session)
     pipeline = service.get_pipeline(pipeline_id, current_user.id)

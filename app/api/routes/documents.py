@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlmodel import Session
 
 from app.api.dependencies import get_session, require_user_api_keys
+from app.api.routes.utils import get_collection_or_404
 from app.db import models
 from app.db.repositories import ChunkRepository, DocumentRepository
 from app.schemas.documents import (
@@ -19,7 +19,6 @@ from app.schemas.documents import (
     IngestionResponse,
 )
 from app.services.ingestion import IngestionService
-from app.api.routes.utils import get_collection_or_404
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
@@ -53,12 +52,12 @@ async def upload_document(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.get("/collections/{collection_id}/documents", response_model=List[DocumentRead])
+@router.get("/collections/{collection_id}/documents", response_model=list[DocumentRead])
 def list_documents(
     collection_id: UUID,
     current_user: models.User = Depends(require_user_api_keys),
     session: Session = Depends(get_session),
-) -> List[DocumentRead]:
+) -> list[DocumentRead]:
     """List documents for a collection."""
     get_collection_or_404(
         collection_id=collection_id,

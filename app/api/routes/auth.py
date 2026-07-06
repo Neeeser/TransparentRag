@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import httpx
-from pinecone.exceptions import PineconeException
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestFormStrict
+from pinecone.exceptions import PineconeException
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import create_access_token, hash_password, verify_password
 from app.db import models
 from app.db.repositories import UserRepository
 from app.retrieval.pinecone import get_pinecone_client

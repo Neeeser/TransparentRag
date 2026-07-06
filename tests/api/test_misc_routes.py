@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import io
 from uuid import uuid4
 
-import io
 import pytest
 from fastapi import HTTPException, UploadFile
 from sqlmodel import Session
@@ -14,7 +14,12 @@ from app.api.routes import models as models_routes
 from app.api.routes import search as search_routes
 from app.db import models
 from app.db.repositories import UserRepository
-from app.schemas.models import EmbeddingModelInfo, EndpointsListResponse, ListEndpointsResponse, ModelInfo
+from app.schemas.models import (
+    EmbeddingModelInfo,
+    EndpointsListResponse,
+    ListEndpointsResponse,
+    ModelInfo,
+)
 from app.schemas.retrieval import CollectionQueryRequest
 
 
@@ -167,7 +172,7 @@ def test_upload_document_translates_ingestion_value_error(monkeypatch, session: 
         def __init__(self, _session) -> None:
             pass
 
-        def ingest_upload(self, *, user, collection, upload):  # noqa: ARG002
+        def ingest_upload(self, *, user, collection, upload):
             raise ValueError("Ingestion pipeline could not be resolved.")
 
     monkeypatch.setattr(documents_routes, "IngestionService", _StubIngestionService)
@@ -194,7 +199,7 @@ def test_search_route_translates_retrieval_value_error(monkeypatch, session: Ses
         def __init__(self, _session) -> None:
             pass
 
-        def query_collection(self, _user, _collection, *, query, top_k):  # noqa: ARG002
+        def query_collection(self, _user, _collection, *, query, top_k):
             raise ValueError("Retrieval pipeline could not be resolved.")
 
     monkeypatch.setattr(search_routes, "RetrievalService", _StubRetrievalService)

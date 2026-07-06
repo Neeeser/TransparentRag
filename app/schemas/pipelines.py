@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -20,17 +19,17 @@ class PipelineCreate(BaseModel):
     name: str
     kind: PipelineKind
     definition: PipelineDefinition
-    description: Optional[str] = None
-    change_summary: Optional[str] = None
+    description: str | None = None
+    change_summary: str | None = None
 
 
 class PipelineUpdate(BaseModel):
     """Payload for updating a pipeline."""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    definition: Optional[PipelineDefinition] = None
-    change_summary: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    definition: PipelineDefinition | None = None
+    change_summary: str | None = None
 
 
 class PipelineRead(DateTimeConfigMixin, BaseModel):
@@ -39,7 +38,7 @@ class PipelineRead(DateTimeConfigMixin, BaseModel):
     id: UUID
     user_id: UUID
     name: str
-    description: Optional[str]
+    description: str | None
     kind: PipelineKind
     current_version: int
     is_default: bool
@@ -56,14 +55,14 @@ class PipelineVersionRead(DateTimeConfigMixin, BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
-    change_summary: Optional[str]
-    created_by: Optional[UUID]
+    change_summary: str | None
+    created_by: UUID | None
 
 
 class PipelineNodesResponse(BaseModel):
     """Response payload for node catalog requests."""
 
-    nodes: List[NodeSpec]
+    nodes: list[NodeSpec]
 
 
 class PipelineValidationResponse(PipelineValidationResult):

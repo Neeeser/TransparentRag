@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Sequence
-from typing import Optional
 
 from pydantic import ValidationError
 
@@ -24,16 +23,16 @@ class OpenRouterEmbedder(Embedder):
         client: OpenRouterClient,
         model_name: str,
         *,
-        dimensions: Optional[int] = None,
+        dimensions: int | None = None,
     ) -> None:
         """Initialize the embedder with an OpenRouter client and model."""
         self._client = client
         self.model_name = model_name
         self.dimensions = dimensions
-        self._last_usage: Optional[dict[str, int]] = None
+        self._last_usage: dict[str, int] | None = None
 
     @property
-    def usage(self) -> Optional[dict[str, int]]:
+    def usage(self) -> dict[str, int] | None:
         """Return the most recent usage payload, if available."""
         return self._last_usage
 
@@ -81,7 +80,8 @@ class OpenRouterEmbedder(Embedder):
         if parsed and parsed.usage:
             usage_payload = parsed.usage.model_dump(exclude_none=True)
         else:
-            usage_payload = payload.get("usage") or {}
+            raw_usage = payload.get("usage")
+            usage_payload = raw_usage if isinstance(raw_usage, dict) else {}
         if usage_payload:
             self._last_usage = {
                 k: int(v)

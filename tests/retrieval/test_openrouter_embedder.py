@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable, List
+from typing import Any
 
 import pytest
-
 from pydantic import ValidationError
 
 from app.retrieval.embedders import openrouter_embedder as embedder_module
@@ -14,7 +14,7 @@ from app.retrieval.models import DocumentChunk
 
 @dataclass
 class StubOpenRouterClient:
-    responses: List[dict[str, Any]]
+    responses: list[dict[str, Any]]
     calls: list[dict[str, Any]] = field(default_factory=list)
 
     def embed(
@@ -69,10 +69,8 @@ def test_embed_documents_raises_when_payload_missing_data() -> None:
     client = StubOpenRouterClient(responses=[payload])
     embedder = OpenRouterEmbedder(client, "qwen/qwen3-embedding-0.6b")
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError, match="without a 'data' array"):
         embedder.embed_documents([_chunk("text", "chunk-0")])
-
-    assert "without a 'data' array" in str(excinfo.value)
 
 
 def test_embed_documents_rejects_invalid_entries() -> None:
@@ -80,10 +78,8 @@ def test_embed_documents_rejects_invalid_entries() -> None:
     client = StubOpenRouterClient(responses=[payload])
     embedder = OpenRouterEmbedder(client, "qwen/qwen3-embedding-0.6b")
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError, match="invalid embedding entry"):
         embedder.embed_documents([_chunk("text", "chunk-0")])
-
-    assert "invalid embedding entry" in str(excinfo.value)
 
 
 def test_embed_documents_rejects_invalid_embedding_payload() -> None:
@@ -91,10 +87,8 @@ def test_embed_documents_rejects_invalid_embedding_payload() -> None:
     client = StubOpenRouterClient(responses=[payload])
     embedder = OpenRouterEmbedder(client, "qwen/qwen3-embedding-0.6b")
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError, match="without 'embedding' values"):
         embedder.embed_documents([_chunk("text", "chunk-0")])
-
-    assert "without 'embedding' values" in str(excinfo.value)
 
 
 def test_embed_query_returns_empty_when_no_vectors() -> None:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .base import Embedder
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .sentence_transformer import SentenceTransformerEmbedder
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     """Lazily expose optional embedder implementations."""
     if name == "SentenceTransformerEmbedder":
         from .sentence_transformer import (  # pylint: disable=import-outside-toplevel

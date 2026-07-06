@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from .base import DocumentChunker
 from ..models import Document, DocumentChunk
+from .base import DocumentChunker
 
 
 class FixedSizeTextChunker(DocumentChunker):  # pylint: disable=too-few-public-methods

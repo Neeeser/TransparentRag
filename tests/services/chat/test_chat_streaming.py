@@ -2,37 +2,36 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from types import SimpleNamespace
-from typing import Any, Dict, List, Tuple
+from typing import Any
 from unittest.mock import Mock
 
-import pytest
 from pydantic import ValidationError
 
-from app.schemas.chat import ChatMessageCreate
-from app.services import chat as chat_module
-from app.chat.service import ChatService
 from app.chat import service as chat_service_module
+from app.chat.persistence.records import RecordContext
 from app.chat.providers.base import ChatRequest, ParsedStreamChunk
 from app.chat.providers.openrouter import OpenRouterProvider
-from app.chat.persistence.records import RecordContext
+from app.chat.service import ChatService
 from app.chat.streaming.streaming import stream_model_completion
+from app.schemas.chat import ChatMessageCreate
+from app.services import chat as chat_module
 
 
 class _StubOpenRouter:
-    def __init__(self, chunks: List[Dict[str, Any]]) -> None:
+    def __init__(self, chunks: list[dict[str, Any]]) -> None:
         self._chunks = chunks
-        self.calls: List[Dict[str, Any]] = []
+        self.calls: list[dict[str, Any]] = []
 
     def chat_stream(
         self,
         *,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         model: str,
         parallel_tool_calls: bool,
-        extra_body: Dict[str, Any],
-        parameters: Dict[str, Any] | None,
-    ) -> Generator[Dict[str, Any], None, None]:
+        extra_body: dict[str, Any],
+        parameters: dict[str, Any] | None,
+    ) -> Generator[dict[str, Any], None, None]:
         self.calls.append(
             {
                 "messages": messages,
@@ -43,16 +42,16 @@ class _StubOpenRouter:
                 "parameters": parameters,
             }
         )
-        for chunk in self._chunks:
-            yield chunk
+        yield from self._chunks
 
 
-def _collect_stream_results(gen: Generator[Dict[str, Any], None, Tuple[Dict[str, Any], Dict[str, Any], str, str, str]]) -> Tuple[List[Dict[str, Any]], Tuple[Dict[str, Any], Dict[str, Any], str, str, str]]:
-    events: List[Dict[str, Any]] = []
-    with pytest.raises(StopIteration) as stop_exc:
+def _collect_stream_results(gen: Generator[dict[str, Any], None, tuple[dict[str, Any], dict[str, Any], str, str, str]]) -> tuple[list[dict[str, Any]], tuple[dict[str, Any], dict[str, Any], str, str, str]]:
+    events: list[dict[str, Any]] = []
+    try:
         while True:
             events.append(next(gen))
-    return events, stop_exc.value.value
+    except StopIteration as stop_exc:
+        return events, stop_exc.value
 
 
 def test_stream_model_completion_yields_tokens_and_reasoning() -> None:
@@ -123,7 +122,8 @@ def test_stream_model_completion_yields_tokens_and_reasoning() -> None:
 
     assert [event["content"] for event in events if event["type"] == "token"] == ["Hello", " world"]
     reasoning_events = [event for event in events if event["type"] == "reasoning"]
-    assert reasoning_events and reasoning_events[0]["segments"][0]["content"] == "thinking out loud"
+    assert reasoning_events
+    assert reasoning_events[0]["segments"][0]["content"] == "thinking out loud"
     assert message["content"] == "Hello world"
     assert message["tool_calls"][0]["function"]["name"] == "pinecone_query"
     assert message["tool_calls"][0]["function"]["arguments"] == '{"query":"docs","top_k":3}'
@@ -131,7 +131,8 @@ def test_stream_model_completion_yields_tokens_and_reasoning() -> None:
     assert provider == "router-a"
     assert finish_reason == "stop"
     assert response_model == "openrouter/test-model"
-    assert stub.calls and stub.calls[0]["model"] == "openrouter/test-model"
+    assert stub.calls
+    assert stub.calls[0]["model"] == "openrouter/test-model"
 
 
 def test_stream_model_completion_orders_tool_calls_by_index() -> None:
@@ -186,7 +187,7 @@ def test_stream_model_completion_orders_tool_calls_by_index() -> None:
     events, result = _collect_stream_results(gen)
     message, usage, provider, finish_reason, response_model = result
 
-    assert [event for event in events if event["type"] == "token"][0]["content"] == "done"
+    assert next(event for event in events if event["type"] == "token")["content"] == "done"
     call_ids = [call["id"] for call in message["tool_calls"]]
     assert call_ids == ["call-a", "call-b"]
     assert provider == "router-b"
@@ -355,7 +356,7 @@ def test_stream_model_completion_skips_tool_calls_without_name() -> None:
 
 
 class _StubChatRepo:
-    def list_messages(self, session_id: object) -> List[Dict[str, Any]]:
+    def list_messages(self, session_id: object) -> list[dict[str, Any]]:
         return []
 
     def add_message(self, message: object) -> None:
@@ -370,7 +371,7 @@ class _StubChatRepo:
     def delete_tool_messages_since(self, *args: object, **kwargs: object) -> None:
         return
 
-    def list_session_collection_ids(self, *args: object, **kwargs: object) -> List[Any]:
+    def list_session_collection_ids(self, *args: object, **kwargs: object) -> list[Any]:
         return []
 
 
@@ -455,7 +456,7 @@ def test_stream_message_records_partial_on_abort(monkeypatch) -> None:
     monkeypatch.setattr(chat_service_module, "record_partial_assistant_message", partial_recorder)
     _stub_pipeline_helpers(monkeypatch, chat_model="openrouter/test", context_window=8192)
 
-    def fake_stream(*args: Any, **kwargs: Any) -> Generator[Dict[str, Any], None, Tuple]:
+    def fake_stream(*args: Any, **kwargs: Any) -> Generator[dict[str, Any], None, tuple]:
         yield {"type": "token", "content": "Hello"}
         yield {"type": "reasoning", "segments": [{"type": "text", "content": "thinking"}]}
         while True:

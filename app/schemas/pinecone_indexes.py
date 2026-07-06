@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -11,21 +11,21 @@ class PineconeIndex(BaseModel):
     """Serialized Pinecone index metadata."""
 
     name: str
-    vector_type: Optional[str] = None
-    metric: Optional[str] = None
-    dimension: Optional[int] = None
-    status: Optional[Dict[str, Any]] = None
-    host: Optional[str] = None
-    spec: Optional[Dict[str, Any]] = None
-    deletion_protection: Optional[str] = None
-    tags: Optional[Dict[str, str]] = None
-    embed: Optional[Dict[str, Any]] = None
+    vector_type: str | None = None
+    metric: str | None = None
+    dimension: int | None = None
+    status: dict[str, Any] | None = None
+    host: str | None = None
+    spec: dict[str, Any] | None = None
+    deletion_protection: str | None = None
+    tags: dict[str, str] | None = None
+    embed: dict[str, Any] | None = None
 
 
 class PineconeIndexList(BaseModel):
     """List response for Pinecone indexes."""
 
-    indexes: List[PineconeIndex] = Field(default_factory=list)
+    indexes: list[PineconeIndex] = Field(default_factory=list)
 
 
 class PineconeIndexCreateRequest(BaseModel):
@@ -33,15 +33,15 @@ class PineconeIndexCreateRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=45)
     vector_type: str = Field(default="dense")
-    dimension: Optional[int] = Field(default=None, gt=0)
+    dimension: int | None = Field(default=None, gt=0)
     metric: str = Field(default="cosine")
-    cloud: Optional[str] = None
-    region: Optional[str] = None
-    deletion_protection: Optional[str] = None
-    tags: Optional[Dict[str, str]] = None
+    cloud: str | None = None
+    region: str | None = None
+    deletion_protection: str | None = None
+    tags: dict[str, str] | None = None
 
     @model_validator(mode="after")
-    def validate_dimension(self) -> "PineconeIndexCreateRequest":
+    def validate_dimension(self) -> PineconeIndexCreateRequest:
         """Ensure dense indexes define a dimension and sparse indexes do not."""
         if self.vector_type == "dense" and self.dimension is None:
             raise ValueError("Dense indexes require a dimension.")

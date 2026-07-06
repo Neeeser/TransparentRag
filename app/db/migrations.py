@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Mapping, Sequence
 from enum import Enum
-from typing import Mapping, Optional, Sequence, Tuple
 
 from sqlalchemy import inspect, literal, text
 from sqlalchemy.engine import Connection, Dialect, Engine
@@ -16,8 +16,8 @@ from sqlmodel import SQLModel
 logger = logging.getLogger(__name__)
 
 _MAX_IDENTIFIER_LENGTH = 63
-_IndexSignature = Tuple[Tuple[str, ...], bool]
-_ForeignKeySignature = Tuple[Tuple[str, ...], str, Tuple[str, ...]]
+_IndexSignature = tuple[tuple[str, ...], bool]
+_ForeignKeySignature = tuple[tuple[str, ...], str, tuple[str, ...]]
 
 
 def apply_missing_columns(engine: Engine, missing_columns: Mapping[str, set[str]]) -> None:
@@ -167,7 +167,7 @@ def _resolve_default_sql(
     dialect: Dialect,
     *,
     allow_application_default: bool,
-) -> Tuple[Optional[str], bool]:
+) -> tuple[str | None, bool]:
     """Return SQL for the column default and whether to drop it after backfill."""
     if column.server_default is not None and column.server_default.arg is not None:
         default_expr = column.server_default.arg
@@ -206,16 +206,16 @@ def _constraint_signature(constraint: ForeignKeyConstraint) -> _ForeignKeySignat
 
 
 def _foreign_key_signature(
-    local_columns: Tuple[str, ...],
-    referred_table: Optional[str],
-    referred_columns: Tuple[str, ...],
+    local_columns: tuple[str, ...],
+    referred_table: str | None,
+    referred_columns: tuple[str, ...],
 ) -> _ForeignKeySignature:
     """Build a comparable signature for a foreign key inspector entry."""
     return (local_columns, referred_table or "", referred_columns)
 
 
 def _foreign_key_name(
-    table_name: str, local_columns: Tuple[str, ...], referred_table: str
+    table_name: str, local_columns: tuple[str, ...], referred_table: str
 ) -> str:
     """Generate a stable foreign key name within Postgres limits."""
     base = f"fk_{table_name}_{'_'.join(local_columns)}_{referred_table}"
@@ -254,7 +254,7 @@ def _foreign_key_ddl(
     return ddl
 
 
-def _constraint_ondelete(constraint: ForeignKeyConstraint) -> Optional[str]:
+def _constraint_ondelete(constraint: ForeignKeyConstraint) -> str | None:
     """Return the ondelete action for a foreign key constraint."""
     elements = list(constraint.elements)
     if not elements:
@@ -262,7 +262,7 @@ def _constraint_ondelete(constraint: ForeignKeyConstraint) -> Optional[str]:
     return elements[0].ondelete
 
 
-def _constraint_onupdate(constraint: ForeignKeyConstraint) -> Optional[str]:
+def _constraint_onupdate(constraint: ForeignKeyConstraint) -> str | None:
     """Return the onupdate action for a foreign key constraint."""
     elements = list(constraint.elements)
     if not elements:

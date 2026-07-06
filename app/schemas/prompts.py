@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 from pydantic import BaseModel
 
 
@@ -12,7 +10,7 @@ class PromptVariable(BaseModel):
 
     name: str
     description: str
-    example: Optional[str] = None
+    example: str | None = None
 
 
 class PromptTemplateRead(BaseModel):
@@ -20,12 +18,12 @@ class PromptTemplateRead(BaseModel):
 
     template: str
     rendered: str
-    context: Dict[str, str]
-    variables: List[PromptVariable]
+    context: dict[str, str]
+    variables: list[PromptVariable]
     is_custom: bool = False
 
 
 class PromptTemplateUpdate(BaseModel):
     """Payload for updating a prompt template."""
 
-    template: Optional[str] = None
+    template: str | None = None

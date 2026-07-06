@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -18,7 +18,7 @@ class UserBase(DateTimeConfigMixin, BaseModel):
     model_config = ConfigDict(**DateTimeConfigMixin.model_config, from_attributes=True)
 
     email: EmailStr
-    full_name: Optional[str] = None
+    full_name: str | None = None
 
 
 class RunSettingsSection(str, Enum):
@@ -47,12 +47,12 @@ class UserRead(UserBase):
     is_active: bool
     openrouter_configured: bool
     pinecone_configured: bool
-    last_used_chat_model: Optional[str] = None
-    last_used_parameters: Optional[Dict[str, Any]] = None
-    last_used_provider: Optional[Dict[str, Any]] = None
-    last_used_stream: Optional[bool] = None
-    last_used_tool_collection_ids: Optional[List[UUID]] = None
-    run_settings_order: Optional[List[RunSettingsSection]] = None
+    last_used_chat_model: str | None = None
+    last_used_parameters: dict[str, Any] | None = None
+    last_used_provider: dict[str, Any] | None = None
+    last_used_stream: bool | None = None
+    last_used_tool_collection_ids: list[UUID] | None = None
+    run_settings_order: list[RunSettingsSection] | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -60,15 +60,15 @@ class UserRead(UserBase):
 class UserSettingsUpdate(BaseModel):
     """Payload for updating user settings."""
 
-    openrouter_api_key: Optional[str] = None
-    pinecone_api_key: Optional[str] = None
-    run_settings_order: Optional[List[RunSettingsSection]] = None
+    openrouter_api_key: str | None = None
+    pinecone_api_key: str | None = None
+    run_settings_order: list[RunSettingsSection] | None = None
 
     @field_validator("run_settings_order")
     @classmethod
     def ensure_unique_run_settings_order(
-        cls, value: Optional[List[RunSettingsSection]]
-    ) -> Optional[List[RunSettingsSection]]:
+        cls, value: list[RunSettingsSection] | None
+    ) -> list[RunSettingsSection] | None:
         """Reject run settings orders with duplicate entries."""
         if value is None:
             return value
@@ -82,7 +82,7 @@ class ProviderKeyStatus(BaseModel):
 
     configured: bool
     valid: bool
-    message: Optional[str] = None
+    message: str | None = None
 
 
 class UserKeyValidation(BaseModel):

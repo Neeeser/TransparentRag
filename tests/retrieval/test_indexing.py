@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pytest
 
-from app.retrieval.indexing import DocumentIndexer
 from app.retrieval.indexers.base import VectorIndexConfig
+from app.retrieval.indexing import DocumentIndexer
 from app.retrieval.models import Document, DocumentChunk, DocumentMetadata
 from app.retrieval.parsers.base import DocumentSource
 

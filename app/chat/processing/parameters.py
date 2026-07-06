@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-
-PARAMETER_TYPE_HINTS: Dict[str, str] = {
+PARAMETER_TYPE_HINTS: dict[str, str] = {
     "temperature": "float",
     "top_p": "float",
     "top_k": "int",
@@ -57,7 +56,7 @@ PROVIDER_SORT_OPTIONS = {"price", "throughput", "latency"}
 PROVIDER_DATA_COLLECTION_OPTIONS = {"allow", "deny"}
 
 
-def coerce_numeric_parameter(value: Any) -> Optional[float]:
+def coerce_numeric_parameter(value: Any) -> float | None:
     """Coerce numeric parameter values into floats."""
     if value is None:
         return None
@@ -78,7 +77,7 @@ def coerce_numeric_parameter(value: Any) -> Optional[float]:
     return number
 
 
-def coerce_bool_parameter(value: Any) -> Optional[bool]:
+def coerce_bool_parameter(value: Any) -> bool | None:
     """Coerce parameter values into booleans when possible."""
     if isinstance(value, bool):
         return value
@@ -93,7 +92,7 @@ def coerce_bool_parameter(value: Any) -> Optional[bool]:
     return None
 
 
-def coerce_dict_parameter(value: Any) -> Optional[Dict[str, Any]]:
+def coerce_dict_parameter(value: Any) -> dict[str, Any] | None:
     """Coerce parameter values into dictionaries when possible."""
     if value is None:
         return None
@@ -112,11 +111,11 @@ def coerce_dict_parameter(value: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
-def coerce_list_parameter(value: Any) -> Optional[List[str]]:
+def coerce_list_parameter(value: Any) -> list[str] | None:
     """Coerce parameter values into a list of strings."""
     if value is None:
         return None
-    items: List[str] = []
+    items: list[str] = []
     if isinstance(value, list):
         for item in value:
             if item is None:
@@ -138,22 +137,19 @@ def coerce_list_parameter(value: Any) -> Optional[List[str]]:
     return items or None
 
 
-def normalize_reasoning_effort(value: Any) -> Optional[str]:
+def normalize_reasoning_effort(value: Any) -> str | None:
     """Normalize reasoning effort strings to allowed values."""
     if not value:
         return None
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-    else:
-        lowered = str(value).strip().lower()
+    lowered = value.strip().lower() if isinstance(value, str) else str(value).strip().lower()
     return lowered if lowered in REASONING_EFFORT_OPTIONS else None
 
 
-def prepare_reasoning_override(raw: Any) -> Optional[Dict[str, Any]]:
+def prepare_reasoning_override(raw: Any) -> dict[str, Any] | None:
     """Prepare a reasoning override payload from raw input."""
     if raw is None:
         return None
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     if isinstance(raw, dict):
         payload = raw
     else:
@@ -161,7 +157,7 @@ def prepare_reasoning_override(raw: Any) -> Optional[Dict[str, Any]]:
         if not normalized:
             return None
         payload = {"effort": normalized}
-    prepared: Dict[str, Any] = {}
+    prepared: dict[str, Any] = {}
     for key, value in payload.items():
         normalized_key = str(key).lower()
         if normalized_key == "effort":
@@ -179,22 +175,19 @@ def prepare_reasoning_override(raw: Any) -> Optional[Dict[str, Any]]:
     return prepared or None
 
 
-def _coerce_int_parameter(value: Any) -> Optional[int]:
+def _coerce_int_parameter(value: Any) -> int | None:
     """Coerce integer parameter values from numeric input."""
     number = coerce_numeric_parameter(value)
     return None if number is None else int(number)
 
 
-def _coerce_enum_parameter(value: Any) -> Optional[str]:
+def _coerce_enum_parameter(value: Any) -> str | None:
     """Normalize enum-like parameter values."""
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-    else:
-        lowered = str(value).strip().lower()
+    lowered = value.strip().lower() if isinstance(value, str) else str(value).strip().lower()
     return lowered if lowered in VERBOSITY_OPTIONS else None
 
 
-def coerce_parameter_value(key: str, value: Any) -> Optional[Any]:
+def coerce_parameter_value(key: str, value: Any) -> Any | None:
     """Coerce parameter values based on declared type hints."""
     hint = PARAMETER_TYPE_HINTS.get(key)
     if hint is None:
@@ -211,14 +204,14 @@ def coerce_parameter_value(key: str, value: Any) -> Optional[Any]:
 
 
 def sanitize_parameter_overrides(
-    raw: Optional[Dict[str, Any]],
-    supported_parameters: Optional[List[str]],
-) -> Dict[str, Any]:
+    raw: dict[str, Any] | None,
+    supported_parameters: list[str] | None,
+) -> dict[str, Any]:
     """Validate and sanitize parameter overrides."""
     if not raw or not supported_parameters:
         return {}
     supported_lookup = {param.lower(): param for param in supported_parameters}
-    sanitized: Dict[str, Any] = {}
+    sanitized: dict[str, Any] = {}
     for incoming_key, value in raw.items():
         normalized_key = incoming_key.lower()
         canonical_key = supported_lookup.get(normalized_key)
@@ -232,12 +225,12 @@ def sanitize_parameter_overrides(
 
 
 def build_reasoning_options(
-    supported_parameters: Optional[List[str]],
-    effort: Optional[str],
-) -> Dict[str, Any]:
+    supported_parameters: list[str] | None,
+    effort: str | None,
+) -> dict[str, Any]:
     """Build reasoning options compatible with the selected model."""
     selected_effort = normalize_reasoning_effort(effort) or "medium"
-    options: Dict[str, Any] = {}
+    options: dict[str, Any] = {}
 
     if not supported_parameters:
         options["reasoning"] = {"effort": selected_effort}
@@ -256,11 +249,11 @@ def build_reasoning_options(
 
 
 def build_openrouter_body(
-    reasoning_options: Optional[Dict[str, Any]],
-    provider_options: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    reasoning_options: dict[str, Any] | None,
+    provider_options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build the OpenRouter extra_body payload for chat requests."""
-    body: Dict[str, Any] = dict(reasoning_options) if reasoning_options else {}
+    body: dict[str, Any] = dict(reasoning_options) if reasoning_options else {}
     usage_config = body.get("usage")
     if isinstance(usage_config, dict):
         merged_usage = dict(usage_config)
@@ -273,7 +266,7 @@ def build_openrouter_body(
     return body
 
 
-def normalize_provider_key(key: str) -> Optional[str]:
+def normalize_provider_key(key: str) -> str | None:
     """Normalize provider option keys to accepted names."""
     normalized = key.strip().lower().replace("-", "_")
     if normalized in PROVIDER_ALLOWED_KEYS:
@@ -281,11 +274,11 @@ def normalize_provider_key(key: str) -> Optional[str]:
     return PROVIDER_KEY_ALIASES.get(normalized)
 
 
-def coerce_string_list(value: Any) -> Optional[List[str]]:
+def coerce_string_list(value: Any) -> list[str] | None:
     """Normalize string lists from various input formats."""
     if value is None:
         return None
-    items: List[str] = []
+    items: list[str] = []
     if isinstance(value, str):
         chunks = value.replace("\n", ",").split(",")
         for chunk in chunks:
@@ -302,7 +295,7 @@ def coerce_string_list(value: Any) -> Optional[List[str]]:
     return items or None
 
 
-def coerce_provider_sort(value: Any) -> Optional[str]:
+def coerce_provider_sort(value: Any) -> str | None:
     """Validate provider sort options."""
     if value is None:
         return None
@@ -312,7 +305,7 @@ def coerce_provider_sort(value: Any) -> Optional[str]:
     return None
 
 
-def coerce_data_collection(value: Any) -> Optional[str]:
+def coerce_data_collection(value: Any) -> str | None:
     """Validate provider data collection preferences."""
     if value is None:
         return None
@@ -322,11 +315,11 @@ def coerce_data_collection(value: Any) -> Optional[str]:
     return None
 
 
-def coerce_max_price(value: Any) -> Optional[Dict[str, float]]:
+def coerce_max_price(value: Any) -> dict[str, float] | None:
     """Normalize max price configurations for providers."""
     if not isinstance(value, dict):
         return None
-    parsed: Dict[str, float] = {}
+    parsed: dict[str, float] = {}
     for key in ("prompt", "completion", "request", "image"):
         if key not in value:
             continue
@@ -338,12 +331,12 @@ def coerce_max_price(value: Any) -> Optional[Dict[str, float]]:
 
 
 def sanitize_provider_preferences(
-    raw: Optional[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
+    raw: dict[str, Any] | None,
+) -> dict[str, Any] | None:
     """Sanitize provider preference payloads."""
     if not raw:
         return None
-    normalized_input: Dict[str, Any] = {}
+    normalized_input: dict[str, Any] = {}
     for incoming_key, incoming_value in raw.items():
         if not isinstance(incoming_key, str):
             continue
@@ -353,7 +346,7 @@ def sanitize_provider_preferences(
     if not normalized_input:
         return None
 
-    sanitized: Dict[str, Any] = {}
+    sanitized: dict[str, Any] = {}
     for list_key in ("order", "only", "ignore", "quantizations"):
         parsed_list = coerce_string_list(normalized_input.get(list_key))
         if parsed_list:

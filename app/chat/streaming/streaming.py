@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any
 from uuid import uuid4
 
-from app.chat.providers.base import ChatProvider, ChatRequest, ParsedStreamChunk
 from app.chat.processing.reasoning import extend_reasoning_segments, normalize_reasoning_segments
 from app.chat.processing.tool_calls import accumulate_stream_tool_calls, coerce_stream_text
+from app.chat.providers.base import ChatProvider, ChatRequest, ParsedStreamChunk
 
 
 @dataclass
@@ -16,12 +17,12 @@ class StreamState:
     """Mutable state for streaming response assembly."""
 
     provider: str
-    content_parts: List[str] = field(default_factory=list)
-    reasoning_segments: List[Dict[str, Any]] = field(default_factory=list)
-    tool_call_fragments: Dict[int, Dict[str, Any]] = field(default_factory=dict)
-    latest_usage: Dict[str, Any] = field(default_factory=dict)
-    finish_reason: Optional[str] = None
-    response_model: Optional[str] = None
+    content_parts: list[str] = field(default_factory=list)
+    reasoning_segments: list[dict[str, Any]] = field(default_factory=list)
+    tool_call_fragments: dict[int, dict[str, Any]] = field(default_factory=dict)
+    latest_usage: dict[str, Any] = field(default_factory=dict)
+    finish_reason: str | None = None
+    response_model: str | None = None
 
 
 def stream_model_completion(
@@ -29,9 +30,9 @@ def stream_model_completion(
     provider: ChatProvider,
     request: ChatRequest,
 ) -> Generator[
-    Dict[str, str],
+    dict[str, str],
     None,
-    Tuple[Dict[str, Any], Dict[str, Any], str, Optional[str], Optional[str]],
+    tuple[dict[str, Any], dict[str, Any], str, str | None, str | None],
 ]:
     """Stream a chat completion and yield token/tool events."""
     stream = provider.chat_stream(request)
@@ -50,7 +51,7 @@ def stream_model_completion(
     return message, state.latest_usage, state.provider, state.finish_reason, state.response_model
 
 
-def _parse_chunk(provider: ChatProvider, chunk: dict) -> Optional[ParsedStreamChunk]:
+def _parse_chunk(provider: ChatProvider, chunk: dict) -> ParsedStreamChunk | None:
     """Parse a raw chunk into a normalized delta structure."""
     if not isinstance(chunk, dict):
         return None
@@ -70,7 +71,7 @@ def _update_stream_metadata(state: StreamState, parsed: ParsedStreamChunk) -> No
 def _handle_stream_delta(
     state: StreamState,
     parsed: ParsedStreamChunk,
-) -> Generator[Dict[str, str], None, None]:
+) -> Generator[dict[str, str], None, None]:
     """Apply a parsed delta to state and emit stream events."""
     token_text = coerce_stream_text(parsed.delta_content)
     if token_text:
@@ -90,9 +91,9 @@ def _handle_stream_delta(
             }
 
 
-def _finalize_stream_message(state: StreamState) -> Dict[str, Any]:
+def _finalize_stream_message(state: StreamState) -> dict[str, Any]:
     """Build the final assistant message from stream state."""
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     for index in sorted(state.tool_call_fragments.keys()):
         call_entry = state.tool_call_fragments[index]
         function_block = call_entry.get("function") or {}
@@ -111,7 +112,7 @@ def _finalize_stream_message(state: StreamState) -> Dict[str, Any]:
             }
         )
 
-    message: Dict[str, Any] = {"content": "".join(state.content_parts)}
+    message: dict[str, Any] = {"content": "".join(state.content_parts)}
     if tool_calls:
         message["tool_calls"] = tool_calls
     if state.reasoning_segments:

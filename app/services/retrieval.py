@@ -5,15 +5,14 @@
 from __future__ import annotations
 
 from time import perf_counter
-from typing import List
 
 from sqlmodel import Session
 
 from app.api.config import get_settings
 from app.db import models
 from app.db.repositories import QueryRepository
-from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.config import resolve_retrieval_settings
+from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.registry import build_default_registry
 from app.pipelines.runtime import PipelineExecutor, PipelineRunContext
 from app.pipelines.tracing import PipelineTraceRecorder
@@ -84,7 +83,7 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
             result = executor.execute(definition, context)
             payload = self._extract_retrieval_payload(result.terminal_outputs)
             response = payload.response
-            chunks: List[RetrievedChunk] = []
+            chunks: list[RetrievedChunk] = []
             for scored in response.matches:
                 chunks.append(
                     RetrievedChunk(

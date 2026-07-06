@@ -5,10 +5,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.schemas.chat import ChatMessageCreate
 from app.chat import service as chat_service_module
 from app.chat.service import ChatService
 from app.chat.state import ToolCollectionContext
+from app.schemas.chat import ChatMessageCreate
 
 
 class _StubRepo:

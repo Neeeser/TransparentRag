@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,7 +10,13 @@ from sqlmodel import Session, select
 from app.api.config import get_settings
 from app.db import models
 from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
-from app.pipelines.runtime import NodePort, PipelineExecutor, PipelineRunContext, PipelineNodeBase, NodeRegistry
+from app.pipelines.runtime import (
+    NodePort,
+    NodeRegistry,
+    PipelineExecutor,
+    PipelineNodeBase,
+    PipelineRunContext,
+)
 from app.pipelines.tracing import (
     NodeTraceSummary,
     NodeTraceValue,
@@ -211,7 +217,7 @@ def test_serialize_payload_handles_custom_types() -> None:
     payload = {
         "path": Path("/tmp/file.txt"),
         "id": uuid4(),
-        "when": datetime(2024, 1, 1, tzinfo=timezone.utc),
+        "when": datetime(2024, 1, 1, tzinfo=UTC),
     }
 
     serialized = serialize_payload(payload)

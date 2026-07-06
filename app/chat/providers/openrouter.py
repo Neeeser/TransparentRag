@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from pydantic import ValidationError
 
@@ -26,7 +26,7 @@ class OpenRouterProvider:
         self._client = client
         self._stream_chunk_model = stream_chunk_model
 
-    def get_model(self, model_id: str) -> Optional[ModelInfo]:
+    def get_model(self, model_id: str) -> ModelInfo | None:
         """Return model metadata for the requested model id."""
         return self._client.get_model(model_id)
 
@@ -71,11 +71,11 @@ class OpenRouterProvider:
             response_model=response_model,
         )
 
-    def parse_stream_chunk(self, chunk: dict) -> Optional[ParsedStreamChunk]:
+    def parse_stream_chunk(self, chunk: dict) -> ParsedStreamChunk | None:
         """Normalize a streaming chunk payload into a delta snapshot."""
         if not isinstance(chunk, dict):
             return None
-        parsed_chunk: Optional[OpenRouterStreamChunk]
+        parsed_chunk: OpenRouterStreamChunk | None
         try:
             parsed_chunk = self._stream_chunk_model.model_validate(chunk)
         except ValidationError:

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-
 from pinecone import ServerlessSpec  # pylint: disable=no-name-in-module
 
 from app.api.config import get_settings
@@ -92,7 +92,7 @@ def _iter_indexes(value: Any) -> Iterable[Any]:
         if isinstance(indexes, list):
             return indexes
     if hasattr(value, "indexes"):
-        indexes = getattr(value, "indexes")
+        indexes = value.indexes
         if isinstance(indexes, list):
             return indexes
     if isinstance(value, list):

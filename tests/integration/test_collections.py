@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.integration
 
 
 def _register_additional_user(client: TestClient) -> dict[str, object]:

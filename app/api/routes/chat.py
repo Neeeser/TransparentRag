@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -29,6 +28,7 @@ from app.schemas.chat import (
     ChatSessionRead,
 )
 from app.schemas.prompts import PromptTemplateRead, PromptTemplateUpdate
+from app.services.chat import ChatService
 from app.services.prompts import (
     apply_prompt_template,
     base_prompt_context,
@@ -36,7 +36,6 @@ from app.services.prompts import (
     is_base_prompt_custom,
     prompt_variables_payload,
 )
-from app.services.chat import ChatService
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -151,13 +150,13 @@ def stream_chat(
     )
 
 
-@router.get("/chat/sessions", response_model=List[ChatSessionRead])
+@router.get("/chat/sessions", response_model=list[ChatSessionRead])
 def list_sessions(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-    collection_ids: Optional[List[UUID]] = Query(default=None),
+    collection_ids: list[UUID] | None = Query(default=None),
     include_unassigned: bool = Query(default=False),
-) -> List[ChatSessionRead]:
+) -> list[ChatSessionRead]:
     """List chat sessions for a user, optionally filtered by tool collections."""
     repo = ChatRepository(session)
     sessions = repo.list_sessions(
@@ -176,12 +175,12 @@ def list_sessions(
     ]
 
 
-@router.get("/chat/sessions/{session_id}", response_model=List[ChatMessageRead])
+@router.get("/chat/sessions/{session_id}", response_model=list[ChatMessageRead])
 def get_chat_history(
     session_id: UUID,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> List[ChatMessageRead]:
+) -> list[ChatMessageRead]:
     """Return chat history for a session."""
     repo = ChatRepository(session)
     session_model = repo.get_session(session_id, user_id=current_user.id)

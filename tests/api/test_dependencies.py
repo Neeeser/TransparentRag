@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -53,7 +53,7 @@ def test_get_current_user_rejects_invalid_token(session: Session) -> None:
 def test_get_current_user_rejects_missing_subject(session: Session) -> None:
     _create_user(session)
     settings = get_settings()
-    payload = {"exp": datetime.now(timezone.utc) + timedelta(minutes=5)}
+    payload = {"exp": datetime.now(UTC) + timedelta(minutes=5)}
     token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
     with pytest.raises(HTTPException):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from .chunkers.base import DocumentChunker
 from .embedders.base import Embedder
@@ -24,7 +24,7 @@ class DocumentIndexer:
         embedder: Embedder,
         indexer: Indexer,
         index_config: VectorIndexConfig,
-        parser: Optional[DocumentParser] = None,
+        parser: DocumentParser | None = None,
     ) -> None:
         """Initialize the document indexer pipeline."""
         self._chunker = chunker
@@ -40,7 +40,7 @@ class DocumentIndexer:
     def index_document(
         self,
         document: Document,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         ensure_index: bool = True,
     ) -> Sequence[DocumentChunk]:
         """Chunk, embed, and index a single document."""
@@ -85,7 +85,7 @@ class DocumentIndexer:
 
         enriched_chunks = [
             chunk.with_embedding(embedding)
-            for chunk, embedding in zip(chunks, embeddings)
+            for chunk, embedding in zip(chunks, embeddings, strict=True)
         ]
 
         self._indexer.upsert(
@@ -98,7 +98,7 @@ class DocumentIndexer:
     def index_source(
         self,
         source: DocumentSource,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         ensure_index: bool = True,
     ) -> Sequence[DocumentChunk]:
         """Parse and index a single source using the configured parser."""
@@ -114,7 +114,7 @@ class DocumentIndexer:
     def index_batch(
         self,
         documents: Sequence[Document],
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         ensure_index: bool = True,
     ) -> list[DocumentChunk]:
         """Index a batch of documents sequentially."""
@@ -133,7 +133,7 @@ class DocumentIndexer:
     def index_sources(
         self,
         sources: Sequence[DocumentSource],
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         ensure_index: bool = True,
     ) -> list[DocumentChunk]:
         """Parse and index a batch of sources sequentially."""

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlmodel import Session
@@ -27,9 +27,9 @@ class RecordContext:
 class ToolCallRecord:
     """Tool call metadata for persisted chat messages."""
 
-    name: Optional[str] = None
-    call_id: Optional[str] = None
-    payload: Optional[Dict[str, object]] = None
+    name: str | None = None
+    call_id: str | None = None
+    payload: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -39,13 +39,13 @@ class MessageRecord:
     session_id: UUID
     role: models.ChatRole
     content: str
-    model: Optional[str] = None
-    tool: Optional[ToolCallRecord] = None
-    reasoning: Optional[Dict[str, object]] = None
-    usage: Optional[Dict[str, int]] = None
+    model: str | None = None
+    tool: ToolCallRecord | None = None
+    reasoning: dict[str, object] | None = None
+    usage: dict[str, int] | None = None
 
 
-def serialize_message(message: models.ChatMessage) -> Dict[str, object]:
+def serialize_message(message: models.ChatMessage) -> dict[str, object]:
     """Serialize stored chat messages for provider requests."""
     if message.role == models.ChatRole.TOOL:
         return {
@@ -57,7 +57,7 @@ def serialize_message(message: models.ChatMessage) -> Dict[str, object]:
         role_value = message.role.value
     else:
         role_value = str(message.role)
-    serialized: Dict[str, object] = {"role": role_value, "content": message.content}
+    serialized: dict[str, object] = {"role": role_value, "content": message.content}
     tool_payload = message.tool_payload
     if (
         isinstance(tool_payload, dict)
@@ -97,7 +97,7 @@ def record_tool_call_assistant_message(
     context: RecordContext,
     session_model: models.ChatSession,
     content: str,
-    tool_calls: List[Dict[str, Any]],
+    tool_calls: list[dict[str, Any]],
 ) -> None:
     """Persist assistant tool-call messages to the database."""
     if not tool_calls:
@@ -122,8 +122,8 @@ def record_partial_assistant_message(
     context: RecordContext,
     session_model: models.ChatSession,
     content: str,
-    reasoning_segments: Optional[List[Dict[str, Any]]],
-    model: Optional[str],
+    reasoning_segments: list[dict[str, Any]] | None,
+    model: str | None,
 ) -> None:
     """Persist a partial assistant response when streaming closes."""
     trimmed_content = (content or "").strip()
@@ -149,7 +149,7 @@ def record_partial_assistant_message(
 def convert_session(
     session_model: models.ChatSession,
     *,
-    tool_collection_ids: Optional[List[UUID]] = None,
+    tool_collection_ids: list[UUID] | None = None,
 ) -> ChatSessionRead:
     """Convert a session model into a response schema."""
     return ChatSessionRead.from_model(
@@ -162,7 +162,7 @@ def convert_messages(
     *,
     chat_repo: ChatRepository,
     session_id: UUID,
-) -> List[ChatMessageRead]:
+) -> list[ChatMessageRead]:
     """Convert stored messages into response schemas."""
     messages = chat_repo.list_messages(session_id)
     return [ChatMessageRead.from_model(msg) for msg in messages]

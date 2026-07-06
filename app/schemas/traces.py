@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -18,15 +18,15 @@ class PipelineRunRead(DateTimeConfigMixin, BaseModel):
 
     id: UUID
     pipeline_id: UUID
-    pipeline_version_id: Optional[UUID]
-    pipeline_version: Optional[int]
+    pipeline_version_id: UUID | None
+    pipeline_version: int | None
     kind: PipelineKind
     user_id: UUID
     collection_id: UUID
     status: PipelineRunStatus
-    error_message: Optional[str]
+    error_message: str | None
     started_at: datetime
-    completed_at: Optional[datetime]
+    completed_at: datetime | None
 
 
 class PipelineNodeSummaryValueRead(BaseModel):
@@ -40,8 +40,8 @@ class PipelineNodeSummaryValueRead(BaseModel):
 class PipelineNodeSummaryRead(BaseModel):
     """Summary of key inputs and outputs for a node."""
 
-    inputs: List[PipelineNodeSummaryValueRead] = Field(default_factory=list)
-    outputs: List[PipelineNodeSummaryValueRead] = Field(default_factory=list)
+    inputs: list[PipelineNodeSummaryValueRead] = Field(default_factory=list)
+    outputs: list[PipelineNodeSummaryValueRead] = Field(default_factory=list)
 
 
 class PipelineNodeRunRead(DateTimeConfigMixin, BaseModel):
@@ -54,10 +54,10 @@ class PipelineNodeRunRead(DateTimeConfigMixin, BaseModel):
     node_name: str
     sequence_index: int
     status: PipelineRunStatus
-    error_message: Optional[str]
+    error_message: str | None
     started_at: datetime
-    completed_at: Optional[datetime]
-    duration_ms: Optional[float]
+    completed_at: datetime | None
+    duration_ms: float | None
     summary: PipelineNodeSummaryRead
 
 
@@ -70,7 +70,7 @@ class PipelineNodeIORead(DateTimeConfigMixin, BaseModel):
     node_id: str
     io_type: PipelineIOType
     port: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
 
 
 class PipelineTraceResponse(BaseModel):
@@ -78,5 +78,5 @@ class PipelineTraceResponse(BaseModel):
 
     run: PipelineRunRead
     definition: PipelineDefinition
-    node_runs: List[PipelineNodeRunRead]
-    node_io: List[PipelineNodeIORead]
+    node_runs: list[PipelineNodeRunRead]
+    node_io: list[PipelineNodeIORead]

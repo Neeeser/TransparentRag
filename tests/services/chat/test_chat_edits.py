@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from uuid import uuid4
 
 import pytest
 from sqlmodel import Session
 
+from app.chat.persistence.sessions import apply_edit
 from app.db import models
 from app.db.repositories import ChatRepository
-from app.chat.persistence.sessions import apply_edit
 
 
 def _create_user(session: Session) -> models.User:
@@ -77,7 +76,7 @@ def test_apply_edit_updates_user_message_and_prunes_following(session: Session) 
     user = _create_user(session)
     collection = _create_collection(session, user)
     chat_session = _create_chat_session(session, user, collection)
-    base_time = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    base_time = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
     user_message = _add_message(
         session,
         chat_session,
@@ -110,7 +109,7 @@ def test_apply_edit_prunes_non_user_messages_after_anchor(session: Session) -> N
     user = _create_user(session)
     collection = _create_collection(session, user)
     chat_session = _create_chat_session(session, user, collection)
-    base_time = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    base_time = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
     _add_message(
         session,
         chat_session,
@@ -163,7 +162,7 @@ def test_apply_edit_rejects_message_from_other_session(session: Session) -> None
         other_session,
         role=models.ChatRole.USER,
         content="Other session",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
     with pytest.raises(ValueError, match="does not belong to this session"):
@@ -215,7 +214,7 @@ def test_apply_edit_rejects_empty_user_edit() -> None:
     target_message = SimpleNamespace(
         session_id="session-1",
         role=models.ChatRole.USER,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         updated_at=None,
         content="Original",
     )
@@ -233,7 +232,7 @@ def test_apply_edit_rejects_empty_user_edit() -> None:
 
 
 def test_apply_edit_non_user_without_last_user_uses_target_anchor() -> None:
-    created_at = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    created_at = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
     session_model = SimpleNamespace(id="session-2", updated_at=None)
     target_message = SimpleNamespace(
         session_id="session-2",

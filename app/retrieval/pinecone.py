@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pinecone import Pinecone
 
 
 def get_pinecone_client(
-    client: Optional[Pinecone] = None,
-    api_key: Optional[str] = None,
+    client: Pinecone | None = None,
+    api_key: str | None = None,
 ) -> Pinecone:
     """Return a configured Pinecone client instance."""
     if client is None:

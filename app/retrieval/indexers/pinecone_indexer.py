@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Dict, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from pinecone import Pinecone, ServerlessSpec  # pylint: disable=no-name-in-module
 
@@ -21,8 +22,8 @@ class PineconeIndexConfig(VectorIndexConfig):
     region: str = "us-east-1"
     text_key: str = "text"
     deletion_protection: str = "disabled"
-    metadata_config: Optional[Dict[str, Any]] = None
-    serverless_spec: Optional[Dict[str, Any]] = None
+    metadata_config: dict[str, Any] | None = None
+    serverless_spec: dict[str, Any] | None = None
 
 
 class PineconeIndexer(Indexer):
@@ -30,15 +31,21 @@ class PineconeIndexer(Indexer):
 
     def __init__(
         self,
-        client: Optional[Pinecone] = None,
-        api_key: Optional[str] = None,
+        client: Pinecone | None = None,
+        api_key: str | None = None,
     ) -> None:
         """Initialize the Pinecone client wrapper."""
         self._client = get_pinecone_client(client=client, api_key=api_key)
         self._indexes: dict[str, Any] = {}
 
-    def ensure_index(self, config: PineconeIndexConfig) -> None:
-        """Create the Pinecone index if it does not already exist."""
+    def ensure_index(self, config: PineconeIndexConfig) -> None:  # type: ignore[override]
+        """Create the Pinecone index if it does not already exist.
+
+        Note: `Indexer.ensure_index` is typed against the base `VectorIndexConfig`;
+        every concrete indexer today narrows to its own config subtype. Making
+        `Indexer` generic over the config type would fix this properly -- left
+        as-is since PineconeIndexer is currently the only implementation.
+        """
         if self._client.has_index(config.name):
             return
 
@@ -56,6 +63,7 @@ class PineconeIndexer(Indexer):
         }
         # Pinecone>=7 dropped the metadata_config kwarg, so only pass it when supported.
         if config.metadata_config:
+            params: Mapping[str, inspect.Parameter]
             try:
                 params = inspect.signature(self._client.create_index).parameters
             except (TypeError, ValueError):
@@ -63,22 +71,29 @@ class PineconeIndexer(Indexer):
             if "metadata_config" in params:
                 create_kwargs["metadata_config"] = config.metadata_config
 
-        self._client.create_index(**create_kwargs)
+        # The Pinecone SDK's `create_index` is a heavily overloaded signature that
+        # mypy can't match against a dynamically-built kwargs dict (we intentionally
+        # build `create_kwargs` conditionally above, e.g. metadata_config support
+        # varies by SDK version).
+        self._client.create_index(**create_kwargs)  # type: ignore[arg-type]
 
-    def upsert(
+    def upsert(  # type: ignore[override]
         self,
         config: PineconeIndexConfig,
         chunks: Sequence[DocumentChunk],
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
-        """Upsert chunk vectors into Pinecone."""
+        """Upsert chunk vectors into Pinecone.
+
+        Note: see `ensure_index` above -- same base-config narrowing.
+        """
         if not chunks:
             return
 
         namespace = namespace or config.namespace
         index = self._get_index(config.name)
 
-        vectors: list[Dict[str, Any]] = []
+        vectors: list[dict[str, Any]] = []
         for chunk in chunks:
             if chunk.embedding is None:
                 raise ValueError(f"Chunk {chunk.chunk_id} missing embedding.")

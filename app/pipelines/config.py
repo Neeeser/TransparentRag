@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Type, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel
 
@@ -30,8 +30,8 @@ class IngestionPipelineSettings:  # pylint: disable=too-many-instance-attributes
     chunk_overlap: int
     embedding_model: str
     index_name: str
-    namespace: Optional[str]
-    dimension: Optional[int]
+    namespace: str | None
+    dimension: int | None
     metric: str
 
 
@@ -41,8 +41,8 @@ class RetrievalPipelineSettings:  # pylint: disable=too-many-instance-attributes
 
     embedding_model: str
     index_name: str
-    namespace: Optional[str]
-    dimension: Optional[int]
+    namespace: str | None
+    dimension: int | None
     chat_model: str
     context_window: int
 
@@ -50,7 +50,7 @@ class RetrievalPipelineSettings:  # pylint: disable=too-many-instance-attributes
 def _resolve_node_config(
     definition: PipelineDefinition,
     node_type: str,
-    model: Type[ConfigModel],
+    model: type[ConfigModel],
 ) -> ConfigModel:
     """Return a validated config model for the first matching node type."""
     node: PipelineNodeDefinition | None = None

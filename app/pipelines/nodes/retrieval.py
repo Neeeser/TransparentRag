@@ -9,6 +9,7 @@ import logging
 from pydantic import BaseModel, Field
 
 from app.api.config import get_settings
+from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.nodes.trace_utils import summarize_match_order, summarize_matches, summarize_text
 from app.pipelines.payloads import (
     QueryEmbeddingPayload,
@@ -17,17 +18,17 @@ from app.pipelines.payloads import (
 )
 from app.pipelines.runtime import (
     NodePort,
+    NodeRegistry,
     PipelineNodeBase,
     PipelineRunContext,
     PipelineValidationIssue,
 )
-from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.retrieval.indexers.pinecone_indexer import PineconeIndexConfig
 from app.retrieval.models import QueryRequest
 from app.retrieval.rerankers.cross_encoder import CrossEncoderReranker
 from app.retrieval.retrievers.pinecone_retriever import PineconeRetriever
-from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -113,7 +114,7 @@ class PineconeRetrieverNode(PipelineNodeBase):
         cls,
         node: PipelineNodeDefinition,
         _definition: PipelineDefinition,
-        _registry: "NodeRegistry",
+        _registry: NodeRegistry,
     ) -> list[PipelineValidationIssue]:
         """Validate required Pinecone index selection."""
         issues: list[PipelineValidationIssue] = []

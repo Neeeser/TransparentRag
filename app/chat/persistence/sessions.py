@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import asc
@@ -24,7 +23,7 @@ class SessionRequest:
     user: models.User
     payload: ChatMessageCreate
     default_chat_model: str
-    primary_collection_id: Optional[UUID] = None
+    primary_collection_id: UUID | None = None
 
 
 def ensure_session(request: SessionRequest) -> models.ChatSession:
@@ -46,7 +45,7 @@ def ensure_session(request: SessionRequest) -> models.ChatSession:
 def create_session(
     *,
     request: SessionRequest,
-    session_id: Optional[UUID] = None,
+    session_id: UUID | None = None,
 ) -> models.ChatSession:
     """Create and persist a new chat session."""
     payload = request.payload
@@ -75,7 +74,7 @@ def apply_edit(
     chat_repo: ChatRepository,
     session_model: models.ChatSession,
     target_message: models.ChatMessage,
-    new_content: Optional[str],
+    new_content: str | None,
 ) -> None:
     """Apply edits to a message and prune dependent history."""
     if target_message.session_id != session_model.id:

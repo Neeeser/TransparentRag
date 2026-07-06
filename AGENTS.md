@@ -14,7 +14,8 @@ the code they govern — load the one for the code you're touching:
 
 Nothing ships without its gate passing. Run the gate for every area you changed:
 
-- Backend: `make test`, `make coverage` (review `term-missing`), `make lint`
+- Backend: `make verify` (typecheck → lint → test), plus `make coverage` (review
+  `term-missing`)
 - Frontend: `npm run verify` in `frontend/` (typecheck → lint → tests), plus
   `make format-check-frontend`
 

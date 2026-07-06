@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-EmbeddingVector = List[float]
+EmbeddingVector = list[float]
 
 
 class DocumentMetadata(BaseModel):
     """Typed metadata container for documents and chunks."""
 
-    data: Dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class Document(BaseModel):
@@ -31,9 +32,9 @@ class DocumentChunk(BaseModel):
     text: str
     order: int
     metadata: DocumentMetadata = Field(default_factory=DocumentMetadata)
-    embedding: Optional[EmbeddingVector] = None
+    embedding: EmbeddingVector | None = None
 
-    def with_embedding(self, embedding: EmbeddingVector) -> "DocumentChunk":
+    def with_embedding(self, embedding: EmbeddingVector) -> DocumentChunk:
         """Return a copy of the chunk populated with an embedding."""
         chunk = self.model_copy()
         chunk.embedding = embedding
@@ -45,8 +46,8 @@ class IndexMetadata(BaseModel):
 
     metric: str = "cosine"
     dimension: int = 384
-    namespace: Optional[str] = None
-    spec: Dict[str, Any] = Field(default_factory=dict)
+    namespace: str | None = None
+    spec: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChunkBatch(BaseModel):
@@ -60,8 +61,8 @@ class QueryRequest(BaseModel):
 
     text: str
     top_k: int = 5
-    namespace: Optional[str] = None
-    filter: Optional[Dict[str, Any]] = None
+    namespace: str | None = None
+    filter: dict[str, Any] | None = None
 
 
 class ScoredChunk(BaseModel):
@@ -74,7 +75,7 @@ class ScoredChunk(BaseModel):
 class RetrievalResponse(BaseModel):
     """Response payload for retrieval results."""
 
-    matches: List[ScoredChunk]
+    matches: list[ScoredChunk]
 
 
 __all__ = [
