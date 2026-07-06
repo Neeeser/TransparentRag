@@ -3,8 +3,6 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-from fastapi import UploadFile
-
 from app.utils.file_storage import FileStorage
 
 
@@ -21,11 +19,10 @@ def test_file_storage_writes_and_deletes(tmp_path: Path) -> None:
     assert (tmp_path / "nested").exists() is False
 
 
-def test_file_storage_save_upload_and_protects_base(tmp_path: Path) -> None:
+def test_file_storage_save_stream_and_protects_base(tmp_path: Path) -> None:
     storage = FileStorage(base_path=tmp_path)
-    upload = UploadFile(filename="sample.txt", file=io.BytesIO(b"data"))
 
-    saved = storage.save_upload(upload, "uploads/sample.txt")
+    saved = storage.save_stream(io.BytesIO(b"data"), "uploads/sample.txt")
 
     assert saved.read_bytes() == b"data"
 

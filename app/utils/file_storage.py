@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import BinaryIO
 
-from fastapi import UploadFile
-
 from app.core.config import get_settings
 
 
@@ -30,10 +28,6 @@ class FileStorage:
                     break
                 out_file.write(chunk)
         return destination
-
-    def save_upload(self, upload: UploadFile, relative_path: str) -> Path:
-        """Save an uploaded file to the storage path and return the destination."""
-        return self.save_stream(upload.file, relative_path)
 
     def write_text(self, text: str, relative_path: str) -> Path:
         """Write text content to a relative file path and return the destination."""

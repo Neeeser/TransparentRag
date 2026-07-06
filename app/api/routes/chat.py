@@ -90,6 +90,8 @@ def chat(
     chat_service = ChatService(session)
     try:
         return chat_service.send_message(user=current_user, payload=payload)
+    # TODO(chat-error-taxonomy): replace with `except ServiceError` +
+    # `to_http_exception` once the chat subsystem raises typed domain errors.
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -199,6 +201,8 @@ def branch_chat_session(
             message_id=payload.message_id,
             title=payload.title,
         )
+    # TODO(chat-error-taxonomy): replace with `except ServiceError` +
+    # `to_http_exception` once the chat subsystem raises typed domain errors.
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

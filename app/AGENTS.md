@@ -106,7 +106,7 @@ single implementation file and were collapsed to root modules (`parameters.py`,
 
 **A subsystem's `__init__` exports its public API only.** `app/chat/__init__.py` exports
 `ChatService` and nothing else; consumers import other names from the owning submodule
-(`from app.chat.persistence import persist_base_prompt`). Re-exporting foreign symbols
+(`from app.chat.persistence import persist_session_preferences`). Re-exporting foreign symbols
 (`PipelineService`, `get_settings`, …) so a test can monkeypatch them through the package
 is forbidden — patch at the real boundary where the name is used (e.g. tests patch
 `app.chat.setup.resolve_retrieval_settings`, not a re-export on the package).
@@ -210,7 +210,8 @@ invert it:
   `except ServiceError` — never map status codes by string-matching a message, and never
   leave a domain error untranslated (that's a 500). `PipelineResolutionError` subclasses
   `InvalidInputError` (and, transitionally, `ValueError` so not-yet-migrated chat paths
-  still catch it); new services skip `ValueError` entirely.
+  still catch it — the bridge sites are tagged `TODO(chat-error-taxonomy)`; grep that tag
+  when migrating chat); new services skip `ValueError` entirely.
 - **`app/services/traces.py`'s `TraceService` owns trace resolution; `routes/traces.py`
   only translates `TraceNotFoundError` to a 404.** Building a `PipelineTraceResponse`
   from a run — including the run's own pinned `PipelineVersion` vs. its pipeline's

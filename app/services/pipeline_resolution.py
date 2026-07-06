@@ -41,6 +41,10 @@ class PipelineResolutionError(InvalidInputError, ValueError):
     `InvalidInputError` so routes map it to a 400 through the typed taxonomy;
     `ValueError` so legacy chat callers that still `except ValueError` keep
     working until they migrate.
+
+    TODO(chat-error-taxonomy): drop the ValueError base once the chat
+    subsystem raises typed domain errors and routes/chat.py stops catching
+    ValueError.
     """
 
 
