@@ -37,10 +37,14 @@ class OpenRouterClient:
         # Share the httpx client with the SDK: without `http_client=` the OpenAI
         # SDK builds its own internal httpx.Client, which `close()` would miss —
         # leaking the pool that carries the main chat/chat_stream traffic.
+        # The explicit timeout preserves the SDK default (600s, 5s connect) —
+        # without it the SDK would inherit `_http`'s flat 60s REST timeout, and
+        # long reasoning-model chat responses could time out.
         self._client = OpenAI(
             base_url=self.settings.openrouter_base_url,
             api_key=self.api_key,
             http_client=self._http,
+            timeout=httpx.Timeout(600.0, connect=5.0),
         )
         self._model_cache: dict[str, Any] = {"ts": 0.0, "data": []}
         self._embedding_model_cache: dict[str, Any] = {

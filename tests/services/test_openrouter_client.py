@@ -82,10 +82,17 @@ class _StubChat:
 
 
 class _StubOpenAI:
-    def __init__(self, base_url: str, api_key: str, http_client: Any = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        http_client: Any = None,
+        timeout: Any = None,
+    ) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.http_client = http_client
+        self.timeout = timeout
         self.embeddings = _StubEmbeddings()
         self.chat = _StubChat()
 
@@ -531,6 +538,14 @@ def test_close_closes_shared_http_transport(monkeypatch) -> None:
 
     # The SDK's underlying httpx client is the very same object as `_http`.
     assert client._client._client is client._http
+
+    # Sharing must not shrink chat/chat_stream timeouts: without an explicit
+    # timeout the SDK inherits `_http`'s flat 60s, a silent 10x cut from the
+    # SDK default 600s that long reasoning-model responses rely on.
+    sdk_timeout = client._client.timeout
+    assert isinstance(sdk_timeout, openrouter_module.httpx.Timeout)
+    assert sdk_timeout.read == 600.0
+    assert sdk_timeout.connect == 5.0
 
     client.close()
 
