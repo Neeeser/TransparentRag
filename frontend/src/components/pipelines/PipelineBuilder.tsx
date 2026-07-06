@@ -16,8 +16,8 @@ import {
   validatePipelineConfig,
   validatePipelineConnection,
   validatePipelineEdges,
-} from "./pipeline-io";
-import { PIPELINE_KIND_STORAGE_KEY } from "./pipeline-kinds";
+} from "./lib/pipeline-io";
+import { PIPELINE_KIND_STORAGE_KEY } from "./lib/pipeline-kinds";
 import {
   buildNodeCatalog,
   createDefaultNodePosition,
@@ -25,7 +25,7 @@ import {
   specToNodeData,
   toFlowEdges,
   toFlowNodes,
-} from "./pipeline-utils";
+} from "./lib/pipeline-utils";
 import { PipelineCanvas } from "./PipelineCanvas";
 import { PipelineHeader } from "./PipelineHeader";
 import { PipelineInspector } from "./PipelineInspector";

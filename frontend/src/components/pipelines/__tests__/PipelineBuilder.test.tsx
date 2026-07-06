@@ -41,7 +41,7 @@ vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
 const api = vi.mocked(apiModule);
 
-vi.mock("@/components/pipelines/pipeline-io", () => ({
+vi.mock("@/components/pipelines/lib/pipeline-io", () => ({
   validatePipelineConnection: (...args: unknown[]) => io.validatePipelineConnection(...args),
   validatePipelineEdges: (...args: unknown[]) => io.validatePipelineEdges(...args),
   validatePipelineConfig: (...args: unknown[]) => io.validatePipelineConfig(...args),

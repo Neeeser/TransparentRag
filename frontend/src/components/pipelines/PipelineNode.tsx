@@ -4,8 +4,8 @@ import { Handle, Position } from "@xyflow/react";
 
 import { cn, truncate } from "@/lib/utils";
 
-import { buildPipelineConfigFields, formatConfigValue } from "./pipeline-config";
-import { getNodeFamilyStyles, getPortTypeClasses, resolveNodeFamily } from "./pipeline-theme";
+import { buildPipelineConfigFields, formatConfigValue } from "./lib/pipeline-config";
+import { getNodeFamilyStyles, getPortTypeClasses, resolveNodeFamily } from "./lib/pipeline-theme";
 
 import type { NodeSpec, PipelineRunStatus } from "@/lib/types";
 import type { Node, NodeProps } from "@xyflow/react";

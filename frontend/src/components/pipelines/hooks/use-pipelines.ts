@@ -14,7 +14,7 @@ import {
 } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
-import { toPipelineDefinition } from "../pipeline-utils";
+import { toPipelineDefinition } from "../lib/pipeline-utils";
 
 import type { PipelineNodeData } from "../PipelineNode";
 import type { Collection, NodeSpec, Pipeline, PipelineKind, PipelineVersion } from "@/lib/types";

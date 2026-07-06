@@ -2,31 +2,31 @@
 
 import { useCallback, useLayoutEffect, useRef } from "react";
 
+import { ChatStudioPanels } from "@/components/chat-studio/ChatStudioPanels";
+import { useChatMutation } from "@/components/chat-studio/hooks/messaging/use-chat-mutation";
+import { useChatStream } from "@/components/chat-studio/hooks/messaging/use-chat-stream";
+import { useMessageEdit } from "@/components/chat-studio/hooks/messaging/use-message-edit";
+import { useChatEntries } from "@/components/chat-studio/hooks/session/use-chat-entries";
+import { useChatSessionRouting } from "@/components/chat-studio/hooks/session/use-chat-session-routing";
+import { useSessionHistoryPolling } from "@/components/chat-studio/hooks/session/use-session-history-polling";
+import { useSessionLifecycle } from "@/components/chat-studio/hooks/session/use-session-lifecycle";
+import { useSessionMessages } from "@/components/chat-studio/hooks/session/use-session-messages";
+import { useCollectionTools } from "@/components/chat-studio/hooks/settings/use-collection-tools";
+import { useModelCatalog } from "@/components/chat-studio/hooks/settings/use-model-catalog";
+import { useModelParameters } from "@/components/chat-studio/hooks/settings/use-model-parameters";
+import { usePromptEditor } from "@/components/chat-studio/hooks/settings/use-prompt-editor";
+import { useProviderPreferences } from "@/components/chat-studio/hooks/settings/use-provider-preferences";
+import { useRunSettingsOrder } from "@/components/chat-studio/hooks/settings/use-run-settings-order";
+import { useTelemetryGroups } from "@/components/chat-studio/hooks/settings/use-telemetry-groups";
+import { useTelemetryModelGroups } from "@/components/chat-studio/hooks/settings/use-telemetry-model-groups";
+import { useAutoScroll } from "@/components/chat-studio/hooks/use-auto-scroll";
+import { useChatStudioState } from "@/components/chat-studio/hooks/use-chat-studio-state";
+import { usePanelControls } from "@/components/chat-studio/hooks/use-panel-controls";
 import {
   CHAT_INPUT_MAX_HEIGHT,
   CHAT_INPUT_MIN_HEIGHT,
   TELEMETRY_SECTION_IDS,
-} from "@/components/chat-studio/chat-constants";
-import { ChatStudioPanels } from "@/components/chat-studio/ChatStudioPanels";
-import { useAutoScroll } from "@/components/chat-studio/hooks/use-auto-scroll";
-import { useChatEntries } from "@/components/chat-studio/hooks/use-chat-entries";
-import { useChatMutation } from "@/components/chat-studio/hooks/use-chat-mutation";
-import { useChatSessionRouting } from "@/components/chat-studio/hooks/use-chat-session-routing";
-import { useChatStream } from "@/components/chat-studio/hooks/use-chat-stream";
-import { useChatStudioState } from "@/components/chat-studio/hooks/use-chat-studio-state";
-import { useCollectionTools } from "@/components/chat-studio/hooks/use-collection-tools";
-import { useMessageEdit } from "@/components/chat-studio/hooks/use-message-edit";
-import { useModelCatalog } from "@/components/chat-studio/hooks/use-model-catalog";
-import { useModelParameters } from "@/components/chat-studio/hooks/use-model-parameters";
-import { usePanelControls } from "@/components/chat-studio/hooks/use-panel-controls";
-import { usePromptEditor } from "@/components/chat-studio/hooks/use-prompt-editor";
-import { useProviderPreferences } from "@/components/chat-studio/hooks/use-provider-preferences";
-import { useRunSettingsOrder } from "@/components/chat-studio/hooks/use-run-settings-order";
-import { useSessionHistoryPolling } from "@/components/chat-studio/hooks/use-session-history-polling";
-import { useSessionLifecycle } from "@/components/chat-studio/hooks/use-session-lifecycle";
-import { useSessionMessages } from "@/components/chat-studio/hooks/use-session-messages";
-import { useTelemetryGroups } from "@/components/chat-studio/hooks/use-telemetry-groups";
-import { useTelemetryModelGroups } from "@/components/chat-studio/hooks/use-telemetry-model-groups";
+} from "@/components/chat-studio/lib/chat-constants";
 import { useAuth } from "@/providers/auth-provider";
 
 export function ChatStudio() {

@@ -76,11 +76,11 @@ const eslintConfig = defineConfig([
     // down per-hook (derived state / key-reset patterns) and delete this override.
     files: [
       "src/components/chat-studio/hooks/use-auto-scroll.ts",
-      "src/components/chat-studio/hooks/use-chat-session-routing.ts",
-      "src/components/chat-studio/hooks/use-collection-tools.ts",
+      "src/components/chat-studio/hooks/session/use-chat-session-routing.ts",
+      "src/components/chat-studio/hooks/settings/use-collection-tools.ts",
       "src/components/chat-studio/hooks/use-panel-controls.ts",
-      "src/components/chat-studio/hooks/use-provider-preferences.ts",
-      "src/components/chat-studio/hooks/use-run-settings-order.ts",
+      "src/components/chat-studio/hooks/settings/use-provider-preferences.ts",
+      "src/components/chat-studio/hooks/settings/use-run-settings-order.ts",
     ],
     rules: {
       "react-hooks/set-state-in-effect": "warn",

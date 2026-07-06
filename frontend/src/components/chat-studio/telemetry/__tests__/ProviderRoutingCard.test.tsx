@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ProviderRoutingCard } from "@/components/chat-studio/telemetry/ProviderRoutingCard";
 
-import type { ProviderFormState } from "@/components/chat-studio/types";
+import type { ProviderFormState } from "@/components/chat-studio/lib/types";
 import type { ModelEndpointDirectory, ProviderEndpoint } from "@/lib/types";
 
 const OPENAI_GPT4 = "openai/gpt-4";

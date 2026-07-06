@@ -9,9 +9,9 @@ import {
   coerceFieldValue,
   formatConfigValue,
   getInputValue,
-} from "../pipelines/pipeline-config";
+} from "../pipelines/lib/pipeline-config";
 
-import type { PipelineConfigField } from "../pipelines/pipeline-config";
+import type { PipelineConfigField } from "../pipelines/lib/pipeline-config";
 import type { NodeSpec, Pipeline } from "@/lib/types";
 
 type OverridesState = Record<string, Record<string, unknown>>;

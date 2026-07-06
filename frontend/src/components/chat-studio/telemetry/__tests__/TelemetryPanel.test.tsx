@@ -14,7 +14,7 @@ import type {
   TelemetrySectionsProps,
   TelemetryStreamingProps,
   TelemetryUsageProps,
-} from "@/components/chat-studio/types";
+} from "@/components/chat-studio/lib/types";
 import type { RunSettingsSectionKey } from "@/lib/types";
 
 type DndContextProps = React.PropsWithChildren<{

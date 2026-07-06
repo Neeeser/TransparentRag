@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import { memo } from "react";
 
-import { DEFAULT_STREAMING_ENABLED } from "@/components/chat-studio/chat-constants";
-import { markdownComponents } from "@/components/chat-studio/chat-utils";
+import { DEFAULT_STREAMING_ENABLED } from "@/components/chat-studio/lib/chat-constants";
+import { markdownComponents } from "@/components/chat-studio/lib/chat-utils";
 import { CollectionToolsCard } from "@/components/chat-studio/telemetry/CollectionToolsCard";
 import { CollectionVitalsCard } from "@/components/chat-studio/telemetry/CollectionVitalsCard";
 import { ModelParametersCard } from "@/components/chat-studio/telemetry/ModelParametersCard";
@@ -36,7 +36,7 @@ import type {
   TelemetrySectionsProps,
   TelemetryStreamingProps,
   TelemetryUsageProps,
-} from "@/components/chat-studio/types";
+} from "@/components/chat-studio/lib/types";
 import type { RunSettingsSectionKey } from "@/lib/types";
 
 interface TelemetryPanelProps {

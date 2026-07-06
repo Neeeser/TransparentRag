@@ -3,7 +3,7 @@
 import { formatPricePerMillion } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import type { ProviderFormState, ProviderSelectionField } from "@/components/chat-studio/types";
+import type { ProviderFormState, ProviderSelectionField } from "@/components/chat-studio/lib/types";
 import type { ProviderEndpoint } from "@/lib/types";
 
 const ENDPOINT_STATUS_LABELS: Record<string, string> = {

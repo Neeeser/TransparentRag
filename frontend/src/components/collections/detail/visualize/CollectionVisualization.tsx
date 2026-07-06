@@ -3,8 +3,8 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ChunkPreviewOverlay } from "@/components/chunks/ChunkPreviewOverlay";
 import { ChunkDetailPanel } from "@/components/collections/detail/visualize/ChunkDetailPanel";
+import { ChunkPreviewOverlay } from "@/components/collections/detail/visualize/ChunkPreviewOverlay";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { GlassCard } from "@/components/ui/panel";

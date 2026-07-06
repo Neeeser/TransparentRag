@@ -13,11 +13,11 @@ import {
   coerceFieldValue,
   formatConfigValue,
   getInputValue,
-} from "./pipeline-config";
-import { CREATE_SENTINEL } from "./pipeline-kinds";
-import { sortIndexesByName } from "./pipeline-utils";
+} from "./lib/pipeline-config";
+import { CREATE_SENTINEL } from "./lib/pipeline-kinds";
+import { sortIndexesByName } from "./lib/pipeline-utils";
 
-import type { PipelineConfigField } from "./pipeline-config";
+import type { PipelineConfigField } from "./lib/pipeline-config";
 import type { PipelineNodeData } from "./PipelineNode";
 import type { EmbeddingModelInfo, PineconeIndex } from "@/lib/types";
 import type { Node } from "@xyflow/react";

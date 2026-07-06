@@ -2,13 +2,13 @@
 
 import { Loader, Search } from "lucide-react";
 
-import { useProviderRoutingForm } from "@/components/chat-studio/hooks/use-provider-routing-form";
+import { useProviderRoutingForm } from "@/components/chat-studio/hooks/settings/use-provider-routing-form";
 import { ProviderEndpointCard } from "@/components/chat-studio/telemetry/ProviderEndpointCard";
 import { ProviderSelectionFieldList } from "@/components/chat-studio/telemetry/ProviderSelectionFieldList";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import type { ProviderFormState } from "@/components/chat-studio/types";
+import type { ProviderFormState } from "@/components/chat-studio/lib/types";
 import type { ModelEndpointDirectory } from "@/lib/types";
 
 const QUANTIZATION_OPTIONS = [

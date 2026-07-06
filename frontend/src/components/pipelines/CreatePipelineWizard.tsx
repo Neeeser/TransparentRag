@@ -3,8 +3,8 @@
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { CREATE_SENTINEL } from "@/components/pipelines/pipeline-kinds";
-import { buildDefaultDefinition, sortIndexesByName } from "@/components/pipelines/pipeline-utils";
+import { CREATE_SENTINEL } from "@/components/pipelines/lib/pipeline-kinds";
+import { buildDefaultDefinition, sortIndexesByName } from "@/components/pipelines/lib/pipeline-utils";
 import { Button } from "@/components/ui/button";
 import { Field, Select, TextInput } from "@/components/ui/field";
 import { WizardFooter, WizardShell, type WizardStep } from "@/components/ui/wizard-shell";

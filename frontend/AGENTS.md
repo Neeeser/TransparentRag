@@ -34,10 +34,18 @@ disable `max-lines` — split the file instead.
   pasted three times; a reducer `RESET` action replaced it).
 - **Pages are thin shells.** Route files under `app/` delegate to components/hooks; no
   business logic, no fetch orchestration in a `page.tsx`.
+- **Feature folders separate components from logic.** Inside a feature folder
+  (`chat-studio/`, `pipelines/`, …), components live at the root, pure non-React modules
+  (helpers, constants, types, reducers) in `lib/`, and hooks in `hooks/` — grouped into
+  domain subdirectories (`messaging/`, `session/`, `settings/`) once they outgrow ~10
+  files. A single-file folder isn't a feature: colocate the file with its only consumer
+  instead (ChunkPreviewOverlay moved into `collections/detail/visualize/` for this
+  reason).
 - **Chat Studio is the reference decomposition.** `ChatStudio.tsx` is a ~390-line
-  orchestrator composing single-domain hooks under `chat-studio/hooks/` (routing, stream
-  reducer, mutation, prompt editor, panel controls, …) plus a pure reducer module
-  (`chat-stream-reducer.ts`) with focused tests. New features follow this shape: add a
+  orchestrator composing single-domain hooks under `chat-studio/hooks/` (grouped into
+  `messaging/`, `session/`, and `settings/` subdirectories, with cross-cutting hooks at
+  the `hooks/` root) plus a pure reducer module (`chat-studio/hooks/messaging/
+  chat-stream-reducer.ts`) with focused tests. New features follow this shape: add a
   hook or extend the reducer — don't grow the orchestrator.
 - **Reducers live in pure modules.** State shape, action types, and the reducer function
   go in a plain `*-reducer.ts` with no React imports so they're unit-testable; the hook

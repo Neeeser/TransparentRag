@@ -3,7 +3,7 @@
 import { Filter, PanelLeftClose, PlusCircle, Trash2 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 
-import { chipClass } from "@/components/chat-studio/chat-constants";
+import { chipClass } from "@/components/chat-studio/lib/chat-constants";
 import { Button } from "@/components/ui/button";
 import { cn, timeAgo } from "@/lib/utils";
 

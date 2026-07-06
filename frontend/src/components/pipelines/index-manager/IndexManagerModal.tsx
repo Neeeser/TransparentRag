@@ -3,7 +3,7 @@
 import { RefreshCw } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { sortIndexesByName } from "@/components/pipelines/pipeline-utils";
+import { sortIndexesByName } from "@/components/pipelines/lib/pipeline-utils";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ModalOverlay } from "@/components/ui/modal-overlay";

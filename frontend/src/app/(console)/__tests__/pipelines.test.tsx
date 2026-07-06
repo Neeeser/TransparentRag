@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import PipelinesKindPage from "@/app/(console)/pipelines/[kind]/page";
 import PipelinesPage from "@/app/(console)/pipelines/page";
-import { PIPELINE_KIND_STORAGE_KEY } from "@/components/pipelines/pipeline-kinds";
+import { PIPELINE_KIND_STORAGE_KEY } from "@/components/pipelines/lib/pipeline-kinds";
 import { getMockRedirect, getMockRouter } from "@/test/test-utils";
 
 vi.mock("@/components/pipelines/PipelineBuilder", () => ({

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { TELEMETRY_SECTION_IDS } from "@/components/chat-studio/chat-constants";
+import { TELEMETRY_SECTION_IDS } from "@/components/chat-studio/lib/chat-constants";
 
 const HISTORY_PANEL_WIDTH_PX = 288;
 const TELEMETRY_PANEL_WIDTH_PX = 416;

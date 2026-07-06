@@ -2,10 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { markdownComponents } from "@/components/chat-studio/chat-utils";
 import { ChatTimeline } from "@/components/chat-studio/ChatTimeline";
+import { markdownComponents } from "@/components/chat-studio/lib/chat-utils";
 
-import type { ChatEntry } from "@/components/chat-studio/chat-types";
+import type { ChatEntry } from "@/components/chat-studio/lib/chat-types";
 import type { ChatMessage, ReasoningTraceSegment, ToolCallTrace } from "@/lib/types";
 
 vi.mock("@/components/chat-studio/Tooling", () => ({

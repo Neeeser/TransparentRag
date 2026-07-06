@@ -1,6 +1,6 @@
 "use client";
 
-import { getNodeFamilyLabel, getNodeFamilyStyles, type NodeFamily } from "./pipeline-theme";
+import { getNodeFamilyLabel, getNodeFamilyStyles, type NodeFamily } from "./lib/pipeline-theme";
 
 import type { NodeSpec } from "@/lib/types";
 import type { DragEvent } from "react";

@@ -2,7 +2,7 @@ import { roleVariants } from "@/components/chat-studio/timeline/timeline-constan
 import { CollapsibleReasoning } from "@/components/ui/collapsible-reasoning";
 import { cn } from "@/lib/utils";
 
-import type { ChatReasoningEntry } from "@/components/chat-studio/chat-types";
+import type { ChatReasoningEntry } from "@/components/chat-studio/lib/chat-types";
 
 interface ReasoningEntryProps {
   entry: ChatReasoningEntry;

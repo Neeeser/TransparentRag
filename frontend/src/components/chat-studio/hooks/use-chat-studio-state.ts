@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 
-import { DEFAULT_STREAMING_ENABLED } from "@/components/chat-studio/chat-constants";
+import { DEFAULT_STREAMING_ENABLED } from "@/components/chat-studio/lib/chat-constants";
 
-import type { NewChatDefaults } from "@/components/chat-studio/hooks/chat-mutation-helpers";
+import type { NewChatDefaults } from "@/components/chat-studio/hooks/messaging/chat-mutation-helpers";
 import type { ChatMessage, ChatSession, ToolCallTrace, UsageBreakdown } from "@/lib/types";
 
 type Dispatch<T> = React.Dispatch<React.SetStateAction<T>>;

@@ -4,7 +4,7 @@ import { Background, Controls, ReactFlow, type ReactFlowInstance } from "@xyflow
 import { FileText, Pause, Play, StepForward, X } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
-import { toFlowNodes } from "@/components/pipelines/pipeline-utils";
+import { toFlowNodes } from "@/components/pipelines/lib/pipeline-utils";
 import { pipelineNodeTypes } from "@/components/pipelines/PipelineNode";
 import { buildFallbackPosition } from "@/components/traces/trace-payload-utils";
 import { TraceIOColumn } from "@/components/traces/TraceIOColumn";

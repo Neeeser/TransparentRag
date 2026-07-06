@@ -7,7 +7,7 @@ import { roleVariants, UsageInline } from "@/components/chat-studio/timeline/tim
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import type { ChatMessageEntry } from "@/components/chat-studio/chat-types";
+import type { ChatMessageEntry } from "@/components/chat-studio/lib/chat-types";
 import type { Components } from "react-markdown";
 
 interface MessageEntryProps {

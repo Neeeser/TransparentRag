@@ -7,13 +7,13 @@ import { HistoryPanel } from "@/components/chat-studio/HistoryPanel";
 import { PromptEditorOverlay } from "@/components/chat-studio/PromptEditorOverlay";
 import { TelemetryPanel } from "@/components/chat-studio/telemetry/TelemetryPanel";
 
-import { markdownComponents } from "./chat-utils";
+import { markdownComponents } from "./lib/chat-utils";
 
-import type { ChatEntry } from "@/components/chat-studio/chat-types";
-import type { useChatStream } from "@/components/chat-studio/hooks/use-chat-stream";
-import type { useCollectionTools } from "@/components/chat-studio/hooks/use-collection-tools";
+import type { useChatStream } from "@/components/chat-studio/hooks/messaging/use-chat-stream";
+import type { useCollectionTools } from "@/components/chat-studio/hooks/settings/use-collection-tools";
+import type { usePromptEditor } from "@/components/chat-studio/hooks/settings/use-prompt-editor";
 import type { UsePanelControlsResult } from "@/components/chat-studio/hooks/use-panel-controls";
-import type { usePromptEditor } from "@/components/chat-studio/hooks/use-prompt-editor";
+import type { ChatEntry } from "@/components/chat-studio/lib/chat-types";
 import type {
   TelemetryCollectionsProps,
   TelemetryModelProps,
@@ -23,7 +23,7 @@ import type {
   TelemetrySectionsProps,
   TelemetryStreamingProps,
   TelemetryUsageProps,
-} from "@/components/chat-studio/types";
+} from "@/components/chat-studio/lib/types";
 import type { ChatSession, ReasoningTraceSegment } from "@/lib/types";
 import type { RefObject, UIEventHandler } from "react";
 

@@ -2,7 +2,7 @@ import { BranchedFromBanner } from "@/components/chat-studio/timeline/BranchedFr
 import { roleVariants } from "@/components/chat-studio/timeline/timeline-constants";
 import { ToolCallBubble } from "@/components/chat-studio/Tooling";
 
-import type { ChatToolEntry } from "@/components/chat-studio/chat-types";
+import type { ChatToolEntry } from "@/components/chat-studio/lib/chat-types";
 
 interface ToolTraceEntryProps {
   entry: ChatToolEntry;

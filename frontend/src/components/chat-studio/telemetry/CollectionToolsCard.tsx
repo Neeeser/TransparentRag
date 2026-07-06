@@ -1,6 +1,6 @@
 "use client";
 
-import { chipClass } from "@/components/chat-studio/chat-constants";
+import { chipClass } from "@/components/chat-studio/lib/chat-constants";
 import { cn } from "@/lib/utils";
 
 import type { Collection } from "@/lib/types";

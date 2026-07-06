@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { toFlowEdges } from "@/components/pipelines/pipeline-utils";
+import { toFlowEdges } from "@/components/pipelines/lib/pipeline-utils";
 import { buildCursorNode, getNodeAnchor, getNodeCenter } from "@/components/traces/trace-payload-utils";
 
 import type { PipelineNodeIOTrace, PipelineNodeRunTrace, PipelineTraceResponse } from "@/lib/types";

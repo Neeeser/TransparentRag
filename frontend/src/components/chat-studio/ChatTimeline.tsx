@@ -2,7 +2,7 @@ import React, { memo, useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { isToolReasoningSegment } from "@/components/chat-studio/chat-entry-helpers";
+import { isToolReasoningSegment } from "@/components/chat-studio/lib/chat-entry-helpers";
 import { EmptyTimelineState } from "@/components/chat-studio/timeline/EmptyTimelineState";
 import { MessageEntry } from "@/components/chat-studio/timeline/MessageEntry";
 import {
@@ -19,7 +19,7 @@ import { CollapsibleReasoning } from "@/components/ui/collapsible-reasoning";
 import { TypingAnimation } from "@/components/ui/typing-animation";
 import { cn } from "@/lib/utils";
 
-import type { ChatEntry } from "./chat-types";
+import type { ChatEntry } from "./lib/chat-types";
 import type { ReasoningTraceSegment, ToolCallTrace } from "@/lib/types";
 import type { Components } from "react-markdown";
 

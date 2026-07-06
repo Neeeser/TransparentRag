@@ -14,7 +14,7 @@ const pipelineUtils = {
 const createPipelineLabel = "Create pipeline";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
-vi.mock("@/components/pipelines/pipeline-utils", () => ({
+vi.mock("@/components/pipelines/lib/pipeline-utils", () => ({
   buildDefaultDefinition: (...args: unknown[]) => pipelineUtils.buildDefaultDefinition(...args),
   sortIndexesByName: (indexes: { name: string }[]) =>
     [...indexes].sort((a, b) => a.name.localeCompare(b.name)),

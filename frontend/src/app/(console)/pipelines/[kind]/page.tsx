@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { isPipelineKind } from "@/components/pipelines/pipeline-kinds";
+import { isPipelineKind } from "@/components/pipelines/lib/pipeline-kinds";
 import { PipelineBuilder } from "@/components/pipelines/PipelineBuilder";
 
 type PipelinesPageProps = {
