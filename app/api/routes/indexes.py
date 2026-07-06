@@ -17,8 +17,6 @@ from app.schemas.pinecone_indexes import (
 
 router = APIRouter(prefix="/api/indexes", tags=["indexes"])
 
-settings = get_settings()
-
 
 def _require_pinecone_key(user: models.User) -> str:
     """Return the user's Pinecone API key or raise an HTTP error."""
@@ -73,6 +71,7 @@ def create_index(
 ) -> PineconeIndex:
     """Create a serverless Pinecone index."""
     admin = _get_admin(current_user)
+    settings = get_settings()
     description = admin.create_index(
         name=payload.name,
         vector_type=payload.vector_type,

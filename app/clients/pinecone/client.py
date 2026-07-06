@@ -8,6 +8,8 @@ runtime. See `app/AGENTS.md` for the resulting rule.
 
 from __future__ import annotations
 
+# pylint's static import resolver can't see pinecone's dynamic re-exports in
+# its package __init__; both names exist on the installed SDK (see docstring above).
 from pinecone import Pinecone, ServerlessSpec  # pylint: disable=no-name-in-module
 
 from app.clients.pinecone.types import IndexDescription

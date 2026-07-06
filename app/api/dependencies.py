@@ -15,7 +15,6 @@ from app.db.engine import get_session as get_session  # re-exported for routes
 from app.db.models import User
 from app.db.repositories import UserRepository
 
-settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
@@ -34,6 +33,7 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    settings = get_settings()
     try:
         payload = jwt.decode(
             token,

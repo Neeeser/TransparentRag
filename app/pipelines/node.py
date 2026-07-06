@@ -68,6 +68,9 @@ class PipelineNodeBase(Generic[ConfigT]):
         """Initialize the node with its config."""
         self.config: ConfigT = config
 
+    # Abstract signature: kept typed here so concrete nodes' `run` overrides
+    # satisfy the interface contract's parameter names; this base raises before
+    # touching them.
     def run(  # pylint: disable=unused-argument
         self,
         inputs: dict[str, object],

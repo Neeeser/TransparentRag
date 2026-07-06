@@ -257,6 +257,9 @@ class ChatSetupBuilder:
             options["reasoning"].update(reasoning_override)
         return options
 
+    # Resolves model info, tool support, parameter overrides, reasoning options,
+    # provider preferences, and context window in one pass; splitting further
+    # would just relocate these locals into an intermediate object.
     # pylint: disable=too-many-arguments,too-many-locals
     def _prepare_model_settings(
         self,
@@ -296,6 +299,8 @@ class ChatSetupBuilder:
             context_window=context_window,
         )
 
+    # Orchestrates tool-collection resolution, model-settings resolution, and
+    # prompt assembly for a turn; see the module docstring for the full sequence.
     # pylint: disable=too-many-locals
     def build(
         self,

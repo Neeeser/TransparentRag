@@ -11,6 +11,7 @@ from sqlmodel import Session
 from umap import UMAP
 
 from app.db import models
+from app.services.errors import InvalidInputError, NotFoundError
 from app.visualization.umap.repository import ChunkEmbeddingRow, UmapRepository
 
 
@@ -39,7 +40,7 @@ class UmapService:
         """Return the latest projection and its points for a collection."""
         projection = self._repo.get_latest_projection(collection_id)
         if projection is None:
-            raise ValueError("UMAP projection not found.")
+            raise NotFoundError("UMAP projection not found.")
         points = self._repo.list_points(projection.id)
         return projection, points
 
@@ -52,17 +53,17 @@ class UmapService:
         """Compute and persist a UMAP projection for a collection."""
         chunk_rows = self._repo.list_chunk_embeddings(collection.id)
         if len(chunk_rows) < 3:
-            raise ValueError("At least three chunks are required to compute UMAP.")
+            raise InvalidInputError("At least three chunks are required to compute UMAP.")
 
         embeddings = [row.embedding for row in chunk_rows if row.embedding is not None]
         if len(embeddings) != len(chunk_rows):
-            raise ValueError("One or more chunks are missing embeddings.")
+            raise InvalidInputError("One or more chunks are missing embeddings.")
 
         dimension = len(embeddings[0]) if embeddings else 0
         if dimension == 0:
-            raise ValueError("Embeddings are empty for this collection.")
+            raise InvalidInputError("Embeddings are empty for this collection.")
         if any(len(embedding) != dimension for embedding in embeddings):
-            raise ValueError("Embedding dimensions are inconsistent across chunks.")
+            raise InvalidInputError("Embedding dimensions are inconsistent across chunks.")
 
         n_neighbors = min(config.n_neighbors, max(2, len(embeddings) - 1))
         init = "random" if len(embeddings) <= config.n_components + 1 else "spectral"
@@ -77,7 +78,7 @@ class UmapService:
         array = np.array(embeddings, dtype=np.float32)
         coordinates = reducer.fit_transform(array)
         if not np.isfinite(coordinates).all():
-            raise ValueError("UMAP produced non-finite coordinates.")
+            raise InvalidInputError("UMAP produced non-finite coordinates.")
 
         embedding_model = chunk_rows[0].embedding_model
         self._repo.delete_collection_projections(collection.id)
@@ -116,7 +117,7 @@ class UmapService:
         instead of a length-2 row.
         """
         if len(chunk_rows) != coordinates.shape[0]:
-            raise ValueError("Coordinate count does not match chunk row count.")
+            raise InvalidInputError("Coordinate count does not match chunk row count.")
         points: list[models.UmapPointRecord] = []
         for i, row in enumerate(chunk_rows):
             points.append(

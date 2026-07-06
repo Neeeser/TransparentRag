@@ -497,7 +497,15 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
   call/instantiation time, not import time. Every pipeline node config's settings-backed
   default follows this pattern (`EmbedderConfig.model_name`, `IndexerConfig.index_name`,
   `RetrieverConfig.index_name`, `ChatSettingsConfig.chat_model`), as do
-  `build_default_ingestion_pipeline`/`build_default_retrieval_pipeline`.
+  `build_default_ingestion_pipeline`/`build_default_retrieval_pipeline`. There are exactly
+  two documented exceptions, both already covered by the import-time-side-effects
+  exception above: `app/db/engine.py`'s process-wide engine construction (needs
+  `database_url` once, at the moment the singleton `Engine` is created), and
+  `app/api/main.py`'s app assembly (`app = FastAPI(...)` and the CORS middleware
+  registration need `settings.cors_origins` at module scope because `app` is the object
+  uvicorn imports directly as `app.api.main:app` — there's no factory call for a lifespan
+  hook to run before middleware registration). Every other module-level `settings =
+  get_settings()` is the bug this rule exists to catch — convert it to a call-time read.
 
 ## Wire-contract completeness
 
@@ -611,3 +619,9 @@ construction site.
   pass, not a one-line fix. Add both the guard and its test together when this is
   prioritized — don't let the guard land without the regression test that proves an
   oversized/mistyped upload is actually rejected.
+- **Provider API keys are stored plaintext at rest.** `User.openrouter_api_key` and
+  `User.pinecone_api_key` (`app/db/models/user.py`) are plain `Text` columns with no
+  encryption-at-rest. Pre-existing and tracked, not introduced by this pass; the wire
+  contract is guarded by `test_me_response_excludes_secrets`
+  (`tests/api/test_route_contract.py`), which fails if either key ever leaks into a
+  response body. Encrypting the column is future work, not a blocker for this PR.

@@ -11,7 +11,6 @@ from passlib.context import CryptContext
 from app.core.config import get_settings
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-settings = get_settings()
 
 
 def hash_password(password: str) -> str:
@@ -26,6 +25,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(subject: str, expires_minutes: int | None = None) -> str:
     """Create a JWT access token for the provided subject."""
+    settings = get_settings()
     minutes = (
         expires_minutes if expires_minutes is not None else settings.access_token_expire_minutes
     )
