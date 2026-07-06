@@ -161,8 +161,9 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
 
 - **Strong typing everywhere.** Typed signatures, return types, and attributes.
   No `Any`; no `isinstance` ladders as a substitute for a proper schema or a
-  discriminated union. Note `requires-python = ">=3.9"` — use `Optional[X]` /
-  `List[X]` (or `from __future__ import annotations`), not bare `X | None` at runtime.
+  discriminated union. `requires-python = ">=3.11"` — PEP 604 unions (`X | None`) and
+  builtin generics (`list[X]`, `dict[K, V]`) are the house style, including at runtime;
+  don't write `Optional[X]` / `List[X]` in new code (ruff's `UP` rules flag them).
 - **`cast()` is never the fix for an `Optional`.** It hides the crash at the assignment
   and detonates it downstream, further from the cause. Handle the `None` for real:
   supply a fallback, raise, or narrow with an actual check — we shipped a `cast(str,
