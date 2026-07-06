@@ -168,3 +168,7 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
   e.g. thin wrappers over a third-party SDK where the test would only re-assert the
   mock, or `db/migrations.py` glue exercised implicitly by every db test. Say so in the
   PR rather than writing a can't-fail test.
+- **Never write tests that execute Protocol/ABC stub bodies or assert
+  `NotImplementedError` on abstract methods:** they assert nothing a user cares about
+  and rot silently when signatures change (we had two such files broken on main for
+  weeks).

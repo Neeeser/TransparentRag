@@ -58,9 +58,10 @@ def test_resolve_retrieval_settings_defaults() -> None:
 
     settings = resolve_retrieval_settings(definition, collection)
     retriever = RetrieverConfig()
+    embedder = EmbedderConfig()
     chat_settings = ChatSettingsConfig()
 
-    assert settings.embedding_model == retriever.embedding_model
+    assert settings.embedding_model == embedder.model_name
     assert settings.index_name == retriever.index_name
     assert settings.namespace == resolve_collection_template(retriever.namespace, collection)
     assert settings.chat_model == chat_settings.chat_model
