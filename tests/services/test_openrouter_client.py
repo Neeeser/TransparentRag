@@ -475,3 +475,34 @@ def test_chat_stream_includes_tool_settings(_client: OpenRouterClient) -> None:
 def test_openrouter_client_requires_api_key() -> None:
     with pytest.raises(ValueError, match="OpenRouter API key must be provided"):
         OpenRouterClient(" ")
+
+
+def test_get_openrouter_client_closes_evicted_clients(monkeypatch) -> None:
+    """Evicting a cached client from `get_openrouter_client` must close it.
+
+    A bare `lru_cache` never calls `close()` on the httpx client it evicts, so the
+    connection leaks. Insert more distinct keys than the cache can hold via the
+    public getter and confirm the oldest client was closed, and that repeat lookups
+    for the same key keep returning the same instance.
+    """
+    created: list[_StubCacheClient] = []
+
+    class _StubCacheClient:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+            self.closed = False
+            created.append(self)
+
+        def close(self) -> None:
+            self.closed = True
+
+    monkeypatch.setattr(openrouter_module, "OpenRouterClient", _StubCacheClient)
+
+    keys = [f"cache-eviction-test-key-{i}" for i in range(65)]
+    clients = [openrouter_module.get_openrouter_client(key) for key in keys]
+
+    assert len(created) == 65
+    assert created[0].closed is True
+
+    same_instance = openrouter_module.get_openrouter_client(keys[-1])
+    assert same_instance is clients[-1]

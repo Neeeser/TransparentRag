@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 import time
-from functools import lru_cache
-from typing import Any, Dict, Iterable, List, Optional
+from collections import OrderedDict
+from typing import Any, Callable, Dict, Iterable, List, Optional
 from urllib.parse import quote
 
 import httpx
@@ -259,8 +260,56 @@ class OpenRouterClient:
         for chunk in stream:
             yield chunk.model_dump()
 
+    def close(self) -> None:
+        """Close the underlying HTTP client, releasing its connection pool."""
+        self._http.close()
 
-@lru_cache(maxsize=64)
+
+class _ClientCache:  # pylint: disable=too-few-public-methods
+    # Owns the cache's lock and dict; one method (`get_or_create`) is the whole
+    # contract, there's nothing else this class needs to expose.
+    """Bounded LRU cache of `OpenRouterClient` instances that closes evictions.
+
+    `functools.lru_cache` cannot be used here: it drops references on eviction
+    without ever calling `close()`, leaking the evicted client's `httpx.Client`
+    connection pool. This cache is a plain `OrderedDict` guarded by a lock, with
+    the oldest entry closed and removed whenever an insert would exceed `max_size`.
+    """
+
+    def __init__(self, max_size: int) -> None:
+        """Initialize an empty cache bounded to `max_size` entries."""
+        self._max_size = max_size
+        self._entries: "OrderedDict[str, OpenRouterClient]" = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get_or_create(
+        self,
+        key: str,
+        factory: Callable[[str], OpenRouterClient],
+    ) -> OpenRouterClient:
+        """Return the cached client for `key`, creating and caching one if absent."""
+        with self._lock:
+            existing = self._entries.get(key)
+            if existing is not None:
+                self._entries.move_to_end(key)
+                return existing
+            client = factory(key)
+            self._entries[key] = client
+            if len(self._entries) > self._max_size:
+                _evicted_key, evicted_client = self._entries.popitem(last=False)
+                evicted_client.close()
+            return client
+
+
+_client_cache = _ClientCache(max_size=64)
+
+
 def get_openrouter_client(api_key: str) -> OpenRouterClient:
-    """Return a cached OpenRouter client instance."""
-    return OpenRouterClient(api_key)
+    """Return a cached OpenRouter client instance, closing clients it evicts.
+
+    Cached by raw API key so a given user's requests reuse one HTTP connection
+    pool; the cache is bounded and closes whatever it evicts, so a stale key
+    (e.g. after a user rotates their OpenRouter key) leaks nothing beyond the
+    cache's max size.
+    """
+    return _client_cache.get_or_create(api_key, OpenRouterClient)

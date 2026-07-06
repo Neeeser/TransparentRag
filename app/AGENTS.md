@@ -156,6 +156,12 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
 - **External calls (OpenRouter, Pinecone) live in their client/service module** with
   timeouts set explicitly. Before changing these integrations, read the local docs in
   `external_api_documentation/` — behavior there trumps memory.
+- **Never `lru_cache` objects that own OS resources** (httpx clients, sessions, file
+  handles): eviction just drops the reference, so whatever it owns leaks — we had this
+  exact bug on `get_openrouter_client`. Use an explicit cache (e.g. an `OrderedDict` +
+  lock) that calls `close()` on whatever it evicts, and never key a long-lived cache on
+  a raw secret you can't invalidate on demand (a rotated/leaked API key stays cached
+  until it ages out).
 
 ## Wire-contract completeness
 
