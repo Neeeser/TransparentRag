@@ -8,9 +8,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.db.models import PipelineIOType, PipelineKind, PipelineRunStatus
 from app.pipelines.models import PipelineDefinition
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.enums import PipelineIOType, PipelineKind, PipelineRunStatus
 
 
 class PipelineRunRead(DateTimeConfigMixin, BaseModel):

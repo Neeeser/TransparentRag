@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.db import models
 from app.schemas.base import DateTimeConfigMixin
+
+if TYPE_CHECKING:
+    from app.db import models
 
 
 class UmapComputeRequest(BaseModel):

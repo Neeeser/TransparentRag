@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.db import models
-from app.db.models import ChatMode, ChatRole
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.enums import ChatMode, ChatRole
+
+if TYPE_CHECKING:
+    from app.db import models
 
 
 class ToolCallTrace(BaseModel):

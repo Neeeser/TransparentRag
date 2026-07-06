@@ -24,7 +24,7 @@ MAX_LINES = 400
 GRANDFATHERED: dict[str, int] = {
     "app/api/routes/collections.py": 518,  # split in Phase 6
     "app/chat/service.py": 1228,  # split in Phase 4
-    "app/db/models.py": 492,  # split in Phase 2
+    "app/db/models.py": 449,  # split in Phase 2
     "app/db/repositories.py": 468,  # split in Phase 2
     "app/pipelines/nodes/ingestion.py": 735,  # split in Phase 5
     "app/pipelines/runtime.py": 447,  # split in Phase 5

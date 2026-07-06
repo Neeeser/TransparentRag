@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.db.models import ChunkStrategy, Document, DocumentStatus
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.enums import ChunkStrategy, DocumentStatus
+
+if TYPE_CHECKING:
+    from app.db.models import Document
 
 
 class DocumentRead(DateTimeConfigMixin, BaseModel):

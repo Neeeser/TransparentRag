@@ -7,10 +7,10 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.db.models import PipelineKind
 from app.pipelines.models import PipelineDefinition
 from app.pipelines.runtime import NodeSpec, PipelineValidationResult
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.enums import PipelineKind
 
 
 class PipelineCreate(BaseModel):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -11,7 +10,21 @@ from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Index, String, 
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlmodel import Field, SQLModel
 
+from app.schemas.enums import (
+    ChatMode,
+    ChatRole,
+    ChunkStrategy,
+    DocumentStatus,
+    PipelineIOType,
+    PipelineKind,
+    PipelineRunStatus,
+)
 from app.utils.time import utc_now
+
+# ChatMode, ChatRole, ChunkStrategy, DocumentStatus, PipelineIOType, PipelineKind, and
+# PipelineRunStatus are imported (not redefined) above so existing `models.ChatRole`
+# -style access keeps working -- the enums themselves live in app.schemas.enums
+# (db.models imports them, never the reverse; see app/AGENTS.md).
 
 
 class TimestampMixin:  # pylint: disable=too-few-public-methods
@@ -19,62 +32,6 @@ class TimestampMixin:  # pylint: disable=too-few-public-methods
 
     created_at: datetime = Field(default_factory=utc_now, nullable=False)
     updated_at: datetime = Field(default_factory=utc_now, nullable=False)
-
-
-class ChunkStrategy(str, Enum):
-    """Chunking strategies for documents."""
-
-    TOKEN = "token"
-    SENTENCE = "sentence"
-    PARAGRAPH = "paragraph"
-    SEMANTIC = "semantic"
-
-
-class DocumentStatus(str, Enum):
-    """Status values for document processing."""
-
-    PENDING = "pending"
-    PROCESSING = "processing"
-    READY = "ready"
-    FAILED = "failed"
-
-
-class ChatMode(str, Enum):
-    """Chat mode selections."""
-
-    QUERY = "query"
-    CHAT = "chat"
-
-
-class ChatRole(str, Enum):
-    """Roles assigned to chat messages."""
-
-    SYSTEM = "system"
-    USER = "user"
-    ASSISTANT = "assistant"
-    TOOL = "tool"
-
-
-class PipelineKind(str, Enum):
-    """Pipeline categories for ingestion and retrieval."""
-
-    INGESTION = "ingestion"
-    RETRIEVAL = "retrieval"
-
-
-class PipelineRunStatus(str, Enum):
-    """Execution status values for pipeline runs."""
-
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class PipelineIOType(str, Enum):
-    """Direction of pipeline node input/output payloads."""
-
-    INPUT = "input"
-    OUTPUT = "output"
 
 
 class User(SQLModel, TimestampMixin, table=True):

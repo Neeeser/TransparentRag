@@ -100,6 +100,11 @@ invert it:
   is persistence. Convert explicitly at the service boundary. Returning a db model
   straight from a route couples your API to your table shape and leaks fields you
   didn't mean to expose (`response_model` is the safety net, not the design).
+- **Domain enums live in `app/schemas/enums.py`; `db.models` imports them, never the
+  reverse.** The wire contract must not transitively depend on SQLModel. A schema that
+  needs a db type only for a `from_model()` type hint imports it under
+  `if TYPE_CHECKING:` (annotations stay valid because every schema module starts with
+  `from __future__ import annotations`) — it must not appear as a real top-level import.
 
 ## Adding a feature end-to-end
 
