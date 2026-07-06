@@ -17,8 +17,8 @@ from app.api.dependencies import (
     require_openrouter_key,
 )
 from app.db import models
+from app.db.engine import engine
 from app.db.repositories import ChatRepository
-from app.db.session import engine
 from app.schemas.chat import (
     ChatBranchCreate,
     ChatBranchResponse,

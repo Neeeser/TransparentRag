@@ -23,7 +23,8 @@ from app.api.routes import (
     visualizations,
 )
 from app.core.config import get_settings
-from app.db.session import init_db, session_scope
+from app.db.bootstrap import init_db
+from app.db.engine import session_scope
 from app.services.pipelines import backfill_default_pipelines
 
 settings = get_settings()

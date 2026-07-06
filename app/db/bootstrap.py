@@ -1,25 +1,19 @@
-"""Database session management and initialization."""
+"""Database bootstrapping: ensuring the Postgres database and schema exist."""
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
-from contextlib import contextmanager
 from typing import cast
 
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import SQLModel, create_engine
 
-from app.core.config import get_settings
+from app.db.engine import database_url, engine
 from app.db.migrations import apply_missing_columns, ensure_foreign_keys, ensure_indexes
 from app.db.schema import SchemaValidationResult, build_expected_schema, inspect_database_schema
 
-settings = get_settings()
 logger = logging.getLogger(__name__)
-
-database_url = cast(str, settings.database_url)
-engine = create_engine(database_url, pool_pre_ping=True)
 
 
 def _safe_database_name(raw_name: str) -> str:
@@ -50,10 +44,21 @@ def ensure_database_exists(target_url: str) -> None:
         admin_engine.dispose()
 
 
+def _format_validation_error(validation: SchemaValidationResult) -> str:
+    """Build the error message for a failed schema validation."""
+    missing_tables = ", ".join(sorted(validation.missing_tables)) or "none"
+    missing_columns_map = cast(dict[str, set[str]], validation.missing_columns)
+    missing_columns = ", ".join(
+        f"{table}: {sorted(columns)}" for table, columns in missing_columns_map.items()  # pylint: disable=no-member
+    ) or "none"
+    return (
+        "Postgres schema validation failed. "
+        f"Missing tables: {missing_tables}. Missing columns: {missing_columns}."
+    )
+
+
 def init_db() -> None:
     """Initialize database schema metadata."""
-    # Import inside to ensure models are registered before table creation.
-
     ensure_database_exists(database_url)
     expected = build_expected_schema()
     actual = inspect_database_schema(engine)
@@ -71,32 +76,4 @@ def init_db() -> None:
     ensure_indexes(engine)
     ensure_foreign_keys(engine)
     if not validation.is_valid:
-        missing_tables = ", ".join(sorted(validation.missing_tables)) or "none"
-        missing_columns_map = cast(dict[str, set[str]], validation.missing_columns)
-        missing_columns = ", ".join(
-            f"{table}: {sorted(columns)}" for table, columns in missing_columns_map.items()  # pylint: disable=no-member
-        ) or "none"
-        raise RuntimeError(
-            "Postgres schema validation failed. "
-            f"Missing tables: {missing_tables}. Missing columns: {missing_columns}."
-        )
-
-
-@contextmanager
-def session_scope() -> Iterator[Session]:
-    """Provide a transactional scope around a series of operations."""
-    session = Session(engine)
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
-def get_session() -> Iterator[Session]:
-    """Yield a database session for dependency injection."""
-    with session_scope() as session:
-        yield session
+        raise RuntimeError(_format_validation_error(validation))

@@ -10,7 +10,13 @@ from enum import Enum
 from sqlalchemy import inspect, literal, text
 from sqlalchemy.engine import Connection, Dialect, Engine
 from sqlalchemy.sql.compiler import IdentifierPreparer
-from sqlalchemy.sql.schema import Column, ForeignKeyConstraint, Table
+from sqlalchemy.sql.schema import (
+    Column,
+    ColumnDefault,
+    DefaultClause,
+    ForeignKeyConstraint,
+    Table,
+)
 from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
@@ -55,7 +61,10 @@ def ensure_indexes(engine: Engine) -> None:
             continue
         existing_indexes = inspector.get_indexes(table.name)
         existing_signatures = {
-            _index_signature(index["column_names"], index.get("unique", False))
+            _index_signature(
+                [name for name in index["column_names"] if name is not None],
+                index.get("unique", False),
+            )
             for index in existing_indexes
         }
         existing_names = {index["name"] for index in existing_indexes if index.get("name")}
@@ -103,7 +112,11 @@ def ensure_foreign_keys(engine: Engine) -> None:
                     continue
                 if signature in existing_signatures:
                     continue
-                name = constraint.name or _foreign_key_name(table.name, signature[0], signature[1])
+                name = (
+                    constraint.name
+                    if isinstance(constraint.name, str)
+                    else _foreign_key_name(table.name, signature[0], signature[1])
+                )
                 ddl = _foreign_key_ddl(preparer, table.name, name, signature, constraint)
                 connection.execute(text(ddl))
                 logger.info("Created foreign key %s on %s.", name, table.name)
@@ -169,15 +182,21 @@ def _resolve_default_sql(
     allow_application_default: bool,
 ) -> tuple[str | None, bool]:
     """Return SQL for the column default and whether to drop it after backfill."""
-    if column.server_default is not None and column.server_default.arg is not None:
-        default_expr = column.server_default.arg
-        default_sql = str(
-            default_expr.compile(dialect=dialect, compile_kwargs={"literal_binds": True})
+    server_default = column.server_default
+    if isinstance(server_default, DefaultClause) and server_default.arg is not None:
+        default_expr = server_default.arg
+        default_sql = (
+            default_expr
+            if isinstance(default_expr, str)
+            else str(
+                default_expr.compile(dialect=dialect, compile_kwargs={"literal_binds": True})
+            )
         )
         return default_sql, False
 
-    if allow_application_default and column.default is not None and column.default.is_scalar:
-        default_value = column.default.arg
+    default = column.default
+    if allow_application_default and isinstance(default, ColumnDefault) and default.is_scalar:
+        default_value = default.arg
         if isinstance(default_value, Enum):
             default_value = default_value.value
         default_sql = str(

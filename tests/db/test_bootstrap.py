@@ -8,9 +8,9 @@ from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
 from sqlmodel import SQLModel, create_engine
 
+from app.db.bootstrap import ensure_database_exists, init_db
+from app.db.engine import engine as app_engine
 from app.db.schema import SchemaValidationResult, build_expected_schema, inspect_database_schema
-from app.db.session import engine as app_engine
-from app.db.session import ensure_database_exists, init_db
 
 
 def test_ensure_database_exists_requires_database_name() -> None:
@@ -27,14 +27,17 @@ def test_init_db_raises_for_invalid_schema(monkeypatch) -> None:
         def is_valid(self) -> bool:
             return False
 
-    monkeypatch.setattr("app.db.session.ensure_database_exists", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("app.db.session.build_expected_schema", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("app.db.session.inspect_database_schema", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("app.db.session.SchemaValidationResult.from_schemas", lambda *_args, **_kwargs: _StubValidation())
-    monkeypatch.setattr("app.db.session.apply_missing_columns", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("app.db.session.ensure_indexes", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("app.db.session.ensure_foreign_keys", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("app.db.session.SQLModel.metadata.create_all", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.db.bootstrap.ensure_database_exists", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.db.bootstrap.build_expected_schema", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.db.bootstrap.inspect_database_schema", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "app.db.bootstrap.SchemaValidationResult.from_schemas",
+        lambda *_args, **_kwargs: _StubValidation(),
+    )
+    monkeypatch.setattr("app.db.bootstrap.apply_missing_columns", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.db.bootstrap.ensure_indexes", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.db.bootstrap.ensure_foreign_keys", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.db.bootstrap.SQLModel.metadata.create_all", lambda *_args, **_kwargs: None)
 
     with pytest.raises(RuntimeError, match="Postgres schema validation failed"):
         init_db()

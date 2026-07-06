@@ -68,6 +68,16 @@ def test_get_current_user_rejects_invalid_subject(session: Session) -> None:
         dependencies.get_current_user(token=token, session=session)
 
 
+def test_get_current_user_rejects_expired_token(session: Session) -> None:
+    user = _create_user(session)
+    token = create_access_token(str(user.id), expires_minutes=-1)
+
+    with pytest.raises(HTTPException) as excinfo:
+        dependencies.get_current_user(token=token, session=session)
+
+    assert excinfo.value.status_code == 401
+
+
 def test_get_current_user_rejects_inactive_user(session: Session) -> None:
     user = _create_user(session, is_active=False)
     token = create_access_token(str(user.id))
@@ -79,11 +89,6 @@ def test_get_current_user_rejects_inactive_user(session: Session) -> None:
 def test_dependency_helpers_return_expected_types(session: Session) -> None:
     user = _create_user(session)
 
-    generator = dependencies.get_db_session()
-    db_session = next(generator)
-    generator.close()
-
-    assert isinstance(db_session, Session)
     assert dependencies.get_user_repository(session).session is session
     assert isinstance(dependencies.issue_access_token(user), str)
 

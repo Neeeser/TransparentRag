@@ -189,6 +189,15 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
   Comments explain *why* for non-obvious behavior only.
 - **Pylint-clean.** Fix warnings; a `# pylint: disable=` needs an adjacent comment
   saying why, and is never the fix for a design problem.
+- **Dead code is deleted on sight** — unused params, endpoints, schemas. A parameter
+  or symbol with no caller (grep before deleting, and report the grep) is not
+  "kept for later"; add it back when a real caller needs it.
+- **Import-time side effects are forbidden**, with one deliberate exception: the
+  process-wide db `engine` (`app/db/engine.py`) is created at import time because
+  SQLAlchemy's own guidance is one engine per process, reused for its life. Every
+  other setup step — schema bootstrap, backfills, logging config — lives in a
+  function called from `main.py`'s `lifespan`, not at module scope, so importing a
+  module for its types never has side effects.
 
 ## FastAPI / Pydantic pitfalls (this stack, specifically)
 

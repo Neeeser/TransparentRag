@@ -117,23 +117,11 @@ module = "app.services.pipelines"
 ignore_errors = true  # removed in Phase 6
 
 [[tool.mypy.overrides]]
-# app.db.models and app.db.repositories are mypy-clean as of Phase 2 (Tasks
-# 2.3/2.4) and deliberately excluded from this override. session/migrations/
-# schema still have the same SQLModel select()/.where() typing friction (raw
-# column comparisons typed as bool/UUID instead of ColumnElement) and are
-# narrowed here until Task 2.5 types them.
-module = [
-    "app.db.session",
-    "app.db.migrations",
-    "app.db.schema",
-]
-ignore_errors = true  # removed in Phase 2
-
-[[tool.mypy.overrides]]
 module = "app.visualization.*"
-# Same SQLModel `select()`/`.where()` typing friction as app.db.* (raw column
-# comparisons typed as `bool`/`UUID` instead of `ColumnElement`) -- owned by the
-# same Phase 2 db-typing cleanup, not a separate burn-down item.
+# Same SQLModel `select()`/`.where()` typing friction as app.db.* had -- owned
+# by the same Phase 2 db-typing cleanup, not a separate burn-down item.
+# app.db.* (engine/bootstrap/migrations/schema/models/repositories) is now
+# mypy-clean as of Task 2.5; this module is still pending its own pass.
 ignore_errors = true  # removed in Phase 2
 
 [[tool.mypy.overrides]]

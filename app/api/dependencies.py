@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -12,17 +11,12 @@ from sqlmodel import Session
 
 from app.core.config import get_settings
 from app.core.security import create_access_token
+from app.db.engine import get_session
 from app.db.models import User
 from app.db.repositories import UserRepository
-from app.db.session import get_session
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
-
-
-def get_db_session() -> Iterator[Session]:
-    """Yield a database session for FastAPI dependencies."""
-    yield from get_session()
 
 
 def get_user_repository(session: Session = Depends(get_session)) -> UserRepository:

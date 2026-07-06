@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.db.session import ensure_database_exists
+from app.db.bootstrap import ensure_database_exists
 
 DEFAULT_TEST_DATABASE_URL = "postgresql+psycopg://localhost:5432/transparentrag_test"
 

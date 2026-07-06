@@ -24,10 +24,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(subject: str, expires_minutes: int | None = None, **extra: Any) -> str:
+def create_access_token(subject: str, expires_minutes: int | None = None) -> str:
     """Create a JWT access token for the provided subject."""
     expire_delta = timedelta(minutes=expires_minutes or settings.access_token_expire_minutes)
     expire = datetime.now(UTC) + expire_delta
     payload: dict[str, Any] = {"sub": subject, "exp": expire}
-    payload.update(extra)
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
