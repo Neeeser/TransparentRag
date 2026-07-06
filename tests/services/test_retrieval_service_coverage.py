@@ -71,7 +71,7 @@ def test_query_collection_marks_run_failed_on_exception(monkeypatch, session: Se
         def execute(self, _definition, _context):
             raise RuntimeError("boom")
 
-    monkeypatch.setattr("app.services.retrieval.PipelineExecutor", _StubExecutor)
+    monkeypatch.setattr("app.pipelines.execution.runner.PipelineExecutor", _StubExecutor)
     monkeypatch.setattr("app.services.retrieval.get_openrouter_client", lambda *_args, **_kwargs: object())
     monkeypatch.setattr("app.services.retrieval.get_pinecone_client", lambda *_args, **_kwargs: object())
 
@@ -103,7 +103,7 @@ def test_query_collection_skips_failed_run_update(monkeypatch, session: Session)
             context.trace._run.status = models.PipelineRunStatus.FAILED
             raise RuntimeError("boom")
 
-    monkeypatch.setattr("app.services.retrieval.PipelineExecutor", _StubExecutor)
+    monkeypatch.setattr("app.pipelines.execution.runner.PipelineExecutor", _StubExecutor)
     monkeypatch.setattr("app.services.retrieval.get_openrouter_client", lambda *_args, **_kwargs: object())
     monkeypatch.setattr("app.services.retrieval.get_pinecone_client", lambda *_args, **_kwargs: object())
 

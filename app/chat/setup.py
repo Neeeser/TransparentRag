@@ -46,7 +46,8 @@ from app.chat.tools import ToolExecutor
 from app.core.config import Settings
 from app.db import models
 from app.db.repositories import ChatRepository, CollectionRepository
-from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
+from app.pipelines.registry import default_registry
+from app.pipelines.settings import resolve_ingestion_settings, resolve_retrieval_settings
 from app.schemas.chat import ChatMessageCreate
 from app.services.pipelines import PipelineService
 from app.services.prompts import (
@@ -91,8 +92,9 @@ class ChatSetupBuilder:
             raise ValueError("Pipeline configuration could not be resolved.")
         ingestion_definition = pipeline_service.get_definition(ingestion_pipeline)
         retrieval_definition = pipeline_service.get_definition(retrieval_pipeline)
-        ingestion_settings = resolve_ingestion_settings(ingestion_definition, collection)
-        retrieval_settings = resolve_retrieval_settings(retrieval_definition, collection)
+        registry = default_registry()
+        ingestion_settings = resolve_ingestion_settings(ingestion_definition, collection, registry)
+        retrieval_settings = resolve_retrieval_settings(retrieval_definition, collection, registry)
         return PipelineContext(
             ingestion_settings=ingestion_settings,
             retrieval_settings=retrieval_settings,

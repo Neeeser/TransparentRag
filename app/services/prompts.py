@@ -11,7 +11,7 @@ from typing import Any
 from uuid import UUID
 
 from app.db import models
-from app.pipelines.config import IngestionPipelineSettings, RetrievalPipelineSettings
+from app.pipelines.settings import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.utils.time import utc_now
 
 SYSTEM_PROMPT_METADATA_KEY = "system_prompt_template"

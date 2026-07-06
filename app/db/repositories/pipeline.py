@@ -79,6 +79,10 @@ class PipelineVersionRepository(Repository):
         )
         return self.session.exec(statement).first()
 
+    def get_by_id(self, version_id: UUID) -> models.PipelineVersion | None:
+        """Return a pipeline version by its own id, regardless of pipeline."""
+        return self.session.get(models.PipelineVersion, version_id)
+
     def delete_for_pipeline(self, pipeline_id: UUID) -> None:
         """Delete every version belonging to a pipeline; the caller flushes."""
         self.session.execute(

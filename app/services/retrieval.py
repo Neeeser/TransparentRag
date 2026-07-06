@@ -12,17 +12,12 @@ from app.clients.openrouter import get_openrouter_client
 from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import QueryRepository
-from app.pipelines.config import resolve_retrieval_settings
-from app.pipelines.execution.context import PipelineRunContext
-from app.pipelines.execution.executor import PipelineExecutor
+from app.pipelines.execution.runner import PipelineRunner
 from app.pipelines.payloads import RetrievalPayload
-from app.pipelines.registry import default_registry
-from app.pipelines.tracing import PipelineTraceRecorder
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.retrieval import CollectionQueryResponse, RetrievedChunk
-from app.services.pipelines import PipelineService
+from app.services.pipeline_resolution import resolve_retrieval_pipeline
 from app.utils.file_storage import FileStorage
-from app.utils.time import utc_now
 
 
 class RetrievalService:  # pylint: disable=too-few-public-methods
@@ -42,46 +37,27 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
     ) -> CollectionQueryResponse:
         """Run a query against a collection and return scored chunks."""
         start_time = perf_counter()
-        pipeline_service = PipelineService(self.session)
-        defaults = pipeline_service.ensure_default_pipelines(user)
-        pipeline_service.ensure_collection_pipelines(collection, defaults)
-        pipeline_id = collection.retrieval_pipeline_id or defaults.retrieval.id
-        pipeline = pipeline_service.get_pipeline(pipeline_id, user.id)
-        if not pipeline or pipeline.kind != models.PipelineKind.RETRIEVAL:
-            raise ValueError("Retrieval pipeline could not be resolved.")
-        definition = pipeline_service.get_definition(pipeline)
-        retrieval_settings = resolve_retrieval_settings(definition, collection)
+        resolved = resolve_retrieval_pipeline(self.session, user, collection)
         openrouter = get_openrouter_client(user.openrouter_api_key or "")
         pinecone = get_pinecone_client(api_key=user.pinecone_api_key)
-        version = pipeline_service.get_current_version(pipeline)
-        run = models.PipelineRun(
-            pipeline_id=pipeline.id,
-            pipeline_version_id=version.id,
-            pipeline_version=version.version,
+        runner = PipelineRunner(self.session)
+        version = resolved.service.get_current_version(resolved.pipeline)
+        handle = runner.start(
+            pipeline=resolved.pipeline,
+            version=version,
+            definition=resolved.definition,
             kind=models.PipelineKind.RETRIEVAL,
-            user_id=user.id,
-            collection_id=collection.id,
-            status=models.PipelineRunStatus.RUNNING,
-        )
-        self.session.add(run)
-        self.session.flush()
-        trace = PipelineTraceRecorder(self.session, run, definition)
-        executor = PipelineExecutor(default_registry())
-        context = PipelineRunContext(
-            session=self.session,
             user=user,
             collection=collection,
-            document=None,
-            query=query,
-            top_k=top_k,
+            settings=self.settings,
             openrouter=openrouter,
             pinecone=pinecone,
             storage=FileStorage(),
-            settings=self.settings,
-            trace=trace,
+            query=query,
+            top_k=top_k,
         )
         try:
-            result = executor.execute(definition, context)
+            result = runner.execute(resolved.definition, handle)
             payload = self._extract_retrieval_payload(result.terminal_outputs)
             response = payload.response
             chunks: list[RetrievedChunk] = []
@@ -103,7 +79,7 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
                     collection_id=collection.id,
                     query_text=query,
                     top_k=top_k,
-                    model=retrieval_settings.embedding_model,
+                    model=resolved.settings.embedding_model,
                     context_tokens=self._usage_tokens(usage),
                     latency_ms=latency_ms,
                     response_payload={
@@ -116,10 +92,10 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
                             (match.score for match in response.matches),
                             default=0.0,
                         ),
-                        "pipeline_id": str(pipeline.id),
+                        "pipeline_id": str(resolved.pipeline.id),
                         "usage": usage,
                     },
-                    pipeline_run_id=run.id,
+                    pipeline_run_id=handle.run.id,
                 )
             )
             return CollectionQueryResponse(
@@ -128,14 +104,10 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
                 chunks=chunks,
                 usage=usage,
                 query_event_id=event.id,
-                pipeline_run_id=run.id,
+                pipeline_run_id=handle.run.id,
             )
         except Exception as exc:
-            if run.status != models.PipelineRunStatus.FAILED:
-                run.status = models.PipelineRunStatus.FAILED
-                run.error_message = str(exc)
-                run.completed_at = utc_now()
-                self.session.add(run)
+            handle.trace.mark_run_failed(exc)
             raise
 
     @staticmethod

@@ -11,6 +11,7 @@ from app.db import models
 from app.pipelines.defaults import build_default_ingestion_pipeline
 from app.schemas.traces import PipelineTraceResponse
 from app.services.pipelines import PipelineService
+from app.services.traces import TraceNotFoundError, TraceService
 
 
 def _create_user(session: Session) -> models.User:
@@ -74,7 +75,15 @@ def _create_collection(session: Session, user: models.User) -> models.Collection
     return collection
 
 
-def test_resolve_definition_uses_pipeline_version(session: Session) -> None:
+def test_trace_service_resolves_definition_from_pipeline_version(session: Session) -> None:
+    """`TraceService` prefers the run's own pinned `PipelineVersion` when resolving
+    the definition, over the pipeline's current version.
+
+    This used to be `traces_routes._resolve_definition`; the behavior moved to
+    `TraceService` (private `_resolve_definition`, exercised here through the
+    public `get_run_trace`), and the route now just translates
+    `TraceNotFoundError` to a 404.
+    """
     user = _create_user(session)
     pipeline = _create_pipeline(session, user)
     version = session.exec(
@@ -90,28 +99,36 @@ def test_resolve_definition_uses_pipeline_version(session: Session) -> None:
     session.add(run)
     session.commit()
 
-    definition = traces_routes._resolve_definition(run, session)
+    response = TraceService(session).get_run_trace(run.id, user.id)
 
     expected = PipelineService(session).get_definition(pipeline)
-    assert definition.nodes == expected.nodes
+    assert response.definition.nodes == expected.nodes
 
 
-def test_resolve_definition_falls_back_when_version_missing(session: Session) -> None:
+def test_trace_service_falls_back_to_pipeline_when_version_missing(session: Session) -> None:
+    """`pipeline_version_id` points nowhere (never committed -- Postgres would
+    reject the FK) but the run is already identity-mapped in `session`, so
+    `get_run_trace`'s own lookup finds the dirty in-memory instance without a
+    flush as long as autoflush is suppressed around the call."""
     user = _create_user(session)
     pipeline = _create_pipeline(session, user)
     collection = _create_collection(session, user)
     run = _create_run(session, user, pipeline, collection)
+    expected = PipelineService(session).get_definition(pipeline)
     run.pipeline_version_id = uuid4()
     session.add(run)
 
     with session.no_autoflush:
-        definition = traces_routes._resolve_definition(run, session)
-        expected = PipelineService(session).get_definition(pipeline)
+        response = TraceService(session).get_run_trace(run.id, user.id)
 
-    assert definition.nodes == expected.nodes
+    assert response.definition.nodes == expected.nodes
 
 
-def test_resolve_definition_rejects_missing_pipeline(session: Session) -> None:
+def test_trace_service_rejects_run_with_missing_pipeline(session: Session) -> None:
+    """`pipeline_id` is a real FK against `pipelines.id`, so a run pointing at a
+    nonexistent pipeline can never actually be committed -- this exercises the
+    defensive branch via the in-memory run directly, same as the original
+    test did against the (now-removed) route-level `_resolve_definition`."""
     user = _create_user(session)
     collection = _create_collection(session, user)
     run = models.PipelineRun(
@@ -124,19 +141,21 @@ def test_resolve_definition_rejects_missing_pipeline(session: Session) -> None:
         status=models.PipelineRunStatus.COMPLETED,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
-        traces_routes._resolve_definition(run, session)
-
-    assert excinfo.value.status_code == 404
+    with pytest.raises(TraceNotFoundError):
+        TraceService(session)._resolve_definition(run)  # pylint: disable=protected-access
 
 
-def test_build_trace_response_returns_payload(session: Session) -> None:
+def test_trace_service_get_run_trace_returns_payload(session: Session) -> None:
+    """Direct service-level check that `get_run_trace` returns a full payload
+    for the run id (distinct from `test_get_pipeline_run_trace_success` below,
+    which exercises the route wiring on top of this).
+    """
     user = _create_user(session)
     pipeline = _create_pipeline(session, user)
     collection = _create_collection(session, user)
     run = _create_run(session, user, pipeline, collection)
 
-    response = traces_routes._build_trace_response(run, session)
+    response = TraceService(session).get_run_trace(run.id, user.id)
 
     assert isinstance(response, PipelineTraceResponse)
     assert response.run.id == run.id

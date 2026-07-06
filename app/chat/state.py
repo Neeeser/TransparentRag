@@ -8,7 +8,7 @@ from typing import Any
 from app.chat.messages import ProviderMessage, ToolCall
 from app.chat.usage import UsageSummary
 from app.db import models
-from app.pipelines.config import IngestionPipelineSettings, RetrievalPipelineSettings
+from app.pipelines.settings import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.schemas.chat import ChatMessageCreate, ToolCallTrace
 from app.schemas.models import ModelInfo
 

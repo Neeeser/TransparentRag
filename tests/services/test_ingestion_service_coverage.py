@@ -9,6 +9,7 @@ from app.pipelines.defaults import (
     build_default_retrieval_pipeline,
 )
 from app.services.ingestion import IngestionService
+from app.services.pipeline_resolution import resolve_ingestion_pipeline
 from app.services.pipelines import PipelineService
 
 
@@ -41,6 +42,13 @@ def _create_collection(session: Session, user: models.User, *, ingestion_pipelin
 
 
 def test_resolve_ingestion_pipeline_rejects_missing(session: Session) -> None:
+    """`resolve_ingestion_pipeline` (app/services/pipeline_resolution.py) rejects
+    a collection pointing at a retrieval pipeline instead of an ingestion one.
+
+    This used to be `IngestionService._resolve_ingestion_pipeline`; the check
+    moved to the shared resolver both `IngestionService` and `RetrievalService`
+    call through.
+    """
     user = _create_user(session)
     pipeline = PipelineService(session).create_pipeline(
         user=user,
@@ -50,10 +58,9 @@ def test_resolve_ingestion_pipeline_rejects_missing(session: Session) -> None:
     )
     session.commit()
     collection = _create_collection(session, user, ingestion_pipeline_id=pipeline.id)
-    service = IngestionService(session)
 
     with pytest.raises(ValueError, match="Ingestion pipeline could not be resolved"):
-        service._resolve_ingestion_pipeline(user, collection)
+        resolve_ingestion_pipeline(session, user, collection)
 
 
 def test_extract_indexing_payload_raises_for_missing_result() -> None:

@@ -11,17 +11,13 @@ from app.clients.openrouter import get_openrouter_client
 from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import ChunkRepository
-from app.pipelines.config import IngestionPipelineSettings, resolve_ingestion_settings
-from app.pipelines.definition import PipelineDefinition
-from app.pipelines.execution.context import PipelineRunContext
-from app.pipelines.execution.executor import PipelineExecutor
+from app.pipelines.execution.runner import PipelineRunHandle, PipelineRunner
 from app.pipelines.payloads import IndexingPayload
-from app.pipelines.registry import default_registry
-from app.pipelines.tracing import PipelineTraceRecorder
+from app.pipelines.settings import IngestionPipelineSettings
 from app.retrieval.models import DocumentChunk
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.documents import DocumentRead, IngestionResponse
-from app.services.pipelines import PipelineService
+from app.services.pipeline_resolution import resolve_ingestion_pipeline
 from app.utils.file_storage import FileStorage
 from app.utils.time import utc_now
 
@@ -47,39 +43,31 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         upload: UploadFile,
     ) -> IngestionResponse:
         """Ingest a document upload and index its chunks."""
-        (
-            pipeline_service,
-            pipeline,
-            definition,
-            resolved,
-        ) = self._resolve_ingestion_pipeline(user, collection)
-        document = self._create_document_record(user, collection, upload, resolved)
+        resolved = resolve_ingestion_pipeline(self.session, user, collection)
+        document = self._create_document_record(user, collection, upload, resolved.settings)
         self._save_document_upload(collection, document, upload)
-        run: models.PipelineRun | None = None
+        runner = PipelineRunner(self.session)
+        handle: PipelineRunHandle | None = None
         try:
             openrouter = get_openrouter_client(user.openrouter_api_key or "")
             pinecone = get_pinecone_client(api_key=user.pinecone_api_key)
-            run, trace = self._start_trace_run(
-                pipeline_service,
-                pipeline,
-                definition,
-                document,
-            )
-            executor = PipelineExecutor(default_registry())
-            context = PipelineRunContext(
-                session=self.session,
+            version = resolved.service.get_current_version(resolved.pipeline)
+            handle = runner.start(
+                pipeline=resolved.pipeline,
+                version=version,
+                definition=resolved.definition,
+                kind=models.PipelineKind.INGESTION,
                 user=user,
                 collection=collection,
-                document=document,
-                query=None,
-                top_k=None,
+                settings=self.settings,
                 openrouter=openrouter,
                 pinecone=pinecone,
                 storage=self.storage,
-                settings=self.settings,
-                trace=trace,
+                document=document,
             )
-            result = executor.execute(definition, context)
+            document.ingestion_run_id = handle.run.id
+            self.session.add(document)
+            result = runner.execute(resolved.definition, handle)
             payload = self._extract_indexing_payload(result.terminal_outputs)
             enriched_chunks = payload.chunks
             usage = payload.usage.model_dump()
@@ -87,11 +75,11 @@ class IngestionService:  # pylint: disable=too-few-public-methods
                 document,
                 collection,
                 enriched_chunks,
-                resolved,
+                resolved.settings,
             )
             self._record_success(
                 document,
-                resolved.embedding_model,
+                resolved.settings.embedding_model,
                 usage,
                 chunk_records,
             )
@@ -100,36 +88,14 @@ class IngestionService:  # pylint: disable=too-few-public-methods
             return IngestionResponse(
                 document=DocumentRead.from_model(document),
                 chunk_count=len(chunk_records),
-                pinecone_namespace=resolved.namespace or "",
-                embedding_model=resolved.embedding_model,
+                pinecone_namespace=resolved.settings.namespace or "",
+                embedding_model=resolved.settings.embedding_model,
                 usage=usage,
             )
         except Exception as exc:
-            self._record_failure(document, run, exc)
+            self._record_failure(document, handle.run if handle else None, exc)
             self.session.commit()
             raise
-
-    def _resolve_ingestion_pipeline(
-        self,
-        user: models.User,
-        collection: models.Collection,
-    ) -> tuple[
-        PipelineService,
-        models.Pipeline,
-        PipelineDefinition,
-        IngestionPipelineSettings,
-    ]:
-        """Resolve ingestion pipeline definition and settings."""
-        pipeline_service = PipelineService(self.session)
-        defaults = pipeline_service.ensure_default_pipelines(user)
-        pipeline_service.ensure_collection_pipelines(collection, defaults)
-        pipeline_id = collection.ingestion_pipeline_id or defaults.ingestion.id
-        pipeline = pipeline_service.get_pipeline(pipeline_id, user.id)
-        if not pipeline or pipeline.kind != models.PipelineKind.INGESTION:
-            raise ValueError("Ingestion pipeline could not be resolved.")
-        definition = pipeline_service.get_definition(pipeline)
-        resolved = resolve_ingestion_settings(definition, collection)
-        return pipeline_service, pipeline, definition, resolved
 
     def _create_document_record(
         self,
@@ -165,32 +131,6 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         path = self.storage.save_upload(upload, relative_path)
         document.source_path = str(path)
         self.session.add(document)
-
-    def _start_trace_run(
-        self,
-        pipeline_service: PipelineService,
-        pipeline: models.Pipeline,
-        definition: PipelineDefinition,
-        document: models.Document,
-    ) -> tuple[models.PipelineRun, PipelineTraceRecorder]:
-        """Create a pipeline run and trace recorder."""
-        version = pipeline_service.get_current_version(pipeline)
-        run = models.PipelineRun(
-            pipeline_id=pipeline.id,
-            pipeline_version_id=version.id,
-            pipeline_version=version.version,
-            kind=models.PipelineKind.INGESTION,
-            user_id=document.user_id,
-            collection_id=document.collection_id,
-            status=models.PipelineRunStatus.RUNNING,
-            started_at=utc_now(),
-        )
-        self.session.add(run)
-        self.session.flush()
-        document.ingestion_run_id = run.id
-        self.session.add(document)
-        trace = PipelineTraceRecorder(self.session, run, definition)
-        return run, trace
 
     def _persist_chunks(
         self,

@@ -90,11 +90,18 @@ warn_unused_ignores = true
 # leave dozens of unrelated errors failing `make verify` today.
 
 [[tool.mypy.overrides]]
-module = "app.api.routes.*"
-ignore_errors = true  # removed in Phase 6
-
-[[tool.mypy.overrides]]
-module = "app.services.pipelines"
+# Task 5.3 narrowed this from a blanket `app.api.routes.*` override: pipelines.py
+# and traces.py are mypy-clean now (PipelineRunner/TraceService/pipeline_resolution
+# absorbed their business logic). The remaining modules are Phase 6's.
+module = [
+    "app.api.routes.auth",
+    "app.api.routes.chat",
+    "app.api.routes.collections",
+    "app.api.routes.documents",
+    "app.api.routes.indexes",
+    "app.api.routes.search",
+    "app.api.routes.visualizations",
+]
 ignore_errors = true  # removed in Phase 6
 
 [[tool.mypy.overrides]]

@@ -70,7 +70,10 @@ app/
                    (PipelineNodeBase, NodeSpec), registry.py (NodeRegistry +
                    default_registry() singleton), validation.py (PipelineValidator),
                    definition.py (PipelineDefinition — the graph's wire shape),
-                   execution/ (context.py, executor.py), tracing/ (recorder.py —
+                   settings.py (registry-driven config extraction —
+                   resolve_ingestion_settings/resolve_retrieval_settings),
+                   execution/ (context.py, executor.py, runner.py — PipelineRunner,
+                   the run-lifecycle bootstrap), tracing/ (recorder.py —
                    PipelineTraceRecorder; summaries.py — typed trace summary
                    models), nodes/ (node implementations, one module per
                    pipeline stage: io.py, parsing.py, chunking.py, embedding.py,
@@ -118,6 +121,41 @@ raw config dict.** `validation_issues_for_node` calls `SomeConfig.model_validate
 `node.config["index_name"]` directly would silently diverge from runtime
 behavior the moment the config model's defaults or validation change.
 
+**Run lifecycle (run row + trace recorder + executor + context) has one owner:
+`PipelineRunner`** (`pipelines/execution/runner.py`). Ingestion and retrieval both
+need the same four things wired together for every run — a `PipelineRun` row, a
+`PipelineTraceRecorder` bound to it, a `PipelineExecutor`, and the `PipelineRunContext`
+nodes execute against — so `PipelineRunner.start()` builds all four and hands back a
+`PipelineRunHandle`; `PipelineRunner.execute()` runs a definition against it. Terminal
+run status stays owned by `PipelineTraceRecorder` (the executor calls
+`mark_run_completed`/`mark_run_failed` on it automatically); a caller that needs to
+fail a run for a reason outside `execute()` (e.g. persistence failing after a
+successful pipeline run) calls `handle.trace.mark_run_failed(exc)` directly rather than
+hand-rolling the same status/`error_message`/`completed_at` update inline — that
+exact duplication between `services/ingestion.py` and `services/retrieval.py` is what
+`PipelineRunner` replaced.
+
+**Config resolution is registry-driven — hardcoding a node type-id string outside the
+node class that owns it is a lockstep bug.** `pipelines/settings.py`'s
+`resolve_ingestion_settings`/`resolve_retrieval_settings` read a node's type id off the
+node *class* (`EmbedderNode.type`, not the literal `"embedder.openrouter"`), and for the
+one case with several interchangeable variants (fixed-strategy chunkers) walk the
+*registry's* node classes to find whichever one is present rather than maintaining a
+type-id-to-strategy table that duplicates what each chunker class already declares via
+its own `type`/`strategy` attributes. If you add a new fixed-strategy node variant, it
+gets picked up automatically as long as it's registered — no second place to update.
+
+**A collection's ingestion/retrieval pipeline is resolved in exactly one place:
+`app/services/pipeline_resolution.py`.** `resolve_ingestion_pipeline`/
+`resolve_retrieval_pipeline` run the ensure-defaults → attach-to-collection →
+load-pipeline → validate-kind → resolve-settings sequence once; every caller (both
+services and the collection routes that render a prompt or purge a namespace) calls
+through them instead of repeating it. They raise `PipelineResolutionError` (a
+`ValueError`) — never `HTTPException` — so each caller can translate it into whatever
+route-specific message fits (contrast `IngestionService`'s generic "Ingestion pipeline
+could not be resolved" with `delete_collection`'s "Unable to resolve ingestion pipeline
+for deletion").
+
 **One module per domain in `db/models/`.** Tables are split by domain —
 `user.py` (User + `TimestampMixin`), `collection.py`, `document.py`, `pipeline.py`,
 `chat.py`, `visualization.py`, `events.py`. A new table goes in its domain module (or
@@ -153,6 +191,14 @@ invert it:
   failure-path test first, the way `routes/visualizations.py` wraps `UmapService`
   calls in `try/except ValueError`. (Longer-term: typed domain exceptions so routes can
   distinguish 400/404 without string matching.)
+- **`app/services/traces.py`'s `TraceService` owns trace resolution; `routes/traces.py`
+  only translates `TraceNotFoundError` to a 404.** Building a `PipelineTraceResponse`
+  from a run — including the run's own pinned `PipelineVersion` vs. its pipeline's
+  current one — used to be two private helpers living in the route module, reaching
+  straight into `session.get(...)` for documents and query events; that's a service's
+  job. `PipelineRunRead`/`PipelineNodeRunRead`/`PipelineNodeIORead` are built via
+  `model_validate(row)` (`ConfigDict(from_attributes=True)`), not field-by-field
+  copying — every declared field is a plain column on the corresponding db model.
 - **All query logic lives on a repository (`app/db/repositories/`).** Routes and
   services never build `select()`/`delete()` statements inline; add or extend a
   repository method so query logic has one home and one set of tests. Repositories

@@ -65,7 +65,7 @@ def test_ingest_upload_marks_document_failed_on_exception(monkeypatch, session, 
         lambda **_kwargs: _StubPinecone(api_key="key"),
     )
     monkeypatch.setattr(ingestion_module, "get_openrouter_client", lambda *_args, **_kwargs: object())
-    monkeypatch.setattr(ingestion_module, "PipelineExecutor", _FailingExecutor)
+    monkeypatch.setattr("app.pipelines.execution.runner.PipelineExecutor", _FailingExecutor)
 
     user = _create_user(session)
     collection = _create_collection(session, user)

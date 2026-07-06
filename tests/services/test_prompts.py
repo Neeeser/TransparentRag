@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from app.db import models
-from app.pipelines.config import IngestionPipelineSettings, RetrievalPipelineSettings
+from app.pipelines.settings import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.services import prompts
 from app.services.prompts import (
     DEFAULT_BASE_PROMPT_TEMPLATE,

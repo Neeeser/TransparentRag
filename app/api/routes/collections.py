@@ -15,7 +15,6 @@ from app.api.dependencies import get_session, require_user_api_keys
 from app.api.routes.utils import get_collection_or_404
 from app.db import models
 from app.db.repositories import CollectionRepository, CollectionStats
-from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.collections import (
     CollectionCreate,
@@ -25,6 +24,11 @@ from app.schemas.collections import (
     CollectionRead,
     CollectionStatsRead,
     CollectionUpdate,
+)
+from app.services.pipeline_resolution import (
+    PipelineResolutionError,
+    resolve_ingestion_pipeline,
+    resolve_retrieval_pipeline,
 )
 from app.services.pipelines import PipelineService
 from app.services.prompts import (
@@ -56,35 +60,27 @@ def _to_schema(collection: models.Collection) -> CollectionRead:
     )
 
 
-def _prompt_read(  # pylint: disable=too-many-locals
+def _prompt_read(
     collection: models.Collection,
     user: models.User,
     session: Session,
 ) -> CollectionPromptRead:
     """Render prompt data for a collection and user."""
-    pipeline_service = PipelineService(session)
-    defaults = pipeline_service.ensure_default_pipelines(user)
-    pipeline_service.ensure_collection_pipelines(collection, defaults)
-    ingestion_pipeline_id = collection.ingestion_pipeline_id or defaults.ingestion.id
-    retrieval_pipeline_id = collection.retrieval_pipeline_id or defaults.retrieval.id
-    ingestion_pipeline = pipeline_service.get_pipeline(ingestion_pipeline_id, user.id)
-    retrieval_pipeline = pipeline_service.get_pipeline(retrieval_pipeline_id, user.id)
-    if not ingestion_pipeline or not retrieval_pipeline:
+    try:
+        resolved_ingestion = resolve_ingestion_pipeline(session, user, collection)
+        resolved_retrieval = resolve_retrieval_pipeline(session, user, collection)
+    except PipelineResolutionError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unable to resolve pipeline configuration for prompt rendering.",
-        )
-    ingestion_definition = pipeline_service.get_definition(ingestion_pipeline)
-    retrieval_definition = pipeline_service.get_definition(retrieval_pipeline)
-    ingestion_settings = resolve_ingestion_settings(ingestion_definition, collection)
-    retrieval_settings = resolve_retrieval_settings(retrieval_definition, collection)
+        ) from exc
 
     template = get_system_prompt_template(collection)
     context = system_prompt_context(
         collection,
         user,
-        ingestion_settings=ingestion_settings,
-        retrieval_settings=retrieval_settings,
+        ingestion_settings=resolved_ingestion.settings,
+        retrieval_settings=resolved_retrieval.settings,
         tool_name=collection_tool_name(collection.id),
     )
     rendered = apply_prompt_template(template, context)
@@ -373,18 +369,14 @@ def delete_collection(  # pylint: disable=too-many-locals
 
     pinecone_client = get_pinecone_client(api_key=current_user.pinecone_api_key)
     storage = FileStorage()
-    pipeline_service = PipelineService(session)
-    defaults = pipeline_service.ensure_default_pipelines(current_user)
-    pipeline_service.ensure_collection_pipelines(collection, defaults)
-    ingestion_pipeline_id = collection.ingestion_pipeline_id or defaults.ingestion.id
-    ingestion_pipeline = pipeline_service.get_pipeline(ingestion_pipeline_id, current_user.id)
-    if not ingestion_pipeline:
+    try:
+        resolved_ingestion = resolve_ingestion_pipeline(session, current_user, collection)
+    except PipelineResolutionError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unable to resolve ingestion pipeline for deletion.",
-        )
-    ingestion_definition = pipeline_service.get_definition(ingestion_pipeline)
-    ingestion_settings = resolve_ingestion_settings(ingestion_definition, collection)
+        ) from exc
+    ingestion_settings = resolved_ingestion.settings
     if not ingestion_settings.namespace:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -19,6 +19,7 @@ from __future__ import annotations
 from app.pipelines.tracing.recorder import NodeTraceValue, serialize_payload
 from app.pipelines.tracing.summaries import (
     TokenUsage,
+    preview_text,
     summarize_chunks,
     summarize_embeddings,
     summarize_match_order,
@@ -181,6 +182,16 @@ def test_token_usage_matches_old_dict_shape() -> None:
     }
     assert _serialized_value(TokenUsage()) == {}
     assert _serialized_value(TokenUsage.model_validate({})) == {}
+
+
+def test_preview_text_truncates_and_appends_ellipsis() -> None:
+    """Text past `limit` is truncated with a trailing `...`; short text is untouched."""
+    long_text = "alpha " * 100
+
+    preview = preview_text(long_text, limit=10)
+
+    assert preview.endswith("...")
+    assert preview_text("short text", limit=20) == "short text"
 
 
 def test_node_trace_value_kind_accepts_only_known_literals() -> None:

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.pipelines.definition import PipelineDefinition
 from app.schemas.base import DateTimeConfigMixin
@@ -14,7 +14,13 @@ from app.schemas.enums import PipelineIOType, PipelineKind, PipelineRunStatus
 
 
 class PipelineRunRead(DateTimeConfigMixin, BaseModel):
-    """Pipeline run details returned to clients."""
+    """Pipeline run details returned to clients.
+
+    Built via `PipelineRunRead.model_validate(run, from_attributes=True)` --
+    every declared field is a plain column on `models.PipelineRun`.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     pipeline_id: UUID
@@ -45,7 +51,15 @@ class PipelineNodeSummaryRead(BaseModel):
 
 
 class PipelineNodeRunRead(DateTimeConfigMixin, BaseModel):
-    """Node execution details returned to clients."""
+    """Node execution details returned to clients.
+
+    Built via `PipelineNodeRunRead.model_validate(node_run, from_attributes=True)`
+    -- `summary` is a plain `dict` column on `models.PipelineNodeRun`; nested
+    validation into `PipelineNodeSummaryRead` happens the same way it would
+    for a dict passed to `model_validate` directly.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     run_id: UUID
@@ -62,7 +76,12 @@ class PipelineNodeRunRead(DateTimeConfigMixin, BaseModel):
 
 
 class PipelineNodeIORead(DateTimeConfigMixin, BaseModel):
-    """Node input/output payloads returned to clients."""
+    """Node input/output payloads returned to clients.
+
+    Built via `PipelineNodeIORead.model_validate(io_record, from_attributes=True)`.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     run_id: UUID

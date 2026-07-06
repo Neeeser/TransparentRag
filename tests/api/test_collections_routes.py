@@ -340,7 +340,14 @@ def test_prompt_read_rejects_missing_pipeline(monkeypatch, session: Session) -> 
         def get_pipeline(self, _pipeline_id, _user_id):
             return None
 
-    monkeypatch.setattr(collections_routes, "PipelineService", _StubPipelineService)
+    # `_prompt_read` now resolves pipelines through
+    # `app.services.pipeline_resolution`, which constructs its own
+    # `PipelineService` -- that's the name that needs stubbing, not
+    # `collections_routes.PipelineService` (unused by this path since the
+    # resolution-dance move).
+    monkeypatch.setattr(
+        "app.services.pipeline_resolution.PipelineService", _StubPipelineService
+    )
 
     with pytest.raises(HTTPException) as excinfo:
         collections_routes._prompt_read(
@@ -648,7 +655,13 @@ def test_delete_collection_rejects_missing_ingestion_pipeline(monkeypatch, sessi
         def get_pipeline(self, _pipeline_id, _user_id):
             return None
 
-    monkeypatch.setattr(collections_routes, "PipelineService", _StubPipelineService)
+    # `delete_collection` resolves the ingestion pipeline through
+    # `resolve_ingestion_pipeline` (app/services/pipeline_resolution.py), which
+    # constructs its own `PipelineService` -- stub that name, not
+    # `collections_routes.PipelineService`.
+    monkeypatch.setattr(
+        "app.services.pipeline_resolution.PipelineService", _StubPipelineService
+    )
     monkeypatch.setattr(
         collections_routes,
         "get_pinecone_client",
@@ -668,9 +681,11 @@ def test_delete_collection_rejects_missing_namespace(monkeypatch, session: Sessi
     PipelineService(session).ensure_default_pipelines(user)
     session.commit()
 
+    # Same rationale as above: `resolve_ingestion_settings` is called from
+    # `app.services.pipeline_resolution`, not `collections_routes` (which no
+    # longer imports it directly).
     monkeypatch.setattr(
-        collections_routes,
-        "resolve_ingestion_settings",
+        "app.services.pipeline_resolution.resolve_ingestion_settings",
         lambda *_args, **_kwargs: SimpleNamespace(namespace=None, index_name="index"),
     )
     monkeypatch.setattr(

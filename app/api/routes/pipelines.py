@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -28,23 +29,31 @@ from app.services.pipelines import PipelineService
 router = APIRouter(prefix="/api/pipelines", tags=["pipelines"])
 
 
+def get_pipeline_or_404(
+    pipeline_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> models.Pipeline:
+    """Return a pipeline owned by the current user, or raise a 404."""
+    pipeline = PipelineService(session).get_pipeline(pipeline_id, current_user.id)
+    if not pipeline:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
+    return pipeline
+
+
 def _to_pipeline_read(
     pipeline: models.Pipeline,
     definition: PipelineDefinition,
 ) -> PipelineRead:
-    """Convert a pipeline model into a response schema."""
-    return PipelineRead(
-        id=pipeline.id,
-        user_id=pipeline.user_id,
-        name=pipeline.name,
-        description=pipeline.description,
-        kind=pipeline.kind,
-        current_version=pipeline.current_version,
-        is_default=pipeline.is_default,
-        created_at=pipeline.created_at,
-        updated_at=pipeline.updated_at,
-        definition=definition,
-    )
+    """Convert a pipeline model + its resolved definition into a response schema.
+
+    `definition` lives on the pipeline's current `PipelineVersion`, not on
+    `models.Pipeline` itself, so it's attached to a shallow attribute view of
+    the pipeline before `from_attributes` validation instead of listed
+    field-by-field.
+    """
+    view = SimpleNamespace(**vars(pipeline), definition=definition)
+    return PipelineRead.model_validate(view)
 
 
 def _validate_definition_or_400(definition: PipelineDefinition) -> None:
@@ -125,31 +134,24 @@ def create_pipeline(
 
 @router.get("/{pipeline_id}", response_model=PipelineRead)
 def get_pipeline(
-    pipeline_id: UUID,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
 ) -> PipelineRead:
     """Return a pipeline by id."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     definition = service.get_definition(pipeline)
     return _to_pipeline_read(pipeline, definition)
 
 
 @router.patch("/{pipeline_id}", response_model=PipelineRead)
 def update_pipeline(
-    pipeline_id: UUID,
     payload: PipelineUpdate,
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> PipelineRead:
     """Update pipeline metadata or definition."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     if payload.definition is not None:
         _validate_definition_or_400(payload.definition)
     service.update_pipeline(
@@ -168,15 +170,11 @@ def update_pipeline(
 
 @router.get("/{pipeline_id}/versions", response_model=list[PipelineVersionRead])
 def list_pipeline_versions(
-    pipeline_id: UUID,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
 ) -> list[PipelineVersionRead]:
     """List versions for a pipeline."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     versions = service.list_versions(pipeline)
     return [
         PipelineVersionRead(
@@ -194,16 +192,12 @@ def list_pipeline_versions(
 
 @router.post("/{pipeline_id}/activate", response_model=PipelineRead)
 def activate_pipeline_version(
-    pipeline_id: UUID,
     payload: PipelineActivateRequest,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
 ) -> PipelineRead:
     """Activate a pipeline version."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     try:
         service.activate_version(pipeline, payload.version)
     except ValueError as exc:
@@ -216,15 +210,11 @@ def activate_pipeline_version(
 
 @router.delete("/{pipeline_id}", response_model=PipelineDeleteResponse)
 def delete_pipeline(
-    pipeline_id: UUID,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
 ) -> PipelineDeleteResponse:
     """Delete a pipeline when it is not referenced by collections."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     if service.pipeline_in_use(pipeline.id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
