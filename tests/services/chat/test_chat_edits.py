@@ -176,14 +176,18 @@ def test_apply_edit_rejects_message_from_other_session(session: Session) -> None
 
 
 class _StubChatRepo:
-    def __init__(self, last_user=None) -> None:
+    def __init__(self, last_user=None, anchor_message=None) -> None:
         self.last_user = last_user
+        self.anchor_message = anchor_message
         self.deleted_since = None
         self.deleted_after = None
         self.include_anchor = None
 
     def get_last_user_message_before(self, *_args, **_kwargs):
         return self.last_user
+
+    def get_message_anchor(self, *_args, **_kwargs):
+        return self.anchor_message
 
     def delete_tool_messages_since(self, *, session_id, since) -> None:
         self.deleted_since = (session_id, since)
@@ -194,8 +198,7 @@ class _StubChatRepo:
 
 
 class _StubSession:
-    def __init__(self, anchor_message=None) -> None:
-        self.anchor_message = anchor_message
+    def __init__(self) -> None:
         self.added = []
         self.flushes = 0
 
@@ -204,9 +207,6 @@ class _StubSession:
 
     def flush(self) -> None:
         self.flushes += 1
-
-    def exec(self, _statement):
-        return SimpleNamespace(first=lambda: self.anchor_message)
 
 
 def test_apply_edit_rejects_empty_user_edit() -> None:
@@ -239,8 +239,8 @@ def test_apply_edit_non_user_without_last_user_uses_target_anchor() -> None:
         role=models.ChatRole.ASSISTANT,
         created_at=created_at,
     )
-    chat_repo = _StubChatRepo(last_user=None)
-    session = _StubSession(anchor_message=None)
+    chat_repo = _StubChatRepo(last_user=None, anchor_message=None)
+    session = _StubSession()
 
     apply_edit(
         session=session,

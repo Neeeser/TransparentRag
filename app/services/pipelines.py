@@ -7,12 +7,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import delete as sa_delete
-from sqlalchemy import or_
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.db import models
-from app.db.repositories import PipelineRepository, PipelineVersionRepository
+from app.db.repositories import (
+    CollectionRepository,
+    PipelineRepository,
+    PipelineVersionRepository,
+    UserRepository,
+)
 from app.pipelines.defaults import (
     build_default_ingestion_pipeline,
     build_default_retrieval_pipeline,
@@ -36,6 +39,7 @@ class PipelineService:
         self.session = session
         self._pipelines = PipelineRepository(session)
         self._versions = PipelineVersionRepository(session)
+        self._collections = CollectionRepository(session)
 
     def list_pipelines(
         self,
@@ -128,25 +132,11 @@ class PipelineService:
 
     def pipeline_in_use(self, pipeline_id: UUID) -> bool:
         """Return True if any collection references the pipeline."""
-        statement = (
-            select(models.Collection.id)
-            .where(
-                or_(
-                    models.Collection.ingestion_pipeline_id == pipeline_id,
-                    models.Collection.retrieval_pipeline_id == pipeline_id,
-                )
-            )
-            .limit(1)
-        )
-        return self.session.exec(statement).first() is not None
+        return self._collections.references_pipeline(pipeline_id)
 
     def delete_pipeline(self, pipeline: models.Pipeline) -> None:
         """Delete a pipeline and its versions."""
-        self.session.exec(
-            sa_delete(models.PipelineVersion).where(
-                models.PipelineVersion.pipeline_id == pipeline.id,
-            )
-        )
+        self._versions.delete_for_pipeline(pipeline.id)
         self.session.delete(pipeline)
         self.session.flush()
 
@@ -203,11 +193,8 @@ class PipelineService:
 def backfill_default_pipelines(session: Session) -> None:
     """Ensure all users and collections have default pipelines assigned."""
     service = PipelineService(session)
-    users = session.exec(select(models.User)).all()
-    for user in users:
+    collection_repo = CollectionRepository(session)
+    for user in UserRepository(session).list_all():
         defaults = service.ensure_default_pipelines(user)
-        collections = session.exec(
-            select(models.Collection).where(models.Collection.user_id == user.id)
-        ).all()
-        for collection in collections:
+        for collection in collection_repo.list_for_user(user.id):
             service.ensure_collection_pipelines(collection, defaults)

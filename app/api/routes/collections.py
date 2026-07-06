@@ -4,19 +4,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func
 from sqlalchemy import update as sa_update
 from sqlmodel import Session, select
 
 from app.api.dependencies import get_session, require_user_api_keys
 from app.api.routes.utils import get_collection_or_404
 from app.db import models
-from app.db.repositories import CollectionRepository
+from app.db.repositories import CollectionRepository, CollectionStats
 from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.collections import (
@@ -112,50 +110,15 @@ def _is_missing_pinecone_namespace(error: Exception) -> bool:
     return response_status == 404 and "namespace" in message
 
 
-def _build_collection_stats(
-    session: Session,
-    user_id: UUID,
-    collection_ids: list[UUID],
-) -> dict[UUID, CollectionStatsRead]:
-    """Return aggregated stats for the given collections."""
-    if not collection_ids:
-        return {}
-    doc_rows: list[tuple[UUID, int, int]] = session.exec(  # pylint: disable=not-callable
-        select(
-            models.Document.collection_id,
-            func.count(models.Document.id),  # pylint: disable=not-callable
-            func.coalesce(func.sum(models.Document.num_chunks), 0),
-        ).where(
-            models.Document.user_id == user_id,
-            models.Document.collection_id.in_(collection_ids),  # pylint: disable=no-member
-        ).group_by(models.Document.collection_id)
-    ).all()
-    doc_map = {row[0]: (int(row[1]), int(row[2])) for row in doc_rows}
-
-    query_rows: list[tuple[UUID, float | None, datetime | None]] = session.exec(
-        select(
-            models.QueryEvent.collection_id,
-            func.avg(models.QueryEvent.latency_ms),
-            func.max(models.QueryEvent.created_at),
-        ).where(
-            models.QueryEvent.user_id == user_id,
-            models.QueryEvent.collection_id.in_(collection_ids),  # pylint: disable=no-member
-        ).group_by(models.QueryEvent.collection_id)
-    ).all()
-    query_map = {row[0]: (row[1], row[2]) for row in query_rows}
-
-    stats: dict[UUID, CollectionStatsRead] = {}
-    for collection_id in collection_ids:
-        doc_count, chunk_count = doc_map.get(collection_id, (0, 0))
-        avg_latency, last_used = query_map.get(collection_id, (None, None))
-        stats[collection_id] = CollectionStatsRead(
-            collection_id=collection_id,
-            document_count=doc_count,
-            chunk_count=chunk_count,
-            average_latency_ms=float(avg_latency) if avg_latency is not None else None,
-            last_used_at=last_used,
-        )
-    return stats
+def _stats_read(collection_id: UUID, stats: CollectionStats) -> CollectionStatsRead:
+    """Convert repository stats into the wire schema."""
+    return CollectionStatsRead(
+        collection_id=collection_id,
+        document_count=stats.document_count,
+        chunk_count=stats.chunk_count,
+        average_latency_ms=stats.average_latency_ms,
+        last_used_at=stats.last_used_at,
+    )
 
 
 @router.get("", response_model=list[CollectionRead])
@@ -176,12 +139,11 @@ def list_collection_stats(
     """Return aggregated stats for all collections."""
     repo = CollectionRepository(session)
     collections = list(repo.list_for_user(current_user.id))
-    stats_map = _build_collection_stats(
-        session,
+    stats_map = repo.stats_for(
         current_user.id,
         [collection.id for collection in collections],
     )
-    return [stats_map[collection.id] for collection in collections]
+    return [_stats_read(collection.id, stats_map[collection.id]) for collection in collections]
 
 
 @router.get("/{collection_id}/stats", response_model=CollectionStatsRead)
@@ -196,8 +158,8 @@ def get_collection_stats(
         user_id=current_user.id,
         session=session,
     )
-    stats_map = _build_collection_stats(session, current_user.id, [collection.id])
-    return stats_map[collection.id]
+    stats_map = CollectionRepository(session).stats_for(current_user.id, [collection.id])
+    return _stats_read(collection.id, stats_map[collection.id])
 
 
 @router.get("/{collection_id}", response_model=CollectionRead)

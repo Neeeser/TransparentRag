@@ -323,12 +323,6 @@ def test_is_missing_pinecone_namespace_variants() -> None:
     )
 
 
-def test_build_collection_stats_with_empty_list(session: Session) -> None:
-    stats = collections_routes._build_collection_stats(session, uuid4(), [])
-
-    assert stats == {}
-
-
 def test_prompt_read_rejects_missing_pipeline(monkeypatch, session: Session) -> None:
     class _StubPipelineService:
         def __init__(self, _session) -> None:

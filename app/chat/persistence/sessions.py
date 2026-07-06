@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from sqlalchemy import asc
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.db import models
 from app.db.repositories import ChatRepository
@@ -100,17 +99,7 @@ def apply_edit(
         )
         if last_user:
             user_threshold = last_user.created_at
-        anchor_statement = (
-            select(models.ChatMessage)
-            .where(
-                models.ChatMessage.session_id == session_model.id,
-                models.ChatMessage.created_at >= user_threshold,
-                models.ChatMessage.role != models.ChatRole.USER,
-            )
-            .order_by(asc(models.ChatMessage.created_at))
-            .limit(1)
-        )
-        anchor_message = session.exec(anchor_statement).first()
+        anchor_message = chat_repo.get_message_anchor(session_model.id, user_threshold)
         if anchor_message:
             anchor_created_at = anchor_message.created_at
         else:

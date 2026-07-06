@@ -77,8 +77,8 @@ def get_document_chunks(
     session: Session = Depends(get_session),
 ) -> ChunkVisualization:
     """Return chunk visualization data for a document."""
-    document = session.get(models.Document, document_id)
-    if not document or document.user_id != current_user.id:
+    document = DocumentRepository(session).get_for_user(document_id, current_user.id)
+    if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found",
@@ -109,14 +109,14 @@ def get_chunk_detail(
     session: Session = Depends(get_session),
 ) -> ChunkDetailRead:
     """Return details for a single chunk."""
-    chunk = session.get(models.DocumentChunkRecord, chunk_id)
+    chunk = ChunkRepository(session).get(chunk_id)
     if not chunk:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chunk not found",
         )
-    document = session.get(models.Document, chunk.document_id)
-    if not document or document.user_id != current_user.id:
+    document = DocumentRepository(session).get_for_user(chunk.document_id, current_user.id)
+    if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chunk not found",

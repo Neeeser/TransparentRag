@@ -56,8 +56,9 @@ app/
     routes/        one router module per resource (collections.py, chat.py, …)
   schemas/         Pydantic wire types, one module per domain — the API contract
   services/        business logic; orchestrates db + external clients
-  db/              repositories, session, migrations
+  db/              session, migrations
     models/        SQLModel tables, one module per domain (see below)
+    repositories/  data access, one module per domain (see below)
   chat/            chat subsystem (providers, streaming, persistence, processing)
   pipelines/       pipeline engine + nodes/
   retrieval/       RAG components: chunkers, embedders, indexers, parsers,
@@ -106,9 +107,13 @@ invert it:
   failure-path test first, the way `routes/visualizations.py` wraps `UmapService`
   calls in `try/except ValueError`. (Longer-term: typed domain exceptions so routes can
   distinguish 400/404 without string matching.)
-- **DB access goes through `app/db/repositories.py`.** Routes and services don't build
-  raw `select()` statements inline; add or extend a repository method so query logic
-  has one home and one set of tests.
+- **All query logic lives on a repository (`app/db/repositories/`).** Routes and
+  services never build `select()`/`delete()` statements inline; add or extend a
+  repository method so query logic has one home and one set of tests. Repositories
+  share `base.Repository` (which owns the session) and are split one-per-domain,
+  re-exported from `app.db.repositories` as a permanent flat namespace — never reach
+  into a domain submodule from outside the package. If two tests in different files
+  assert the same repo behavior, one of them is deleted.
 - **Schemas ≠ db models.** `app/schemas/*` are the wire contract; `app/db/models/`
   is persistence. Convert explicitly at the service boundary. Returning a db model
   straight from a route couples your API to your table shape and leaks fields you
@@ -127,7 +132,7 @@ The expected shape, in order:
    Design the contract first; it forces the data-shape conversation before the code one.
 2. **DB** — if persistence changes: model in its domain module under
    `app/db/models/`, migration in `app/db/migrations.py`, repository methods in
-   `app/db/repositories.py`.
+   the matching domain module under `app/db/repositories/`.
 3. **Service** — the behavior, in `app/services/<domain>.py` (or the owning subsystem:
    `chat/`, `pipelines/`, `retrieval/`), typed end to end.
 4. **Route** — endpoint in `app/api/routes/<resource>.py` with `response_model`, auth

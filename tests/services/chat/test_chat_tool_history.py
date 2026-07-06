@@ -71,6 +71,14 @@ class _StubChatRepository:
         return None
 
 
+class _StubCollectionRepository:
+    def __init__(self, collections: list[models.Collection] | None = None) -> None:
+        self._collections = list(collections or [])
+
+    def list_by_ids(self, _user_id: Any, _ids: Any) -> list[models.Collection]:
+        return list(self._collections)
+
+
 class _StubRetrieval:
     def query_collection(
         self,
@@ -234,6 +242,7 @@ def test_tool_call_history_replayed_for_follow_up(monkeypatch) -> None:
         extra_metadata={},
     )
     service.session = _NoOpSession([collection])
+    service.collection_repo = _StubCollectionRepository([collection])
     payload = ChatMessageCreate(content="Lookup docs", tool_collection_ids=[collection.id])
 
     service.send_message(user=user, payload=payload)

@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi.encoders import jsonable_encoder
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.chat.persistence.records import (
     MessageRecord,
@@ -59,7 +59,7 @@ from app.chat.state import (
 from app.chat.streaming.streaming import stream_model_completion
 from app.core.config import get_settings
 from app.db import models
-from app.db.repositories import ChatRepository
+from app.db.repositories import ChatRepository, CollectionRepository
 from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
 from app.schemas.chat import (
     ChatBranchResponse,
@@ -109,6 +109,7 @@ class ChatService:
         self.session = session
         self.settings = get_settings()
         self.chat_repo = ChatRepository(session)
+        self.collection_repo = CollectionRepository(session)
         self.openrouter: OpenRouterClient | None = None
         self.provider: ChatProvider | None = None
         self.retrieval = RetrievalService(session)
@@ -196,11 +197,7 @@ class ChatService:
                 "Pinecone API key is not configured. Update it in Settings to enable tools."
             )
 
-        statement = select(models.Collection).where(
-            models.Collection.user_id == user.id,
-            models.Collection.id.in_(collection_ids),  # pylint: disable=no-member
-        )
-        collections = self.session.exec(statement).all()
+        collections = self.collection_repo.list_by_ids(user.id, collection_ids)
         collection_map = {collection.id: collection for collection in collections}
         missing = [
             str(collection_id)
@@ -298,7 +295,7 @@ class ChatService:
         if target_message.session_id != session_model.id:
             raise ValueError("Message does not belong to this session.")
 
-        messages = list(self.chat_repo.list_all_messages(session_model.id))
+        messages = self.chat_repo.list_messages(session_model.id, limit=None)
         target_index = next(
             (index for index, message in enumerate(messages) if message.id == target_message.id),
             -1,

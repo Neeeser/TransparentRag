@@ -22,9 +22,8 @@ MAX_LINES = 400
 # grandfathered). Ceilings only ever go DOWN: if you shrink a module, lower its
 # ceiling in the same commit; if you empty it below MAX_LINES, delete the entry.
 GRANDFATHERED: dict[str, int] = {
-    "app/api/routes/collections.py": 518,  # split in Phase 6
-    "app/chat/service.py": 1228,  # split in Phase 4
-    "app/db/repositories.py": 468,  # split in Phase 2
+    "app/api/routes/collections.py": 478,  # split in Phase 6
+    "app/chat/service.py": 1224,  # split in Phase 4
     "app/pipelines/nodes/ingestion.py": 735,  # split in Phase 5
     "app/pipelines/runtime.py": 447,  # split in Phase 5
 }

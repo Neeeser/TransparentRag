@@ -8,14 +8,17 @@ from app.db.repositories import (
     ChunkRepository,
     CollectionRepository,
     DocumentRepository,
+    PipelineRepository,
+    PipelineRunRepository,
+    PipelineVersionRepository,
     QueryRepository,
     UserRepository,
 )
 
 
-def _create_user(session: Session) -> models.User:
+def _create_user(session: Session, email: str = "user@example.com") -> models.User:
     repo = UserRepository(session)
-    user = models.User(email="user@example.com", full_name="Example User", hashed_password="hashed")
+    user = models.User(email=email, full_name="Example User", hashed_password="hashed")
     repo.add(user)
     session.commit()
     session.refresh(user)
@@ -151,3 +154,115 @@ def test_query_repository_add_event(session: Session) -> None:
     session.refresh(event)
 
     assert event.id is not None
+
+
+def test_collection_stats_for_empty_ids_returns_empty_map(session: Session) -> None:
+    user = _create_user(session, "stats@example.com")
+
+    stats = CollectionRepository(session).stats_for(user.id, [])
+
+    assert stats == {}
+
+
+def test_pipeline_repositories_and_versions(session: Session) -> None:
+    user = _create_user(session, "pipeline@example.com")
+    other = _create_user(session, "other@example.com")
+    pipeline_repo = PipelineRepository(session)
+    version_repo = PipelineVersionRepository(session)
+
+    pipeline = models.Pipeline(
+        user_id=user.id,
+        name="Pipeline",
+        kind=models.PipelineKind.INGESTION,
+        current_version=1,
+    )
+    pipeline_repo.add(pipeline)
+    session.commit()
+
+    version_repo.add(
+        models.PipelineVersion(
+            pipeline_id=pipeline.id,
+            version=1,
+            definition={},
+            created_by=user.id,
+        )
+    )
+    version_repo.add(
+        models.PipelineVersion(
+            pipeline_id=pipeline.id,
+            version=2,
+            definition={},
+            created_by=user.id,
+        )
+    )
+    session.commit()
+
+    assert pipeline_repo.get(pipeline.id, user_id=user.id) is not None
+    assert pipeline_repo.get(pipeline.id, user_id=other.id) is None
+    assert list(pipeline_repo.list_for_user(user.id, kind=models.PipelineKind.INGESTION))
+    assert version_repo.get_by_version(pipeline.id, 2) is not None
+    versions = list(version_repo.list_for_pipeline(pipeline.id))
+    assert versions[0].version == 2
+
+
+def test_pipeline_run_repository_lists_nodes(session: Session) -> None:
+    user = _create_user(session, "run@example.com")
+    collection = _create_collection(session, user)
+    pipeline = models.Pipeline(
+        user_id=user.id,
+        name="Pipeline",
+        kind=models.PipelineKind.INGESTION,
+        current_version=1,
+    )
+    session.add(pipeline)
+    session.commit()
+    session.refresh(pipeline)
+    run = models.PipelineRun(
+        pipeline_id=pipeline.id,
+        pipeline_version_id=None,
+        pipeline_version=1,
+        kind=models.PipelineKind.INGESTION,
+        user_id=user.id,
+        collection_id=collection.id,
+        status=models.PipelineRunStatus.COMPLETED,
+    )
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+
+    node_run_a = models.PipelineNodeRun(
+        run_id=run.id,
+        node_id="a",
+        node_type="type",
+        node_name="Node A",
+        sequence_index=1,
+        status=models.PipelineRunStatus.COMPLETED,
+    )
+    node_run_b = models.PipelineNodeRun(
+        run_id=run.id,
+        node_id="b",
+        node_type="type",
+        node_name="Node B",
+        sequence_index=0,
+        status=models.PipelineRunStatus.COMPLETED,
+    )
+    session.add_all([node_run_a, node_run_b])
+    session.flush()
+    io_record = models.PipelineNodeIO(
+        run_id=run.id,
+        node_run_id=node_run_a.id,
+        node_id="a",
+        io_type=models.PipelineIOType.INPUT,
+        port="input",
+        payload={},
+    )
+    session.add(io_record)
+    session.commit()
+
+    repo = PipelineRunRepository(session)
+    assert repo.get(run.id, user_id=user.id) is not None
+    runs = list(repo.list_node_runs(run.id))
+    io_records = list(repo.list_node_io(run.id))
+
+    assert [node.node_id for node in runs] == ["b", "a"]
+    assert io_records[0].node_id == "a"
