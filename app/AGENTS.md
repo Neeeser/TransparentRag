@@ -56,7 +56,8 @@ app/
     routes/        one router module per resource (collections.py, chat.py, …)
   schemas/         Pydantic wire types, one module per domain — the API contract
   services/        business logic; orchestrates db + external clients
-  db/              SQLModel models, repositories, session, migrations
+  db/              repositories, session, migrations
+    models/        SQLModel tables, one module per domain (see below)
   chat/            chat subsystem (providers, streaming, persistence, processing)
   pipelines/       pipeline engine + nodes/
   retrieval/       RAG components: chunkers, embedders, indexers, parsers,
@@ -69,6 +70,15 @@ tests/             mirrors the app/ layout (tests/api, tests/services, …)
 New code goes in the existing folder that owns its concern. A new folder is justified
 only when it names a genuinely new ownership boundary (the way `retrieval/rerankers/`
 does), not to house one file — colocate a single file with its consumer instead.
+
+**One module per domain in `db/models/`.** Tables are split by domain —
+`user.py` (User + `TimestampMixin`), `collection.py`, `document.py`, `pipeline.py`,
+`chat.py`, `visualization.py`, `events.py`. A new table goes in its domain module (or
+a new one, if it's a genuinely new domain — not a grab bag). `db/models/__init__.py`
+re-exports every table plus the `app.schemas.enums` aliases (`models.ChatRole`, etc.)
+as a permanent flat namespace: importers use `from app.db import models` (or
+`from app.db.models import X`) exactly as before the split — never reach into a
+domain submodule (`app.db.models.chat`) from outside the package.
 
 ## The dependency direction
 
@@ -99,7 +109,7 @@ invert it:
 - **DB access goes through `app/db/repositories.py`.** Routes and services don't build
   raw `select()` statements inline; add or extend a repository method so query logic
   has one home and one set of tests.
-- **Schemas ≠ db models.** `app/schemas/*` are the wire contract; `app/db/models.py`
+- **Schemas ≠ db models.** `app/schemas/*` are the wire contract; `app/db/models/`
   is persistence. Convert explicitly at the service boundary. Returning a db model
   straight from a route couples your API to your table shape and leaks fields you
   didn't mean to expose (`response_model` is the safety net, not the design).
@@ -115,8 +125,9 @@ The expected shape, in order:
 
 1. **Schema** — define request/response models in the right `app/schemas/<domain>.py`.
    Design the contract first; it forces the data-shape conversation before the code one.
-2. **DB** — if persistence changes: model in `app/db/models.py`, migration in
-   `app/db/migrations.py`, repository methods in `app/db/repositories.py`.
+2. **DB** — if persistence changes: model in its domain module under
+   `app/db/models/`, migration in `app/db/migrations.py`, repository methods in
+   `app/db/repositories.py`.
 3. **Service** — the behavior, in `app/services/<domain>.py` (or the owning subsystem:
    `chat/`, `pipelines/`, `retrieval/`), typed end to end.
 4. **Route** — endpoint in `app/api/routes/<resource>.py` with `response_model`, auth

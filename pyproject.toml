@@ -117,7 +117,17 @@ module = "app.services.pipelines"
 ignore_errors = true  # removed in Phase 6
 
 [[tool.mypy.overrides]]
-module = "app.db.*"
+# app.db.models is mypy-clean as of Phase 2 (Task 2.3) and deliberately excluded
+# from this override. repositories/session/migrations/schema still have the same
+# SQLModel select()/.where() typing friction (raw column comparisons typed as
+# bool/UUID instead of ColumnElement) and are narrowed here until Tasks 2.4/2.5
+# split and type them.
+module = [
+    "app.db.repositories",
+    "app.db.session",
+    "app.db.migrations",
+    "app.db.schema",
+]
 ignore_errors = true  # removed in Phase 2
 
 [[tool.mypy.overrides]]

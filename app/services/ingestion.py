@@ -220,7 +220,6 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         document.status = models.DocumentStatus.READY
         document.num_chunks = len(chunk_records)
         document.num_tokens = sum(len(chunk.text.split()) for chunk in enriched_chunks)
-        document.updated_at = utc_now()
         return chunk_records
 
     def _record_success(
@@ -253,7 +252,6 @@ class IngestionService:  # pylint: disable=too-few-public-methods
     ) -> None:
         """Record ingestion failure metadata."""
         document.status = models.DocumentStatus.FAILED
-        document.updated_at = utc_now()
         if run and run.status != models.PipelineRunStatus.FAILED:
             run.status = models.PipelineRunStatus.FAILED
             run.error_message = str(exc)

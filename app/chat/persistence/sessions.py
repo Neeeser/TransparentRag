@@ -85,7 +85,6 @@ def apply_edit(
         if not trimmed:
             raise ValueError("Edited message cannot be empty.")
         target_message.content = trimmed
-        target_message.updated_at = utc_now()
         session.add(target_message)
         session.flush()
         chat_repo.delete_messages_after(
@@ -125,6 +124,10 @@ def apply_edit(
             created_at=anchor_created_at,
             include_anchor=True,
         )
+    # session_model's own columns don't otherwise change here (only the edited
+    # message row and deleted rows do) -- this manual touch is what makes the
+    # row dirty so its updated_at reflects the edit; onupdate alone wouldn't
+    # fire without it.
     session_model.updated_at = utc_now()
     session.add(session_model)
     session.flush()

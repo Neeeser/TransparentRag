@@ -23,7 +23,6 @@ from app.schemas.auth import (
 )
 from app.services.openrouter import get_openrouter_client
 from app.services.pipelines import PipelineService
-from app.utils.time import utc_now
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -192,7 +191,6 @@ def update_current_user(
         current_user.pinecone_api_key = pinecone_value or None
     if payload.run_settings_order is not None:
         current_user.run_settings_order = [entry.value for entry in payload.run_settings_order]
-    current_user.updated_at = utc_now()
     session.add(current_user)
     session.commit()
     session.refresh(current_user)

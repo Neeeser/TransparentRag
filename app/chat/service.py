@@ -972,7 +972,6 @@ class ChatService:
             if latest_usage_total is not None
             else run_state.usage_aggregate.get("total_tokens", 0)
         )
-        setup.session_model.updated_at = utc_now()
         self.session.add(setup.session_model)
         self.session.commit()
         tool_collection_ids = [context.collection.id for context in setup.tool_collections]

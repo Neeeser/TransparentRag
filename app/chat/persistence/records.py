@@ -112,6 +112,9 @@ def record_tool_call_assistant_message(
             tool=ToolCallRecord(payload=tool_call_payload),
         ),
     )
+    # session_model's own columns don't otherwise change here (only the new
+    # message row does) -- this manual touch is what makes the row dirty so
+    # its updated_at reflects the new message; onupdate alone wouldn't fire.
     session_model.updated_at = utc_now()
     context.session.add(session_model)
     context.session.flush()
@@ -141,6 +144,8 @@ def record_partial_assistant_message(
             reasoning=reasoning_payload,
         ),
     )
+    # Same reasoning as record_tool_call_assistant_message above: nothing else
+    # on session_model changes in this path, so this touch is load-bearing.
     session_model.updated_at = utc_now()
     context.session.add(session_model)
     context.session.flush()

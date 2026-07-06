@@ -39,7 +39,6 @@ from app.services.prompts import (
     system_prompt_context,
 )
 from app.utils.file_storage import FileStorage
-from app.utils.time import utc_now
 
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
@@ -361,7 +360,6 @@ def update_collection(  # pylint: disable=too-many-branches
                 detail="Invalid retrieval pipeline selection.",
             )
         collection.retrieval_pipeline_id = payload.retrieval_pipeline_id
-    collection.updated_at = utc_now()
     session.add(collection)
     session.commit()
     session.refresh(collection)
@@ -387,7 +385,6 @@ def update_collection_prompt(
         collection.extra_metadata[SYSTEM_PROMPT_METADATA_KEY] = template_value
     else:
         collection.extra_metadata.pop(SYSTEM_PROMPT_METADATA_KEY, None)
-    collection.updated_at = utc_now()
     session.add(collection)
     session.commit()
     session.refresh(collection)
