@@ -3,7 +3,6 @@ from __future__ import annotations
 import io
 
 import pytest
-from fastapi import UploadFile
 from sqlmodel import Session, select
 
 from app.db import models
@@ -44,7 +43,7 @@ def test_ingest_upload_marks_document_failed_on_exception(monkeypatch, session, 
         def __init__(self) -> None:
             self.base_path = tmp_path
 
-        def save_upload(self, _upload: UploadFile, _relative_path: str):
+        def save_stream(self, _stream: object, _relative_path: str):
             return tmp_path / "upload.txt"
 
     class _StubPinecone:
@@ -71,10 +70,14 @@ def test_ingest_upload_marks_document_failed_on_exception(monkeypatch, session, 
     collection = _create_collection(session, user)
     service = IngestionService(session)
 
-    upload = UploadFile(filename="doc.txt", file=io.BytesIO(b"content"))
-
     with pytest.raises(RuntimeError, match="parse failed"):
-        service.ingest_upload(user=user, collection=collection, upload=upload)
+        service.ingest_upload(
+            user=user,
+            collection=collection,
+            filename="doc.txt",
+            content_type="text/plain",
+            stream=io.BytesIO(b"content"),
+        )
 
     document = session.exec(select(models.Document)).first()
     assert document is not None

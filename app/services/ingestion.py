@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
+from typing import BinaryIO
 
-from fastapi import UploadFile
 from sqlmodel import Session
 
 from app.clients.openrouter import get_openrouter_client
@@ -18,6 +18,7 @@ from app.pipelines.settings import IngestionPipelineSettings
 from app.pipelines.tracing import PipelineTraceRecorder
 from app.retrieval.models import DocumentChunk
 from app.schemas.documents import DocumentRead, IngestionResponse
+from app.services.errors import InvalidInputError
 from app.services.pipeline_resolution import resolve_ingestion_pipeline
 from app.utils.file_storage import FileStorage
 
@@ -40,12 +41,20 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         *,
         user: models.User,
         collection: models.Collection,
-        upload: UploadFile,
+        filename: str | None,
+        content_type: str | None,
+        stream: BinaryIO,
     ) -> IngestionResponse:
-        """Ingest a document upload and index its chunks."""
+        """Ingest a document upload and index its chunks.
+
+        Takes the raw filename/content-type/byte stream rather than a framework
+        `UploadFile`, so the service depends on nothing in `app.api`.
+        """
         resolved = resolve_ingestion_pipeline(self.session, user, collection)
-        document = self._create_document_record(user, collection, upload, resolved.settings)
-        self._save_document_upload(collection, document, upload)
+        document = self._create_document_record(
+            user, collection, filename, content_type, resolved.settings
+        )
+        self._save_document_upload(collection, document, stream)
         runner = PipelineRunner(self.session)
         handle: PipelineRunHandle | None = None
         try:
@@ -101,15 +110,16 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         self,
         user: models.User,
         collection: models.Collection,
-        upload: UploadFile,
+        filename: str | None,
+        content_type: str | None,
         resolved: IngestionPipelineSettings,
     ) -> models.Document:
         """Create and persist a document record for ingestion."""
         document = models.Document(
             collection_id=collection.id,
             user_id=user.id,
-            name=upload.filename or "uploaded-document",
-            content_type=upload.content_type or "text/plain",
+            name=filename or "uploaded-document",
+            content_type=content_type or "text/plain",
             status=models.DocumentStatus.PROCESSING,
             chunk_size=resolved.chunk_size,
             chunk_overlap=resolved.chunk_overlap,
@@ -124,11 +134,11 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         self,
         collection: models.Collection,
         document: models.Document,
-        upload: UploadFile,
+        stream: BinaryIO,
     ) -> None:
-        """Persist the uploaded file to storage."""
+        """Persist the uploaded file stream to storage."""
         relative_path = f"collections/{collection.id}/documents/{document.id}/{document.name}"
-        path = self.storage.save_upload(upload, relative_path)
+        path = self.storage.save_stream(stream, relative_path)
         document.source_path = str(path)
         self.session.add(document)
 
@@ -218,4 +228,4 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         for outputs in terminal_outputs.values():
             if "result" in outputs:
                 return IndexingPayload.model_validate(outputs["result"])
-        raise ValueError("Pipeline did not return an ingestion result payload.")
+        raise InvalidInputError("Pipeline did not return an ingestion result payload.")

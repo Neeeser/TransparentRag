@@ -10,6 +10,7 @@ from app.pipelines.defaults import (
 )
 from app.pipelines.definition import PipelineDefinition
 from app.pipelines.tracing import PipelineTraceRecorder
+from app.services.errors import InvalidInputError
 from app.services.ingestion import IngestionService
 from app.services.pipeline_resolution import resolve_ingestion_pipeline
 from app.services.pipelines import PipelineService
@@ -66,7 +67,7 @@ def test_resolve_ingestion_pipeline_rejects_missing(session: Session) -> None:
 
 
 def test_extract_indexing_payload_raises_for_missing_result() -> None:
-    with pytest.raises(ValueError, match="ingestion result payload"):
+    with pytest.raises(InvalidInputError, match="ingestion result payload"):
         IngestionService._extract_indexing_payload({"node": {"data": {}}})
 
 

@@ -9,9 +9,11 @@ collection. This module is the only place that sequence is written; callers
 a collection's Pinecone namespace) all go through `resolve_ingestion_pipeline`
 / `resolve_retrieval_pipeline`.
 
-Resolution failures raise `PipelineResolutionError` (a `ValueError`), never an
-HTTP exception -- this is a service module, so translating to a status code
-is the caller's job.
+Resolution failures raise `PipelineResolutionError`, never an HTTP exception --
+this is a service module, so translating to a status code is the caller's job.
+Routes translate it as a 400 (it is an `InvalidInputError`); it also subclasses
+`ValueError` so chat's not-yet-migrated `except ValueError` paths keep catching
+it until they move onto the typed taxonomy.
 """
 
 from __future__ import annotations
@@ -29,11 +31,17 @@ from app.pipelines.settings import (
     resolve_ingestion_settings,
     resolve_retrieval_settings,
 )
+from app.services.errors import InvalidInputError
 from app.services.pipelines import PipelineService
 
 
-class PipelineResolutionError(ValueError):
-    """Raised when a collection's pipeline cannot be resolved."""
+class PipelineResolutionError(InvalidInputError, ValueError):
+    """Raised when a collection's pipeline cannot be resolved.
+
+    `InvalidInputError` so routes map it to a 400 through the typed taxonomy;
+    `ValueError` so legacy chat callers that still `except ValueError` keep
+    working until they migrate.
+    """
 
 
 @dataclass(frozen=True)

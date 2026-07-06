@@ -12,7 +12,7 @@ from app.schemas.base import DateTimeConfigMixin
 from app.schemas.enums import ChunkStrategy, DocumentStatus
 
 if TYPE_CHECKING:
-    from app.db.models import Document
+    from app.db.models import Document, DocumentChunkRecord
 
 
 class DocumentRead(DateTimeConfigMixin, BaseModel):
@@ -63,6 +63,20 @@ class ChunkRead(DateTimeConfigMixin, BaseModel):
     chunk_size: int
     chunk_strategy: ChunkStrategy
     created_at: datetime
+
+    @classmethod
+    def from_model(cls, chunk: DocumentChunkRecord) -> ChunkRead:
+        """Build a schema instance from a stored chunk record."""
+        return cls(
+            id=chunk.id,
+            document_id=chunk.document_id,
+            chunk_index=chunk.chunk_index,
+            text=chunk.text,
+            metadata=chunk.chunk_metadata,
+            chunk_size=chunk.chunk_size,
+            chunk_strategy=chunk.chunk_strategy,
+            created_at=chunk.created_at,
+        )
 
 
 class ChunkVisualization(BaseModel):

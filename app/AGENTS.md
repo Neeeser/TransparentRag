@@ -57,7 +57,8 @@ app/
   schemas/         Pydantic wire types, one module per domain — the API contract
   clients/         typed external-API clients, one package per provider (openrouter/,
                    pinecone/)
-  services/        business logic; orchestrates db + clients
+  services/        business logic; orchestrates db + clients. `errors.py` holds
+                   the typed domain-error taxonomy every service raises
   db/              session, migrations
     models/        SQLModel tables, one module per domain (see below)
     repositories/  data access, one module per domain (see below)
@@ -156,13 +157,12 @@ gets picked up automatically as long as it's registered — no second place to u
 `resolve_retrieval_pipeline` run the ensure-defaults → attach-to-collection →
 load-pipeline → validate-kind → resolve-settings sequence once; every caller —
 `IngestionService`, `RetrievalService`, chat's `ChatSetupBuilder`, and the collection
-routes that render a prompt or purge a namespace — calls through them instead of
-repeating it. They raise `PipelineResolutionError` (a `ValueError`) — never
-`HTTPException` — so each caller can translate it into whatever route-specific message
-fits (contrast `IngestionService`'s generic "Ingestion pipeline could not be resolved"
-with `delete_collection`'s "Unable to resolve ingestion pipeline for deletion"). Tests
-that need to stub resolution patch these functions at the importing module's boundary
-(e.g. `app.chat.setup.resolve_retrieval_pipeline`), not a re-export.
+services that render a prompt (`CollectionService`) or purge a namespace
+(`CollectionDeletionService`) — calls through them instead of repeating it. They raise
+`PipelineResolutionError` (an `InvalidInputError`, so routes map it to a 400) — never
+`HTTPException`. Tests that need to stub resolution patch these functions at the
+importing module's boundary (e.g. `app.chat.setup.resolve_retrieval_pipeline`), not a
+re-export.
 
 **One module per domain in `db/models/`.** Tables are split by domain —
 `user.py` (User + `TimestampMixin`), `collection.py`, `document.py`, `pipeline.py`,
@@ -187,18 +187,30 @@ invert it:
 - **Deployments must set `DEBUG=false`.** The fail-fast guard on the default JWT
   secret only fires outside debug mode, and `debug` defaults to `True` — under the
   default the guard is a no-op.
-- **Routes are thin.** A route parses/validates input (via its Pydantic schema and
-  `Depends`), calls one service function, and shapes the response. No business logic,
-  no direct SQLModel queries, no external API calls in a route.
+- **Routes are thin — target ≤ ~25 lines each: parse → one service call → shape/
+  translate.** A route parses/validates input (via its Pydantic schema and `Depends`),
+  calls one service function, and shapes the response or translates a domain error. No
+  business logic, no direct SQLModel queries, no external API calls, no multi-step
+  orchestration in a route. (Pragmatism over dogma on the line count — a route that
+  reads top-to-bottom as those three moves is fine; one that hides a fourth is the
+  smell.)
+- **Destructive, multi-step operations are services with named steps.** A deletion
+  cascade that spans stores (Pinecone namespace + file storage + relational rows, like
+  `CollectionDeletionService`) is never inlined in a route: it's a service whose steps
+  read as named private methods (`_purge_vectors`/`_purge_files`/`_purge_rows`) so the
+  sequence and its ordering constraints live in one auditable place.
 - **Services are where behavior lives.** They take typed inputs, use repositories and
   clients, return typed results, and raise domain errors. They must not import from
-  `app.api` — a service that needs `HTTPException` is a route in disguise; raise a
-  domain exception and translate it at the route.
-- **Every service-raised domain error (`ValueError` today) must be translated at the
-  route** — an untranslated domain error is a 500. When adding a route, write the
-  failure-path test first, the way `routes/visualizations.py` wraps `UmapService`
-  calls in `try/except ValueError`. (Longer-term: typed domain exceptions so routes can
-  distinguish 400/404 without string matching.)
+  `app.api` — a service that needs `HTTPException` is a route in disguise.
+- **Services raise typed domain errors; a bare `ValueError` is not an API contract.**
+  The taxonomy lives in `app/services/errors.py`: `NotFoundError` (→404),
+  `InvalidInputError` (→400), `ExternalServiceError` (→502), all subclassing
+  `ServiceError` and carrying a `detail` (str or per-field dict). Services raise these;
+  routes translate with `to_http_exception` (`app/api/routes/utils.py`) in a single
+  `except ServiceError` — never map status codes by string-matching a message, and never
+  leave a domain error untranslated (that's a 500). `PipelineResolutionError` subclasses
+  `InvalidInputError` (and, transitionally, `ValueError` so not-yet-migrated chat paths
+  still catch it); new services skip `ValueError` entirely.
 - **`app/services/traces.py`'s `TraceService` owns trace resolution; `routes/traces.py`
   only translates `TraceNotFoundError` to a 404.** Building a `PipelineTraceResponse`
   from a run — including the run's own pinned `PipelineVersion` vs. its pipeline's
@@ -437,6 +449,17 @@ construction site.
   processing, utils) as unit tests; orchestration at the service layer; route tests
   reserved for the HTTP contract itself — status codes, validation rejections, auth
   gating, response shape.
+- **Route tests go through `TestClient`, not a direct function call.** A test that calls
+  the route function with hand-built args and `current_user`/`session` kwargs exercises
+  none of what the HTTP layer does — auth dependencies, request-body validation (422),
+  response serialization, ownership isolation — so it's a service test wearing a route
+  test's clothes; put it in `tests/services/`. Genuine route tests use the `client` /
+  `unauthed_client` fixtures (`tests/api/conftest.py`): `TestClient(app)` with
+  `get_session`/`get_current_user` overridden. The high-value HTTP contracts, swept
+  resource-agnostically in `tests/api/test_route_contract.py`, are: 401 without a token,
+  cross-user 404 on get/update/delete (the ownership-isolation matrix — the costliest
+  bug class), 422 on a malformed create body, and response bodies that never serialize a
+  secret (`hashed_password`, provider API keys).
 - **Realistic scenarios over synthetic ones.** Fixtures should look like real data
   (use `tests/assets/`); the valuable cases are the awkward ones — empty collections,
   unicode documents, a provider returning an error mid-stream — not the third

@@ -13,7 +13,6 @@ from app.chat.persistence import (
     SessionPreferencesUpdate,
     SessionRequest,
     ensure_session,
-    persist_base_prompt,
     persist_session_preferences,
     provider_message_from_model,
     record_partial_assistant_message,
@@ -21,7 +20,6 @@ from app.chat.persistence import (
     serialize_messages,
 )
 from app.db import models
-from app.db.repositories import UserRepository
 from app.schemas.chat import ChatMessageCreate
 
 # --- Read boundary: persisted rows -> typed provider messages ---------------
@@ -367,19 +365,3 @@ def test_persist_session_preferences_updates_session_and_user(session: Session) 
     assert user.last_used_provider == {"order": ["alpha"]}
     assert user.last_used_stream is True
     assert user.last_used_tool_collection_ids == [str(tool_id)]
-
-
-def test_persist_base_prompt_sets_and_clears_template(session: Session) -> None:
-    repo = UserRepository(session)
-    user = models.User(email="prompt@example.com", full_name="Prompt", hashed_password="hashed")
-    repo.add(user)
-    session.commit()
-    session.refresh(user)
-
-    persist_base_prompt(session=session, user=user, template="  Custom prompt  ")
-    session.refresh(user)
-    assert user.system_prompt_template == "Custom prompt"
-
-    persist_base_prompt(session=session, user=user, template="   ")
-    session.refresh(user)
-    assert user.system_prompt_template is None

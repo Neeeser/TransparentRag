@@ -16,6 +16,7 @@ from app.db.repositories import QueryRepository
 from app.pipelines.execution.runner import PipelineRunner
 from app.pipelines.payloads import RetrievalPayload
 from app.schemas.retrieval import CollectionQueryResponse, RetrievedChunk
+from app.services.errors import InvalidInputError
 from app.services.pipeline_resolution import resolve_retrieval_pipeline
 from app.utils.file_storage import FileStorage
 
@@ -118,7 +119,7 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
         for outputs in terminal_outputs.values():
             if "result" in outputs:
                 return RetrievalPayload.model_validate(outputs["result"])
-        raise ValueError("Pipeline did not return a retrieval result payload.")
+        raise InvalidInputError("Pipeline did not return a retrieval result payload.")
 
     @staticmethod
     def _usage_tokens(usage: dict[str, int]) -> int:

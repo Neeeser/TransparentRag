@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.api.dependencies import get_session, require_user_api_keys
-from app.api.routes.utils import get_collection_or_404
+from app.api.routes.utils import get_collection_or_404, to_http_exception
 from app.db import models
 from app.schemas.retrieval import CollectionQueryRequest, CollectionQueryResponse
+from app.services.errors import ServiceError
 from app.services.retrieval import RetrievalService
 
 router = APIRouter(prefix="/api/collections", tags=["search"])
@@ -24,18 +25,13 @@ def run_collection_query(
     session: Session = Depends(get_session),
 ) -> CollectionQueryResponse:
     """Run a retrieval query against a collection."""
-    collection = get_collection_or_404(
-        collection_id=collection_id,
-        user_id=current_user.id,
-        session=session,
-    )
-    retrieval_service = RetrievalService(session)
+    collection = get_collection_or_404(collection_id, current_user.id, session)
     try:
-        return retrieval_service.query_collection(
+        return RetrievalService(session).query_collection(
             current_user,
             collection,
             query=payload.query,
             top_k=payload.top_k,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc

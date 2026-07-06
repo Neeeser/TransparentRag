@@ -19,7 +19,6 @@ from app.api.dependencies import (
 )
 from app.chat import ChatService
 from app.chat.events import ErrorEvent
-from app.chat.persistence import persist_base_prompt
 from app.db import models
 from app.db.engine import stream_scoped_session
 from app.db.repositories import ChatRepository
@@ -32,6 +31,7 @@ from app.schemas.chat import (
     ChatSessionRead,
 )
 from app.schemas.prompts import PromptTemplateRead, PromptTemplateUpdate
+from app.services.accounts import AccountService
 from app.services.prompts import (
     apply_prompt_template,
     base_prompt_context,
@@ -67,7 +67,7 @@ def update_base_prompt(
     session: Session = Depends(get_session),
 ) -> PromptTemplateRead:
     """Update the base system prompt for the current user."""
-    persist_base_prompt(session=session, user=current_user, template=payload.template)
+    AccountService(session).update_base_prompt(current_user, payload.template)
     template = get_base_prompt_template(current_user)
     context = base_prompt_context(current_user)
     rendered = apply_prompt_template(template, context)

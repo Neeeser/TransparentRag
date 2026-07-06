@@ -68,7 +68,6 @@ max-complexity = 10
 # new code.
 "app/schemas/enums.py" = ["UP042"]  # TODO(phase-2): remove; `str(member)` differs between a str/Enum mixin and StrEnum -- verify no code depends on the "Class.MEMBER" str() form before switching. Moved here from app/db/models.py when the enums relocated to app.schemas.enums.
 "app/schemas/auth.py" = ["UP042"]  # TODO(phase-2): remove; same str(member) caveat as app/schemas/enums.py
-"app/api/routes/auth.py" = ["C901"]  # TODO(phase-6): remove; update_current_user rewritten with the rest of api.routes
 
 [tool.mypy]
 python_version = "3.11"
@@ -90,16 +89,13 @@ warn_unused_ignores = true
 # leave dozens of unrelated errors failing `make verify` today.
 
 [[tool.mypy.overrides]]
-# Task 5.3 narrowed this from a blanket `app.api.routes.*` override: pipelines.py
-# and traces.py are mypy-clean now (PipelineRunner/TraceService/pipeline_resolution
-# absorbed their business logic). The remaining modules are Phase 6's.
+# Task 6.2 gutted collections/auth/documents/search into services (typed domain
+# errors, thin routes) -- those are mypy-clean now and dropped from this list.
+# chat.py, indexes.py, and visualizations.py still carry the dynamic patterns a
+# later Phase-6 task rewrites.
 module = [
-    "app.api.routes.auth",
     "app.api.routes.chat",
-    "app.api.routes.collections",
-    "app.api.routes.documents",
     "app.api.routes.indexes",
-    "app.api.routes.search",
     "app.api.routes.visualizations",
 ]
 ignore_errors = true  # removed in Phase 6

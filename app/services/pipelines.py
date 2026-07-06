@@ -21,6 +21,7 @@ from app.pipelines.defaults import (
     build_default_retrieval_pipeline,
 )
 from app.pipelines.definition import PipelineDefinition
+from app.services.errors import NotFoundError
 
 
 @dataclass
@@ -144,7 +145,7 @@ class PipelineService:
         """Set the pipeline's active version."""
         target = self._versions.get_by_version(pipeline.id, version)
         if not target:
-            raise ValueError("Requested pipeline version does not exist.")
+            raise NotFoundError("Requested pipeline version does not exist.")
         pipeline.current_version = version
         self.session.add(pipeline)
         return pipeline

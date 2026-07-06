@@ -21,6 +21,7 @@ from app.schemas.models import (
     ModelInfo,
 )
 from app.schemas.retrieval import CollectionQueryRequest
+from app.services.errors import InvalidInputError
 
 
 class _StubOpenRouter:
@@ -149,8 +150,8 @@ def test_upload_document_translates_ingestion_value_error(monkeypatch, session: 
         def __init__(self, _session) -> None:
             pass
 
-        def ingest_upload(self, *, user, collection, upload):
-            raise ValueError("Ingestion pipeline could not be resolved.")
+        def ingest_upload(self, *, user, collection, filename, content_type, stream):
+            raise InvalidInputError("Ingestion pipeline could not be resolved.")
 
     monkeypatch.setattr(documents_routes, "IngestionService", _StubIngestionService)
 
@@ -177,7 +178,7 @@ def test_search_route_translates_retrieval_value_error(monkeypatch, session: Ses
             pass
 
         def query_collection(self, _user, _collection, *, query, top_k):
-            raise ValueError("Retrieval pipeline could not be resolved.")
+            raise InvalidInputError("Retrieval pipeline could not be resolved.")
 
     monkeypatch.setattr(search_routes, "RetrievalService", _StubRetrievalService)
 

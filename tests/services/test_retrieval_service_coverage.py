@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 
 from app.db import models
 from app.pipelines.defaults import build_default_ingestion_pipeline
+from app.services.errors import InvalidInputError
 from app.services.pipelines import PipelineService
 from app.services.retrieval import RetrievalService
 
@@ -116,7 +117,7 @@ def test_query_collection_skips_failed_run_update(monkeypatch, session: Session)
 
 
 def test_extract_retrieval_payload_raises_for_missing_result() -> None:
-    with pytest.raises(ValueError, match="retrieval result payload"):
+    with pytest.raises(InvalidInputError, match="retrieval result payload"):
         RetrievalService._extract_retrieval_payload({"node": {"data": {}}})
 
 

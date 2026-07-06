@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
+from app.api.routes.utils import to_http_exception
 from app.db import models
 from app.pipelines.definition import PipelineDefinition
 from app.pipelines.registry import default_registry
@@ -23,6 +24,7 @@ from app.schemas.pipelines import (
     PipelineValidationResponse,
     PipelineVersionRead,
 )
+from app.services.errors import ServiceError
 from app.services.pipelines import PipelineService
 
 router = APIRouter(prefix="/api/pipelines", tags=["pipelines"])
@@ -203,8 +205,8 @@ def activate_pipeline_version(
     service = PipelineService(session)
     try:
         service.activate_version(pipeline, payload.version)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
     session.commit()
     session.refresh(pipeline)
     definition = service.get_definition(pipeline)

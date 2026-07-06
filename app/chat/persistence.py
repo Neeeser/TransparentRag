@@ -377,17 +377,3 @@ def persist_session_preferences(
     session.add(session_model)
     session.add(user)
     session.flush()
-
-
-def persist_base_prompt(*, session: Session, user: models.User, template: str | None) -> None:
-    """Persist a user's custom base system prompt (empty/blank clears it).
-
-    TODO(6.2): this direct user mutation moves to `services/accounts.py` when
-    that service lands; it lives here for now so the chat route stays free of
-    inline persistence.
-    """
-    normalized = (template or "").strip()
-    user.system_prompt_template = normalized or None
-    session.add(user)
-    session.commit()
-    session.refresh(user)
