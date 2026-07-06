@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
-
 from pydantic import BaseModel, Field
 
+from app.pipelines.tracing.summaries import TokenUsage
 from app.retrieval.models import (
     Document,
     DocumentChunk,
@@ -32,23 +31,23 @@ class ChunkPayload(BaseModel):
     """Payload containing chunks for a document."""
 
     document: Document
-    chunks: List[DocumentChunk]
+    chunks: list[DocumentChunk]
 
 
 class EmbeddingPayload(BaseModel):
     """Payload containing embedded chunks for a document."""
 
     document: Document
-    chunks: List[DocumentChunk]
-    usage: Dict[str, int] = Field(default_factory=dict)
+    chunks: list[DocumentChunk]
+    usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
 class IndexingPayload(BaseModel):
     """Payload containing indexed chunks for a document."""
 
     document: Document
-    chunks: List[DocumentChunk]
-    usage: Dict[str, int] = Field(default_factory=dict)
+    chunks: list[DocumentChunk]
+    usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
 class RetrievalRequestPayload(BaseModel):
@@ -62,11 +61,11 @@ class QueryEmbeddingPayload(BaseModel):
 
     request: QueryRequest
     embedding: EmbeddingVector
-    usage: Dict[str, int] = Field(default_factory=dict)
+    usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
 class RetrievalPayload(BaseModel):
     """Payload containing retrieval results."""
 
     response: RetrievalResponse
-    usage: Dict[str, int] = Field(default_factory=dict)
+    usage: TokenUsage = Field(default_factory=TokenUsage)

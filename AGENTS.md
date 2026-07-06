@@ -14,7 +14,8 @@ the code they govern — load the one for the code you're touching:
 
 Nothing ships without its gate passing. Run the gate for every area you changed:
 
-- Backend: `make test`, `make coverage` (review `term-missing`), `make lint`
+- Backend: `make verify` (typecheck → lint → test), plus `make coverage` (review
+  `term-missing`)
 - Frontend: `npm run verify` in `frontend/` (typecheck → lint → tests), plus
   `make format-check-frontend`
 
@@ -45,6 +46,10 @@ failing-then-passing test is incomplete.
 - **The wire contract is defined once, in `app/schemas/`.** Frontend types in
   `frontend/src/lib/types/` hand-mirror them; when a schema changes, the mirror changes
   in the same PR.
+- **Chat parameter keys are matched exact-case since the typed models
+  (`app/schemas/chat_parameters.py`).** `ChatParameters` ignores unknown keys and
+  `ProviderPreferences` only normalizes a small alias set — a deliberate narrowing from
+  the old case-insensitive hand-rolled sanitizer; send canonical snake_case keys.
 - **Docs are updated incrementally.** When a fix or incident teaches a rule, add it to
   the relevant AGENTS.md in that same PR — never batched later.
 
@@ -55,9 +60,12 @@ failing-then-passing test is incomplete.
 - `make frontend`: run Next.js dev server (sets `NEXT_PUBLIC_API_BASE_URL`)
 - `make run`: run backend + frontend together
 - `make test` / `make test-frontend`: backend (pytest) / frontend (vitest) tests
+- `make test-integration`: backend live-credential suite (hits real OpenRouter/Pinecone)
 - `make coverage` / `make coverage-frontend`: coverage runs (fail on test failure)
 - `make coverage-report` / `make coverage-report-frontend`: coverage, non-blocking
 - `make coverage-open` / `make coverage-open-frontend`: open HTML coverage reports
-- `make lint`: pylint on `app/`
+- `make typecheck`: `mypy app` (strict)
+- `make lint`: ruff + pylint on `app/` (and ruff on `tests/`)
+- `make verify`: the backend gate — typecheck → lint → test
 - `make lint-frontend` / `make format-frontend` / `make format-check-frontend`:
   ESLint / Prettier write / Prettier check on `frontend/`

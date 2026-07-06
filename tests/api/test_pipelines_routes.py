@@ -57,11 +57,29 @@ def _create_collection(
     return collection
 
 
-def test_delete_pipeline_missing(session: Session) -> None:
+def test_get_pipeline_or_404_returns_owned_pipeline(session: Session) -> None:
+    """The shared dependency every pipeline-id route now depends on.
+
+    `get_pipeline`, `update_pipeline`, `list_pipeline_versions`,
+    `activate_pipeline_version`, and `delete_pipeline` all resolve their
+    pipeline through `Depends(get_pipeline_or_404)` instead of repeating a
+    get-or-404 check -- the route-level tests below pass an already-resolved
+    `pipeline` straight in, so this is the one place both of the dependency's
+    own branches (found vs. missing) are exercised.
+    """
+    user = _create_user(session)
+    pipeline = _create_pipeline(session, user)
+
+    result = pipelines_routes.get_pipeline_or_404(pipeline.id, current_user=user, session=session)
+
+    assert result.id == pipeline.id
+
+
+def test_get_pipeline_or_404_rejects_missing_pipeline(session: Session) -> None:
     user = _create_user(session)
 
     with pytest.raises(HTTPException) as excinfo:
-        pipelines_routes.delete_pipeline(uuid4(), current_user=user, session=session)
+        pipelines_routes.get_pipeline_or_404(uuid4(), current_user=user, session=session)
 
     assert excinfo.value.status_code == 404
 
@@ -72,7 +90,7 @@ def test_delete_pipeline_blocks_in_use(session: Session) -> None:
     _create_collection(session, user, ingestion_pipeline_id=pipeline.id)
 
     with pytest.raises(HTTPException) as excinfo:
-        pipelines_routes.delete_pipeline(pipeline.id, current_user=user, session=session)
+        pipelines_routes.delete_pipeline(pipeline=pipeline, session=session)
 
     assert excinfo.value.status_code == 409
 
@@ -81,7 +99,7 @@ def test_delete_pipeline_removes_versions(session: Session) -> None:
     user = _create_user(session)
     pipeline = _create_pipeline(session, user)
 
-    response = pipelines_routes.delete_pipeline(pipeline.id, current_user=user, session=session)
+    response = pipelines_routes.delete_pipeline(pipeline=pipeline, session=session)
 
     assert response.status == "deleted"
     assert session.get(models.Pipeline, pipeline.id) is None
@@ -116,6 +134,17 @@ def test_validate_pipeline_requires_index_name() -> None:
 
     assert response.valid is False
     assert any("must specify a Pinecone index" in error for error in response.errors)
+
+
+def test_validate_pipeline_returns_warnings() -> None:
+    definition = build_default_ingestion_pipeline()
+    for node in definition.nodes:
+        if node.type == "embedder.openrouter":
+            node.config = {**(node.config or {}), "dimension": 512}
+    response = pipelines_routes.validate_pipeline(definition, _current_user=models.User())
+
+    assert response.warnings != []
+    assert any("no dimension configured" in warning for warning in response.warnings)
 
 
 def test_validate_definition_rejects_invalid(monkeypatch) -> None:
@@ -170,20 +199,11 @@ def test_list_pipelines_filters_by_kind(session: Session) -> None:
     assert all(item.kind == models.PipelineKind.RETRIEVAL for item in results)
 
 
-def test_get_pipeline_returns_not_found(session: Session) -> None:
-    user = _create_user(session)
-
-    with pytest.raises(HTTPException) as excinfo:
-        pipelines_routes.get_pipeline(uuid4(), current_user=user, session=session)
-
-    assert excinfo.value.status_code == 404
-
-
 def test_get_pipeline_returns_pipeline(session: Session) -> None:
     user = _create_user(session)
     pipeline = _create_pipeline(session, user)
 
-    result = pipelines_routes.get_pipeline(pipeline.id, current_user=user, session=session)
+    result = pipelines_routes.get_pipeline(pipeline=pipeline, session=session)
 
     assert result.id == pipeline.id
 
@@ -193,27 +213,13 @@ def test_update_pipeline_updates_name(session: Session) -> None:
     pipeline = _create_pipeline(session, user)
 
     updated = pipelines_routes.update_pipeline(
-        pipeline.id,
         pipelines_routes.PipelineUpdate(name="Updated"),
+        pipeline=pipeline,
         current_user=user,
         session=session,
     )
 
     assert updated.name == "Updated"
-
-
-def test_update_pipeline_missing(session: Session) -> None:
-    user = _create_user(session)
-
-    with pytest.raises(HTTPException) as excinfo:
-        pipelines_routes.update_pipeline(
-            uuid4(),
-            pipelines_routes.PipelineUpdate(name="Updated"),
-            current_user=user,
-            session=session,
-        )
-
-    assert excinfo.value.status_code == 404
 
 
 def test_update_pipeline_updates_definition(session: Session) -> None:
@@ -222,13 +228,13 @@ def test_update_pipeline_updates_definition(session: Session) -> None:
     previous_version = pipeline.current_version
 
     updated = pipelines_routes.update_pipeline(
-        pipeline.id,
         pipelines_routes.PipelineUpdate(
             name="Updated",
             description="Updated description",
             definition=build_default_ingestion_pipeline(),
             change_summary="Updated pipeline",
         ),
+        pipeline=pipeline,
         current_user=user,
         session=session,
     )
@@ -240,22 +246,9 @@ def test_list_pipeline_versions_returns_entries(session: Session) -> None:
     user = _create_user(session)
     pipeline = _create_pipeline(session, user)
 
-    versions = pipelines_routes.list_pipeline_versions(
-        pipeline.id,
-        current_user=user,
-        session=session,
-    )
+    versions = pipelines_routes.list_pipeline_versions(pipeline=pipeline, session=session)
 
     assert versions
-
-
-def test_list_pipeline_versions_missing(session: Session) -> None:
-    user = _create_user(session)
-
-    with pytest.raises(HTTPException) as excinfo:
-        pipelines_routes.list_pipeline_versions(uuid4(), current_user=user, session=session)
-
-    assert excinfo.value.status_code == 404
 
 
 def test_activate_pipeline_version_updates_current(session: Session) -> None:
@@ -263,23 +256,22 @@ def test_activate_pipeline_version_updates_current(session: Session) -> None:
     pipeline = _create_pipeline(session, user)
 
     response = pipelines_routes.activate_pipeline_version(
-        pipeline.id,
         pipelines_routes.PipelineActivateRequest(version=pipeline.current_version),
-        current_user=user,
+        pipeline=pipeline,
         session=session,
     )
 
     assert response.id == pipeline.id
 
 
-def test_activate_pipeline_version_missing(session: Session) -> None:
+def test_activate_pipeline_version_unknown_version(session: Session) -> None:
     user = _create_user(session)
+    pipeline = _create_pipeline(session, user)
 
     with pytest.raises(HTTPException) as excinfo:
         pipelines_routes.activate_pipeline_version(
-            uuid4(),
-            pipelines_routes.PipelineActivateRequest(version=1),
-            current_user=user,
+            pipelines_routes.PipelineActivateRequest(version=999),
+            pipeline=pipeline,
             session=session,
         )
 

@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.db import models
-from app.db.models import ChatMode, ChatRole
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.chat_parameters import ChatParameters, ProviderPreferences
+from app.schemas.enums import ChatMode, ChatRole
+
+if TYPE_CHECKING:
+    from app.db import models
 
 
 class ToolCallTrace(BaseModel):
@@ -18,11 +21,11 @@ class ToolCallTrace(BaseModel):
 
     id: str
     name: str
-    arguments: Dict[str, Any]
-    response: Optional[Dict[str, Any]] = None
-    reasoning: Optional[Dict[str, Any]] = None
-    collection_id: Optional[UUID] = None
-    collection_name: Optional[str] = None
+    arguments: dict[str, Any]
+    response: dict[str, Any] | None = None
+    reasoning: dict[str, Any] | None = None
+    collection_id: UUID | None = None
+    collection_name: str | None = None
 
 
 class ChatMessageRead(DateTimeConfigMixin, BaseModel):
@@ -32,19 +35,19 @@ class ChatMessageRead(DateTimeConfigMixin, BaseModel):
     session_id: UUID
     role: ChatRole
     content: str
-    model: Optional[str]
-    tool_name: Optional[str]
-    tool_payload: Optional[Dict[str, Any]]
-    tool_call_id: Optional[str]
-    reasoning_trace: Optional[Dict[str, Any]]
-    prompt_tokens: Optional[int]
-    completion_tokens: Optional[int]
-    usage: Optional[Dict[str, Any]] = None
-    source_message_id: Optional[UUID] = None
+    model: str | None
+    tool_name: str | None
+    tool_payload: dict[str, Any] | None
+    tool_call_id: str | None
+    reasoning_trace: dict[str, Any] | None
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    usage: dict[str, Any] | None = None
+    source_message_id: UUID | None = None
     created_at: datetime
 
     @classmethod
-    def from_model(cls, message: models.ChatMessage) -> "ChatMessageRead":
+    def from_model(cls, message: models.ChatMessage) -> ChatMessageRead:
         """Build a schema instance from a chat message model."""
         return cls(
             id=message.id,
@@ -73,12 +76,12 @@ class ChatSessionRead(DateTimeConfigMixin, BaseModel):
     mode: ChatMode
     chat_model: str
     context_tokens: int
-    tool_collection_ids: List[UUID] = Field(default_factory=list)
-    parameter_overrides: Optional[Dict[str, Any]] = None
-    provider_preferences: Optional[Dict[str, Any]] = None
-    stream: Optional[bool] = False
-    branched_from_session_id: Optional[UUID] = None
-    branched_from_message_id: Optional[UUID] = None
+    tool_collection_ids: list[UUID] = Field(default_factory=list)
+    parameter_overrides: dict[str, Any] | None = None
+    provider_preferences: dict[str, Any] | None = None
+    stream: bool | None = False
+    branched_from_session_id: UUID | None = None
+    branched_from_message_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -87,8 +90,8 @@ class ChatSessionRead(DateTimeConfigMixin, BaseModel):
         cls,
         session: models.ChatSession,
         *,
-        tool_collection_ids: Optional[List[UUID]] = None,
-    ) -> "ChatSessionRead":
+        tool_collection_ids: list[UUID] | None = None,
+    ) -> ChatSessionRead:
         """Build a schema instance from a chat session model."""
         return cls(
             id=session.id,
@@ -111,25 +114,25 @@ class ChatSessionRead(DateTimeConfigMixin, BaseModel):
 class ChatMessageCreate(BaseModel):
     """Payload for creating or editing chat messages."""
 
-    session_id: Optional[UUID] = None
+    session_id: UUID | None = None
     content: str
     mode: ChatMode = ChatMode.CHAT
-    title: Optional[str] = None
-    edit_message_id: Optional[UUID] = None
-    chat_model: Optional[str] = None
-    tool_collection_ids: Optional[List[UUID]] = None
-    parameters: Optional[Dict[str, Any]] = None
-    provider: Optional[Dict[str, Any]] = None
-    stream: Optional[bool] = False
+    title: str | None = None
+    edit_message_id: UUID | None = None
+    chat_model: str | None = None
+    tool_collection_ids: list[UUID] | None = None
+    parameters: ChatParameters | None = None
+    provider: ProviderPreferences | None = None
+    stream: bool | None = False
 
 
 class ChatCompletionResponse(BaseModel):
     """Response payload for chat completions."""
 
     session: ChatSessionRead
-    messages: List[ChatMessageRead]
-    tool_traces: List[ToolCallTrace] = Field(default_factory=list)
-    usage: Dict[str, Any]
+    messages: list[ChatMessageRead]
+    tool_traces: list[ToolCallTrace] = Field(default_factory=list)
+    usage: dict[str, Any]
     provider: str
     context_window: int
     context_consumed: int
@@ -139,11 +142,11 @@ class ChatBranchCreate(BaseModel):
     """Payload for branching a chat session."""
 
     message_id: UUID
-    title: Optional[str] = None
+    title: str | None = None
 
 
 class ChatBranchResponse(BaseModel):
     """Response payload for a branched chat."""
 
     session: ChatSessionRead
-    messages: List[ChatMessageRead]
+    messages: list[ChatMessageRead]

@@ -6,7 +6,7 @@ from app.chat.providers.openrouter import OpenRouterProvider
 __all__ = [
     "ChatProvider",
     "ChatRequest",
+    "OpenRouterProvider",
     "ParsedChatResponse",
     "ParsedStreamChunk",
-    "OpenRouterProvider",
 ]

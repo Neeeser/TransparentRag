@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -16,40 +16,40 @@ class CollectionBase(BaseModel):
     """Shared fields for collection payloads."""
 
     name: str
-    description: Optional[str] = None
-    ingestion_pipeline_id: Optional[UUID] = None
-    retrieval_pipeline_id: Optional[UUID] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    description: str | None = None
+    ingestion_pipeline_id: UUID | None = None
+    retrieval_pipeline_id: UUID | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class PipelineNodeOverride(BaseModel):
     """Override configuration for a specific pipeline node."""
 
     node_id: str
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CollectionPipelineOverrides(BaseModel):
     """Per-collection pipeline overrides for creation."""
 
-    ingestion: List[PipelineNodeOverride] = Field(default_factory=list)
-    retrieval: List[PipelineNodeOverride] = Field(default_factory=list)
+    ingestion: list[PipelineNodeOverride] = Field(default_factory=list)
+    retrieval: list[PipelineNodeOverride] = Field(default_factory=list)
 
 
 class CollectionCreate(CollectionBase):
     """Payload for creating a collection."""
 
-    pipeline_overrides: Optional[CollectionPipelineOverrides] = None
+    pipeline_overrides: CollectionPipelineOverrides | None = None
 
 
 class CollectionUpdate(BaseModel):
     """Payload for updating collection fields."""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    ingestion_pipeline_id: Optional[UUID] = None
-    retrieval_pipeline_id: Optional[UUID] = None
+    name: str | None = None
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+    ingestion_pipeline_id: UUID | None = None
+    retrieval_pipeline_id: UUID | None = None
 
 
 class CollectionRead(DateTimeConfigMixin, CollectionBase):
@@ -81,5 +81,5 @@ class CollectionStatsRead(BaseModel):
     collection_id: UUID
     document_count: int
     chunk_count: int
-    average_latency_ms: Optional[float] = None
-    last_used_at: Optional[datetime] = None
+    average_latency_ms: float | None = None
+    last_used_at: datetime | None = None

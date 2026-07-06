@@ -9,19 +9,13 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.core.security import create_access_token
+from app.db.engine import get_session as get_session  # re-exported for routes
 from app.db.models import User
 from app.db.repositories import UserRepository
-from app.db.session import get_session
 
-settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
-
-
-def get_db_session() -> Session:
-    """Yield a database session for FastAPI dependencies."""
-    yield from get_session()
 
 
 def get_user_repository(session: Session = Depends(get_session)) -> UserRepository:
@@ -39,6 +33,7 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    settings = get_settings()
     try:
         payload = jwt.decode(
             token,

@@ -12,8 +12,8 @@ from app.api.routes import documents as documents_routes
 from app.api.routes import visualizations as visualizations_routes
 from app.db import models
 from app.schemas.visualization import UmapComputeRequest
-from app.visualization.umap.repository import ChunkEmbeddingRow
 from app.visualization.umap import service as umap_service
+from app.visualization.umap.repository import ChunkEmbeddingRow
 
 
 def _create_user(session: Session) -> models.User:

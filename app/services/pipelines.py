@@ -3,20 +3,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Optional
 from uuid import UUID
 
-from sqlalchemy import delete as sa_delete, or_
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.db import models
-from app.db.repositories import PipelineRepository, PipelineVersionRepository
+from app.db.repositories import (
+    CollectionRepository,
+    PipelineRepository,
+    PipelineVersionRepository,
+    UserRepository,
+)
 from app.pipelines.defaults import (
     build_default_ingestion_pipeline,
     build_default_retrieval_pipeline,
 )
-from app.pipelines.models import PipelineDefinition
+from app.pipelines.definition import PipelineDefinition
+from app.services.errors import NotFoundError
 
 
 @dataclass
@@ -35,17 +40,18 @@ class PipelineService:
         self.session = session
         self._pipelines = PipelineRepository(session)
         self._versions = PipelineVersionRepository(session)
+        self._collections = CollectionRepository(session)
 
     def list_pipelines(
         self,
         user_id: UUID,
         *,
-        kind: Optional[models.PipelineKind] = None,
+        kind: models.PipelineKind | None = None,
     ) -> Iterable[models.Pipeline]:
         """Return pipelines for the given user."""
         return self._pipelines.list_for_user(user_id, kind=kind)
 
-    def get_pipeline(self, pipeline_id: UUID, user_id: UUID) -> Optional[models.Pipeline]:
+    def get_pipeline(self, pipeline_id: UUID, user_id: UUID) -> models.Pipeline | None:
         """Return a pipeline for a user."""
         return self._pipelines.get(pipeline_id, user_id=user_id)
 
@@ -68,8 +74,8 @@ class PipelineService:
         name: str,
         kind: models.PipelineKind,
         definition: PipelineDefinition,
-        description: Optional[str] = None,
-        change_summary: Optional[str] = None,
+        description: str | None = None,
+        change_summary: str | None = None,
         is_default: bool = False,
     ) -> models.Pipeline:
         """Create a pipeline and its first version."""
@@ -96,11 +102,11 @@ class PipelineService:
         self,
         *,
         pipeline: models.Pipeline,
-        definition: Optional[PipelineDefinition] = None,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        change_summary: Optional[str] = None,
-        actor_id: Optional[UUID] = None,
+        definition: PipelineDefinition | None = None,
+        name: str | None = None,
+        description: str | None = None,
+        change_summary: str | None = None,
+        actor_id: UUID | None = None,
     ) -> models.Pipeline:
         """Update pipeline metadata and optionally create a new version."""
         if name is not None:
@@ -127,25 +133,11 @@ class PipelineService:
 
     def pipeline_in_use(self, pipeline_id: UUID) -> bool:
         """Return True if any collection references the pipeline."""
-        statement = (
-            select(models.Collection.id)
-            .where(
-                or_(
-                    models.Collection.ingestion_pipeline_id == pipeline_id,
-                    models.Collection.retrieval_pipeline_id == pipeline_id,
-                )
-            )
-            .limit(1)
-        )
-        return self.session.exec(statement).first() is not None
+        return self._collections.references_pipeline(pipeline_id)
 
     def delete_pipeline(self, pipeline: models.Pipeline) -> None:
         """Delete a pipeline and its versions."""
-        self.session.exec(
-            sa_delete(models.PipelineVersion).where(
-                models.PipelineVersion.pipeline_id == pipeline.id,
-            )
-        )
+        self._versions.delete_for_pipeline(pipeline.id)
         self.session.delete(pipeline)
         self.session.flush()
 
@@ -153,7 +145,7 @@ class PipelineService:
         """Set the pipeline's active version."""
         target = self._versions.get_by_version(pipeline.id, version)
         if not target:
-            raise ValueError("Requested pipeline version does not exist.")
+            raise NotFoundError("Requested pipeline version does not exist.")
         pipeline.current_version = version
         self.session.add(pipeline)
         return pipeline
@@ -202,11 +194,8 @@ class PipelineService:
 def backfill_default_pipelines(session: Session) -> None:
     """Ensure all users and collections have default pipelines assigned."""
     service = PipelineService(session)
-    users = session.exec(select(models.User)).all()
-    for user in users:
+    collection_repo = CollectionRepository(session)
+    for user in UserRepository(session).list_all():
         defaults = service.ensure_default_pipelines(user)
-        collections = session.exec(
-            select(models.Collection).where(models.Collection.user_id == user.id)
-        ).all()
-        for collection in collections:
+        for collection in collection_repo.list_for_user(user.id):
             service.ensure_collection_pipelines(collection, defaults)

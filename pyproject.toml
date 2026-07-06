@@ -7,7 +7,7 @@ name = "transparent-rag"
 version = "0.1.0"
 description = "Modular Pinecone-backed retrieval toolkit for TransparentRAG."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "pinecone>=5.0.0",
     "sentence-transformers>=2.5.1",
@@ -35,6 +35,10 @@ dev = [
     "pytest-cov>=5",
     "coverage[toml]>=7.6",
     "pylint>=3.2.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "types-python-jose>=3.3",
+    "types-passlib>=1.7",
 ]
 
 [tool.uv]
@@ -43,9 +47,46 @@ dev = [
 package = false
 default-groups = ["dev"]
 
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "PT", "C90", "RUF"]
+ignore = [
+    "E501",  # line length handled by formatter
+    "B008",  # FastAPI's Depends()/Query()/Body()/File() as a default is the framework's idiom
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["C901", "SIM117"]
+# Burn-down list: each entry below is owned by the phase that rewrites the module,
+# never a place to park code you don't want to lint. Do not copy this pattern for
+# new code.
+"app/schemas/enums.py" = ["UP042"]  # TODO(phase-2): remove; `str(member)` differs between a str/Enum mixin and StrEnum -- verify no code depends on the "Class.MEMBER" str() form before switching. Moved here from app/db/models.py when the enums relocated to app.schemas.enums.
+"app/schemas/auth.py" = ["UP042"]  # TODO(phase-2): remove; same str(member) caveat as app/schemas/enums.py
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+strict = true
+
+[[tool.mypy.overrides]]
+# umap-learn ships no inline types and no `types-umap` stub package exists on
+# PyPI. This is a permanent third-party-stubs gap, not a phase burn-down item:
+# unlike the `ignore_errors` overrides above (removed once), there is nothing
+# to "finish" here short of upstream shipping stubs, so it stays even under
+# strict mode.
+module = "umap"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-q"]
+addopts = ["-q", "--strict-markers", "-m", "not integration"]
+markers = ["integration: hits live OpenRouter/Pinecone; needs TEST_* credentials"]
 
 [tool.coverage.run]
 branch = true
@@ -59,7 +100,11 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-fail_under = 0
+# Measured branch coverage post-refactor (Task 8.1) was 97.06%. Floor is set
+# to actual minus a 3-point buffer, rounded down, so the suite has headroom to
+# fluctuate without every PR fighting the gate -- not the >=70 floor named as
+# a minimum in the plan, since we're well above it.
+fail_under = 94
 exclude_lines = [
     "pragma: no cover",
     "if __name__ == .__main__.:",
@@ -72,6 +117,24 @@ py-version = "3.11"
 
 [tool.pylint.reports]
 score = true
+
+[tool.pylint.design]
+max-args = 6
+
+[tool.pylint."messages control"]
+# Pylint is kept only as the design checker; ruff (see [tool.ruff]) covers
+# everything else (imports, unused vars, complexity, style, bugbear, pyupgrade,
+# simplify, pytest-style, refactor hints). Module length is NOT enforced here:
+# tests/test_module_size.py owns the 400-line ceiling and its grandfathered
+# burn-down list precisely (an aggregate score can't fail on a single new
+# oversize module without also passing the known grandfathered ones).
+disable = ["all"]
+enable = [
+    "too-many-arguments",
+    "too-many-branches",
+    "too-many-statements",
+    "too-many-locals",
+]
 
 [tool.setuptools.packages.find]
 where = ["app"]

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
+from app.chat.messages import ProviderMessage, ToolCall
+from app.chat.usage import UsageSummary
 from app.db import models
-from app.pipelines.config import IngestionPipelineSettings, RetrievalPipelineSettings
+from app.pipelines.settings import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.schemas.chat import ChatMessageCreate, ToolCallTrace
 from app.schemas.models import ModelInfo
 
@@ -35,10 +37,10 @@ class ModelSettings:
 
     active_model_name: str
     model_info: ModelInfo
-    supported_parameters: List[str]
-    parameter_overrides: Dict[str, Any]
-    reasoning_options: Dict[str, Any]
-    provider_preferences: Optional[Dict[str, Any]]
+    supported_parameters: list[str]
+    parameter_overrides: dict[str, Any]
+    reasoning_options: dict[str, Any]
+    provider_preferences: dict[str, Any] | None
     context_window: int
 
 
@@ -47,11 +49,11 @@ class ChatSetup:
     """Prepared chat request state before model execution."""
 
     session_model: models.ChatSession
-    messages: List[Dict[str, Any]]
-    tools: List[Dict[str, Any]]
-    tool_collections: List[ToolCollectionContext]
-    tool_collection_map: Dict[str, models.Collection]
-    pipeline: Optional[PipelineContext]
+    messages: list[ProviderMessage]
+    tools: list[dict[str, Any]]
+    tool_collections: list[ToolCollectionContext]
+    tool_collection_map: dict[str, models.Collection]
+    pipeline: PipelineContext | None
     model: ModelSettings
 
 
@@ -59,28 +61,28 @@ class ChatSetup:
 class RunState:
     """Mutable state for a chat request across iterations."""
 
-    tool_traces: List[ToolCallTrace] = field(default_factory=list)
-    usage_aggregate: Dict[str, float] = field(default_factory=dict)
-    latest_usage_payload: Dict[str, Any] = field(default_factory=dict)
+    tool_traces: list[ToolCallTrace] = field(default_factory=list)
+    usage_aggregate: UsageSummary = field(default_factory=UsageSummary)
+    latest_usage_payload: dict[str, Any] = field(default_factory=dict)
     provider: str = "openrouter"
-    reasoning_trace: List[Dict[str, Any]] = field(default_factory=list)
-    processed_reasoning_calls: Set[str] = field(default_factory=set)
-    reasoning_call_segments: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    reasoning_trace: list[dict[str, Any]] = field(default_factory=list)
+    processed_reasoning_calls: set[str] = field(default_factory=set)
+    reasoning_call_segments: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class ToolCallResolution:
-    """Resolved tool call payloads for an iteration."""
+    """Resolved tool calls for an iteration, typed as `ToolCall` models."""
 
-    pending_tool_calls: List[Dict[str, Any]]
-    shared_tool_reasoning: Optional[Dict[str, Any]]
+    pending_tool_calls: list[ToolCall]
+    shared_tool_reasoning: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
 class StreamToolCallContext:
     """Context for resolving streaming tool calls."""
 
-    message: Dict[str, Any]
+    message: dict[str, Any]
     setup: ChatSetup
     run_state: RunState
     user: models.User
@@ -94,26 +96,33 @@ class ToolExecutionContext:
     user: models.User
     payload: ChatMessageCreate
     session_model: models.ChatSession
-    messages: List[Dict[str, Any]]
+    messages: list[ProviderMessage]
     run_state: RunState
-    shared_tool_reasoning: Optional[Dict[str, Any]]
-    tool_collection_map: Dict[str, models.Collection]
+    shared_tool_reasoning: dict[str, Any] | None
+    tool_collection_map: dict[str, models.Collection]
 
 
 @dataclass(frozen=True)
 class ProviderResponse:
     """Parsed provider response for an iteration."""
 
-    message: Dict[str, Any]
-    usage: Dict[str, Any]
-    response_model_name: Optional[str]
+    message: dict[str, Any]
+    usage: dict[str, Any]
+    response_model_name: str | None
 
 
 @dataclass(frozen=True)
 class StreamIterationResult:
-    """Streamed provider result including metadata."""
+    """Streamed provider result including metadata.
 
-    message: Dict[str, Any]
-    usage: Dict[str, Any]
+    `finish_reason` is carried through so it's no longer silently dropped by
+    the data structure (it used to be index 3 of a 5-tuple that only ever
+    unpacked indices 0, 1, 2, 4). Whether `ChatService` acts on it is a
+    separate concern.
+    """
+
+    message: dict[str, Any]
+    usage: dict[str, Any]
     provider_name: str
-    response_model_name: Optional[str]
+    response_model_name: str | None
+    finish_reason: str | None = None

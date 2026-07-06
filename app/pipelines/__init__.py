@@ -1,35 +1,10 @@
-"""Pipeline execution and registry helpers."""
+"""Pipeline engine: node contracts, registry, validation, and execution.
 
-from app.pipelines.defaults import (
-    build_default_ingestion_pipeline,
-    build_default_retrieval_pipeline,
-)
-from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
-from app.pipelines.registry import build_default_registry
-from app.pipelines.runtime import (
-    NodePort,
-    NodeRegistry,
-    NodeSpec,
-    PipelineExecutionError,
-    PipelineExecutionResult,
-    PipelineExecutor,
-    PipelineRunContext,
-    PipelineValidationResult,
-)
+This package has no external consumers of a package-level barrel (nothing
+does `from app.pipelines import X`); callers import the owning submodule
+directly (`app.pipelines.definition`, `app.pipelines.registry`, ...). Keeping
+this file import-free avoids re-introducing a barrel that would force every
+submodule's import graph to resolve before any single submodule can be used.
+"""
 
-__all__ = [
-    "NodePort",
-    "NodeRegistry",
-    "NodeSpec",
-    "PipelineDefinition",
-    "PipelineEdgeDefinition",
-    "PipelineExecutionError",
-    "PipelineExecutionResult",
-    "PipelineExecutor",
-    "PipelineNodeDefinition",
-    "PipelineRunContext",
-    "PipelineValidationResult",
-    "build_default_ingestion_pipeline",
-    "build_default_registry",
-    "build_default_retrieval_pipeline",
-]
+from __future__ import annotations

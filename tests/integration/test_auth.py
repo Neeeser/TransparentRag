@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.integration
 
 
 def test_user_registration_cycle(user_context: dict[str, object]) -> None:
@@ -10,7 +13,7 @@ def test_user_registration_cycle(user_context: dict[str, object]) -> None:
     creds = user_context["credentials"]
     assert profile["email"] == creds["email"]
     assert profile["is_active"] is True
-    assert "id" in profile and profile["id"]
+    assert profile.get("id")
 
 
 def test_token_endpoint_requires_password_grant(client: TestClient) -> None:
@@ -46,4 +49,4 @@ def test_token_endpoint_requires_password_grant(client: TestClient) -> None:
     )
     assert ok_resp.status_code == 200, ok_resp.text
     payload = ok_resp.json()
-    assert "access_token" in payload and payload["access_token"]
+    assert payload.get("access_token")

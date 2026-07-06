@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
 
 from pinecone import Pinecone
 
+from app.clients.pinecone import PineconeMatch, get_pinecone_client
+
 from ..indexers.pinecone_indexer import PineconeIndexConfig
 from ..models import DocumentChunk, DocumentMetadata, QueryRequest, RetrievalResponse, ScoredChunk
-from ..pinecone import get_pinecone_client
 from ..rerankers.base import Reranker
 from .base import Retriever
 
@@ -20,12 +21,16 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
     def __init__(
         self,
         index_config: PineconeIndexConfig,
-        client: Optional[Pinecone] = None,
-        api_key: Optional[str] = None,
-        reranker: Optional[Reranker] = None,
+        client: Pinecone | None = None,
+        api_key: str | None = None,
+        reranker: Reranker | None = None,
     ) -> None:
-        """Initialize the retriever and Pinecone index handle."""
-        self._client = get_pinecone_client(client=client, api_key=api_key)
+        """Initialize the retriever and Pinecone index handle.
+
+        Uses `client` as-is when provided (test injection); otherwise resolves a
+        fresh client from `api_key` via `app.clients.pinecone.get_pinecone_client`.
+        """
+        self._client = client if client is not None else get_pinecone_client(api_key or "")
         self._index_config = index_config
         self._reranker = reranker
         self._index = self._client.Index(index_config.name)
@@ -35,7 +40,7 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
         namespace = request.namespace or self._index_config.namespace
 
         result = self._index.query(
-            vector=embedding,
+            vector=list(embedding),
             top_k=request.top_k,
             include_metadata=True,
             include_values=False,
@@ -43,7 +48,10 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
             filter=request.filter,
         )
 
-        scored_chunks = self._convert_matches(result.matches)
+        # We never pass `async_req`, so this call always returns a `QueryResponse`
+        # synchronously; the SDK's overloads still union in the async `ApplyResult`.
+        matches = [PineconeMatch.from_sdk(match) for match in result.matches]  # type: ignore[union-attr]
+        scored_chunks = self._convert_matches(matches)
 
         if self._reranker is not None:
             reranked = self._reranker.rerank(
@@ -55,20 +63,20 @@ class PineconeRetriever(Retriever):  # pylint: disable=too-few-public-methods
 
         return RetrievalResponse(matches=scored_chunks)
 
-    def _convert_matches(self, matches: Sequence[Any]) -> list[ScoredChunk]:
-        """Convert Pinecone match results into scored chunks."""
+    def _convert_matches(self, matches: Sequence[PineconeMatch]) -> list[ScoredChunk]:
+        """Convert typed Pinecone matches into scored chunks."""
         scored: list[ScoredChunk] = []
         for match in matches:
-            metadata_dict = dict(match.metadata or {})
+            metadata_dict = dict(match.metadata)
             text = metadata_dict.pop(self._index_config.text_key, "")
             document_id = metadata_dict.pop("document_id", match.id)
             order = metadata_dict.pop("order", 0)
             chunk = DocumentChunk(
-                document_id=document_id,
+                document_id=str(document_id),
                 chunk_id=match.id,
-                text=text,
+                text=str(text),
                 order=int(order),
                 metadata=DocumentMetadata(data=metadata_dict),
             )
-            scored.append(ScoredChunk(chunk=chunk, score=float(match.score)))
+            scored.append(ScoredChunk(chunk=chunk, score=match.score))
         return scored

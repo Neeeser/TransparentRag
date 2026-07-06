@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,24 +10,24 @@ from pydantic import BaseModel, Field
 class ModelPricing(BaseModel):
     """Pricing details for a model."""
 
-    prompt: Optional[str] = None
-    completion: Optional[str] = None
-    request: Optional[str] = None
+    prompt: str | None = None
+    completion: str | None = None
+    request: str | None = None
 
 
 class ModelInfo(BaseModel):
     """Metadata about a model available from OpenRouter."""
 
     id: str
-    canonical_slug: Optional[str] = None
+    canonical_slug: str | None = None
     name: str
-    description: Optional[str] = None
-    context_length: Optional[int] = None
-    architecture: Dict[str, Any] = Field(default_factory=dict)
-    pricing: Optional[ModelPricing] = None
-    supported_parameters: List[str] = Field(default_factory=list)
-    top_provider: Optional[Dict[str, Any]] = None
-    default_parameters: Optional[Dict[str, Any]] = None
+    description: str | None = None
+    context_length: int | None = None
+    architecture: dict[str, Any] = Field(default_factory=dict)
+    pricing: ModelPricing | None = None
+    supported_parameters: list[str] = Field(default_factory=list)
+    top_provider: dict[str, Any] | None = None
+    default_parameters: dict[str, Any] | None = None
 
 
 class EmbeddingModelInfo(BaseModel):
@@ -35,10 +35,10 @@ class EmbeddingModelInfo(BaseModel):
 
     id: str
     name: str
-    description: Optional[str] = None
-    context_length: Optional[float] = None
-    pricing: Optional[ModelPricing] = None
-    dimension: Optional[int] = None
+    description: str | None = None
+    context_length: float | None = None
+    pricing: ModelPricing | None = None
+    dimension: int | None = None
 
 
 NumberLike = float | str
@@ -47,36 +47,36 @@ NumberLike = float | str
 class ProviderEndpointPricing(BaseModel):
     """Per-endpoint pricing data reported by a provider."""
 
-    prompt: Optional[NumberLike] = None
-    completion: Optional[NumberLike] = None
-    request: Optional[NumberLike] = None
-    image: Optional[NumberLike] = None
-    image_output: Optional[NumberLike] = None
-    audio: Optional[NumberLike] = None
-    input_audio_cache: Optional[NumberLike] = None
-    web_search: Optional[NumberLike] = None
-    internal_reasoning: Optional[NumberLike] = None
-    input_cache_read: Optional[NumberLike] = None
-    input_cache_write: Optional[NumberLike] = None
-    discount: Optional[float] = None
+    prompt: NumberLike | None = None
+    completion: NumberLike | None = None
+    request: NumberLike | None = None
+    image: NumberLike | None = None
+    image_output: NumberLike | None = None
+    audio: NumberLike | None = None
+    input_audio_cache: NumberLike | None = None
+    web_search: NumberLike | None = None
+    internal_reasoning: NumberLike | None = None
+    input_cache_read: NumberLike | None = None
+    input_cache_write: NumberLike | None = None
+    discount: float | None = None
 
 
 class PublicEndpoint(BaseModel):
     """Public endpoint listing with pricing and status metadata."""
 
     name: str
-    model_name: Optional[str] = None
-    context_length: Optional[float] = None
-    pricing: Optional[ProviderEndpointPricing] = None
-    provider_name: Optional[str] = None
-    tag: Optional[str] = None
-    quantization: Optional[Dict[str, Any] | str] = None
-    max_completion_tokens: Optional[float] = None
-    max_prompt_tokens: Optional[float] = None
-    supported_parameters: List[str] = Field(default_factory=list)
-    status: Optional[str | int] = None
-    uptime_last_30m: Optional[float] = None
-    supports_implicit_caching: Optional[bool] = None
+    model_name: str | None = None
+    context_length: float | None = None
+    pricing: ProviderEndpointPricing | None = None
+    provider_name: str | None = None
+    tag: str | None = None
+    quantization: dict[str, Any] | str | None = None
+    max_completion_tokens: float | None = None
+    max_prompt_tokens: float | None = None
+    supported_parameters: list[str] = Field(default_factory=list)
+    status: str | int | None = None
+    uptime_last_30m: float | None = None
+    supports_implicit_caching: bool | None = None
 
 
 class ListEndpointsResponse(BaseModel):
@@ -84,10 +84,10 @@ class ListEndpointsResponse(BaseModel):
 
     id: str
     name: str
-    created: Optional[float] = None
-    description: Optional[str] = None
-    architecture: Dict[str, Any] = Field(default_factory=dict)
-    endpoints: List[PublicEndpoint] = Field(default_factory=list)
+    created: float | None = None
+    description: str | None = None
+    architecture: dict[str, Any] = Field(default_factory=dict)
+    endpoints: list[PublicEndpoint] = Field(default_factory=list)
 
 
 class EndpointsListResponse(BaseModel):

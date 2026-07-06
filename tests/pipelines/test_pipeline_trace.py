@@ -1,16 +1,24 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from app.api.config import get_settings
+from app.core.config import get_settings
 from app.db import models
-from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
-from app.pipelines.runtime import NodePort, PipelineExecutor, PipelineRunContext, PipelineNodeBase, NodeRegistry
+from app.pipelines.definition import (
+    PipelineDefinition,
+    PipelineEdgeDefinition,
+    PipelineNodeDefinition,
+)
+from app.pipelines.execution.context import PipelineRunContext
+from app.pipelines.execution.executor import PipelineExecutor
+from app.pipelines.node import PipelineNodeBase
+from app.pipelines.ports import NodePort
+from app.pipelines.registry import NodeRegistry
 from app.pipelines.tracing import (
     NodeTraceSummary,
     NodeTraceValue,
@@ -34,8 +42,8 @@ class InputNode(PipelineNodeBase):
     category = "test"
     description = "Emit a static payload."
     example = "Input() -> Payload(text='hello')."
-    input_ports = []
-    output_ports = [NodePort(key="value", label="Value", data_type="payload")]
+    input_ports = ()
+    output_ports = (NodePort(key="value", label="Value", data_type="payload"),)
     config_model = InputConfig
 
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
@@ -64,8 +72,8 @@ class EchoNode(PipelineNodeBase):
     category = "test"
     description = "Echo the payload."
     example = "Payload(text='hello') -> Payload(text='hello')."
-    input_ports = [NodePort(key="value", label="Value", data_type="payload")]
-    output_ports = [NodePort(key="result", label="Result", data_type="payload")]
+    input_ports = (NodePort(key="value", label="Value", data_type="payload"),)
+    output_ports = (NodePort(key="result", label="Result", data_type="payload"),)
     class EchoConfig(BaseModel):
         """Empty config for echo node."""
 
@@ -211,7 +219,7 @@ def test_serialize_payload_handles_custom_types() -> None:
     payload = {
         "path": Path("/tmp/file.txt"),
         "id": uuid4(),
-        "when": datetime(2024, 1, 1, tzinfo=timezone.utc),
+        "when": datetime(2024, 1, 1, tzinfo=UTC),
     }
 
     serialized = serialize_payload(payload)

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import BinaryIO
 
-from fastapi import UploadFile
-
-from app.api.config import get_settings
+from app.core.config import get_settings
 
 
 class FileStorage:
@@ -18,13 +17,13 @@ class FileStorage:
         self.base_path = base_path or settings.storage_path
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def save_upload(self, upload: UploadFile, relative_path: str) -> Path:
-        """Save an uploaded file to the storage path and return the destination."""
+    def save_stream(self, stream: BinaryIO, relative_path: str) -> Path:
+        """Stream a binary file to the storage path and return the destination."""
         destination = self.base_path / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         with destination.open("wb") as out_file:
             while True:
-                chunk = upload.file.read(1024 * 1024)
+                chunk = stream.read(1024 * 1024)
                 if not chunk:
                     break
                 out_file.write(chunk)

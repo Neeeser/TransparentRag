@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, Set, cast
-
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import inspect
 from sqlalchemy.engine import Engine
@@ -16,7 +14,7 @@ class TableSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    columns: Set[str] = Field(default_factory=set)
+    columns: set[str] = Field(default_factory=set)
 
 
 class DatabaseSchema(BaseModel):
@@ -24,20 +22,20 @@ class DatabaseSchema(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    tables: Dict[str, TableSchema] = Field(default_factory=dict)
+    tables: dict[str, TableSchema] = Field(default_factory=dict)
 
-    def missing_tables(self, expected: "DatabaseSchema") -> Set[str]:
+    def missing_tables(self, expected: DatabaseSchema) -> set[str]:
         """Return table names missing from the current schema."""
         return set(expected.tables) - set(self.tables)
 
-    def missing_columns(self, expected: "DatabaseSchema") -> Dict[str, Set[str]]:
+    def missing_columns(self, expected: DatabaseSchema) -> dict[str, set[str]]:
         """Return missing columns for tables that exist in both schemas."""
-        # pylint: disable=no-member
-        missing: Dict[str, Set[str]] = {}
-        expected_tables = cast(Dict[str, TableSchema], expected.tables)
-        actual_tables = cast(Dict[str, TableSchema], self.tables)
-        for table_name, expected_table in expected_tables.items():
-            actual_table = actual_tables.get(table_name)
+        # pylint: disable=no-member  # false positive: pylint resolves `tables` to
+        # the class-level FieldInfo, not the validated dict pydantic builds per
+        # instance, so `.items()`/`.get()` look like missing members.
+        missing: dict[str, set[str]] = {}
+        for table_name, expected_table in expected.tables.items():
+            actual_table = self.tables.get(table_name)
             if not actual_table:
                 continue
             missing_columns = expected_table.columns - actual_table.columns
@@ -51,8 +49,8 @@ class SchemaValidationResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    missing_tables: Set[str] = Field(default_factory=set)
-    missing_columns: Dict[str, Set[str]] = Field(default_factory=dict)
+    missing_tables: set[str] = Field(default_factory=set)
+    missing_columns: dict[str, set[str]] = Field(default_factory=dict)
 
     @property
     def is_valid(self) -> bool:
@@ -64,7 +62,7 @@ class SchemaValidationResult(BaseModel):
         cls,
         expected: DatabaseSchema,
         actual: DatabaseSchema,
-    ) -> "SchemaValidationResult":
+    ) -> SchemaValidationResult:
         """Build a validation result from expected and actual schemas."""
         return cls(
             missing_tables=actual.missing_tables(expected),
@@ -74,7 +72,7 @@ class SchemaValidationResult(BaseModel):
 
 def build_expected_schema() -> DatabaseSchema:
     """Build the expected schema from SQLModel metadata."""
-    tables: Dict[str, TableSchema] = {}
+    tables: dict[str, TableSchema] = {}
     for table_name, table in SQLModel.metadata.tables.items():
         columns = {column.name for column in table.columns}
         tables[table_name] = TableSchema(name=table_name, columns=columns)
@@ -84,7 +82,7 @@ def build_expected_schema() -> DatabaseSchema:
 def inspect_database_schema(engine: Engine) -> DatabaseSchema:
     """Inspect the live database schema for the configured engine."""
     inspector = inspect(engine)
-    tables: Dict[str, TableSchema] = {}
+    tables: dict[str, TableSchema] = {}
     for table_name in inspector.get_table_names():
         columns = {column["name"] for column in inspector.get_columns(table_name)}
         tables[table_name] = TableSchema(name=table_name, columns=columns)

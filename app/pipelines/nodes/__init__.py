@@ -1,19 +1,15 @@
-"""Pipeline node implementations."""
+"""Pipeline node implementations, grouped one module per pipeline stage."""
 
-from app.pipelines.nodes.ingestion import (
-    ChunkerNode,
-    DocumentParserNode,
-    EmbedderNode,
-    FileTypeRouterNode,
-    IngestionInputNode,
-    IngestionOutputNode,
-    IndexerNode,
-)
+from app.pipelines.nodes.chunking import ChunkerNode
+from app.pipelines.nodes.embedding import EmbedderNode
+from app.pipelines.nodes.indexing import IndexerNode
+from app.pipelines.nodes.io import IngestionInputNode, IngestionOutputNode
+from app.pipelines.nodes.parsing import DocumentParserNode, FileTypeRouterNode
 from app.pipelines.nodes.retrieval import (
     PineconeRetrieverNode,
+    RerankerNode,
     RetrievalInputNode,
     RetrievalOutputNode,
-    RerankerNode,
 )
 
 __all__ = [
@@ -21,11 +17,11 @@ __all__ = [
     "DocumentParserNode",
     "EmbedderNode",
     "FileTypeRouterNode",
+    "IndexerNode",
     "IngestionInputNode",
     "IngestionOutputNode",
-    "IndexerNode",
     "PineconeRetrieverNode",
+    "RerankerNode",
     "RetrievalInputNode",
     "RetrievalOutputNode",
-    "RerankerNode",
 ]

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
 from ..models import ScoredChunk
 
@@ -17,4 +18,4 @@ class Reranker(Protocol):  # pylint: disable=too-few-public-methods
         top_k: int | None = None,
     ) -> Sequence[ScoredChunk]:
         """Return reranked chunks for the query."""
-        return None
+        ...

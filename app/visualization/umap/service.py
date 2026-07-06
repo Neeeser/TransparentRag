@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -11,6 +11,7 @@ from sqlmodel import Session
 from umap import UMAP
 
 from app.db import models
+from app.services.errors import InvalidInputError, NotFoundError
 from app.visualization.umap.repository import ChunkEmbeddingRow, UmapRepository
 
 
@@ -35,11 +36,11 @@ class UmapService:
 
     def get_latest_projection(
         self, collection_id: UUID
-    ) -> Tuple[models.UmapProjectionRecord, List[models.UmapPointRecord]]:
+    ) -> tuple[models.UmapProjectionRecord, list[models.UmapPointRecord]]:
         """Return the latest projection and its points for a collection."""
         projection = self._repo.get_latest_projection(collection_id)
         if projection is None:
-            raise ValueError("UMAP projection not found.")
+            raise NotFoundError("UMAP projection not found.")
         points = self._repo.list_points(projection.id)
         return projection, points
 
@@ -48,21 +49,21 @@ class UmapService:
         user: models.User,
         collection: models.Collection,
         config: UmapConfig,
-    ) -> Tuple[models.UmapProjectionRecord, List[models.UmapPointRecord]]:
+    ) -> tuple[models.UmapProjectionRecord, list[models.UmapPointRecord]]:
         """Compute and persist a UMAP projection for a collection."""
         chunk_rows = self._repo.list_chunk_embeddings(collection.id)
         if len(chunk_rows) < 3:
-            raise ValueError("At least three chunks are required to compute UMAP.")
+            raise InvalidInputError("At least three chunks are required to compute UMAP.")
 
         embeddings = [row.embedding for row in chunk_rows if row.embedding is not None]
         if len(embeddings) != len(chunk_rows):
-            raise ValueError("One or more chunks are missing embeddings.")
+            raise InvalidInputError("One or more chunks are missing embeddings.")
 
         dimension = len(embeddings[0]) if embeddings else 0
         if dimension == 0:
-            raise ValueError("Embeddings are empty for this collection.")
+            raise InvalidInputError("Embeddings are empty for this collection.")
         if any(len(embedding) != dimension for embedding in embeddings):
-            raise ValueError("Embedding dimensions are inconsistent across chunks.")
+            raise InvalidInputError("Embedding dimensions are inconsistent across chunks.")
 
         n_neighbors = min(config.n_neighbors, max(2, len(embeddings) - 1))
         init = "random" if len(embeddings) <= config.n_components + 1 else "spectral"
@@ -77,7 +78,7 @@ class UmapService:
         array = np.array(embeddings, dtype=np.float32)
         coordinates = reducer.fit_transform(array)
         if not np.isfinite(coordinates).all():
-            raise ValueError("UMAP produced non-finite coordinates.")
+            raise InvalidInputError("UMAP produced non-finite coordinates.")
 
         embedding_model = chunk_rows[0].embedding_model
         self._repo.delete_collection_projections(collection.id)
@@ -105,20 +106,28 @@ class UmapService:
     @staticmethod
     def _build_points(
         projection_id: UUID,
-        chunk_rows: List[ChunkEmbeddingRow],
-        coordinates: np.ndarray,
-    ) -> List[models.UmapPointRecord]:
-        """Build point records from coordinate outputs."""
-        points: List[models.UmapPointRecord] = []
-        for row, coord in zip(chunk_rows, coordinates):
+        chunk_rows: list[ChunkEmbeddingRow],
+        coordinates: np.ndarray[Any, np.dtype[np.float64]],
+    ) -> list[models.UmapPointRecord]:
+        """Build point records from coordinate outputs.
+
+        Indexed by position (`coordinates[i, 0]`) rather than iterated
+        row-by-row: numpy's stubs don't track array rank, so `for coord in
+        coordinates` types each `coord` as a scalar `float64` (unindexable)
+        instead of a length-2 row.
+        """
+        if len(chunk_rows) != coordinates.shape[0]:
+            raise InvalidInputError("Coordinate count does not match chunk row count.")
+        points: list[models.UmapPointRecord] = []
+        for i, row in enumerate(chunk_rows):
             points.append(
                 models.UmapPointRecord(
                     projection_id=projection_id,
                     chunk_id=row.chunk_id,
                     document_id=row.document_id,
                     chunk_index=row.chunk_index,
-                    x=float(coord[0]),
-                    y=float(coord[1]),
+                    x=float(coordinates[i, 0]),
+                    y=float(coordinates[i, 1]),
                 )
             )
         return points

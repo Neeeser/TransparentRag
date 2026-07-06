@@ -1,17 +1,24 @@
-"""Pipeline schema models."""
+"""Pipeline schema models.
+
+This module owns the pipeline API's wire contract. `PipelineDefinition` is
+re-exported from the engine (`app/pipelines/definition.py`) because it *is*
+the wire shape for pipeline graphs -- duplicating it here would just be a
+second copy that drifts. Everything else the engine exposes on the wire
+(node catalog entries, validation results) gets its own `*Read`/`*Response`
+model defined here and mapped from the engine type at the route -- the
+engine (`app/pipelines/`) must never be a source of wire types itself.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.db.models import PipelineKind
-from app.pipelines.models import PipelineDefinition
-from app.pipelines.runtime import NodeSpec, PipelineValidationResult
+from app.pipelines.definition import PipelineDefinition
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.enums import PipelineKind
 
 
 class PipelineCreate(BaseModel):
@@ -20,26 +27,33 @@ class PipelineCreate(BaseModel):
     name: str
     kind: PipelineKind
     definition: PipelineDefinition
-    description: Optional[str] = None
-    change_summary: Optional[str] = None
+    description: str | None = None
+    change_summary: str | None = None
 
 
 class PipelineUpdate(BaseModel):
     """Payload for updating a pipeline."""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    definition: Optional[PipelineDefinition] = None
-    change_summary: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    definition: PipelineDefinition | None = None
+    change_summary: str | None = None
 
 
 class PipelineRead(DateTimeConfigMixin, BaseModel):
-    """Pipeline details returned to clients."""
+    """Pipeline details returned to clients.
+
+    Built at the route via
+    `PipelineRead.model_validate({**pipeline.model_dump(), "definition": definition})`
+    -- `definition` lives on the pipeline's current `PipelineVersion`, not on
+    `models.Pipeline` itself, so it's the one field that can't come straight
+    off the ORM row.
+    """
 
     id: UUID
     user_id: UUID
     name: str
-    description: Optional[str]
+    description: str | None
     kind: PipelineKind
     current_version: int
     is_default: bool
@@ -56,18 +70,50 @@ class PipelineVersionRead(DateTimeConfigMixin, BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
-    change_summary: Optional[str]
-    created_by: Optional[UUID]
+    change_summary: str | None
+    created_by: UUID | None
+
+
+class NodePortRead(BaseModel):
+    """Wire representation of a node input/output port."""
+
+    key: str
+    label: str
+    data_type: str
+    required: bool = True
+
+
+class NodeSpecRead(BaseModel):
+    """Wire representation of an available pipeline node type.
+
+    Built via `NodeSpecRead.model_validate(spec, from_attributes=True)` from
+    the engine's `app.pipelines.node.NodeSpec` at the route -- field names
+    match exactly, so no field-by-field mapping is needed.
+    """
+
+    type: str
+    label: str
+    category: str
+    description: str
+    example: str
+    input_ports: list[NodePortRead] = Field(default_factory=list)
+    output_ports: list[NodePortRead] = Field(default_factory=list)
+    config_schema: dict[str, object] = Field(default_factory=dict)
+    default_config: dict[str, object] = Field(default_factory=dict)
 
 
 class PipelineNodesResponse(BaseModel):
     """Response payload for node catalog requests."""
 
-    nodes: List[NodeSpec]
+    nodes: list[NodeSpecRead]
 
 
-class PipelineValidationResponse(PipelineValidationResult):
+class PipelineValidationResponse(BaseModel):
     """Response payload for pipeline validation."""
+
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class PipelineActivateRequest(BaseModel):

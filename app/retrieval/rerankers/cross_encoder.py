@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from ..models import ScoredChunk
 from .base import Reranker
 
+# mypy can't express "this name is a class if the optional dependency imports
+# cleanly, else None" without extra ceremony for a two-line shim; the runtime
+# behavior (checked by the `CrossEncoder is None` guard below) is what matters.
 try:
     from sentence_transformers import CrossEncoder as SENTENCE_TRANSFORMERS_CROSS_ENCODER
 except Exception as exc:  # pylint: disable=broad-except
-    SENTENCE_TRANSFORMERS_CROSS_ENCODER = None
-    _IMPORT_ERROR = exc
+    SENTENCE_TRANSFORMERS_CROSS_ENCODER = None  # type: ignore[misc]
+    _IMPORT_ERROR: Exception | None = exc
 else:
     _IMPORT_ERROR = None
 
@@ -47,7 +50,7 @@ class CrossEncoderReranker(Reranker):  # pylint: disable=too-few-public-methods
         scores = self._model.predict(pairs)
         reranked = [
             ScoredChunk(chunk=scored.chunk, score=float(score))
-            for scored, score in zip(candidates, scores)
+            for scored, score in zip(candidates, scores, strict=True)
         ]
         reranked.sort(key=lambda item: item.score, reverse=True)
         if top_k is not None:

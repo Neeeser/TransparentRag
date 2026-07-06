@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Protocol
 
 from pydantic import BaseModel, Field
 
@@ -15,7 +15,7 @@ class DocumentSource(BaseModel):
 
     document_id: str
     path: Path
-    content_type: Optional[str] = None
+    content_type: str | None = None
     metadata: DocumentMetadata = Field(default_factory=DocumentMetadata)
 
 
@@ -24,7 +24,7 @@ class DocumentParser(Protocol):  # pylint: disable=too-few-public-methods
 
     def parse(self, source: DocumentSource) -> Document:
         """Parse a document source into a normalized document."""
-        return None
+        ...
 
 
 def build_document_from_source(source: DocumentSource, text: str) -> Document:

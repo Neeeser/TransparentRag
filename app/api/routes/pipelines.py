@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
+from app.api.routes.utils import to_http_exception
 from app.db import models
-from app.pipelines.models import PipelineDefinition
-from app.pipelines.registry import build_default_registry
-from app.pipelines.runtime import PipelineValidator
+from app.pipelines.definition import PipelineDefinition
+from app.pipelines.registry import default_registry
+from app.pipelines.validation import PipelineValidator
 from app.schemas.pipelines import (
+    NodeSpecRead,
     PipelineActivateRequest,
     PipelineCreate,
     PipelineDeleteResponse,
@@ -23,33 +24,46 @@ from app.schemas.pipelines import (
     PipelineValidationResponse,
     PipelineVersionRead,
 )
+from app.services.errors import ServiceError
 from app.services.pipelines import PipelineService
 
 router = APIRouter(prefix="/api/pipelines", tags=["pipelines"])
+
+
+def get_pipeline_or_404(
+    pipeline_id: UUID,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> models.Pipeline:
+    """Return a pipeline owned by the current user, or raise a 404."""
+    pipeline = PipelineService(session).get_pipeline(pipeline_id, current_user.id)
+    if not pipeline:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
+    return pipeline
 
 
 def _to_pipeline_read(
     pipeline: models.Pipeline,
     definition: PipelineDefinition,
 ) -> PipelineRead:
-    """Convert a pipeline model into a response schema."""
-    return PipelineRead(
-        id=pipeline.id,
-        user_id=pipeline.user_id,
-        name=pipeline.name,
-        description=pipeline.description,
-        kind=pipeline.kind,
-        current_version=pipeline.current_version,
-        is_default=pipeline.is_default,
-        created_at=pipeline.created_at,
-        updated_at=pipeline.updated_at,
-        definition=definition,
-    )
+    """Convert a pipeline model + its resolved definition into a response schema.
+
+    `definition` lives on the pipeline's current `PipelineVersion`, not on
+    `models.Pipeline` itself, so the row is dumped to a dict and the definition
+    merged in before validation instead of listed field-by-field.
+
+    `warnings=False` on the dump: `table=True` models skip validation, so
+    enum-typed columns (`kind`) hold the raw DB string and pydantic's
+    serializer would warn on every request despite the value being exactly
+    what `model_validate` below expects -- that validation is the real gate.
+    """
+    data = pipeline.model_dump(warnings=False)
+    return PipelineRead.model_validate({**data, "definition": definition})
 
 
 def _validate_definition_or_400(definition: PipelineDefinition) -> None:
     """Validate a pipeline definition and raise an HTTP error on failure."""
-    validator = PipelineValidator(build_default_registry())
+    validator = PipelineValidator(default_registry())
     result = validator.validate(definition)
     if not result.valid:
         raise HTTPException(
@@ -63,8 +77,10 @@ def list_pipeline_nodes(
     _current_user: models.User = Depends(get_current_user),
 ) -> PipelineNodesResponse:
     """Return pipeline node definitions for the editor."""
-    registry = build_default_registry()
-    return PipelineNodesResponse(nodes=registry.specs())
+    registry = default_registry()
+    return PipelineNodesResponse(
+        nodes=[NodeSpecRead.model_validate(spec, from_attributes=True) for spec in registry.specs()]
+    )
 
 
 @router.post("/validate", response_model=PipelineValidationResponse)
@@ -73,18 +89,22 @@ def validate_pipeline(
     _current_user: models.User = Depends(get_current_user),
 ) -> PipelineValidationResponse:
     """Validate a pipeline definition."""
-    registry = build_default_registry()
+    registry = default_registry()
     validator = PipelineValidator(registry)
     result = validator.validate(definition)
-    return PipelineValidationResponse(valid=result.valid, errors=result.errors)
+    return PipelineValidationResponse(
+        valid=result.valid,
+        errors=result.errors,
+        warnings=result.warnings,
+    )
 
 
-@router.get("", response_model=List[PipelineRead])
+@router.get("", response_model=list[PipelineRead])
 def list_pipelines(
-    kind: Optional[models.PipelineKind] = None,
+    kind: models.PipelineKind | None = None,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> List[PipelineRead]:
+) -> list[PipelineRead]:
     """List pipelines for the current user."""
     service = PipelineService(session)
     pipelines = service.list_pipelines(current_user.id, kind=kind)
@@ -119,31 +139,24 @@ def create_pipeline(
 
 @router.get("/{pipeline_id}", response_model=PipelineRead)
 def get_pipeline(
-    pipeline_id: UUID,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
 ) -> PipelineRead:
     """Return a pipeline by id."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     definition = service.get_definition(pipeline)
     return _to_pipeline_read(pipeline, definition)
 
 
 @router.patch("/{pipeline_id}", response_model=PipelineRead)
 def update_pipeline(
-    pipeline_id: UUID,
     payload: PipelineUpdate,
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> PipelineRead:
     """Update pipeline metadata or definition."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     if payload.definition is not None:
         _validate_definition_or_400(payload.definition)
     service.update_pipeline(
@@ -160,17 +173,13 @@ def update_pipeline(
     return _to_pipeline_read(pipeline, definition)
 
 
-@router.get("/{pipeline_id}/versions", response_model=List[PipelineVersionRead])
+@router.get("/{pipeline_id}/versions", response_model=list[PipelineVersionRead])
 def list_pipeline_versions(
-    pipeline_id: UUID,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
-) -> List[PipelineVersionRead]:
+) -> list[PipelineVersionRead]:
     """List versions for a pipeline."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     versions = service.list_versions(pipeline)
     return [
         PipelineVersionRead(
@@ -188,17 +197,16 @@ def list_pipeline_versions(
 
 @router.post("/{pipeline_id}/activate", response_model=PipelineRead)
 def activate_pipeline_version(
-    pipeline_id: UUID,
     payload: PipelineActivateRequest,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
 ) -> PipelineRead:
     """Activate a pipeline version."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
-    service.activate_version(pipeline, payload.version)
+    try:
+        service.activate_version(pipeline, payload.version)
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
     session.commit()
     session.refresh(pipeline)
     definition = service.get_definition(pipeline)
@@ -207,15 +215,11 @@ def activate_pipeline_version(
 
 @router.delete("/{pipeline_id}", response_model=PipelineDeleteResponse)
 def delete_pipeline(
-    pipeline_id: UUID,
-    current_user: models.User = Depends(get_current_user),
+    pipeline: models.Pipeline = Depends(get_pipeline_or_404),
     session: Session = Depends(get_session),
 ) -> PipelineDeleteResponse:
     """Delete a pipeline when it is not referenced by collections."""
     service = PipelineService(session)
-    pipeline = service.get_pipeline(pipeline_id, current_user.id)
-    if not pipeline:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found.")
     if service.pipeline_in_use(pipeline.id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

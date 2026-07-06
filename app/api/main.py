@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.config import get_settings
 from app.api.routes import (
     auth,
     chat,
@@ -22,13 +22,24 @@ from app.api.routes import (
     traces,
     visualizations,
 )
-from app.db.session import init_db, session_scope
+from app.core.config import get_settings
+from app.db.bootstrap import init_db
+from app.db.engine import session_scope
 from app.services.pipelines import backfill_default_pipelines
 
 settings = get_settings()
-LOG_LEVEL_NAME = (settings.log_level or "").strip().upper()
-if LOG_LEVEL_NAME:
-    log_level = getattr(logging, LOG_LEVEL_NAME, logging.INFO)
+
+
+def configure_logging(log_level_name: str) -> None:
+    """Configure root/uvicorn loggers from a level name; no-op when blank.
+
+    Called at startup (from `lifespan`) rather than at import time, so tests
+    can exercise it directly instead of reloading this module.
+    """
+    log_level_name = log_level_name.strip().upper()
+    if not log_level_name:
+        return
+    log_level = getattr(logging, log_level_name, logging.INFO)
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -41,8 +52,9 @@ if LOG_LEVEL_NAME:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Initialize application resources on startup."""
+    configure_logging(settings.log_level or "")
     init_db()
     with session_scope() as session:
         backfill_default_pipelines(session)
@@ -58,7 +70,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

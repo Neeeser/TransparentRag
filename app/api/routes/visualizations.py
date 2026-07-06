@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends
 from sqlmodel import Session
 
 from app.api.dependencies import get_session, require_user_api_keys
-from app.api.routes.utils import get_collection_or_404
+from app.api.routes.utils import get_collection_or_404, to_http_exception
 from app.db import models
 from app.schemas.visualization import (
     UmapComputeRequest,
@@ -16,6 +16,7 @@ from app.schemas.visualization import (
     UmapProjectionRead,
     UmapVisualizationRead,
 )
+from app.services.errors import ServiceError
 from app.visualization.umap.service import UmapConfig, UmapService
 
 router = APIRouter(prefix="/api/collections", tags=["visualizations"])
@@ -36,8 +37,8 @@ def get_collection_umap(
     service = UmapService(session)
     try:
         projection, points = service.get_latest_projection(collection.id)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
     return UmapVisualizationRead(
         projection=UmapProjectionRead.from_model(projection),
         points=[UmapPointRead.from_model(point) for point in points],
@@ -61,8 +62,8 @@ def compute_collection_umap(
     config = UmapConfig(**payload.model_dump())
     try:
         projection, points = service.compute_projection(current_user, collection, config)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
     return UmapVisualizationRead(
         projection=UmapProjectionRead.from_model(projection),
         points=[UmapPointRead.from_model(point) for point in points],

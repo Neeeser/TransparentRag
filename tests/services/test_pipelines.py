@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from sqlmodel import Session, select
 
 from app.db import models
 from app.pipelines.defaults import build_default_ingestion_pipeline
+from app.services.errors import NotFoundError
 from app.services.pipelines import PipelineService
 
 
@@ -131,7 +132,7 @@ def test_activate_version_raises_when_missing(session: Session) -> None:
     defaults = service.ensure_default_pipelines(user)
     session.commit()
 
-    with pytest.raises(ValueError, match="does not exist"):
+    with pytest.raises(NotFoundError, match="does not exist"):
         service.activate_version(defaults.ingestion, version=999)
 
 

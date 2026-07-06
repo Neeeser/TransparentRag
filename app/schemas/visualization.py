@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.db import models
 from app.schemas.base import DateTimeConfigMixin
+
+if TYPE_CHECKING:
+    from app.db import models
 
 
 class UmapComputeRequest(BaseModel):
@@ -38,7 +40,7 @@ class UmapProjectionRead(DateTimeConfigMixin, BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_model(cls, projection: models.UmapProjectionRecord) -> "UmapProjectionRead":
+    def from_model(cls, projection: models.UmapProjectionRecord) -> UmapProjectionRead:
         """Build a schema instance from a projection model."""
         return cls(
             id=projection.id,
@@ -66,7 +68,7 @@ class UmapPointRead(BaseModel):
     y: float
 
     @classmethod
-    def from_model(cls, point: models.UmapPointRecord) -> "UmapPointRead":
+    def from_model(cls, point: models.UmapPointRecord) -> UmapPointRead:
         """Build a schema instance from a point model."""
         return cls(
             id=point.id,
@@ -82,4 +84,4 @@ class UmapVisualizationRead(BaseModel):
     """Response payload containing a UMAP projection and its points."""
 
     projection: UmapProjectionRead
-    points: List[UmapPointRead]
+    points: list[UmapPointRead]

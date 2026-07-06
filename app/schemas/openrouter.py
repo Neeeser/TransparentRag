@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,13 +14,13 @@ class OpenRouterUsage(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    prompt_tokens: Optional[NumberLike] = None
-    completion_tokens: Optional[NumberLike] = None
-    total_tokens: Optional[NumberLike] = None
-    completion_tokens_details: Optional[Dict[str, Any]] = None
-    prompt_tokens_details: Optional[Dict[str, Any]] = None
-    reasoning_tokens: Optional[NumberLike] = None
-    cost: Optional[NumberLike] = None
+    prompt_tokens: NumberLike | None = None
+    completion_tokens: NumberLike | None = None
+    total_tokens: NumberLike | None = None
+    completion_tokens_details: dict[str, Any] | None = None
+    prompt_tokens_details: dict[str, Any] | None = None
+    reasoning_tokens: NumberLike | None = None
+    cost: NumberLike | None = None
 
 
 class OpenRouterFunctionCall(BaseModel):
@@ -28,9 +28,9 @@ class OpenRouterFunctionCall(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    name: Optional[str] = None
-    arguments: Optional[str] = None
-    id: Optional[str] = None
+    name: str | None = None
+    arguments: str | None = None
+    id: str | None = None
 
 
 class OpenRouterToolCall(BaseModel):
@@ -38,10 +38,10 @@ class OpenRouterToolCall(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    id: Optional[str] = None
-    type: Optional[str] = None
-    function: Optional[OpenRouterFunctionCall] = None
-    index: Optional[int] = None
+    id: str | None = None
+    type: str | None = None
+    function: OpenRouterFunctionCall | None = None
+    index: int | None = None
 
 
 class OpenRouterAssistantMessage(BaseModel):
@@ -49,10 +49,10 @@ class OpenRouterAssistantMessage(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    content: Optional[Any] = None
-    tool_calls: Optional[List[OpenRouterToolCall]] = None
-    reasoning: Optional[Any] = None
-    reasoning_content: Optional[Any] = None
+    content: Any | None = None
+    tool_calls: list[OpenRouterToolCall] | None = None
+    reasoning: Any | None = None
+    reasoning_content: Any | None = None
 
 
 class OpenRouterChatChoice(BaseModel):
@@ -60,9 +60,9 @@ class OpenRouterChatChoice(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    index: Optional[int] = None
-    message: Optional[OpenRouterAssistantMessage] = None
-    finish_reason: Optional[str] = None
+    index: int | None = None
+    message: OpenRouterAssistantMessage | None = None
+    finish_reason: str | None = None
 
 
 class OpenRouterChatResponse(BaseModel):
@@ -70,11 +70,11 @@ class OpenRouterChatResponse(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    id: Optional[str] = None
-    choices: List[OpenRouterChatChoice] = Field(default_factory=list)
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    usage: Optional[OpenRouterUsage] = None
+    id: str | None = None
+    choices: list[OpenRouterChatChoice] = Field(default_factory=list)
+    model: str | None = None
+    provider: str | None = None
+    usage: OpenRouterUsage | None = None
 
 
 class OpenRouterStreamDelta(BaseModel):
@@ -82,9 +82,9 @@ class OpenRouterStreamDelta(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    content: Optional[Any] = None
-    tool_calls: Optional[List[OpenRouterToolCall]] = None
-    reasoning: Optional[Any] = None
+    content: Any | None = None
+    tool_calls: list[OpenRouterToolCall] | None = None
+    reasoning: Any | None = None
 
 
 class OpenRouterStreamChoice(BaseModel):
@@ -92,9 +92,9 @@ class OpenRouterStreamChoice(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    index: Optional[int] = None
-    delta: Optional[OpenRouterStreamDelta] = None
-    finish_reason: Optional[str] = None
+    index: int | None = None
+    delta: OpenRouterStreamDelta | None = None
+    finish_reason: str | None = None
 
 
 class OpenRouterStreamChunk(BaseModel):
@@ -102,10 +102,10 @@ class OpenRouterStreamChunk(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    choices: List[OpenRouterStreamChoice] = Field(default_factory=list)
-    provider: Optional[str] = None
-    model: Optional[str] = None
-    usage: Optional[OpenRouterUsage] = None
+    choices: list[OpenRouterStreamChoice] = Field(default_factory=list)
+    provider: str | None = None
+    model: str | None = None
+    usage: OpenRouterUsage | None = None
 
 
 class OpenRouterEmbeddingItem(BaseModel):
@@ -113,9 +113,9 @@ class OpenRouterEmbeddingItem(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    object: Optional[str] = None
-    embedding: Optional[Any] = None
-    index: Optional[int] = None
+    object: str | None = None
+    embedding: Any | None = None
+    index: int | None = None
 
 
 class OpenRouterEmbeddingsResponse(BaseModel):
@@ -123,8 +123,54 @@ class OpenRouterEmbeddingsResponse(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    id: Optional[str] = None
-    object: Optional[str] = None
-    data: Optional[List[OpenRouterEmbeddingItem]] = None
-    model: Optional[str] = None
-    usage: Optional[OpenRouterUsage] = None
+    id: str | None = None
+    object: str | None = None
+    data: list[OpenRouterEmbeddingItem] | None = None
+    model: str | None = None
+    usage: OpenRouterUsage | None = None
+
+
+class OpenRouterKeyRateLimit(BaseModel):
+    """Legacy rate-limit block on key metadata; OpenRouter always returns -1 here."""
+
+    model_config = ConfigDict(extra="allow")
+
+    requests: NumberLike | None = None
+    interval: str | None = None
+    note: str | None = None
+
+
+class OpenRouterKeyData(BaseModel):
+    """Metadata for the API key associated with the current session.
+
+    Shape per `external_api_documentation/openrouter-docs/api/api-reference/
+    api-keys/get-current-key.md` (GET /key).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    label: str | None = None
+    limit: NumberLike | None = None
+    usage: NumberLike | None = None
+    usage_daily: NumberLike | None = None
+    usage_weekly: NumberLike | None = None
+    usage_monthly: NumberLike | None = None
+    byok_usage: NumberLike | None = None
+    byok_usage_daily: NumberLike | None = None
+    byok_usage_weekly: NumberLike | None = None
+    byok_usage_monthly: NumberLike | None = None
+    is_free_tier: bool | None = None
+    is_provisioning_key: bool | None = None
+    limit_remaining: NumberLike | None = None
+    limit_reset: str | None = None
+    include_byok_in_limit: bool | None = None
+    expires_at: str | None = None
+    rate_limit: OpenRouterKeyRateLimit | None = None
+
+
+class OpenRouterKeyInfo(BaseModel):
+    """Top-level response from `GET /key` (current API key metadata)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    data: OpenRouterKeyData

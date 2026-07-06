@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
-
 import builtins
+import contextlib
 import importlib
+from typing import Any
 
 import pytest
 
@@ -85,7 +85,5 @@ def test_cross_encoder_import_error_sets_module_state(monkeypatch) -> None:
     assert reloaded._IMPORT_ERROR is not None
 
     monkeypatch.setattr(builtins, "__import__", original_import)
-    try:
+    with contextlib.suppress(ImportError):
         importlib.reload(reranker_module)
-    except ImportError:
-        pass

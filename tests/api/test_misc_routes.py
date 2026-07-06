@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import io
 from uuid import uuid4
 
-import io
 import pytest
 from fastapi import HTTPException, UploadFile
 from sqlmodel import Session
@@ -14,8 +14,14 @@ from app.api.routes import models as models_routes
 from app.api.routes import search as search_routes
 from app.db import models
 from app.db.repositories import UserRepository
-from app.schemas.models import EmbeddingModelInfo, EndpointsListResponse, ListEndpointsResponse, ModelInfo
+from app.schemas.models import (
+    EmbeddingModelInfo,
+    EndpointsListResponse,
+    ListEndpointsResponse,
+    ModelInfo,
+)
 from app.schemas.retrieval import CollectionQueryRequest
+from app.services.errors import InvalidInputError
 
 
 class _StubOpenRouter:
@@ -32,7 +38,7 @@ class _StubOpenRouter:
 
     def list_embedding_models(self, force_refresh: bool = False):
         self.calls.append({"embedding_refresh": force_refresh})
-        return [{"id": "embed-a", "name": "Embed A", "dimension": 1536}]
+        return [EmbeddingModelInfo(id="embed-a", name="Embed A", dimension=1536)]
 
 
 def _create_user(session: Session) -> models.User:
@@ -48,6 +54,19 @@ def _create_user(session: Session) -> models.User:
     session.commit()
     session.refresh(user)
     return user
+
+
+def _create_collection(session: Session, user: models.User) -> models.Collection:
+    collection = models.Collection(
+        user_id=user.id,
+        name="Collection",
+        description="",
+        extra_metadata={},
+    )
+    session.add(collection)
+    session.commit()
+    session.refresh(collection)
+    return collection
 
 
 def test_healthcheck_includes_timestamp() -> None:
@@ -76,29 +95,6 @@ def test_models_routes_delegate_to_openrouter(monkeypatch) -> None:
     assert endpoints.data.id == "model-a"
     assert embedding_models == [EmbeddingModelInfo(id="embed-a", name="Embed A", dimension=1536)]
     assert client.calls[0]["force_refresh"] is True
-
-
-def test_list_embedding_models_skips_invalid_entries(monkeypatch) -> None:
-    class _StubEmbeddingClient:
-        def list_embedding_models(self, force_refresh: bool = False):
-            return ["invalid", {"id": ""}, {"id": "embed-a", "name": "Embed A"}]
-
-    monkeypatch.setattr(
-        models_routes,
-        "get_openrouter_client",
-        lambda *_args, **_kwargs: _StubEmbeddingClient(),
-    )
-
-    user = models.User(
-        email="user@example.com",
-        full_name="User",
-        hashed_password="hashed",
-        openrouter_api_key="openrouter-key",
-    )
-
-    embedding_models = models_routes.list_embedding_models(refresh=False, current_user=user)
-
-    assert embedding_models == [EmbeddingModelInfo(id="embed-a", name="Embed A")]
 
 
 def test_search_route_raises_for_missing_collection(session: Session) -> None:
@@ -143,3 +139,55 @@ def test_upload_document_raises_for_missing_collection(session: Session) -> None
         asyncio.run(_call())
 
     assert excinfo.value.status_code == 404
+
+
+def test_upload_document_translates_ingestion_value_error(monkeypatch, session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    upload = UploadFile(filename="doc.txt", file=io.BytesIO(b"data"))
+
+    class _StubIngestionService:
+        def __init__(self, _session) -> None:
+            pass
+
+        def ingest_upload(self, *, user, collection, filename, content_type, stream):
+            raise InvalidInputError("Ingestion pipeline could not be resolved.")
+
+    monkeypatch.setattr(documents_routes, "IngestionService", _StubIngestionService)
+
+    async def _call():
+        return await documents_routes.upload_document(
+            collection.id,
+            upload,
+            current_user=user,
+            session=session,
+        )
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(_call())
+
+    assert excinfo.value.status_code == 400
+
+
+def test_search_route_translates_retrieval_value_error(monkeypatch, session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+
+    class _StubRetrievalService:
+        def __init__(self, _session) -> None:
+            pass
+
+        def query_collection(self, _user, _collection, *, query, top_k):
+            raise InvalidInputError("Retrieval pipeline could not be resolved.")
+
+    monkeypatch.setattr(search_routes, "RetrievalService", _StubRetrievalService)
+
+    with pytest.raises(HTTPException) as excinfo:
+        search_routes.run_collection_query(
+            collection.id,
+            CollectionQueryRequest(query="test", top_k=5),
+            current_user=user,
+            session=session,
+        )
+
+    assert excinfo.value.status_code == 400

@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from app.api.config import get_settings
-from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
+from app.core.config import get_settings
+from app.pipelines.definition import (
+    PipelineDefinition,
+    PipelineEdgeDefinition,
+    PipelineNodeDefinition,
+)
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
-
-settings = get_settings()
 
 
 def build_default_ingestion_pipeline() -> PipelineDefinition:
     """Return the default ingestion pipeline definition."""
+    settings = get_settings()
     nodes = [
         PipelineNodeDefinition(
             id="ingest-input",
@@ -102,6 +105,7 @@ def build_default_ingestion_pipeline() -> PipelineDefinition:
 
 def build_default_retrieval_pipeline() -> PipelineDefinition:
     """Return the default retrieval pipeline definition."""
+    settings = get_settings()
     nodes = [
         PipelineNodeDefinition(
             id="query-input",

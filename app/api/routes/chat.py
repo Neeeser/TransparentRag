@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import List, Optional
+from collections.abc import AsyncIterator
+from contextlib import ExitStack
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -17,9 +18,12 @@ from app.api.dependencies import (
     oauth2_scheme,
     require_openrouter_key,
 )
+from app.api.routes.utils import to_http_exception
+from app.chat import ChatService
+from app.chat.events import ErrorEvent
 from app.db import models
+from app.db.engine import stream_scoped_session
 from app.db.repositories import ChatRepository
-from app.db.session import engine
 from app.schemas.chat import (
     ChatBranchCreate,
     ChatBranchResponse,
@@ -29,6 +33,8 @@ from app.schemas.chat import (
     ChatSessionRead,
 )
 from app.schemas.prompts import PromptTemplateRead, PromptTemplateUpdate
+from app.services.accounts import AccountService
+from app.services.errors import ServiceError
 from app.services.prompts import (
     apply_prompt_template,
     base_prompt_context,
@@ -36,7 +42,6 @@ from app.services.prompts import (
     is_base_prompt_custom,
     prompt_variables_payload,
 )
-from app.services.chat import ChatService
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -65,11 +70,7 @@ def update_base_prompt(
     session: Session = Depends(get_session),
 ) -> PromptTemplateRead:
     """Update the base system prompt for the current user."""
-    template = (payload.template or "").strip()
-    current_user.system_prompt_template = template or None
-    session.add(current_user)
-    session.commit()
-    session.refresh(current_user)
+    AccountService(session).update_base_prompt(current_user, payload.template)
     template = get_base_prompt_template(current_user)
     context = base_prompt_context(current_user)
     rendered = apply_prompt_template(template, context)
@@ -92,8 +93,8 @@ def chat(
     chat_service = ChatService(session)
     try:
         return chat_service.send_message(user=current_user, payload=payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
 
 
 @router.post("/chat/stream")
@@ -103,29 +104,23 @@ def stream_chat(
     token: str = Depends(oauth2_scheme),
 ) -> StreamingResponse:
     """Stream a chat response via SSE."""
-    session = Session(engine)
-    session_closed = False
-
-    def close_session():
-        """Ensure the SQL session is closed exactly once."""
-        nonlocal session_closed
-        session.close()
-        session_closed = True
-
-    try:
+    # Setup runs synchronously so auth failures surface as HTTP errors, not
+    # mid-stream SSE. stream_scoped_session owns the session; on setup failure
+    # the ExitStack closes it, otherwise pop_all() hands cleanup to the
+    # streaming generator (which outlives this handler) via `session_cleanup`.
+    with ExitStack() as stack:
+        session = stack.enter_context(stream_scoped_session())
         current_user = get_current_user(token=token, session=session)
         current_user = require_openrouter_key(current_user)
         chat_service = ChatService(session)
-    except Exception:  # pylint: disable=broad-exception-caught
-        close_session()
-        raise
+        session_cleanup = stack.pop_all()
 
     def format_event(data: dict[str, object]) -> str:
         """Format an SSE data payload."""
         serialized = jsonable_encoder(data)
         return f"data: {json.dumps(serialized)}\n\n"
 
-    async def event_stream():
+    async def event_stream() -> AsyncIterator[str]:
         """Yield SSE events for the streaming chat session."""
         stream_gen = chat_service.stream_message(
             user=current_user,
@@ -139,10 +134,10 @@ def stream_chat(
                     break
         except Exception as exc:  # pylint: disable=broad-exception-caught
             message = str(exc) or "Streaming request failed."
-            yield format_event({"type": "error", "message": message})
+            yield format_event(ErrorEvent(message=message).model_dump())
         finally:
             yield "data: [DONE]\n\n"
-            close_session()
+            session_cleanup.close()
 
     return StreamingResponse(
         event_stream(),
@@ -151,13 +146,13 @@ def stream_chat(
     )
 
 
-@router.get("/chat/sessions", response_model=List[ChatSessionRead])
+@router.get("/chat/sessions", response_model=list[ChatSessionRead])
 def list_sessions(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-    collection_ids: Optional[List[UUID]] = Query(default=None),
+    collection_ids: list[UUID] | None = Query(default=None),
     include_unassigned: bool = Query(default=False),
-) -> List[ChatSessionRead]:
+) -> list[ChatSessionRead]:
     """List chat sessions for a user, optionally filtered by tool collections."""
     repo = ChatRepository(session)
     sessions = repo.list_sessions(
@@ -176,12 +171,12 @@ def list_sessions(
     ]
 
 
-@router.get("/chat/sessions/{session_id}", response_model=List[ChatMessageRead])
+@router.get("/chat/sessions/{session_id}", response_model=list[ChatMessageRead])
 def get_chat_history(
     session_id: UUID,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> List[ChatMessageRead]:
+) -> list[ChatMessageRead]:
     """Return chat history for a session."""
     repo = ChatRepository(session)
     session_model = repo.get_session(session_id, user_id=current_user.id)
@@ -207,8 +202,8 @@ def branch_chat_session(
             message_id=payload.message_id,
             title=payload.title,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
 
 
 @router.delete("/chat/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
