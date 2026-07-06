@@ -269,18 +269,54 @@ def test_create_collection_with_retrieval_overrides_only(session: Session) -> No
     assert created.retrieval_pipeline_id != defaults.retrieval.id
 
 
+class _StatusCodeError(Exception):
+    """Exception exposing a raw `status_code` attribute, like some SDK errors."""
+
+    def __init__(self, message: str, status_code: int) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class _ResponseStatusError(Exception):
+    """Exception exposing a nested `response.status_code`, like httpx-style errors."""
+
+    def __init__(self, message: str, response_status_code: int) -> None:
+        super().__init__(message)
+        self.response = SimpleNamespace(status_code=response_status_code)
+
+
 def test_is_missing_pinecone_namespace_variants() -> None:
     assert collections_routes._is_missing_pinecone_namespace(Exception("Namespace not found")) is True
     assert collections_routes._is_missing_pinecone_namespace(Exception("missing namespace")) is False
 
-    error_with_status = SimpleNamespace(status_code=404, __str__=lambda: "namespace not found")
-    assert collections_routes._is_missing_pinecone_namespace(error_with_status) is True
-
-    response_error = SimpleNamespace(
-        response=SimpleNamespace(status_code=404),
-        __str__=lambda: "namespace missing",
+    # status_code branch: only fires when the message also mentions "namespace" and
+    # doesn't already match the "namespace not found" branch above.
+    assert (
+        collections_routes._is_missing_pinecone_namespace(
+            _StatusCodeError("namespace missing", status_code=404)
+        )
+        is True
     )
-    assert collections_routes._is_missing_pinecone_namespace(response_error) is True
+    assert (
+        collections_routes._is_missing_pinecone_namespace(
+            _StatusCodeError("namespace missing", status_code=500)
+        )
+        is False
+    )
+
+    # response.status_code branch: same shape, via a nested response object.
+    assert (
+        collections_routes._is_missing_pinecone_namespace(
+            _ResponseStatusError("namespace missing", response_status_code=404)
+        )
+        is True
+    )
+    assert (
+        collections_routes._is_missing_pinecone_namespace(
+            _ResponseStatusError("namespace missing", response_status_code=500)
+        )
+        is False
+    )
 
 
 def test_build_collection_stats_with_empty_list(session: Session) -> None:

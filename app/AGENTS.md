@@ -189,3 +189,10 @@ construction site.
   `NotImplementedError` on abstract methods:** they assert nothing a user cares about
   and rot silently when signatures change (we had two such files broken on main for
   weeks).
+- **All patching goes through `monkeypatch`.** A bare module-attribute assignment
+  (`some_module.thing = stub`) outlives the test that made it — nothing undoes it, so
+  it poisons every test that runs after in the same process, order-dependently. And
+  never build fake objects with `SimpleNamespace(__str__=lambda: ...)`: dunder lookup
+  happens on the type, not the instance, so `str()` ignores the assigned attribute and
+  falls back to `SimpleNamespace`'s own repr — a test built this way can pass for a
+  reason that has nothing to do with the behavior it claims to check.

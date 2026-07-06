@@ -118,7 +118,7 @@ class _StubOpenRouter:
         return self._responses.pop(0)
 
 
-def _stub_pipeline_helpers() -> None:
+def _stub_pipeline_helpers(monkeypatch) -> None:
     class _StubPipelineService:
         def __init__(self, _session) -> None:
             pass
@@ -164,12 +164,20 @@ def _stub_pipeline_helpers() -> None:
         context_window=8192,
     )
 
-    chat_service_module.PipelineService = _StubPipelineService
-    chat_service_module.resolve_ingestion_settings = lambda *_args, **_kwargs: ingestion_settings
-    chat_service_module.resolve_retrieval_settings = lambda *_args, **_kwargs: retrieval_settings
+    monkeypatch.setattr(chat_service_module, "PipelineService", _StubPipelineService)
+    monkeypatch.setattr(
+        chat_service_module,
+        "resolve_ingestion_settings",
+        lambda *_args, **_kwargs: ingestion_settings,
+    )
+    monkeypatch.setattr(
+        chat_service_module,
+        "resolve_retrieval_settings",
+        lambda *_args, **_kwargs: retrieval_settings,
+    )
 
 
-def test_tool_call_history_replayed_for_follow_up() -> None:
+def test_tool_call_history_replayed_for_follow_up(monkeypatch) -> None:
     first_response = {
         "choices": [
             {
@@ -212,7 +220,7 @@ def test_tool_call_history_replayed_for_follow_up() -> None:
         openrouter_reasoning_effort=None,
         default_chat_model="openrouter/test-model",
     )
-    _stub_pipeline_helpers()
+    _stub_pipeline_helpers(monkeypatch)
 
     user = models.User(
         email="history@example.com",
