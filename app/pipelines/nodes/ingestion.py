@@ -6,13 +6,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
 from app.db.models import ChunkStrategy
-from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.definition import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.execution.context import PipelineRunContext
+from app.pipelines.node import PipelineNodeBase, PipelineValidationIssue
 from app.pipelines.nodes.trace_utils import (
     summarize_chunks,
     summarize_embeddings,
@@ -29,13 +31,7 @@ from app.pipelines.payloads import (
     RetrievalRequestPayload,
     SourcePayload,
 )
-from app.pipelines.runtime import (
-    NodePort,
-    NodeRegistry,
-    PipelineNodeBase,
-    PipelineRunContext,
-    PipelineValidationIssue,
-)
+from app.pipelines.ports import NodePort
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.retrieval.embedders.openrouter_embedder import OpenRouterEmbedder
@@ -46,6 +42,11 @@ from app.retrieval.parsers.pdf import PdfToTextParser
 from app.retrieval.parsers.txt import TxtDocumentParser
 from app.services.chunking import build_chunker
 
+if TYPE_CHECKING:
+    # Deferred: registry.py imports this module to build the node catalog,
+    # so a real import here would be circular. Only used as a type hint.
+    from app.pipelines.registry import NodeRegistry
+
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -54,7 +55,7 @@ class IngestionInputConfig(BaseModel):
     """Configuration for ingestion input nodes."""
 
 
-class IngestionInputNode(PipelineNodeBase):
+class IngestionInputNode(PipelineNodeBase[IngestionInputConfig]):
     """Load a document source from the current ingestion context."""
 
     type = "ingestion.input"
@@ -115,7 +116,7 @@ class ParserConfig(BaseModel):
     encoding: str = "utf-8"
 
 
-class DocumentParserNode(PipelineNodeBase):
+class DocumentParserNode(PipelineNodeBase[ParserConfig]):
     """Parse uploaded documents into normalized text."""
 
     type = "parser.document"
@@ -188,7 +189,7 @@ class FileTypeRouterConfig(BaseModel):
     other_label: str = "other"
 
 
-class FileTypeRouterNode(PipelineNodeBase):
+class FileTypeRouterNode(PipelineNodeBase[FileTypeRouterConfig]):
     """Route sources based on content type."""
 
     type = "router.file_type"
@@ -245,7 +246,7 @@ class ChunkerConfig(BaseModel):
     chunk_overlap: int = Field(default=200, ge=0)
 
 
-class ChunkerNode(PipelineNodeBase):
+class ChunkerNode(PipelineNodeBase[ChunkerConfig]):
     """Split documents into smaller chunks."""
 
     type = "chunker.collection"
@@ -311,7 +312,7 @@ class FixedChunkerConfig(BaseModel):
     chunk_overlap: int = Field(default=200, ge=0)
 
 
-class BaseChunkerNode(PipelineNodeBase):
+class BaseChunkerNode(PipelineNodeBase[FixedChunkerConfig]):
     """Base class for fixed-strategy chunkers."""
 
     input_ports = [NodePort(key="document", label="Document", data_type="document")]
@@ -430,7 +431,7 @@ class EmbedderConfig(BaseModel):
     )
 
 
-class EmbedderNode(PipelineNodeBase):
+class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
     """Generate embeddings for document chunks."""
 
     type = "embedder.openrouter"
@@ -555,7 +556,7 @@ class IndexerConfig(BaseModel):
     ensure_index: bool = True
 
 
-class IndexerNode(PipelineNodeBase):
+class IndexerNode(PipelineNodeBase[IndexerConfig]):
     """Upsert embedded chunks into Pinecone."""
 
     type = "indexer.pinecone"
@@ -579,8 +580,8 @@ class IndexerNode(PipelineNodeBase):
     ) -> list[PipelineValidationIssue]:
         """Validate embedder/indexer dimension compatibility."""
         issues: list[PipelineValidationIssue] = []
-        index_name = (node.config or {}).get("index_name", "")
-        if not isinstance(index_name, str) or not index_name.strip():
+        indexer_config = IndexerConfig.model_validate(node.config or {})
+        if not indexer_config.index_name.strip():
             issues.append(
                 PipelineValidationIssue(
                     message=f"Indexer node '{node.id}' must specify a Pinecone index.",
@@ -591,7 +592,6 @@ class IndexerNode(PipelineNodeBase):
         if not incoming_edges:
             return issues
         node_map = definition.node_map()
-        indexer_config = IndexerConfig.model_validate(node.config or {})
         for edge in incoming_edges:
             source_def = node_map.get(edge.source)
             if not source_def or source_def.type != "embedder.openrouter":
@@ -692,7 +692,7 @@ class IngestionOutputConfig(BaseModel):
     """Configuration for ingestion output nodes."""
 
 
-class IngestionOutputNode(PipelineNodeBase):
+class IngestionOutputNode(PipelineNodeBase[IngestionOutputConfig]):
     """Terminal node for ingestion pipelines."""
 
     type = "ingestion.output"

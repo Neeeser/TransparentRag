@@ -9,14 +9,16 @@ from sqlmodel import Session, select
 
 from app.core.config import get_settings
 from app.db import models
-from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
-from app.pipelines.runtime import (
-    NodePort,
-    NodeRegistry,
-    PipelineExecutor,
-    PipelineNodeBase,
-    PipelineRunContext,
+from app.pipelines.definition import (
+    PipelineDefinition,
+    PipelineEdgeDefinition,
+    PipelineNodeDefinition,
 )
+from app.pipelines.execution.context import PipelineRunContext
+from app.pipelines.execution.executor import PipelineExecutor
+from app.pipelines.node import PipelineNodeBase
+from app.pipelines.ports import NodePort
+from app.pipelines.registry import NodeRegistry
 from app.pipelines.tracing import (
     NodeTraceSummary,
     NodeTraceValue,

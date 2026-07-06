@@ -1,0 +1,31 @@
+"""Execution context shared by pipeline nodes at runtime."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from pinecone import Pinecone
+from sqlmodel import Session
+
+from app.clients.openrouter import OpenRouterClient
+from app.core.config import Settings
+from app.db import models
+from app.pipelines.tracing import PipelineTraceRecorder
+from app.utils.file_storage import FileStorage
+
+
+@dataclass
+class PipelineRunContext:
+    """Execution context shared by pipeline nodes."""
+
+    session: Session
+    user: models.User
+    collection: models.Collection
+    document: models.Document | None
+    query: str | None
+    top_k: int | None
+    openrouter: OpenRouterClient
+    pinecone: Pinecone
+    storage: FileStorage
+    settings: Settings
+    trace: PipelineTraceRecorder | None = None

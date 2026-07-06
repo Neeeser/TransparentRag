@@ -20,7 +20,7 @@ from app.pipelines.defaults import (
     build_default_ingestion_pipeline,
     build_default_retrieval_pipeline,
 )
-from app.pipelines.models import PipelineDefinition
+from app.pipelines.definition import PipelineDefinition
 
 
 @dataclass

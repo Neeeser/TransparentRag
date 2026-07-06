@@ -9,10 +9,11 @@ from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
 from app.db import models
-from app.pipelines.models import PipelineDefinition
-from app.pipelines.registry import build_default_registry
-from app.pipelines.runtime import PipelineValidator
+from app.pipelines.definition import PipelineDefinition
+from app.pipelines.registry import default_registry
+from app.pipelines.validation import PipelineValidator
 from app.schemas.pipelines import (
+    NodeSpecRead,
     PipelineActivateRequest,
     PipelineCreate,
     PipelineDeleteResponse,
@@ -48,7 +49,7 @@ def _to_pipeline_read(
 
 def _validate_definition_or_400(definition: PipelineDefinition) -> None:
     """Validate a pipeline definition and raise an HTTP error on failure."""
-    validator = PipelineValidator(build_default_registry())
+    validator = PipelineValidator(default_registry())
     result = validator.validate(definition)
     if not result.valid:
         raise HTTPException(
@@ -62,8 +63,10 @@ def list_pipeline_nodes(
     _current_user: models.User = Depends(get_current_user),
 ) -> PipelineNodesResponse:
     """Return pipeline node definitions for the editor."""
-    registry = build_default_registry()
-    return PipelineNodesResponse(nodes=registry.specs())
+    registry = default_registry()
+    return PipelineNodesResponse(
+        nodes=[NodeSpecRead.model_validate(spec, from_attributes=True) for spec in registry.specs()]
+    )
 
 
 @router.post("/validate", response_model=PipelineValidationResponse)
@@ -72,7 +75,7 @@ def validate_pipeline(
     _current_user: models.User = Depends(get_current_user),
 ) -> PipelineValidationResponse:
     """Validate a pipeline definition."""
-    registry = build_default_registry()
+    registry = default_registry()
     validator = PipelineValidator(registry)
     result = validator.validate(definition)
     return PipelineValidationResponse(

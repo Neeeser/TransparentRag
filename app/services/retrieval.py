@@ -13,9 +13,10 @@ from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import QueryRepository
 from app.pipelines.config import resolve_retrieval_settings
+from app.pipelines.execution.context import PipelineRunContext
+from app.pipelines.execution.executor import PipelineExecutor
 from app.pipelines.payloads import RetrievalPayload
-from app.pipelines.registry import build_default_registry
-from app.pipelines.runtime import PipelineExecutor, PipelineRunContext
+from app.pipelines.registry import default_registry
 from app.pipelines.tracing import PipelineTraceRecorder
 from app.retrieval.pinecone import get_pinecone_client
 from app.schemas.retrieval import CollectionQueryResponse, RetrievedChunk
@@ -65,7 +66,7 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
         self.session.add(run)
         self.session.flush()
         trace = PipelineTraceRecorder(self.session, run, definition)
-        executor = PipelineExecutor(build_default_registry())
+        executor = PipelineExecutor(default_registry())
         context = PipelineRunContext(
             session=self.session,
             user=user,

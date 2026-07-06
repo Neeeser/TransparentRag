@@ -10,7 +10,7 @@ from sqlmodel import Session
 from app.api.dependencies import get_session, require_user_api_keys
 from app.db import models
 from app.db.repositories import PipelineRunRepository
-from app.pipelines.models import PipelineDefinition
+from app.pipelines.definition import PipelineDefinition
 from app.schemas.traces import (
     PipelineNodeIORead,
     PipelineNodeRunRead,

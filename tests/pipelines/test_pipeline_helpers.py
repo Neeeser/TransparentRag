@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from app.db import models
 from app.pipelines.config import resolve_ingestion_settings, resolve_retrieval_settings
-from app.pipelines.models import PipelineDefinition
+from app.pipelines.definition import PipelineDefinition
 from app.pipelines.nodes.ingestion import ChunkerConfig, EmbedderConfig, IndexerConfig
 from app.pipelines.nodes.retrieval import ChatSettingsConfig, RetrieverConfig
 from app.pipelines.nodes.trace_utils import (

@@ -8,7 +8,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from app.db import models
-from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.definition import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.nodes.ingestion import (
     ChunkerConfig,
     EmbedderConfig,

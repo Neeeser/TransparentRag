@@ -1,4 +1,10 @@
-"""Pipeline definition models for node-based workflows."""
+"""Pipeline definition models for node-based workflows.
+
+`PipelineDefinition` is the pipeline graph's wire contract (it is what
+`app/schemas/pipelines.py` embeds directly in create/update/read payloads) as
+well as the engine's own input, so it lives here rather than in
+`app/schemas/` -- schemas re-export it rather than duplicating it.
+"""
 
 from __future__ import annotations
 
@@ -37,7 +43,15 @@ class PipelineEdgeDefinition(BaseModel):
 
 
 class PipelineDefinition(BaseModel):
-    """Complete pipeline graph definition."""
+    """Complete pipeline graph definition.
+
+    `viewport` stays a raw dict rather than a typed model: the frontend does
+    not yet track editor viewport state (it always sends and expects `{}`),
+    and every typed-model shape considered -- concrete float defaults,
+    optional fields dumped as explicit nulls -- serializes an unset viewport
+    to something other than `{}`, which is a wire-shape break for zero
+    behavioral gain. Revisit once the editor actually persists pan/zoom.
+    """
 
     nodes: list[PipelineNodeDefinition] = Field(default_factory=list)
     edges: list[PipelineEdgeDefinition] = Field(default_factory=list)

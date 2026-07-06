@@ -12,10 +12,11 @@ from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import ChunkRepository
 from app.pipelines.config import IngestionPipelineSettings, resolve_ingestion_settings
-from app.pipelines.models import PipelineDefinition
+from app.pipelines.definition import PipelineDefinition
+from app.pipelines.execution.context import PipelineRunContext
+from app.pipelines.execution.executor import PipelineExecutor
 from app.pipelines.payloads import IndexingPayload
-from app.pipelines.registry import build_default_registry
-from app.pipelines.runtime import PipelineExecutor, PipelineRunContext
+from app.pipelines.registry import default_registry
 from app.pipelines.tracing import PipelineTraceRecorder
 from app.retrieval.models import DocumentChunk
 from app.retrieval.pinecone import get_pinecone_client
@@ -64,7 +65,7 @@ class IngestionService:  # pylint: disable=too-few-public-methods
                 definition,
                 document,
             )
-            executor = PipelineExecutor(build_default_registry())
+            executor = PipelineExecutor(default_registry())
             context = PipelineRunContext(
                 session=self.session,
                 user=user,

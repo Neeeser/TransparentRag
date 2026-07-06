@@ -66,7 +66,12 @@ app/
                    tools.py, branching.py, persistence.py, streaming.py,
                    parameters.py, reasoning.py, tool_calls.py, usage.py, events.py,
                    messages.py, state.py, and providers/ (base + openrouter)
-  pipelines/       pipeline engine + nodes/
+  pipelines/       pipeline engine: ports.py (port types + compatibility), node.py
+                   (PipelineNodeBase, NodeSpec), registry.py (NodeRegistry +
+                   default_registry() singleton), validation.py (PipelineValidator),
+                   definition.py (PipelineDefinition — the graph's wire shape),
+                   execution/ (context.py, executor.py), nodes/ (node
+                   implementations — ingestion.py split further in Phase 5.2)
   retrieval/       RAG components: chunkers, embedders, indexers, parsers,
                    rerankers, retrievers — one folder per pluggable stage
   core/            settings, auth primitives, cross-cutting config
@@ -143,6 +148,18 @@ invert it:
   needs a db type only for a `from_model()` type hint imports it under
   `if TYPE_CHECKING:` (annotations stay valid because every schema module starts with
   `from __future__ import annotations`) — it must not appear as a real top-level import.
+- **The engine (`pipelines/`) never defines wire types — `app/schemas/pipelines.py`
+  owns the contract and may re-export.** `PipelineDefinition` (the pipeline graph) is
+  the one exception: it lives in `pipelines/definition.py` and schemas re-export it,
+  because it's genuinely both the engine's input and the wire shape — duplicating it
+  in `schemas/` would just be a second copy that drifts. Everything else the engine
+  exposes on the wire (the node catalog, validation results) gets its own
+  `schemas`-owned model (`NodeSpecRead`, `PipelineValidationResponse`) mapped from the
+  engine type at the route (`NodeSpecRead.model_validate(spec, from_attributes=True)`
+  when field names match exactly) — never a schema subclassing or re-exporting an
+  engine class directly. Registry is built once: routes and services call
+  `app.pipelines.registry.default_registry()`, not `build_default_registry()` (which
+  stays for tests that want a guaranteed-fresh instance).
 
 ## Adding a feature end-to-end
 

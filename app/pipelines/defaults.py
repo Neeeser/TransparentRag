@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from app.core.config import get_settings
-from app.pipelines.models import PipelineDefinition, PipelineEdgeDefinition, PipelineNodeDefinition
+from app.pipelines.definition import (
+    PipelineDefinition,
+    PipelineEdgeDefinition,
+    PipelineNodeDefinition,
+)
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
 
 settings = get_settings()

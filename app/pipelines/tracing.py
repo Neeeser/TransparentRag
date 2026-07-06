@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from app.db import models
-from app.pipelines.models import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.definition import PipelineDefinition, PipelineNodeDefinition
 from app.utils.time import utc_now
 
 
