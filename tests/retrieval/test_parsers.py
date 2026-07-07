@@ -38,7 +38,7 @@ def test_pdf_parser_reads_sample_pdf() -> None:
 
     document = PdfToTextParser().parse(source)
 
-    assert "TransparentRAG" in document.text
+    assert "Ragworks" in document.text
 
 
 def test_pdf_parser_raises_for_missing_file(tmp_path: Path) -> None:

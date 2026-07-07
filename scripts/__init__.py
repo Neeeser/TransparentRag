@@ -1,2 +1,2 @@
-"""Utility scripts for driving the TransparentRAG backend."""
+"""Utility scripts for driving the Ragworks backend."""
 

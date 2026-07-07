@@ -110,7 +110,7 @@ def test_retrieve_returns_scored_chunks_and_passes_expected_query_params(
         client=client,
     )
     request = QueryRequest(
-        text="What is TransparentRAG?",
+        text="What is Ragworks?",
         top_k=3,
         namespace="request-namespace",
         filter={"category": "faq"},

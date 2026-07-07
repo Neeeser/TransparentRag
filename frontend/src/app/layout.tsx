@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TransparentRAG Control Room",
+  title: "Ragworks Control Room",
   description:
     "Observe every chunk, embedding, and token in your Retrieval-Augmented Generation stack.",
 };

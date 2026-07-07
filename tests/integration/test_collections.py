@@ -10,7 +10,7 @@ pytestmark = pytest.mark.integration
 
 
 def _register_additional_user(client: TestClient) -> dict[str, object]:
-    email = f"isolated+{uuid4().hex[:8]}@transparentrag.io"
+    email = f"isolated+{uuid4().hex[:8]}@ragworks.io"
     password = f"AltPass!{uuid4().hex[:6]}"
     register_resp = client.post(
         "/api/auth/register",

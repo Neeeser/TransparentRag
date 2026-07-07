@@ -65,7 +65,7 @@ def test_lockfile_pins_current_project_version() -> None:
     )
     assert pyproject_version is not None
     lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
-    locked = next(p["version"] for p in lock["package"] if p["name"] == "transparent-rag")
+    locked = next(p["version"] for p in lock["package"] if p["name"] == "ragworks")
 
     from packaging.version import Version
 

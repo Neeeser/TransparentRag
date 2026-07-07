@@ -1,6 +1,6 @@
-# TransparentRAG Console (Next.js)
+# Ragworks Console (Next.js)
 
-A glassy operator console for the TransparentRAG backend. It surfaces authentication, dashboards, collection management, retrieval inspection, and chat telemetry on top of the FastAPI service.
+A glassy operator console for the Ragworks backend. It surfaces authentication, dashboards, collection management, retrieval inspection, and chat telemetry on top of the FastAPI service.
 
 ## Quick start
 

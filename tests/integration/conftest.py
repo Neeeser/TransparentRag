@@ -63,7 +63,7 @@ def client() -> Generator[TestClient, None, None]:
 @pytest.fixture(scope="session")
 def user_credentials() -> dict[str, str]:
     return {
-        "email": f"integration+{uuid4().hex[:8]}@transparentrag.io",
+        "email": f"integration+{uuid4().hex[:8]}@ragworks.io",
         "password": f"Str0ngPass!{uuid4().hex[:6]}",
         "full_name": "Integration Tester",
     }
@@ -251,7 +251,7 @@ def chat_session(
     ingested_documents: list[dict[str, object]],
 ) -> dict[str, object]:
     payload = {
-        "content": "Summarize the uploaded TransparentRAG documents with citations.",
+        "content": "Summarize the uploaded Ragworks documents with citations.",
         "title": "Integration Chat",
         "tool_collection_ids": [primary_collection["id"]],
     }

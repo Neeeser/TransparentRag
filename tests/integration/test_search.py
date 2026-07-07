@@ -15,7 +15,7 @@ def test_collection_query_returns_ranked_chunks(
     response = client.post(
         f"/api/collections/{primary_collection['id']}/query",
         headers=user_context["headers"],
-        json={"query": "What is TransparentRAG?", "top_k": 3},
+        json={"query": "What is Ragworks?", "top_k": 3},
     )
     assert response.status_code == 200, response.text
     payload = response.json()

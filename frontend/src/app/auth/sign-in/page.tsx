@@ -56,8 +56,8 @@ export default function SignInPage() {
           <div className="space-y-4">
             <h1 className="text-4xl font-semibold text-white">Welcome back.</h1>
             <p className="text-slate-300">
-              Log into your TransparentRAG control room to monitor ingestion, experiment with
-              chunking strategies, and host transparent chats.
+              Log into your Ragworks control room to monitor ingestion, experiment with chunking
+              strategies, and host transparent chats.
             </p>
           </div>
 

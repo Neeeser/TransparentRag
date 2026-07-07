@@ -1,4 +1,4 @@
-"""Database models for TransparentRAG, re-exported as a flat namespace.
+"""Database models for Ragworks, re-exported as a flat namespace.
 
 The tables live one-per-domain in sibling modules (`user`, `collection`,
 `document`, `pipeline`, `chat`, `visualization`, `events`); this module

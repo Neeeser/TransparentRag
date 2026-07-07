@@ -65,7 +65,7 @@ def test_ensure_database_exists_creates_database() -> None:
     # render_as_string(hide_password=False): str(url) masks the password as
     # "***", which breaks reconnection against password-authed Postgres (CI).
     base_url = app_engine.url.render_as_string(hide_password=False)
-    unique_name = f"transparentrag_tmp_{uuid4().hex[:8]}"
+    unique_name = f"ragworks_tmp_{uuid4().hex[:8]}"
     target_url = make_url(base_url).set(database=unique_name).render_as_string(hide_password=False)
 
     admin_engine = _admin_engine(base_url)

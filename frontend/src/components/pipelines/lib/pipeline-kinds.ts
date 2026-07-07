@@ -1,7 +1,7 @@
 import type { PipelineKind } from "@/lib/types";
 
 export const PIPELINE_KINDS = ["ingestion", "retrieval"] as const;
-export const PIPELINE_KIND_STORAGE_KEY = "transparentrag.pipeline.kind";
+export const PIPELINE_KIND_STORAGE_KEY = "ragworks.pipeline.kind";
 
 /** Sentinel option value used by index <select> controls to trigger "open the index
  * manager" instead of selecting an actual index. */

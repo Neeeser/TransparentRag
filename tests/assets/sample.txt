@@ -1,1 +1,1 @@
-TransparentRAG makes every chunk observable. This is a sample document for integration tests.
+Ragworks makes every chunk observable. This is a sample document for integration tests.

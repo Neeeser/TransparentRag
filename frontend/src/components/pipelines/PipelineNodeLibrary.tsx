@@ -10,7 +10,7 @@ type PipelineNodeLibraryProps = {
   onPreviewNode: (spec: NodeSpec) => void;
 };
 
-const NODE_DRAG_TYPE = "application/transparentrag-node";
+const NODE_DRAG_TYPE = "application/ragworks-node";
 
 export function PipelineNodeLibrary({ catalog, onPreviewNode }: PipelineNodeLibraryProps) {
   const handleDragStart = (event: DragEvent<HTMLButtonElement>, spec: NodeSpec) => {

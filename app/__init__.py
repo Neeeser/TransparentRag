@@ -1,1 +1,1 @@
-"""TransparentRAG application package."""
+"""Ragworks application package."""

@@ -1,6 +1,6 @@
-# TransparentRAG
+# Ragworks
 
-TransparentRAG is a FastAPI backend (`app/`) with a Next.js frontend (`frontend/`).
+Ragworks is a FastAPI backend (`app/`) with a Next.js frontend (`frontend/`).
 The goal is an easy-to-use RAG interface for power users. Its backbones are Pinecone
 for vector storage and OpenRouter for embeddings and LLMs.
 
@@ -43,7 +43,7 @@ failing-then-passing test is incomplete.
 # Releases
 
 Docker is the release vehicle: pushing a `v*` tag runs the CI gates, publishes
-`ghcr.io/neeeser/transparentrag-backend` / `-frontend` images (multi-arch), and cuts a
+`ghcr.io/neeeser/ragworks-backend` / `-frontend` images (multi-arch), and cuts a
 GitHub Release with `docker-compose.yml` + `.env.example` attached. Cut a release with
 `make bump-patch|bump-minor|bump-major` (pre-releases: `make bump-rc`, SemVer `-rc.N`)
 followed by the printed `git push`. Pushes to `main` publish `edge` images only. The

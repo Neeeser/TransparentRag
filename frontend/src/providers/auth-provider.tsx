@@ -15,7 +15,7 @@ import { getErrorMessage } from "@/lib/errors";
 
 import type { User } from "@/lib/types";
 
-const STORAGE_KEY = "transparentrag.jwt";
+const STORAGE_KEY = "ragworks.jwt";
 
 type AuthContextValue = {
   user: User | null;

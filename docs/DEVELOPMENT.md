@@ -1,6 +1,6 @@
 # Development Guide
 
-Everything you need to run, test, and contribute to TransparentRAG. For what the
+Everything you need to run, test, and contribute to Ragworks. For what the
 project *is*, see the [README](../README.md). For binding engineering rules, see
 [`AGENTS.md`](../AGENTS.md) (repo-wide), [`app/AGENTS.md`](../app/AGENTS.md)
 (backend), and [`frontend/AGENTS.md`](../frontend/AGENTS.md) (frontend).
@@ -25,17 +25,17 @@ for the live integration test suite.
 ```ini
 # Auth / DB
 JWT_SECRET_KEY=super-secret-string
-DATABASE_URL=postgresql+psycopg://localhost:5432/transparentrag
+DATABASE_URL=postgresql+psycopg://localhost:5432/ragworks
 FILE_STORAGE_PATH=./storage
 
 # OpenRouter defaults
-OPENROUTER_SITE_URL=https://transparent-rag.local
-OPENROUTER_SITE_NAME=TransparentRAG
+OPENROUTER_SITE_URL=https://ragworks.local
+OPENROUTER_SITE_NAME=Ragworks
 OPENROUTER_DEFAULT_EMBEDDING_MODEL=qwen/qwen3-embedding-0.6b
 OPENROUTER_DEFAULT_CHAT_MODEL=openai/gpt-oss-120b
 
 # Pinecone defaults
-PINECONE_INDEX_NAME=transparent-rag
+PINECONE_INDEX_NAME=ragworks
 PINECONE_REGION=us-east-1
 PINECONE_CLOUD=aws
 

@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
-DEFAULT_TEST_DATABASE_URL = "postgresql+psycopg://localhost:5432/transparentrag_test"
+DEFAULT_TEST_DATABASE_URL = "postgresql+psycopg://localhost:5432/ragworks_test"
 """Single source of truth for the fallback test database URL.
 
 `tests/conftest.py` imports this constant to seed `DATABASE_URL` before any

@@ -30,7 +30,7 @@ describe("app root", () => {
   it("renders the landing page", () => {
     render(<LandingPage />);
 
-    expect(screen.getByText("TransparentRAG")).toBeInTheDocument();
+    expect(screen.getByText("Ragworks")).toBeInTheDocument();
     expect(screen.getByText("Every RAG signal, surfaced.")).toBeInTheDocument();
     expect(screen.getByText("Parse")).toBeInTheDocument();
     expect(screen.getByText("Chunk")).toBeInTheDocument();

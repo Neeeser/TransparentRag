@@ -32,7 +32,7 @@ def test_get_settings_creates_storage_path(tmp_path, monkeypatch) -> None:
     get_settings.cache_clear()
     storage_path = tmp_path / "storage"
     monkeypatch.setenv("FILE_STORAGE_PATH", str(storage_path))
-    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://localhost:5432/transparentrag")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://localhost:5432/ragworks")
 
     settings = get_settings()
 

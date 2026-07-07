@@ -64,7 +64,7 @@ describe("AuthProvider", () => {
   });
 
   it("hydrates from storage and handles refresh failures", async () => {
-    window.localStorage.setItem("transparentrag.jwt", "token");
+    window.localStorage.setItem("ragworks.jwt", "token");
     api.getProfile
       .mockResolvedValueOnce(baseUser)
       .mockResolvedValueOnce(baseUser)
@@ -90,7 +90,7 @@ describe("AuthProvider", () => {
   });
 
   it("uses a fallback error message when refresh fails with non-errors", async () => {
-    window.localStorage.setItem("transparentrag.jwt", "token");
+    window.localStorage.setItem("ragworks.jwt", "token");
     api.getProfile
       .mockResolvedValueOnce(baseUser)
       .mockResolvedValueOnce(baseUser)

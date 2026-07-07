@@ -61,7 +61,7 @@ class OpenRouterClient:
 
     def _build_app_headers(self) -> dict[str, str]:
         """Build static headers required by OpenRouter."""
-        headers = {"X-Title": self.settings.openrouter_site_name or "TransparentRag"}
+        headers = {"X-Title": self.settings.openrouter_site_name or "Ragworks"}
         if self.settings.openrouter_site_url:
             headers["HTTP-Referer"] = self.settings.openrouter_site_url
         return headers

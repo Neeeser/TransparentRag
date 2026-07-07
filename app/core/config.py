@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
     # Pinecone
     pinecone_index_name: str = Field(
-        default="transparent-rag",
+        default="ragworks",
         validation_alias="PINECONE_INDEX_NAME",
     )
     pinecone_cloud: str = Field(default="aws", validation_alias="PINECONE_CLOUD")
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # Database / storage
     database_url: str = Field(
-        default="postgresql+psycopg://localhost:5432/transparentrag",
+        default="postgresql+psycopg://localhost:5432/ragworks",
         validation_alias="DATABASE_URL",
     )
     storage_path: Path = Field(

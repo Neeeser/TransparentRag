@@ -34,9 +34,6 @@ describe("PipelineNodeLibrary", () => {
 
     const dataTransfer = { setData: vi.fn(), effectAllowed: "" } as unknown as DataTransfer;
     fireEvent.dragStart(screen.getByRole("button", { name: /Token Chunker/ }), { dataTransfer });
-    expect(dataTransfer.setData).toHaveBeenCalledWith(
-      "application/transparentrag-node",
-      "chunker.token",
-    );
+    expect(dataTransfer.setData).toHaveBeenCalledWith("application/ragworks-node", "chunker.token");
   });
 });

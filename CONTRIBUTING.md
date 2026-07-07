@@ -1,4 +1,4 @@
-# Contributing to TransparentRAG
+# Contributing to Ragworks
 
 Thanks for your interest in contributing! This project keeps its engineering
 practices in-repo, next to the code they govern — reading them first will save
