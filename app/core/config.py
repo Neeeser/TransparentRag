@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     storage_path: Path = Field(
         default=Path("./storage"),
         validation_alias="FILE_STORAGE_PATH",
+        description="Bulk document storage — large and reclaimable.",
+    )
+    config_path: Path = Field(
+        default=Path("./config"),
+        validation_alias="CONFIG_PATH",
+        description=(
+            "Small persistent app state (e.g. the auto-generated JWT secret). "
+            "Deliberately separate from storage_path so clearing bulk document "
+            "storage never destroys identity material."
+        ),
     )
 
     # Auth / security
@@ -143,15 +153,16 @@ class Settings(BaseSettings):
         return self
 
 
-def _load_or_create_jwt_secret(storage_path: Path) -> str:
+def _load_or_create_jwt_secret(config_path: Path) -> str:
     """Return the install's auto-generated JWT secret, minting it on first boot.
 
-    The secret lives in the storage path — the persistent volume in Docker —
-    so restarts and image upgrades keep issued tokens valid. Created with
+    The secret lives in the config path — a persistent volume in Docker,
+    separate from bulk document storage — so restarts, image upgrades, and
+    document-volume cleanups all keep issued tokens valid. Created with
     owner-only permissions; a concurrent first boot that loses the exclusive
     create simply reads the winner's secret.
     """
-    secret_file = storage_path / ".jwt-secret"
+    secret_file = config_path / ".jwt-secret"
     try:
         fd = os.open(secret_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
@@ -170,11 +181,12 @@ def _load_or_create_jwt_secret(storage_path: Path) -> str:
 def get_settings() -> Settings:
     """Return cached application settings.
 
-    Owns the two boot-time side effects: creating the storage directory and
-    resolving an unset JWT secret to the persisted auto-generated one.
+    Owns the boot-time side effects: creating the storage/config directories
+    and resolving an unset JWT secret to the persisted auto-generated one.
     """
     settings = Settings()
     settings.storage_path.mkdir(parents=True, exist_ok=True)
+    settings.config_path.mkdir(parents=True, exist_ok=True)
     if not settings.jwt_secret_key:
-        settings.jwt_secret_key = _load_or_create_jwt_secret(settings.storage_path)
+        settings.jwt_secret_key = _load_or_create_jwt_secret(settings.config_path)
     return settings

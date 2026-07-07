@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+
 import pytest
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,15 +49,19 @@ def test_get_settings_creates_storage_path(tmp_path, monkeypatch) -> None:
 def test_unset_jwt_secret_is_generated_and_persisted(tmp_path, monkeypatch) -> None:
     """With no JWT_SECRET_KEY configured, first boot mints a real secret.
 
-    The secret is written under the storage path (the persistent volume in
-    Docker) so every subsequent boot — including after image upgrades —
-    reuses it instead of invalidating all issued tokens.
+    The secret is written under the config path — a separate volume from
+    document storage — so every subsequent boot reuses it, and clearing the
+    (bulk, reclaimable) document volume never rotates it.
     """
     monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    monkeypatch.setenv("CONFIG_PATH", str(tmp_path / "config"))
     monkeypatch.setenv("FILE_STORAGE_PATH", str(tmp_path / "storage"))
     get_settings.cache_clear()
 
     first = get_settings().jwt_secret_key
+
+    # Wiping document storage (the space-reclaim case) must not touch it.
+    shutil.rmtree(tmp_path / "storage")
 
     get_settings.cache_clear()
     second = get_settings().jwt_secret_key
@@ -63,7 +69,7 @@ def test_unset_jwt_secret_is_generated_and_persisted(tmp_path, monkeypatch) -> N
     assert len(first) >= 32
     assert first != "changeme"
     assert second == first
-    assert (tmp_path / "storage" / ".jwt-secret").read_text().strip() == first
+    assert (tmp_path / "config" / ".jwt-secret").read_text().strip() == first
 
     get_settings.cache_clear()
 

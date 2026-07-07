@@ -212,12 +212,17 @@ invert it:
   `db/engine.py`, `core/security.py`, `pipelines/`, `services/` — to import upward
   from `app.api`; moved in Phase 2.)
 - **`DEBUG` defaults to `false` — deployments are secure by default.** An unset
-  `JWT_SECRET_KEY` is auto-generated on first boot and persisted under the storage
+  `JWT_SECRET_KEY` is auto-generated on first boot and persisted under the config
   path (`_load_or_create_jwt_secret` in `app/core/config.py`), so a paste-and-run
   install signs tokens with a real secret; the fail-fast guard rejects an explicit
   `changeme` placeholder unless `DEBUG=true` is set. Dev entry points opt into
   debug: `make server` exports `DEBUG=true` and the test suite sets it in
   `tests/conftest.py`. Never flip the default back to `True`.
+- **`config_path` (small persistent app state) is deliberately separate from
+  `storage_path` (bulk, reclaimable uploads)** — in Docker they are different
+  volumes (`backend-config` vs `document-storage`), so clearing document storage
+  to reclaim space never destroys identity material like the JWT secret. New
+  persistent app state (not user uploads) goes under `config_path`.
 - **Routes are thin — target ≤ ~25 lines each: parse → one service call → shape/
   translate.** A route parses/validates input (via its Pydantic schema and `Depends`),
   calls one service function, and shapes the response or translates a domain error. No

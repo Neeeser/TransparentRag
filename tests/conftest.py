@@ -19,6 +19,7 @@ from tests.utils.db import DEFAULT_TEST_DATABASE_URL, open_session
 
 TEST_ROOT = Path(__file__).resolve().parent / ".artifacts"
 STORAGE_PATH = TEST_ROOT / "storage"
+CONFIG_PATH = TEST_ROOT / "config"
 
 
 def _prepare_environment() -> None:
@@ -34,6 +35,7 @@ def _prepare_environment() -> None:
 
     os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
     os.environ["FILE_STORAGE_PATH"] = str(STORAGE_PATH)
+    os.environ["CONFIG_PATH"] = str(CONFIG_PATH)
     # debug defaults to False (secure-by-default); the suite runs against the
     # dev-mode contract, so opt in the way `make server` does.
     os.environ.setdefault("DEBUG", "true")

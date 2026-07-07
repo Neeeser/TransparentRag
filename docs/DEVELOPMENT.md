@@ -28,7 +28,8 @@ Optional overrides (every one has a sensible default):
 
 ```bash
 JWT_SECRET_KEY=…               # default: auto-generated on first boot, persisted
-                               # under the storage path (.jwt-secret)
+                               # under the config path (.jwt-secret)
+CONFIG_PATH=…                  # small persistent app state (default: ./config)
 LOG_LEVEL=INFO                 # app log level (default: uvicorn's)
 DATABASE_URL=…                 # default: postgresql+psycopg://localhost:5432/ragworks
 TEST_DATABASE_URL=…            # test-suite database (default: derived locally)

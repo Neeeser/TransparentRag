@@ -97,7 +97,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://ragworks:ragworks@postgres:5432/ragworks
     volumes:
+      # Bulk uploads (reclaimable) and small app state (e.g. the
+      # auto-generated auth secret) kept apart on purpose.
       - document-storage:/data/storage
+      - backend-config:/data/config
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,6 +117,7 @@ services:
 volumes:
   postgres-data:
   document-storage:
+  backend-config:
 ```
 
 Then start the stack:
@@ -124,7 +128,7 @@ docker compose up -d
 
 Open <http://localhost:7247>, create an account, and add your OpenRouter and
 Pinecone API keys on the settings page. The auth signing secret is generated
-automatically on first boot and persisted in the `document-storage` volume
+automatically on first boot and persisted in the `backend-config` volume
 (set `JWT_SECRET_KEY` on the backend service to supply your own).
 
 Documents and the database persist in named Docker volumes across restarts and

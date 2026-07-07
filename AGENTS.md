@@ -53,7 +53,8 @@ version lives in `pyproject.toml` and `frontend/package.json`; only
 The shipped `docker-compose.yml` is deliberately minimal and self-contained: no
 `.env` file, no required edits, `latest` image tags, hardcoded network-internal
 Postgres password, host port `7247`. The JWT signing secret is auto-generated on
-first boot and persisted in the storage volume (`get_settings` in
+first boot and persisted in the `backend-config` volume — separate from the bulk
+`document-storage` volume so reclaiming space never rotates it (`get_settings` in
 `app/core/config.py`); setting `JWT_SECRET_KEY` overrides it. The exact same YAML
 is pasted into README.md's quick start — **any change to `docker-compose.yml`
 updates the README block (and vice versa) in the same PR; they are mirror copies.** The frontend Docker image is built without
