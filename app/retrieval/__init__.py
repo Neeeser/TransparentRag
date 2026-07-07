@@ -1,4 +1,4 @@
-"""TransparentRAG retrieval module."""
+"""Ragworks retrieval module."""
 
 # NOTE: Keep imports lightweight so optional dependencies (e.g.
 # sentence-transformers) are not pulled in when the retrieval package is

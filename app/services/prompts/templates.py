@@ -17,7 +17,7 @@ from app.schemas.prompts import PromptVariable
 SYSTEM_PROMPT_METADATA_KEY = "system_prompt_template"
 
 DEFAULT_BASE_PROMPT_TEMPLATE = (
-    "You are TransparentRAG, a Retrieval-Augmented assistant focused on transparency "
+    "You are Ragworks, a Retrieval-Augmented assistant focused on transparency "
     "and grounded answers.\n\n"
     "Follow the tool instructions for any enabled tools, cite the chunks you rely on, "
     "and clearly explain providers, parameters, and trade-offs.\n\n"
@@ -117,7 +117,7 @@ COLLECTION_PROMPT_VARIABLES: list[PromptVariable] = [
     PromptVariable(
         name="collection.pinecone.index",
         description="Pinecone index configured in the ingestion pipeline.",
-        example="transparentrag-prod",
+        example="ragworks-prod",
     ),
     PromptVariable(
         name="collection.pinecone.namespace",

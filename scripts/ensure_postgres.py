@@ -11,7 +11,7 @@ from typing import Optional
 
 from sqlalchemy.engine.url import make_url
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://localhost:5432/transparentrag"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://localhost:5432/ragworks"
 DEFAULT_DATA_DIRS = [
     "/opt/homebrew/var/postgresql@17",
     "/usr/local/var/postgresql@17",

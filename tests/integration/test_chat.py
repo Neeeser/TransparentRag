@@ -44,7 +44,7 @@ def test_delete_chat_session_removes_history(
     ingested_documents: list[dict[str, object]],
 ) -> None:
     payload = {
-        "content": "Tell me about the TransparentRAG setup.",
+        "content": "Tell me about the Ragworks setup.",
         "title": "Disposable Chat",
         "tool_collection_ids": [primary_collection["id"]],
     }

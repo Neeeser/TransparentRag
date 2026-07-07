@@ -50,7 +50,7 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
     };
   }, [menuOpen]);
 
-  const avatarSeed = user?.id || user?.email || "transparentrag";
+  const avatarSeed = user?.id || user?.email || "ragworks";
   const avatarStyle = useMemo(() => {
     let hash = 0;
     for (let idx = 0; idx < avatarSeed.length; idx += 1) {
@@ -101,10 +101,10 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
               <Bot className="h-6 w-6" />
             </div>
             <div className="hidden lg:block">
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">TransparentRAG</p>
+              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Ragworks</p>
               <p className="text-lg font-semibold">Control Room</p>
             </div>
-            <span className="sr-only">TransparentRAG Control Room</span>
+            <span className="sr-only">Ragworks Control Room</span>
           </Link>
           <nav className="flex flex-1 justify-center gap-2 text-sm">
             {navLinks.map((link) => {

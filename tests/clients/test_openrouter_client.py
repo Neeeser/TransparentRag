@@ -15,8 +15,8 @@ from app.schemas.openrouter import OpenRouterEmbeddingsResponse
 class _StubSettings:
     openrouter_api_key: str = "test-key"
     openrouter_base_url: str = "https://example.com/api/v1"
-    openrouter_site_name: str = "TransparentRag"
-    openrouter_site_url: str = "https://transparentrag.ai"
+    openrouter_site_name: str = "Ragworks"
+    openrouter_site_url: str = "https://ragworks.ai"
     default_embedding_model: str = "test-embed"
     default_chat_model: str = "test-chat"
 
@@ -385,7 +385,7 @@ def test_embed_merges_extra_headers(client: OpenRouterClient) -> None:
 
     call = client._client.embeddings.calls[0]
     assert call["extra_headers"]["X-Extra"] == "value"
-    assert call["extra_headers"]["X-Title"] == "TransparentRag"
+    assert call["extra_headers"]["X-Title"] == "Ragworks"
     assert result.data[0].embedding == [0.1]
 
 
@@ -478,7 +478,7 @@ def test_build_app_headers_skips_referer(monkeypatch) -> None:
     class _NoRefererSettings:
         openrouter_api_key: str = "test-key"
         openrouter_base_url: str = "https://example.com/api/v1"
-        openrouter_site_name: str = "TransparentRag"
+        openrouter_site_name: str = "Ragworks"
         openrouter_site_url: str | None = None
         default_embedding_model: str = "test-embed"
         default_chat_model: str = "test-chat"

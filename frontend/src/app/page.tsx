@@ -34,7 +34,7 @@ export default function LandingPage() {
 
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-16">
         <header className="glass-panel grid gap-10 p-10 text-center md:text-left">
-          <p className="text-sm uppercase tracking-[0.4em] text-violet-200">TransparentRAG</p>
+          <p className="text-sm uppercase tracking-[0.4em] text-violet-200">Ragworks</p>
           <div className="space-y-6">
             <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">
               Every RAG signal, surfaced.

@@ -1,6 +1,6 @@
 # Backend CLI Quickstart
 
-Use these commands to drive the TransparentRAG backend end-to-end. Replace placeholder IDs/emails with your own values.
+Use these commands to drive the Ragworks backend end-to-end. Replace placeholder IDs/emails with your own values.
 
 ## Bootstrap
 - **Run API** (env vars set with OpenRouter/Pinecone secrets): `uvicorn app.api.main:app --reload`
@@ -33,7 +33,7 @@ Use these commands to drive the TransparentRAG backend end-to-end. Replace place
 
 ## Retrieval & Chat
 - Plain semantic query:  
-  `./.venv/bin/python -m scripts.backend_cli collections query --collection-id <COL_ID> --text "What is TransparentRAG?" --top-k 5`
+  `./.venv/bin/python -m scripts.backend_cli collections query --collection-id <COL_ID> --text "What is Ragworks?" --top-k 5`
 - Start a chat turn (creates a session):  
   `./.venv/bin/python -m scripts.backend_cli collections chat --collection-id <COL_ID> --message "Summarize the docs with citations." --title "CLI Demo"`
 - Continue an existing session:  

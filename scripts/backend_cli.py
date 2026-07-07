@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Command-line helper for exercising the TransparentRAG backend."""
+"""Command-line helper for exercising the Ragworks backend."""
 from __future__ import annotations
 
 import argparse
@@ -13,10 +13,10 @@ from typing import Any, Dict, Iterable, List, Optional
 import httpx
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
-ENV_BASE_URL = os.getenv("TRANSPARENT_RAG_API_BASE")
-ENV_TOKEN = os.getenv("TRANSPARENT_RAG_TOKEN")
-ENV_STATE_PATH = os.getenv("TRANSPARENT_RAG_STATE_PATH")
-DEFAULT_STATE_PATH = Path(ENV_STATE_PATH) if ENV_STATE_PATH else Path.home() / ".transparentrag-cli-state.json"
+ENV_BASE_URL = os.getenv("RAGWORKS_API_BASE")
+ENV_TOKEN = os.getenv("RAGWORKS_TOKEN")
+ENV_STATE_PATH = os.getenv("RAGWORKS_STATE_PATH")
+DEFAULT_STATE_PATH = Path(ENV_STATE_PATH) if ENV_STATE_PATH else Path.home() / ".ragworks-cli-state.json"
 
 
 def load_state(path: Path) -> Dict[str, Any]:
@@ -488,7 +488,7 @@ def cmd_health(args, client: BackendClient, _state: Dict[str, Any], _state_path:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="CLI smoke tester for the TransparentRAG backend.")
+    parser = argparse.ArgumentParser(description="CLI smoke tester for the Ragworks backend.")
     parser.add_argument("--base-url", help="API base URL (defaults to env/state or http://127.0.0.1:8000).")
     parser.add_argument("--token", help="Override JWT access token for this invocation.")
     parser.add_argument(

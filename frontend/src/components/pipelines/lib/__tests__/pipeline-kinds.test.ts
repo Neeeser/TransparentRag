@@ -9,7 +9,7 @@ import {
 describe("pipeline-kinds", () => {
   it("exposes supported kinds and storage key", () => {
     expect(PIPELINE_KINDS).toEqual(["ingestion", "retrieval"]);
-    expect(PIPELINE_KIND_STORAGE_KEY).toBe("transparentrag.pipeline.kind");
+    expect(PIPELINE_KIND_STORAGE_KEY).toBe("ragworks.pipeline.kind");
   });
 
   it("validates pipeline kinds", () => {

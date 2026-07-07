@@ -135,7 +135,7 @@ export const PromptEditorOverlay = ({
                 placeholder="Write instructions with Markdown. Use {{variable}} placeholders."
               />
               <p className="mt-3 text-xs text-slate-500">
-                Leave blank to fall back to the default prompt shipped with TransparentRAG.
+                Leave blank to fall back to the default prompt shipped with Ragworks.
               </p>
             </div>
             <div className="flex w-full flex-1 flex-col rounded-2xl border border-white/10 bg-black/30 p-4 lg:w-1/2">

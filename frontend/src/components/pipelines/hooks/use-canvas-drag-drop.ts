@@ -9,7 +9,7 @@ import type { Edge, Node, ReactFlowInstance } from "@xyflow/react";
 type FlowPosition = { x: number; y: number };
 
 const PREVIEW_NODE_SIZE = { width: 180, height: 72 };
-const NODE_TYPE_MIME = "application/transparentrag-node";
+const NODE_TYPE_MIME = "application/ragworks-node";
 
 type LegacyReactFlowInstance = {
   project: (point: FlowPosition) => FlowPosition;

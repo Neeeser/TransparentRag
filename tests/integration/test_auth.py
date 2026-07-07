@@ -17,7 +17,7 @@ def test_user_registration_cycle(user_context: dict[str, object]) -> None:
 
 
 def test_token_endpoint_requires_password_grant(client: TestClient) -> None:
-    email = f"grant-check+{uuid4().hex[:8]}@transparentrag.io"
+    email = f"grant-check+{uuid4().hex[:8]}@ragworks.io"
     password = "GrantCheck!123"
     register_resp = client.post(
         "/api/auth/register",

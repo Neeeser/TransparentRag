@@ -1,12 +1,12 @@
 <div align="center">
 
-# 🔍 TransparentRAG
+# 🔍 Ragworks
 
-### The RAG platform with nothing to hide.
+### Follow every document from upload to answer.
 
 **Build retrieval pipelines you can actually see — every parse, chunk, embedding, and retrieval step is a node on a graph you can inspect, trace, and rewire.**
 
-[![CI](https://github.com/Neeeser/TransparentRag/actions/workflows/ci.yml/badge.svg)](https://github.com/Neeeser/TransparentRag/actions/workflows/ci.yml)
+[![CI](https://github.com/Neeeser/Ragworks/actions/workflows/ci.yml/badge.svg)](https://github.com/Neeeser/Ragworks/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-frontend-black?logo=next.js&logoColor=white)](https://nextjs.org/)
@@ -17,17 +17,17 @@
 [![Pinecone](https://img.shields.io/badge/Pinecone-vector%20store-000000?logo=pinecone)](https://www.pinecone.io/)
 [![OpenRouter](https://img.shields.io/badge/OpenRouter-any%20model-6467F2)](https://openrouter.ai/)
 
-[Why](#-why-transparentrag) · [Features](#-features) · [How it works](#-how-it-works) · [Quick start](#-quick-start) · [Roadmap](#-roadmap) · [Development](docs/DEVELOPMENT.md)
+[Why](#-why-ragworks) · [Features](#-features) · [How it works](#-how-it-works) · [Quick start](#-quick-start) · [Roadmap](#-roadmap) · [Development](docs/DEVELOPMENT.md)
 
 </div>
 
 ---
 
-## 💡 Why TransparentRAG?
+## 💡 Why Ragworks?
 
 Most RAG stacks are black boxes. You upload a document, ask a question, get an answer — and when the answer is wrong, you have no idea *where* it went wrong. Was the PDF parsed badly? Did the chunker split a table in half? Did retrieval pull the wrong passages? Did the model just ignore them?
 
-**TransparentRAG makes every step of the pipeline a first-class, inspectable object:**
+**Ragworks makes every step of the pipeline a first-class, inspectable object:**
 
 - Your ingestion and retrieval pipelines are **editable node graphs**, not hardcoded plumbing.
 - Every run records a **full execution trace** — the exact input and output of every node.
@@ -57,10 +57,10 @@ Multi-tenant workspaces with JWT auth. Upload PDFs and text; every chunk, embedd
 
 ## ⚙️ How it works
 
-Your RAG stack **is** a directed graph — so that's exactly how you build it. Drag typed nodes onto a canvas, wire their ports, and TransparentRAG validates the graph (port compatibility, embedding-dimension mismatches, cycles) before a single document flows through it:
+Your RAG stack **is** a directed graph — so that's exactly how you build it. Drag typed nodes onto a canvas, wire their ports, and Ragworks validates the graph (port compatibility, embedding-dimension mismatches, cycles) before a single document flows through it:
 
 <p align="center">
-  <img src="docs/assets/pipeline-graph.svg" alt="TransparentRAG pipeline editor: ingestion graph (upload → parser → chunker → embedder → indexer → Pinecone) and retrieval graph (query → embedder → retriever → reranker → chat LLM), with every node recording its execution trace" width="100%"/>
+  <img src="docs/assets/pipeline-graph.svg" alt="Ragworks pipeline editor: ingestion graph (upload → parser → chunker → embedder → indexer → Pinecone) and retrieval graph (query → embedder → retriever → reranker → chat LLM), with every node recording its execution trace" width="100%"/>
 </p>
 
 Both graphs are yours to rewire. Swap the chunking strategy, change the embedding model, drop in a reranker — the validator checks the wiring, versions pin what actually ran, and the next run traces the new graph end to end, node by node.
@@ -69,10 +69,10 @@ Both graphs are yours to rewire. Swap the chunking strategy, change the embeddin
 
 ## 🚀 Quick start (Docker)
 
-The supported way to run TransparentRAG. You need Docker with the compose plugin — nothing else.
+The supported way to run Ragworks. You need Docker with the compose plugin — nothing else.
 
 1. Download `docker-compose.yml` and `env.example` from the
-   [latest release](https://github.com/Neeeser/TransparentRag/releases/latest)
+   [latest release](https://github.com/Neeeser/Ragworks/releases/latest)
    (or grab `docker-compose.yml` and `.env.example` from the repo root).
 2. Copy the template and fill in the two required values:
 
@@ -91,7 +91,7 @@ The supported way to run TransparentRAG. You need Docker with the compose plugin
    Pinecone API keys on the settings page.
 
 Documents and the database persist in named Docker volumes across restarts and
-upgrades. To upgrade, set `TRANSPARENTRAG_VERSION` in `.env` to the new version (no `v` prefix, e.g. `0.2.0`) and
+upgrades. To upgrade, set `RAGWORKS_VERSION` in `.env` to the new version (no `v` prefix, e.g. `0.2.0`) and
 run `docker compose pull && docker compose up -d`.
 
 ## 🛠️ Development setup
@@ -99,8 +99,8 @@ run `docker compose pull && docker compose up -d`.
 **Prerequisites:** Python 3.11+, Node 22, Postgres, [uv](https://docs.astral.sh/uv/), an [OpenRouter](https://openrouter.ai/) key and a [Pinecone](https://www.pinecone.io/) key (entered per-user in the UI).
 
 ```bash
-git clone https://github.com/Neeeser/TransparentRag.git
-cd TransparentRag
+git clone https://github.com/Neeeser/Ragworks.git
+cd Ragworks
 
 make env       # install backend (uv) + frontend (npm) dependencies
 ```
@@ -109,7 +109,7 @@ Create `.env.local` in the repo root:
 
 ```ini
 JWT_SECRET_KEY=change-me
-DATABASE_URL=postgresql+psycopg://localhost:5432/transparentrag
+DATABASE_URL=postgresql+psycopg://localhost:5432/ragworks
 FILE_STORAGE_PATH=./storage
 ```
 
