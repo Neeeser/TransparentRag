@@ -36,6 +36,9 @@ failing-then-passing test is incomplete.
 - Work on a branch; merge to `main` via PR. Keep PRs to one concern.
 - If a change spans the API contract (backend schemas + frontend types), update both
   sides in the same PR so they can't drift.
+- Every PR carries at least one release-notes label (`breaking`, `feature`, `fix`,
+  `docs`, `ci`, `dependencies`, `chore`, or `skip-changelog`) — the `PR labels` check
+  fails without one, and `.github/release.yml` uses them to organize release notes.
 
 # Releases
 
