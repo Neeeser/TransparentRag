@@ -44,6 +44,18 @@ def test_get_settings_creates_storage_path(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
 
+def test_debug_defaults_off_so_default_jwt_secret_is_rejected(monkeypatch) -> None:
+    """An unconfigured deployment must fail fast, not silently run insecure.
+
+    The test suite exports DEBUG=true (tests/conftest.py); remove it so this
+    exercises the true out-of-the-box default.
+    """
+    monkeypatch.delenv("DEBUG", raising=False)
+
+    with pytest.raises(ValueError, match="JWT_SECRET_KEY must be set"):
+        Settings.model_validate({"JWT_SECRET_KEY": "changeme"})
+
+
 def test_default_jwt_secret_allowed_in_debug_mode() -> None:
     settings = Settings.model_validate({"DEBUG": "true", "JWT_SECRET_KEY": "changeme"})
 

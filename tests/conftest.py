@@ -20,19 +20,18 @@ from tests.utils.db import DEFAULT_TEST_DATABASE_URL, open_session
 
 TEST_ROOT = Path(__file__).resolve().parent / ".integration"
 STORAGE_PATH = TEST_ROOT / "storage"
-ENV_FILES = [Path(".env"), Path(".env.local")]
+ENV_FILE = Path(".env")
 
 
-def _load_env_files() -> None:
-    """Populate os.environ defaults from .env/.env.local, if present.
+def _load_env_file() -> None:
+    """Populate os.environ defaults from the optional repo-root .env file.
 
-    Uses setdefault semantics only: a value already present in the
-    environment (e.g. set by CI) always wins over the file.
+    That file is the single home for local overrides and the TEST_* creds
+    the integration suite needs. Uses setdefault semantics only: a value
+    already present in the environment (e.g. set by CI) always wins.
     """
-    for env_path in ENV_FILES:
-        if not env_path.exists():
-            continue
-        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+    if ENV_FILE.exists():
+        for raw_line in ENV_FILE.read_text(encoding="utf-8").splitlines():
             line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
@@ -51,7 +50,7 @@ def _prepare_environment() -> None:
     `session` fixture) but no live OpenRouter/Pinecone credentials are
     needed here — those are gated in `tests/integration/conftest.py`.
     """
-    _load_env_files()
+    _load_env_file()
 
     TEST_ROOT.mkdir(parents=True, exist_ok=True)
     if STORAGE_PATH.exists():
@@ -59,6 +58,9 @@ def _prepare_environment() -> None:
 
     os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
     os.environ["FILE_STORAGE_PATH"] = str(STORAGE_PATH)
+    # debug defaults to False (secure-by-default); the suite runs against the
+    # dev-mode contract, so opt in the way `make server` does.
+    os.environ.setdefault("DEBUG", "true")
 
 
 _prepare_environment()

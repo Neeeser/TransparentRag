@@ -44,11 +44,18 @@ failing-then-passing test is incomplete.
 
 Docker is the release vehicle: pushing a `v*` tag runs the CI gates, publishes
 `ghcr.io/neeeser/ragworks-backend` / `-frontend` images (multi-arch), and cuts a
-GitHub Release with `docker-compose.yml` + `.env.example` attached. Cut a release with
+GitHub Release with `docker-compose.yml` attached. Cut a release with
 `make bump-patch|bump-minor|bump-major` (pre-releases: `make bump-rc`, SemVer `-rc.N`)
 followed by the printed `git push`. Pushes to `main` publish `edge` images only. The
 version lives in `pyproject.toml` and `frontend/package.json`; only
-`scripts/bump_version.py` writes it. The frontend Docker image is built without
+`scripts/bump_version.py` writes it.
+
+The shipped `docker-compose.yml` is deliberately minimal and self-contained: no
+`.env` file, `latest` image tags, hardcoded network-internal Postgres password, host
+port `7247`, and a `changeme` JWT placeholder the backend refuses to boot with
+(DEBUG defaults to false, arming the fail-fast guard). The exact same YAML is pasted
+into README.md's quick start — **any change to `docker-compose.yml` updates the
+README block (and vice versa) in the same PR; they are mirror copies.** The frontend Docker image is built without
 `NEXT_PUBLIC_API_BASE_URL` and proxies same-origin `/api/*` calls to the backend via
 the runtime `API_PROXY_TARGET` proxy in `frontend/src/middleware.ts` (a Next.js
 `rewrites()` in `next.config.ts` is baked into the build-time routes manifest and

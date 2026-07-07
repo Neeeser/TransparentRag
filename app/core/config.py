@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     """Application-wide configuration loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.local"),
+        env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -83,11 +83,14 @@ class Settings(BaseSettings):
 
     # Application mode / web
     debug: bool = Field(
-        default=True,
+        default=False,
         validation_alias="DEBUG",
         description=(
-            "Development mode flag. When false, startup fails fast on insecure "
-            "defaults (e.g. an unset JWT secret) instead of silently running with them."
+            "Development mode flag, off by default so a deployment is secure "
+            "out of the box: unless DEBUG=true is set explicitly, startup fails "
+            "fast on insecure defaults (e.g. an unset JWT secret) instead of "
+            "silently running with them. Dev entry points (make server, the "
+            "test suite) opt in."
         ),
     )
     cors_origins: list[str] = Field(

@@ -18,34 +18,35 @@ project *is*, see the [README](../README.md). For binding engineering rules, see
 make env       # uv sync --locked + npm install in frontend/
 ```
 
-Create `.env.local` (or `.env`) in the repo root. Provider API keys (OpenRouter,
-Pinecone) are configured **per user in the UI**; the `TEST_` keys are only needed
-for the live integration test suite.
+No env file is required — every setting has a working dev default (local
+Postgres at `postgresql+psycopg://localhost:5432/ragworks`, `./storage` for
+files, debug mode via `make server`). Provider API keys (OpenRouter, Pinecone)
+are configured **per user in the UI**, not in the environment.
+
+For optional overrides, create a gitignored `.env` in the repo root (this is
+the only env file the app and test suite read):
 
 ```ini
-# Auth / DB
-JWT_SECRET_KEY=super-secret-string
-DATABASE_URL=postgresql+psycopg://localhost:5432/ragworks
-FILE_STORAGE_PATH=./storage
-
-# OpenRouter defaults
-OPENROUTER_SITE_URL=https://ragworks.local
-OPENROUTER_SITE_NAME=Ragworks
-OPENROUTER_DEFAULT_EMBEDDING_MODEL=qwen/qwen3-embedding-0.6b
-OPENROUTER_DEFAULT_CHAT_MODEL=openai/gpt-oss-120b
-
-# Pinecone defaults
-PINECONE_INDEX_NAME=ragworks
-PINECONE_REGION=us-east-1
-PINECONE_CLOUD=aws
-
-# Live integration tests only (optional)
+# Live integration tests only (make test-integration)
 TEST_OPENROUTER_API_KEY=...
 TEST_PINECONE_API_KEY=...
+
+# Optional overrides — every one has a sensible default
+#LOG_LEVEL=INFO
+#DATABASE_URL=postgresql+psycopg://localhost:5432/ragworks
+#OPENROUTER_DEFAULT_EMBEDDING_MODEL=qwen/qwen3-embedding-0.6b
+#OPENROUTER_DEFAULT_CHAT_MODEL=openai/gpt-oss-120b
+#OPENROUTER_SITE_URL=https://ragworks.local
+#OPENROUTER_SITE_NAME=Ragworks
+#PINECONE_INDEX_NAME=ragworks
+#PINECONE_REGION=us-east-1
+#PINECONE_CLOUD=aws
 ```
 
-> **Deployments must set `DEBUG=false`.** The fail-fast guard on the default JWT
-> secret only arms outside debug mode. CORS origins are settings-driven
+> **`DEBUG` defaults to `false` (secure by default).** A deployed process fails
+> fast on the default JWT secret unless `DEBUG=true` is set explicitly. Dev
+> entry points opt in for you: `make server` exports `DEBUG=true`, and the test
+> suite sets it in `tests/conftest.py`. CORS origins are settings-driven
 > (default `http://localhost:3000`).
 
 ## Running

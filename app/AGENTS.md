@@ -212,9 +212,10 @@ invert it:
   live under `app/api`, which forced every module that needed config —
   `db/engine.py`, `core/security.py`, `pipelines/`, `services/` — to import upward
   from `app.api`; moved in Phase 2.)
-- **Deployments must set `DEBUG=false`.** The fail-fast guard on the default JWT
-  secret only fires outside debug mode, and `debug` defaults to `True` — under the
-  default the guard is a no-op.
+- **`DEBUG` defaults to `false` — deployments are secure by default.** The fail-fast
+  guard on the default JWT secret is armed unless `DEBUG=true` is set explicitly.
+  Dev entry points opt in: `make server` exports `DEBUG=true` and the test suite
+  sets it in `tests/conftest.py`. Never flip the default back to `True`.
 - **Routes are thin — target ≤ ~25 lines each: parse → one service call → shape/
   translate.** A route parses/validates input (via its Pydantic schema and `Depends`),
   calls one service function, and shapes the response or translates a domain error. No

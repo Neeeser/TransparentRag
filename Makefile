@@ -9,6 +9,8 @@ UV_PYTHON_FLAG := $(if $(PYTHON),-p $(PYTHON),)
 API_HOST ?= 127.0.0.1
 API_PORT ?= 8000
 NEXT_PUBLIC_API_BASE_URL ?= http://$(API_HOST):$(API_PORT)
+# Dev opts into debug mode; the app default is production-safe (DEBUG=false).
+DEBUG ?= true
 
 help:
 	@echo "Targets:"
@@ -50,7 +52,7 @@ postgres: env-backend
 	$(UV) run python scripts/ensure_postgres.py
 
 server: postgres
-	$(UV) run uvicorn app.api.main:app --reload --host $(API_HOST) --port $(API_PORT)
+	DEBUG="$(DEBUG)" $(UV) run uvicorn app.api.main:app --reload --host $(API_HOST) --port $(API_PORT)
 
 frontend: env-frontend
 	NEXT_PUBLIC_API_BASE_URL="$(NEXT_PUBLIC_API_BASE_URL)" $(NPM) --prefix frontend run dev
