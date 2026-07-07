@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import JSON, Boolean, Column, String, Text
 from sqlmodel import Field, SQLModel
 
+from app.schemas.enums import UserRole
 from app.utils.time import utc_now
 
 
@@ -67,3 +68,7 @@ class User(SQLModel, TimestampMixin, table=True):
         sa_column=Column(JSON, nullable=True),
     )
     is_active: bool = Field(default=True, nullable=False)
+    role: str = Field(
+        default=UserRole.USER.value,
+        sa_column=Column(String, nullable=False, server_default=UserRole.USER.value),
+    )

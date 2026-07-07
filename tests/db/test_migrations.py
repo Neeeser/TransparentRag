@@ -34,6 +34,24 @@ def test_resolve_default_sql_handles_server_default() -> None:
     assert drop_default is False
 
 
+def test_resolve_default_sql_quotes_plain_string_server_default() -> None:
+    """A plain-string `server_default=` is a scalar literal, not raw SQL text.
+
+    SQLAlchemy's own `CREATE TABLE` compiler quotes it (`DEFAULT 'user'`);
+    emitting it unquoted (`DEFAULT user`) is valid SQL but wrong -- Postgres
+    parses the bare identifier `user` as the `CURRENT_USER` function, so
+    backfilled rows get the connecting role's name instead of the literal
+    string "user".
+    """
+    column = Column("role", String, server_default="user")
+    default_sql, drop_default = migrations._resolve_default_sql(
+        column, sqlite_dialect(), allow_application_default=True
+    )
+
+    assert default_sql == "'user'"
+    assert drop_default is False
+
+
 def test_resolve_default_sql_handles_enum_default() -> None:
     class _Status(Enum):
         ACTIVE = "active"

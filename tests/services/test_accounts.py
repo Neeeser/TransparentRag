@@ -17,6 +17,7 @@ from app.schemas.auth import (
     UserCreate,
     UserSettingsUpdate,
 )
+from app.schemas.enums import UserRole
 from app.services import accounts as accounts_module
 from app.services.accounts import AccountService
 from app.services.errors import InvalidInputError
@@ -53,6 +54,17 @@ def test_register_rejects_duplicate_email(session: Session) -> None:
 
     with pytest.raises(InvalidInputError):
         AccountService(session).register(payload)
+
+
+def test_new_user_defaults_to_user_role(session: Session) -> None:
+    """A freshly registered account carries the non-privileged role."""
+    user = AccountService(session).register(
+        UserCreate(email="role-default@example.com", password="password123")
+    )
+    with Session(session.get_bind()) as fresh_session:
+        fresh = fresh_session.get(models.User, user.id)
+        assert fresh is not None
+        assert fresh.role == UserRole.USER.value
 
 
 def test_register_provisions_default_pipelines(session: Session) -> None:

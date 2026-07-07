@@ -65,3 +65,10 @@ class PipelineIOType(str, Enum):
 
     INPUT = "input"
     OUTPUT = "output"
+
+
+class UserRole(str, Enum):
+    """Privilege tiers for user accounts."""
+
+    ADMIN = "admin"
+    USER = "user"

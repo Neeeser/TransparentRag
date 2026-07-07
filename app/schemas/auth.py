@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.schemas.base import DateTimeConfigMixin
+from app.schemas.enums import UserRole
 
 
 class UserBase(DateTimeConfigMixin, BaseModel):
@@ -45,6 +46,7 @@ class UserRead(UserBase):
 
     id: UUID
     is_active: bool
+    role: UserRole
     openrouter_configured: bool
     pinecone_configured: bool
     last_used_chat_model: str | None = None

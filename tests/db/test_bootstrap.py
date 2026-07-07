@@ -19,11 +19,13 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
-from sqlmodel import SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine
 
+from app.db import models
 from app.db.bootstrap import _format_validation_error, ensure_database_exists, init_db
 from app.db.engine import engine as app_engine
 from app.db.schema import SchemaValidationResult, build_expected_schema, inspect_database_schema
+from app.schemas.enums import UserRole
 
 
 def test_ensure_database_exists_requires_database_name() -> None:
@@ -109,6 +111,41 @@ def test_init_db_adds_missing_columns() -> None:
     result = SchemaValidationResult.from_schemas(expected, actual)
 
     assert result.is_valid
+
+
+def test_init_db_backfills_string_server_default_as_literal() -> None:
+    """Adding a non-nullable string-defaulted column to a populated table
+    backfills the literal default value, not a same-named SQL keyword.
+
+    Regression test for a real bug in `_resolve_default_sql`: a plain Python
+    string passed to `server_default=` (as `User.role` does, with
+    `UserRole.USER.value == "user"`) used to be emitted verbatim as SQL text
+    (`DEFAULT user`) instead of a quoted literal (`DEFAULT 'user'`). Postgres
+    parses the unquoted form as the `user`/`CURRENT_USER` function, so
+    existing rows backfilled to the connecting role's name (e.g. "ragworks")
+    instead of the literal string "user".
+    """
+    SQLModel.metadata.drop_all(app_engine)
+    SQLModel.metadata.create_all(app_engine)
+
+    with Session(app_engine) as session:
+        user = models.User(
+            email="backfill@example.com",
+            hashed_password="hashed",
+        )
+        session.add(user)
+        session.commit()
+        user_id = user.id
+
+    with app_engine.begin() as connection:
+        connection.execute(text("ALTER TABLE users DROP COLUMN IF EXISTS role"))
+
+    init_db()
+
+    with Session(app_engine) as session:
+        fresh = session.get(models.User, user_id)
+        assert fresh is not None
+        assert fresh.role == UserRole.USER.value
 
 
 def test_collections_schema_excludes_pipeline_models() -> None:

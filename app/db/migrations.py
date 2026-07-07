@@ -186,13 +186,23 @@ def _resolve_default_sql(
     server_default = column.server_default
     if isinstance(server_default, DefaultClause) and server_default.arg is not None:
         default_expr = server_default.arg
-        default_sql = (
-            default_expr
-            if isinstance(default_expr, str)
-            else str(
+        if isinstance(default_expr, str):
+            # A plain Python string passed to `server_default=` is a scalar
+            # literal value (SQLAlchemy's own `CREATE TABLE` compiler quotes
+            # it, e.g. `DEFAULT 'user'`) -- not a raw SQL expression. Compiling
+            # it through `literal()` matches that behavior; treating it as
+            # verbatim SQL text emitted it unquoted (`DEFAULT user`), which
+            # Postgres parses as the `user`/`CURRENT_USER` function instead
+            # of the intended string.
+            default_sql = str(
+                literal(default_expr, type_=column.type).compile(
+                    dialect=dialect, compile_kwargs={"literal_binds": True}
+                )
+            )
+        else:
+            default_sql = str(
                 default_expr.compile(dialect=dialect, compile_kwargs={"literal_binds": True})
             )
-        )
         return default_sql, False
 
     default = column.default
