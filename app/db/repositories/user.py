@@ -46,6 +46,16 @@ class UserRepository(Repository):
         )
         return self.session.exec(statement).one()
 
+    def count_active_admins(self) -> int:
+        """Return how many active users hold the admin role."""
+        statement = (
+            select(func.count())  # pylint: disable=not-callable
+            .select_from(models.User)
+            .where(col(models.User.role) == UserRole.ADMIN.value)
+            .where(col(models.User.is_active))
+        )
+        return self.session.exec(statement).one()
+
     def earliest_created(self) -> models.User | None:
         """Return the oldest account (first-registered) if any users exist."""
         statement = select(models.User).order_by(col(models.User.created_at).asc()).limit(1)

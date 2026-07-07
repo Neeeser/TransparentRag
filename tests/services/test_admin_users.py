@@ -15,8 +15,15 @@ from app.services.admin_users import AdminUserService
 from app.services.errors import InvalidInputError, NotFoundError
 
 
-def _make_user(session: Session, email: str, role: UserRole = UserRole.USER) -> models.User:
-    user = models.User(email=email, hashed_password="hashed", role=role.value)
+def _make_user(
+    session: Session,
+    email: str,
+    role: UserRole = UserRole.USER,
+    is_active: bool = True,
+) -> models.User:
+    user = models.User(
+        email=email, hashed_password="hashed", role=role.value, is_active=is_active
+    )
     UserRepository(session).add(user)
     session.commit()
     session.refresh(user)
@@ -65,3 +72,34 @@ def test_update_missing_user_raises_not_found(session: Session) -> None:
     _make_user(session, "admin@example.com", UserRole.ADMIN)
     with pytest.raises(NotFoundError):
         AdminUserService(session).update_user(uuid4(), AdminUserUpdate(role=UserRole.ADMIN))
+
+
+def test_last_admin_guard_counts_only_active_admins(session: Session) -> None:
+    """Regression test: demoting/deactivating the only ACTIVE admin is rejected,
+    even if inactive admins exist."""
+    # Seed: one active admin (A), one inactive admin (B)
+    active_admin = _make_user(session, "active@example.com", UserRole.ADMIN, is_active=True)
+    _make_user(session, "inactive@example.com", UserRole.ADMIN, is_active=False)
+
+    # Should reject demoting the active admin
+    with pytest.raises(InvalidInputError):
+        AdminUserService(session).update_user(
+            active_admin.id, AdminUserUpdate(role=UserRole.USER)
+        )
+
+    # Should reject deactivating the active admin
+    with pytest.raises(InvalidInputError):
+        AdminUserService(session).update_user(active_admin.id, AdminUserUpdate(is_active=False))
+
+    # Should allow demoting the already-inactive admin (does not reduce active count)
+    inactive_admin = UserRepository(session).get_by_email("inactive@example.com")
+    assert inactive_admin is not None
+    AdminUserService(session).update_user(
+        inactive_admin.id, AdminUserUpdate(role=UserRole.USER)
+    )
+
+    # Verify the inactive admin was demoted
+    with Session(session.get_bind()) as fresh_session:
+        demoted = fresh_session.get(models.User, inactive_admin.id)
+        assert demoted is not None
+        assert demoted.role == UserRole.USER.value

@@ -56,7 +56,8 @@ class AdminUserService:
         if (
             (demotes or deactivates)
             and user.role == UserRole.ADMIN.value
-            and self.users.count_admins() <= 1
+            and user.is_active
+            and self.users.count_active_admins() <= 1
         ):
             raise InvalidInputError("Cannot demote or deactivate the last remaining admin.")
 
