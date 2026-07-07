@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 # Built WITHOUT NEXT_PUBLIC_API_BASE_URL: the bundle uses same-origin /api paths,
-# proxied at runtime via the API_PROXY_TARGET rewrite (see next.config.ts).
+# proxied at runtime via the API_PROXY_TARGET middleware (see src/middleware.ts).
 RUN npm run build
 
 FROM node:22-alpine

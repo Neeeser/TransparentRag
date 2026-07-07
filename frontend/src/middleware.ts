@@ -12,6 +12,8 @@ export function middleware(request: NextRequest): NextResponse {
   if (!target) {
     return NextResponse.next();
   }
+  // `target` must be a bare origin (e.g. http://backend:8000): new URL(path, base)
+  // drops any path component of the base, so http://host/prefix would silently lose /prefix.
   const destination = new URL(request.nextUrl.pathname + request.nextUrl.search, target);
   return NextResponse.rewrite(destination);
 }
