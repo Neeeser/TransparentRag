@@ -5,7 +5,7 @@ on:
     types: [opened, reopened, labeled, unlabeled, synchronize]
 
 permissions:
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   require-category-label:
