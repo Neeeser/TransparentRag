@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlmodel import select
+from sqlalchemy import func
+from sqlmodel import col, select
 
 from app.db import models
 from app.db.repositories.base import Repository
+from app.schemas.enums import UserRole
 
 
 class UserRepository(Repository):
@@ -29,3 +31,22 @@ class UserRepository(Repository):
     def add(self, user: models.User) -> models.User:
         """Persist a new user and return it."""
         return self._add(user)
+
+    def count(self) -> int:
+        """Return the total number of user rows."""
+        statement = select(func.count()).select_from(models.User)  # pylint: disable=not-callable
+        return self.session.exec(statement).one()
+
+    def count_admins(self) -> int:
+        """Return how many users hold the admin role."""
+        statement = (
+            select(func.count())  # pylint: disable=not-callable
+            .select_from(models.User)
+            .where(models.User.role == UserRole.ADMIN.value)
+        )
+        return self.session.exec(statement).one()
+
+    def earliest_created(self) -> models.User | None:
+        """Return the oldest account (first-registered) if any users exist."""
+        statement = select(models.User).order_by(col(models.User.created_at).asc()).limit(1)
+        return self.session.exec(statement).first()
