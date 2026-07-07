@@ -25,6 +25,13 @@ _SPEC.loader.exec_module(bump_version)
         ("1.2.3", "major", "2.0.0"),
         # patch on a pre-release finalizes it rather than skipping a version
         ("0.2.0-rc.1", "patch", "0.2.0"),
+        # minor on a patch-level rc must bump minor from the base, not
+        # finalize down to a version below the rc (a downgrade)
+        ("0.1.1-rc.1", "minor", "0.2.0"),
+        # major on an rc finalizes only if patch and minor are both 0;
+        # otherwise it bumps major from the base
+        ("0.1.1-rc.1", "major", "1.0.0"),
+        ("1.0.0-rc.1", "major", "1.0.0"),
         # rc from a release starts a new patch pre-release; rc on an rc increments it
         ("0.1.0", "rc", "0.1.1-rc.1"),
         ("0.1.1-rc.1", "rc", "0.1.1-rc.2"),

@@ -4,9 +4,22 @@ Owns the semver logic in one place and writes both version files
 (pyproject.toml and frontend/package.json) so they cannot drift.
 
 Semantics:
-  patch  0.1.0 -> 0.1.1        0.2.0-rc.1 -> 0.2.0 (finalizes the pre-release)
-  minor  0.1.1 -> 0.2.0        0.2.0-rc.1 -> 0.2.0 (finalizes the pre-release)
-  major  1.2.3 -> 2.0.0
+  patch  0.1.0 -> 0.1.1        0.2.0-rc.1 -> 0.2.0 (finalizes; rc is always
+                                                     patch-level, so this is
+                                                     always correct)
+  minor  0.1.1 -> 0.2.0        0.2.0-rc.1 -> 0.2.0 (finalizes; only when the
+                                                     rc already sits on a
+                                                     minor boundary, patch==0)
+                                0.1.1-rc.1 -> 0.2.0 (otherwise bumps minor
+                                                     from the base — never
+                                                     finalizes down below the
+                                                     rc)
+  major  1.2.3 -> 2.0.0        1.0.0-rc.1 -> 1.0.0 (finalizes; only when the
+                                                     rc already sits on a
+                                                     major boundary, minor==0
+                                                     and patch==0)
+                                0.1.1-rc.1 -> 1.0.0 (otherwise bumps major
+                                                     from the base)
   rc     0.1.0 -> 0.1.1-rc.1   0.1.1-rc.1 -> 0.1.1-rc.2
 
 Usage: uv run python scripts/bump_version.py {patch,minor,major,rc}
@@ -39,9 +52,13 @@ def bump(version: str, part: str) -> str:
     major, minor, patch = int(match[1]), int(match[2]), int(match[3])
     rc = int(match[4]) if match[4] else None
     if part == "major":
+        if rc is not None and minor == 0 and patch == 0:
+            return f"{major}.0.0"
         return f"{major + 1}.0.0"
     if part == "minor":
-        return f"{major}.{minor}.0" if rc is not None else f"{major}.{minor + 1}.0"
+        if rc is not None and patch == 0:
+            return f"{major}.{minor}.0"
+        return f"{major}.{minor + 1}.0"
     if part == "patch":
         return f"{major}.{minor}.{patch}" if rc is not None else f"{major}.{minor}.{patch + 1}"
     if part == "rc":
