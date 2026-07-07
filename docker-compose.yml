@@ -21,9 +21,6 @@ services:
     image: ghcr.io/neeeser/ragworks-backend:latest
     environment:
       DATABASE_URL: postgresql+psycopg://ragworks:ragworks@postgres:5432/ragworks
-      # REQUIRED — replace with your own secret: openssl rand -hex 32
-      # The backend refuses to start until this is changed.
-      JWT_SECRET_KEY: changeme
     volumes:
       - document-storage:/data/storage
     depends_on:

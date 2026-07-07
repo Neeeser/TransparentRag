@@ -27,6 +27,8 @@ env files: the app reads real environment variables only.
 Optional overrides (every one has a sensible default):
 
 ```bash
+JWT_SECRET_KEY=…               # default: auto-generated on first boot, persisted
+                               # under the storage path (.jwt-secret)
 LOG_LEVEL=INFO                 # app log level (default: uvicorn's)
 DATABASE_URL=…                 # default: postgresql+psycopg://localhost:5432/ragworks
 TEST_DATABASE_URL=…            # test-suite database (default: derived locally)
@@ -37,10 +39,11 @@ PINECONE_INDEX_NAME=…          # default: ragworks
 PINECONE_REGION=… / PINECONE_CLOUD=…   # defaults: us-east-1 / aws
 ```
 
-> **`DEBUG` defaults to `false` (secure by default).** A deployed process fails
-> fast on the default JWT secret unless `DEBUG=true` is set explicitly. Dev
-> entry points opt in for you: `make server` exports `DEBUG=true`, and the test
-> suite sets it in `tests/conftest.py`. CORS origins are settings-driven
+> **`DEBUG` defaults to `false` (secure by default).** An unset JWT secret is
+> auto-generated and persisted on first boot; an explicit `changeme` placeholder
+> is rejected outside debug mode. Dev entry points opt into debug for you:
+> `make server` exports `DEBUG=true`, and the test suite sets it in
+> `tests/conftest.py`. CORS origins are settings-driven
 > (default `http://localhost:3000`).
 
 ## Running

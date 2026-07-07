@@ -44,6 +44,40 @@ def test_get_settings_creates_storage_path(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
 
+def test_unset_jwt_secret_is_generated_and_persisted(tmp_path, monkeypatch) -> None:
+    """With no JWT_SECRET_KEY configured, first boot mints a real secret.
+
+    The secret is written under the storage path (the persistent volume in
+    Docker) so every subsequent boot — including after image upgrades —
+    reuses it instead of invalidating all issued tokens.
+    """
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    monkeypatch.setenv("FILE_STORAGE_PATH", str(tmp_path / "storage"))
+    get_settings.cache_clear()
+
+    first = get_settings().jwt_secret_key
+
+    get_settings.cache_clear()
+    second = get_settings().jwt_secret_key
+
+    assert len(first) >= 32
+    assert first != "changeme"
+    assert second == first
+    assert (tmp_path / "storage" / ".jwt-secret").read_text().strip() == first
+
+    get_settings.cache_clear()
+
+
+def test_explicit_jwt_secret_wins_over_generated_one(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("JWT_SECRET_KEY", "operator-supplied-secret")
+    monkeypatch.setenv("FILE_STORAGE_PATH", str(tmp_path / "storage"))
+    get_settings.cache_clear()
+
+    assert get_settings().jwt_secret_key == "operator-supplied-secret"
+
+    get_settings.cache_clear()
+
+
 def test_debug_defaults_off_so_default_jwt_secret_is_rejected(monkeypatch) -> None:
     """An unconfigured deployment must fail fast, not silently run insecure.
 

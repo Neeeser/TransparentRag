@@ -96,9 +96,6 @@ services:
     image: ghcr.io/neeeser/ragworks-backend:latest
     environment:
       DATABASE_URL: postgresql+psycopg://ragworks:ragworks@postgres:5432/ragworks
-      # REQUIRED — replace with your own secret: openssl rand -hex 32
-      # The backend refuses to start until this is changed.
-      JWT_SECRET_KEY: changeme
     volumes:
       - document-storage:/data/storage
     depends_on:
@@ -119,14 +116,16 @@ volumes:
   document-storage:
 ```
 
-Then set your `JWT_SECRET_KEY` (generate one with `openssl rand -hex 32`) and start the stack:
+Then start the stack:
 
 ```bash
 docker compose up -d
 ```
 
 Open <http://localhost:7247>, create an account, and add your OpenRouter and
-Pinecone API keys on the settings page.
+Pinecone API keys on the settings page. The auth signing secret is generated
+automatically on first boot and persisted in the `document-storage` volume
+(set `JWT_SECRET_KEY` on the backend service to supply your own).
 
 Documents and the database persist in named Docker volumes across restarts and
 upgrades. To upgrade:
