@@ -236,7 +236,9 @@ invert it:
   gated by construction. Never add a per-route admin check somewhere else;
   extend this router. Roles are the `UserRole` enum (`app/schemas/enums.py`)
   stored as a string column on `User`. The first registered user becomes admin
-  (count check and insert share one transaction in `AccountService.register`);
+  (the count check and insert share one session; note this is best-effort —
+  two truly concurrent first registrations under READ COMMITTED could each
+  mint an admin, an accepted risk on a first-boot empty database);
   `ensure_admin_exists` promotes the earliest account on startup for upgraded
   deployments. `AdminUserService` owns the last-admin invariant: demoting or
   deactivating the only remaining active admin is an `InvalidInputError`.
