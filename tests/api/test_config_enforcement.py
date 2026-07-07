@@ -170,3 +170,66 @@ def test_upload_allows_small_permitted_file(
     )
 
     assert response.status_code == 201
+
+
+# --- Enforcement 4: feature flags gate visualization and branching ------
+
+
+def _create_umap_projection(session: Session, collection: models.Collection, user: models.User) -> None:
+    """Persist a projection row so an un-gated GET would return 200, not 404.
+
+    This distinguishes "the flag returned 404" from "there's nothing to find" --
+    the same distinction the off-path test needs from the on-path 404 the
+    service itself already raises for a missing projection.
+    """
+    projection = models.UmapProjectionRecord(
+        collection_id=collection.id,
+        user_id=user.id,
+        embedding_model="test-embed",
+        point_count=0,
+    )
+    session.add(projection)
+    session.commit()
+
+
+def test_get_umap_returns_404_when_feature_disabled(
+    client: TestClient, session: Session, auth_user: models.User
+) -> None:
+    collection = _create_collection(session, auth_user)
+    _create_umap_projection(session, collection, auth_user)
+    _set_override(session, "features.umap_visualizations", False)
+
+    response = client.get(f"/api/collections/{collection.id}/visualizations/umap")
+
+    assert response.status_code == 404
+
+
+def test_compute_umap_returns_404_when_feature_disabled(
+    client: TestClient, session: Session, auth_user: models.User
+) -> None:
+    _set_override(session, "features.umap_visualizations", False)
+    collection = _create_collection(session, auth_user)
+
+    response = client.post(f"/api/collections/{collection.id}/visualizations/umap")
+
+    # 404 must come from the feature-flag gate, not the service's own
+    # too-few-chunks validation error (400) -- if the gate were absent this
+    # request would 400, never 404, so a 404 here is unambiguous.
+    assert response.status_code == 404
+
+
+def test_branch_session_returns_404_when_feature_disabled(
+    client: TestClient, session: Session, auth_user: models.User
+) -> None:
+    _set_override(session, "features.chat_branching", False)
+    chat_session = models.ChatSession(user_id=auth_user.id, title="S", chat_model="test-model")
+    session.add(chat_session)
+    session.commit()
+    session.refresh(chat_session)
+
+    response = client.post(
+        f"/api/chat/sessions/{chat_session.id}/branch",
+        json={"message_id": str(uuid4())},
+    )
+
+    assert response.status_code == 404
