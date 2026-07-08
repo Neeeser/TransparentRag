@@ -68,6 +68,24 @@ class UserSignedIn(_BaseEvent):
     type: Literal["user.signed_in"] = "user.signed_in"
 
 
+class IndexCreated(_BaseEvent):
+    """A vector index was created through the index admin API."""
+
+    type: Literal["index.created"] = "index.created"
+    backend: str
+    index_name: str
+    dimension: int | None = None
+    metric: str | None = None
+
+
+class IndexDeleted(_BaseEvent):
+    """A vector index was deleted through the index admin API."""
+
+    type: Literal["index.deleted"] = "index.deleted"
+    backend: str
+    index_name: str
+
+
 class CollectionCreated(_BaseEvent):
     """A collection was created."""
 
@@ -88,6 +106,8 @@ TelemetryEvent = Annotated[
     | RetrievalQueryRan
     | UserRegistered
     | UserSignedIn
+    | IndexCreated
+    | IndexDeleted
     | CollectionCreated
     | CollectionDeleted,
     Field(discriminator="type"),

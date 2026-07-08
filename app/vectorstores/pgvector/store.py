@@ -61,6 +61,8 @@ class PgvectorStore(VectorStoreBackend):
     def create_index(self, spec: IndexSpec) -> VectorIndexDescription:
         """Create the data table and catalog row for a new index."""
         validate_index_name(spec.name, self.capabilities)
+        if spec.dimension is None:
+            raise InvalidInputError("pgvector indexes require a dimension.")
         if self._repo.get_record(spec.name) is not None:
             raise InvalidInputError(f"pgvector index '{spec.name}' already exists.")
         record = self._repo.create_index(spec.name, spec.dimension, spec.metric)

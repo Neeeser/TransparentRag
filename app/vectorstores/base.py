@@ -33,6 +33,7 @@ class VectorStoreCapabilities(BaseModel):
 
     max_dimension: int
     supported_metrics: tuple[str, ...]
+    supported_vector_types: tuple[str, ...] = ("dense",)
     index_name_max_length: int = 45
     max_upsert_batch: int = 1000
     max_top_k: int = 10000
@@ -47,11 +48,13 @@ class IndexSpec(BaseModel):
     """
 
     name: str
-    dimension: int = Field(gt=0)
+    dimension: int | None = Field(default=None, gt=0)
     metric: str = "cosine"
+    vector_type: str = "dense"
     cloud: str | None = None
     region: str | None = None
     deletion_protection: str | None = None
+    tags: dict[str, str] | None = None
 
 
 class VectorIndexDescription(BaseModel):
@@ -88,7 +91,16 @@ def validate_index_name(name: str, capabilities: VectorStoreCapabilities) -> Non
 def validate_index_spec(spec: IndexSpec, capabilities: VectorStoreCapabilities) -> None:
     """Validate a create-index spec against a backend's capabilities."""
     validate_index_name(spec.name, capabilities)
-    if spec.dimension > capabilities.max_dimension:
+    if spec.vector_type not in capabilities.supported_vector_types:
+        supported = ", ".join(capabilities.supported_vector_types)
+        raise InvalidInputError(
+            f"Unsupported vector type '{spec.vector_type}'; this backend supports: {supported}."
+        )
+    if spec.vector_type == "dense" and spec.dimension is None:
+        raise InvalidInputError("Dense indexes require a dimension.")
+    if spec.vector_type == "sparse" and spec.dimension is not None:
+        raise InvalidInputError("Sparse indexes must not define a dimension.")
+    if spec.dimension is not None and spec.dimension > capabilities.max_dimension:
         raise InvalidInputError(
             f"Dimension {spec.dimension} exceeds this backend's maximum of "
             f"{capabilities.max_dimension}."

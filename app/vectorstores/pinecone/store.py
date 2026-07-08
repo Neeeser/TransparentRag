@@ -24,7 +24,7 @@ from app.retrieval.models import (
     ScoredChunk,
 )
 from app.schemas.enums import IndexBackend
-from app.services.errors import NotFoundError
+from app.services.errors import InvalidInputError, NotFoundError
 from app.vectorstores.base import (
     IndexSpec,
     VectorIndexDescription,
@@ -41,6 +41,7 @@ TEXT_METADATA_KEY = "text"
 PINECONE_CAPABILITIES = VectorStoreCapabilities(
     max_dimension=20000,
     supported_metrics=("cosine", "euclidean", "dotproduct"),
+    supported_vector_types=("dense", "sparse"),
     requires_api_key=True,
 )
 
@@ -91,12 +92,13 @@ class PineconeStore(VectorStoreBackend):
         settings = get_settings()
         description = self._admin.create_index(
             name=spec.name,
-            vector_type="dense",
+            vector_type=spec.vector_type,
             metric=spec.metric,
             cloud=(spec.cloud or settings.pinecone_cloud).strip(),
             region=(spec.region or settings.pinecone_region).strip(),
             dimension=spec.dimension,
             deletion_protection=spec.deletion_protection,
+            tags=spec.tags,
         )
         return self._to_description(description)
 
@@ -112,6 +114,8 @@ class PineconeStore(VectorStoreBackend):
         """Create the index if it does not already exist."""
         if self._client.has_index(spec.name):
             return
+        if spec.dimension is None:
+            raise InvalidInputError("Dense indexes require a dimension.")
         settings = get_settings()
         self._client.create_index(
             name=spec.name,
