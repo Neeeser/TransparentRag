@@ -15,11 +15,19 @@ type PendingAction =
   | { kind: "role"; user: AdminUser; nextRole: "admin" | "user" }
   | { kind: "active"; user: AdminUser; nextActive: boolean };
 
+const LAST_ADMIN_HINT = "The last active admin cannot be demoted or deactivated.";
+
 /** Admin-only user list with role and activation management. */
 export function AdminUsersPage() {
   const { user: viewer } = useAuth();
   const { users, loading, loadError, actionError, pendingUserId, applyUpdate } = useAdminUsers();
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+
+  // Mirror of the API's invariant (AdminUserService rejects it with a 400):
+  // disable the destructive buttons up front instead of letting the click fail.
+  const activeAdminCount = users.filter((row) => row.role === "admin" && row.is_active).length;
+  const isLastActiveAdmin = (row: AdminUser) =>
+    row.role === "admin" && row.is_active && activeAdminCount <= 1;
 
   const confirmAction = async () => {
     if (!pendingAction) return;
@@ -99,10 +107,14 @@ export function AdminUsersPage() {
                 key: "actions",
                 header: "Actions",
                 render: (row) => (
-                  <div className="flex gap-2">
+                  <div
+                    className="flex gap-2"
+                    title={isLastActiveAdmin(row) ? LAST_ADMIN_HINT : undefined}
+                  >
                     <Button
                       size="sm"
                       variant="secondary"
+                      disabled={isLastActiveAdmin(row)}
                       loading={pendingUserId === row.id}
                       onClick={() =>
                         setPendingAction({
@@ -117,6 +129,7 @@ export function AdminUsersPage() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      disabled={isLastActiveAdmin(row)}
                       loading={pendingUserId === row.id}
                       onClick={() =>
                         setPendingAction({ kind: "active", user: row, nextActive: !row.is_active })

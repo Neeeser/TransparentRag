@@ -48,6 +48,39 @@ describe("AdminUsersPage", () => {
     });
   });
 
+  it("disables demote and deactivate for the last active admin (red-green for PR #35 report)", async () => {
+    api.fetchAdminUsers.mockResolvedValueOnce([
+      makeAdminUser({ id: "user-1", email: ADMIN_EMAIL, role: "admin" }),
+      makeAdminUser({ id: "user-2", email: MEMBER_EMAIL, role: "user" }),
+    ]);
+
+    render(<AdminUsersPage />);
+    await screen.findAllByText(ADMIN_EMAIL);
+
+    // The sole active admin's destructive actions are disabled up front,
+    // mirroring the API's last-admin invariant instead of failing on click.
+    expect(screen.getByRole("button", { name: "Demote to user" })).toBeDisabled();
+    const deactivateButtons = screen.getAllByRole("button", { name: "Deactivate" });
+    expect(deactivateButtons[0]).toBeDisabled();
+    // The plain member's actions stay enabled.
+    expect(screen.getByRole("button", { name: "Make admin" })).toBeEnabled();
+    expect(deactivateButtons[1]).toBeEnabled();
+  });
+
+  it("keeps demote enabled when another active admin exists", async () => {
+    api.fetchAdminUsers.mockResolvedValueOnce([
+      makeAdminUser({ id: "user-1", email: ADMIN_EMAIL, role: "admin" }),
+      makeAdminUser({ id: "user-2", email: MEMBER_EMAIL, role: "admin" }),
+    ]);
+
+    render(<AdminUsersPage />);
+    await screen.findAllByText(ADMIN_EMAIL);
+
+    for (const button of screen.getAllByRole("button", { name: "Demote to user" })) {
+      expect(button).toBeEnabled();
+    }
+  });
+
   it("surfaces a load failure in the alert region", async () => {
     api.fetchAdminUsers.mockRejectedValueOnce(new Error("Unable to load users."));
 
