@@ -17,6 +17,7 @@ vi.mock("@xyflow/react", () => ({
   },
   Background: () => <div data-testid="background" />,
   Controls: () => <div data-testid="controls" />,
+  ConnectionLineType: { SmoothStep: "smoothstep" },
 }));
 
 describe("PipelineCanvas", () => {

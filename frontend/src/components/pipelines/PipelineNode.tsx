@@ -177,10 +177,13 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
         dimWholeNode && "opacity-40",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      {/* Fixed-height header so every card's port rows start at the same
+          offset from the top -- with top-aligned layout columns this makes
+          matching ports line up into straight, factory-style runs. */}
+      <div className="flex h-[38px] items-start justify-between gap-2 overflow-hidden">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold text-white">{data.label}</p>
-          <p className={cn("text-[10px] uppercase tracking-[0.2em]", familyStyles.badge)}>
+          <p className={cn("truncate text-[10px] uppercase tracking-[0.2em]", familyStyles.badge)}>
             {getNodeFamilyLabel(family)}
           </p>
         </div>
@@ -190,29 +193,8 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
         </div>
       </div>
 
-      {displayedEntries.length > 0 ? (
-        <div className="mt-2 space-y-0.5 rounded-xl bg-white/[0.04] px-2 py-1.5">
-          {displayedEntries.slice(0, CONFIG_ROW_LIMIT).map(([key, value]) => (
-            <div
-              key={key}
-              className="flex items-center justify-between gap-2 text-[10px] leading-4"
-            >
-              <span className="truncate text-slate-500">{key}</span>
-              <span className="max-w-[130px] truncate text-slate-300">
-                {truncate(formatConfigValue(value), CONFIG_PREVIEW_LIMIT)}
-              </span>
-            </div>
-          ))}
-          {displayedEntries.length > CONFIG_ROW_LIMIT ? (
-            <p className="text-[10px] text-slate-600">
-              +{displayedEntries.length - CONFIG_ROW_LIMIT} more
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
       {data.inputs.length > 0 || data.outputs.length > 0 ? (
-        <div className="mt-2 grid grid-cols-2 gap-x-3 border-t border-white/5 pt-1.5">
+        <div className="mt-1.5 grid grid-cols-2 gap-x-3 border-t border-white/5 pt-1.5">
           <div>
             {data.inputs.map((port) => (
               <PortRow
@@ -243,6 +225,27 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
               />
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {displayedEntries.length > 0 ? (
+        <div className="mt-2 space-y-0.5 rounded-xl bg-white/[0.04] px-2 py-1.5">
+          {displayedEntries.slice(0, CONFIG_ROW_LIMIT).map(([key, value]) => (
+            <div
+              key={key}
+              className="flex items-center justify-between gap-2 text-[10px] leading-4"
+            >
+              <span className="truncate text-slate-500">{key}</span>
+              <span className="max-w-[130px] truncate text-slate-300">
+                {truncate(formatConfigValue(value), CONFIG_PREVIEW_LIMIT)}
+              </span>
+            </div>
+          ))}
+          {displayedEntries.length > CONFIG_ROW_LIMIT ? (
+            <p className="text-[10px] text-slate-600">
+              +{displayedEntries.length - CONFIG_ROW_LIMIT} more
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

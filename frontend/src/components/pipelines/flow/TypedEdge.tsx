@@ -1,6 +1,6 @@
 "use client";
 
-import { BaseEdge, getBezierPath } from "@xyflow/react";
+import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 
 import { getPortTypeHex } from "../lib/pipeline-theme";
 
@@ -24,9 +24,9 @@ export type TypedEdgeData = {
 export type TypedEdgeType = Edge<TypedEdgeData, "typed">;
 
 /**
- * Bezier edge colored by the data type it carries -- the same color language
- * as the port dots -- with an optional animated payload dot for trace
- * playback. Used by both the editor canvas and the read-only flow player.
+ * Orthogonal step edge colored by the data type it carries -- the same color
+ * language as the port dots -- with an optional animated payload dot for
+ * trace playback. Used by both the editor canvas and the read-only player.
  */
 export function TypedEdge({
   id,
@@ -39,13 +39,16 @@ export function TypedEdge({
   data,
   selected,
 }: EdgeProps<TypedEdgeType>) {
-  const [path] = getBezierPath({
+  // Rigid orthogonal routing (small corner radius): pipelines read as an
+  // assembly line, so the wires run like conveyor tracks, not loose curves.
+  const [path] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
     targetY,
     sourcePosition,
     targetPosition,
+    borderRadius: 6,
   });
   const color = data?.error ? "#f87171" : getPortTypeHex(data?.dataType);
   const emphasized = Boolean(data?.active || data?.error || selected);

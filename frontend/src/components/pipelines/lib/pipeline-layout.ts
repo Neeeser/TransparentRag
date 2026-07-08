@@ -7,20 +7,23 @@ import type { Edge, Node } from "@xyflow/react";
  * Pipelines are DAGs that read as an assembly line, so the layout mirrors
  * that: longest-path layering assigns each node a column, a barycenter pass
  * orders nodes within a column by where their inputs sit, and columns are
- * vertically centered so single-track pipelines form one straight line.
+ * TOP-ALIGNED. Cards have fixed-height headers with ports directly under
+ * them, so top-aligning makes matching port rows share a y coordinate --
+ * the orthogonal edges then run as straight conveyor lines instead of
+ * stepping at every node.
  */
 
 export const ESTIMATED_NODE_WIDTH = 264;
 export const LAYER_GAP_X = 104;
 export const NODE_GAP_Y = 56;
 
-/** Height estimate used for stacking and overlap checks (header + config rows). */
+/** Height estimate used for stacking and overlap checks (header + ports + config). */
 export const estimateNodeHeight = (
   data: Pick<PipelineNodeData, "config" | "inputs" | "outputs">,
 ) => {
   const configRows = Math.min(Object.keys(data.config ?? {}).length, 5);
   const portRows = Math.max(data.inputs.length, data.outputs.length);
-  return 84 + configRows * 22 + portRows * 18;
+  return 68 + portRows * 24 + (configRows > 0 ? 20 + configRows * 20 : 0);
 };
 
 type LayoutNode = Node<PipelineNodeData>;
@@ -95,9 +98,9 @@ export const layoutPipelineNodes = (nodes: LayoutNode[], edges: Edge[]): LayoutN
   sortedLayers.forEach((layer) => {
     const column = columns.get(layer) ?? [];
     const heights = column.map((node) => estimateNodeHeight(node.data));
-    const totalHeight =
-      heights.reduce((sum, height) => sum + height, 0) + NODE_GAP_Y * (column.length - 1);
-    let y = -totalHeight / 2;
+    // Top-aligned stacking: the first (barycenter-ordered) node of every
+    // column sits on the main line at y=0; branches stack below it.
+    let y = 0;
     column.forEach((node, index) => {
       positioned.set(node.id, {
         x: layer * (ESTIMATED_NODE_WIDTH + LAYER_GAP_X),

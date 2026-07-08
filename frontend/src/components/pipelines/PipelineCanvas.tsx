@@ -2,6 +2,7 @@
 
 import {
   Background,
+  ConnectionLineType,
   Controls,
   ReactFlow,
   type Connection,
@@ -147,6 +148,7 @@ export function PipelineCanvas({
             onInit={onInit}
             nodeTypes={pipelineNodeTypes}
             edgeTypes={pipelineEdgeTypes}
+            connectionLineType={ConnectionLineType.SmoothStep}
             connectionLineStyle={{ stroke: "#94a3b8", strokeWidth: 2, strokeDasharray: "6 4" }}
             proOptions={{ hideAttribution: true }}
             fitView
