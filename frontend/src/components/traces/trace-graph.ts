@@ -1,5 +1,10 @@
-import { layoutPipelineNodes, needsAutoLayout } from "@/components/pipelines/lib/pipeline-layout";
+import {
+  estimateNodeHeight,
+  layoutPipelineNodes,
+  needsAutoLayout,
+} from "@/components/pipelines/lib/pipeline-layout";
 import { toFlowEdges, toFlowNodes } from "@/components/pipelines/lib/pipeline-utils";
+import { INDEX_STORE_NODE_ID } from "@/components/traces/IndexStoreNode";
 
 import type { TypedEdgeType } from "@/components/pipelines/flow/TypedEdge";
 import type { PipelineNodeData } from "@/components/pipelines/PipelineNode";
@@ -89,7 +94,9 @@ const buildStage = (
 
 const PREFIX_ORIGIN = "origin::";
 const PREFIX_RETRIEVAL = "retrieval::";
-const BAND_GAP_Y = 200;
+// Clear vertical space between the ingestion band's tallest card and the
+// retrieval band, with room for the index store to sit centered in it.
+const BAND_GAP_Y = 220;
 
 const prefixStage = (graph: StageGraph, prefix: string): StageGraph => ({
   nodes: graph.nodes.map((node) => ({ ...node, id: `${prefix}${node.id}` })),
@@ -102,8 +109,9 @@ const prefixStage = (graph: StageGraph, prefix: string): StageGraph => ({
   steps: graph.steps.map((step) => ({ ...step, nodeId: `${prefix}${step.nodeId}` })),
 });
 
+/** Lowest pixel the band occupies (top-y + estimated card height). */
 const bandBottom = (nodes: Node<PipelineNodeData>[]): number =>
-  nodes.reduce((max, node) => Math.max(max, node.position.y), 0);
+  nodes.reduce((max, node) => Math.max(max, node.position.y + estimateNodeHeight(node.data)), 0);
 
 const offsetY = (graph: StageGraph, dy: number): StageGraph => ({
   ...graph,
@@ -142,26 +150,68 @@ export const buildTraceGraph = (
     buildStage(retrieval, nodeSpecs, "retrieval", "Retrieval", true),
     PREFIX_RETRIEVAL,
   );
-  const retrievalStage = offsetY(retrievalRaw, bandBottom(originStage.nodes) + BAND_GAP_Y);
+  const originBottom = bandBottom(originStage.nodes);
+  const retrievalStage = offsetY(retrievalRaw, originBottom + BAND_GAP_Y);
 
+  const nodes: Node<PipelineNodeData>[] = [...originStage.nodes, ...retrievalStage.nodes];
   const edges: TypedEdgeType[] = [...originStage.edges, ...retrievalStage.edges];
+
+  // The two pipelines stay fully isolated -- no node-to-node wire between
+  // them. They meet only at the shared index, drawn as a datastore in the gap
+  // that ingestion writes into and retrieval reads from.
   const indexer = findByPrefix(originStage.nodes, "indexer.");
   const retriever = findByPrefix(retrievalStage.nodes, "retriever.");
   if (indexer && retriever) {
-    edges.push({
-      id: "handoff::index",
-      source: indexer.id,
-      target: retriever.id,
-      type: "typed",
-      data: { dataType: "indexed_batch", visited: true },
-      // The chunk rests in the shared index between the two runs; a dashed
-      // wire marks that hand-off rather than a live payload edge.
-      style: { strokeDasharray: "6 5" },
-    });
+    const indexName =
+      (indexer.data.config.index_name as string | undefined) ??
+      (retriever.data.config.index_name as string | undefined) ??
+      "index";
+    const backend =
+      (indexer.data.config.backend as string | undefined) ??
+      (retriever.data.config.backend as string | undefined);
+    const storeNode = {
+      id: INDEX_STORE_NODE_ID,
+      type: "indexStore",
+      position: {
+        // Centered horizontally between the two nodes it links, and vertically
+        // in the cleared gap between the bands.
+        x: (indexer.position.x + retriever.position.x) / 2,
+        y: originBottom + BAND_GAP_Y / 2 - 40,
+      },
+      draggable: false,
+      selectable: false,
+      data: { indexName, backend },
+      // The store carries IndexStoreNodeData, not PipelineNodeData; ReactFlow
+      // dispatches rendering by `type`, so the heterogeneous array is safe at
+      // runtime (same pattern as the editor's drop-preview node).
+    } as unknown as Node<PipelineNodeData>;
+    nodes.push(storeNode);
+    edges.push(
+      {
+        id: "index::write",
+        source: indexer.id,
+        sourceHandle: indexer.data.outputs[0]?.key,
+        target: INDEX_STORE_NODE_ID,
+        targetHandle: "write",
+        type: "typed",
+        data: { dataType: "indexed_batch", visited: true },
+        style: { strokeDasharray: "6 5" },
+      },
+      {
+        id: "index::read",
+        source: INDEX_STORE_NODE_ID,
+        sourceHandle: "read",
+        target: retriever.id,
+        targetHandle: retriever.data.inputs[0]?.key,
+        type: "typed",
+        data: { dataType: "indexed_batch", visited: true },
+        style: { strokeDasharray: "6 5" },
+      },
+    );
   }
 
   return {
-    nodes: [...originStage.nodes, ...retrievalStage.nodes],
+    nodes,
     edges,
     steps: [...originStage.steps, ...retrievalStage.steps],
     combined: true,

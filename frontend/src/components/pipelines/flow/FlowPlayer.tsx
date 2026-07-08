@@ -16,7 +16,7 @@ import { useFlowPlayback } from "./use-flow-playback";
 import type { PipelineNodeData } from "../PipelineNode";
 import type { TypedEdgeType } from "./TypedEdge";
 import type { FlowStep } from "./use-flow-playback";
-import type { Node } from "@xyflow/react";
+import type { Node, NodeTypes } from "@xyflow/react";
 
 type FlowPlayerProps = {
   nodes: Node<PipelineNodeData>[];
@@ -28,6 +28,8 @@ type FlowPlayerProps = {
   className?: string;
   /** Compact hides the step scrubber (landing-page style ambient playback). */
   compact?: boolean;
+  /** Extra node types merged over the pipeline defaults (e.g. the trace index store). */
+  nodeTypes?: NodeTypes;
 };
 
 /**
@@ -44,9 +46,15 @@ export function FlowPlayer({
   onActiveStepChange,
   className,
   compact = false,
+  nodeTypes,
 }: FlowPlayerProps) {
   const playback = useFlowPlayback({ steps, edges, autoPlay });
   const { activeIndex } = playback;
+
+  const mergedNodeTypes = useMemo(
+    () => (nodeTypes ? { ...pipelineNodeTypes, ...nodeTypes } : pipelineNodeTypes),
+    [nodeTypes],
+  );
 
   useEffect(() => {
     onActiveStepChange?.(activeIndex);
@@ -90,7 +98,7 @@ export function FlowPlayer({
       <ReactFlow
         nodes={decoratedNodes}
         edges={decoratedEdges}
-        nodeTypes={pipelineNodeTypes}
+        nodeTypes={mergedNodeTypes}
         edgeTypes={pipelineEdgeTypes}
         fitView
         fitViewOptions={{ padding: 0.18, maxZoom: 1 }}

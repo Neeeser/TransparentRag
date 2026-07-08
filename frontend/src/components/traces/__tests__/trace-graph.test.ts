@@ -8,6 +8,7 @@ import type { PipelineTraceResponse } from "@/lib/types";
 const INDEXER_TYPE = "indexer.vector";
 const RETRIEVER_TYPE = "retriever.vector";
 const INGEST_RUN = "ingest-run";
+const STORE_ID = "index::store";
 
 const nodeSpecs = [
   makeNodeSpec({ type: INDEXER_TYPE, category: "ingestion" }),
@@ -51,10 +52,10 @@ describe("buildTraceGraph", () => {
 
     expect(graph.combined).toBe(false);
     expect(graph.steps.map((step) => step.stage)).toEqual(["retrieval", "retrieval"]);
-    expect(graph.edges.some((edge) => edge.id === "handoff::index")).toBe(false);
+    expect(graph.nodes.some((node) => node.id === STORE_ID)).toBe(false);
   });
 
-  it("joins ingestion and retrieval into one prefixed, ordered flow", () => {
+  it("joins ingestion and retrieval as isolated bands sharing an index store", () => {
     const graph = buildTraceGraph(retrievalTrace(), ingestionTrace(), nodeSpecs);
 
     expect(graph.combined).toBe(true);
@@ -65,13 +66,28 @@ describe("buildTraceGraph", () => {
       "retrieval",
       "retrieval",
     ]);
-    // Node ids are prefixed per stage so the two graphs never collide.
-    expect(graph.nodes.every((node) => /^(origin|retrieval)::/.test(node.id))).toBe(true);
-    // A hand-off wire connects the ingestion indexer to the retrieval retriever.
-    const handoff = graph.edges.find((edge) => edge.id === "handoff::index");
-    expect(handoff).toBeDefined();
-    expect(handoff?.source).toBe("origin::index");
-    expect(handoff?.target).toBe("retrieval::retrieve");
+    // Pipeline node ids are prefixed per stage so the two graphs never collide.
+    expect(
+      graph.nodes
+        .filter((node) => node.id !== STORE_ID)
+        .every((node) => /^(origin|retrieval)::/.test(node.id)),
+    ).toBe(true);
+    // The pipelines stay isolated: no wire connects a node in one band directly
+    // to a node in the other — they meet only through the shared index store.
+    const directCrossWire = graph.edges.some(
+      (edge) => edge.source.startsWith("origin::") && edge.target.startsWith("retrieval::"),
+    );
+    expect(directCrossWire).toBe(false);
+
+    expect(graph.nodes.some((node) => node.id === STORE_ID)).toBe(true);
+    const write = graph.edges.find((edge) => edge.id === "index::write");
+    const read = graph.edges.find((edge) => edge.id === "index::read");
+    expect(write?.source).toBe("origin::index");
+    expect(write?.target).toBe(STORE_ID);
+    expect(read?.source).toBe(STORE_ID);
+    expect(read?.target).toBe("retrieval::retrieve");
+    // The store is a datastore, not an executed node — never a playback step.
+    expect(graph.steps.some((step) => step.nodeId === STORE_ID)).toBe(false);
   });
 
   it("stacks the retrieval band below the ingestion band", () => {

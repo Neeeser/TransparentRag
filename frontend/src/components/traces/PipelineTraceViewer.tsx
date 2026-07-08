@@ -4,6 +4,7 @@ import { ArrowDown, X } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
+import { traceNodeTypes } from "@/components/traces/IndexStoreNode";
 import { buildTraceGraph } from "@/components/traces/trace-graph";
 import { TraceIOColumn } from "@/components/traces/TraceIOColumn";
 import { Button } from "@/components/ui/button";
@@ -151,6 +152,7 @@ export function PipelineTraceViewer({
                 nodes={graph.nodes}
                 edges={graph.edges}
                 steps={graph.steps}
+                nodeTypes={graph.combined ? traceNodeTypes : undefined}
                 onActiveStepChange={handleActiveStepChange}
               />
             </div>
