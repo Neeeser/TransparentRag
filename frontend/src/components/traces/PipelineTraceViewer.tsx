@@ -163,8 +163,9 @@ export function PipelineTraceViewer({
               {nodeSpecsError}
             </div>
           )}
-          <GlassCard className="relative min-h-[420px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
-            <div className="h-full min-h-[420px]">
+          <GlassCard className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
+            {/* ReactFlow needs a concretely sized parent, not min-height. */}
+            <div className="h-[420px]">
               <FlowPlayer
                 nodes={nodes}
                 edges={edges}

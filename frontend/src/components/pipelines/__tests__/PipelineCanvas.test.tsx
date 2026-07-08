@@ -27,6 +27,7 @@ describe("PipelineCanvas", () => {
 
     render(
       <PipelineCanvas
+        canvasKey="test"
         nodes={nodes}
         edges={edges}
         selectedPipeline={{
@@ -68,6 +69,7 @@ describe("PipelineCanvas", () => {
   it("shows empty selection state without a pipeline", () => {
     render(
       <PipelineCanvas
+        canvasKey="test"
         nodes={[]}
         edges={[]}
         selectedPipeline={null}

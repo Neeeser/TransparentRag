@@ -68,9 +68,12 @@ export const buildDefaultDefinition = (
   if (options.embeddingModel) {
     embedderConfig.model_name = options.embeddingModel;
   }
+  // Only the indexer carries the dimension. Setting it on the embedder would
+  // send an explicit `dimensions` param to OpenRouter, which many embedding
+  // models reject outright (no matryoshka support) -- models emit their
+  // native dimension without it.
   if (typeof options.indexDimension === "number") {
     indexConfig.dimension = options.indexDimension;
-    embedderConfig.dimension = options.indexDimension;
   }
 
   if (kind === "retrieval") {

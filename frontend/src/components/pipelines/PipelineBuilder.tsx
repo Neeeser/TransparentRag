@@ -181,12 +181,10 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     setSelectedNodeId(null);
     setPreviewSpec(null);
     dragDrop.handleDragLeave();
-    window.requestAnimationFrame(() => {
-      reactFlowInstance?.fitView({ padding: 0.15, maxZoom: 1 });
-    });
-    // dragDrop.handleDragLeave and reactFlowInstance are intentionally omitted:
-    // the former is stable, and refitting on instance identity would rerun the
-    // whole sync. Keyed on id + version so layout-only saves don't reset edits.
+    // The camera re-fits via PipelineCanvas's remount key (id+version), which
+    // waits for the freshly mounted nodes to be measured.
+    // dragDrop.handleDragLeave is intentionally omitted: it is stable. Keyed
+    // on id + version so layout-only saves don't reset in-progress edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPipelineId, selectedPipelineVersion, nodeSpecs, setNodes, setEdges]);
 
@@ -244,16 +242,15 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
 
   const handleSelectEmbeddingModel = (modelId: string) => {
     if (!selectedNode || selectedNode.data.nodeType !== "embedder.openrouter") return;
-    const selected = embeddingModels.find((model) => model.id === modelId);
+    // Deliberately set only the model — and clear any stored dimension: an
+    // explicit `dimension` is sent to OpenRouter as a `dimensions` override,
+    // which most embedding models reject (no matryoshka support). Models emit
+    // their native size without it.
     const nextConfig: Record<string, unknown> = {
       ...selectedNode.data.config,
       model_name: modelId,
     };
-    if (typeof selected?.dimension === "number") {
-      nextConfig.dimension = selected.dimension;
-    } else {
-      delete nextConfig.dimension;
-    }
+    delete nextConfig.dimension;
     handleNodeConfigChange(selectedNode.id, nextConfig);
   };
 
@@ -364,6 +361,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
           </div>
 
           <PipelineCanvas
+            canvasKey={`${selectedPipelineId ?? "none"}-v${selectedPipelineVersion}`}
             nodes={nodesForCanvas}
             edges={edgesWithValidation}
             selectedPipeline={selectedPipeline}

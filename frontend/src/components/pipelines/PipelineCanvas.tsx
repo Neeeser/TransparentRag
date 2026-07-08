@@ -28,6 +28,8 @@ import type { Pipeline } from "@/lib/types";
 import type { DragEvent } from "react";
 
 type PipelineCanvasProps = {
+  /** Remounts the flow (and re-fits the camera) when it changes. */
+  canvasKey: string;
   nodes: Node<PipelineNodeData>[];
   edges: TypedEdgeType[];
   selectedPipeline: Pipeline | null;
@@ -59,6 +61,7 @@ const legendTypes = (nodes: Node<PipelineNodeData>[]): string[] => {
 };
 
 export function PipelineCanvas({
+  canvasKey,
   nodes,
   edges,
   selectedPipeline,
@@ -130,6 +133,7 @@ export function PipelineCanvas({
           onDragLeave={onDragLeave}
         >
           <ReactFlow
+            key={canvasKey}
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}

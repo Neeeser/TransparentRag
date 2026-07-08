@@ -269,6 +269,9 @@ export function PipelineInspector({
                     aria-label="Vector index"
                   >
                     <option value="">Select an index</option>
+                    {indexValue && !selectedIndex ? (
+                      <option value={indexValue}>{indexValue} (not created yet)</option>
+                    ) : null}
                     {backendIndexes.map((index) => (
                       <option key={index.name} value={index.name}>
                         {index.name}

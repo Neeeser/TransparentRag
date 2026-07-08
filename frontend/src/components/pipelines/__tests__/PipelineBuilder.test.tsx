@@ -575,16 +575,9 @@ describe("PipelineBuilder", () => {
       ).onSelectEmbeddingModel?.("emb-1");
     });
     await waitFor(() => {
-      expect(selectedNodeConfig().dimension).toBe(512);
       expect(selectedNodeConfig().model_name).toBe("emb-1");
-    });
-
-    act(() => {
-      (
-        lastInspectorProps as { onSelectEmbeddingModel?: (value: string) => void }
-      ).onSelectEmbeddingModel?.("emb-2");
-    });
-    await waitFor(() => {
+      // Never an explicit dimension: OpenRouter rejects a `dimensions`
+      // override for most embedding models.
       expect(selectedNodeConfig().dimension).toBeUndefined();
     });
 

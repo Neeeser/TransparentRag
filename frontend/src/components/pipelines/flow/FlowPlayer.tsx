@@ -1,6 +1,7 @@
 "use client";
 
 import { Background, ReactFlow } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import { Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 import { useEffect, useMemo } from "react";
 

@@ -76,8 +76,20 @@ describe("pipeline-utils", () => {
     expect(retrieval.edges).toHaveLength(3);
     const retriever = retrieval.nodes.find((node) => node.type === RETRIEVER_TYPE);
     expect(retriever?.config).toEqual({ backend: "pinecone", index_name: "index-a" });
+    const ingestionCheck = buildDefaultDefinition("ingestion", "pinecone", {
+      indexName: "index-a",
+      indexDimension: 384,
+    });
+    const dimIndexer = ingestionCheck.nodes.find((node) => node.type === INDEXER_TYPE);
+    expect(dimIndexer?.config).toEqual({
+      backend: "pinecone",
+      index_name: "index-a",
+      dimension: 384,
+    });
     const embedder = retrieval.nodes.find((node) => node.type === "embedder.openrouter");
-    expect(embedder?.config).toEqual({ dimension: 384 });
+    // The dimension never lands on the embedder: an explicit `dimensions`
+    // param is rejected by most OpenRouter embedding models.
+    expect(embedder?.config).toEqual({});
     expect(retrieval.edges).toContainEqual(
       expect.objectContaining({
         source: embedder?.id,
