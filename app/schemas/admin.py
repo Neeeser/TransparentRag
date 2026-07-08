@@ -67,3 +67,41 @@ A plain type alias, not a `BaseModel` subclass -- the route body is typed
 `AppConfigService.apply_update` validates the semantics (unknown keys,
 env-pinned keys, model-rejected values).
 """
+
+
+class AdminUserUsage(DateTimeConfigMixin, BaseModel):
+    """One user's chat usage over the requested window."""
+
+    user_id: UUID
+    email: EmailStr
+    turns: int
+    total_tokens: int
+    cost: float
+    last_active: datetime
+
+
+class AdminUsageSummary(DateTimeConfigMixin, BaseModel):
+    """Instance-wide usage headline plus per-user rows for one window."""
+
+    window_days: int
+    total_turns: int
+    total_tokens: int
+    total_cost: float
+    active_users: int
+    event_counts: dict[str, int]
+    users: list[AdminUserUsage]
+
+
+class AdminUsagePoint(DateTimeConfigMixin, BaseModel):
+    """One day's chat usage across all users."""
+
+    day: datetime
+    turns: int
+    total_tokens: int
+
+
+class AdminUsageTimeseries(DateTimeConfigMixin, BaseModel):
+    """Daily chat-usage points for one window, oldest first."""
+
+    window_days: int
+    points: list[AdminUsagePoint]

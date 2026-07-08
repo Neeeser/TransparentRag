@@ -8,16 +8,24 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.api.dependencies import get_session, require_admin
 from app.api.routes.utils import to_http_exception
 from app.db import models
-from app.schemas.admin import AdminUserRead, AdminUserUpdate, AppConfigUpdate, ConfigFieldRead
+from app.schemas.admin import (
+    AdminUsageSummary,
+    AdminUsageTimeseries,
+    AdminUserRead,
+    AdminUserUpdate,
+    AppConfigUpdate,
+    ConfigFieldRead,
+)
 from app.services.admin_users import AdminUserService
 from app.services.app_config import AppConfigService
 from app.services.errors import ServiceError
+from app.telemetry.service import TelemetryService
 
 router = APIRouter(
     prefix="/api/admin",
@@ -67,3 +75,21 @@ def update_config(
     except ServiceError as exc:
         raise to_http_exception(exc) from exc
     return service.field_catalog()
+
+
+@router.get("/usage/summary", response_model=AdminUsageSummary)
+def get_usage_summary(
+    days: int = Query(default=30, ge=1, le=365),
+    session: Session = Depends(get_session),
+) -> AdminUsageSummary:
+    """Return instance-wide and per-user chat usage for the window."""
+    return TelemetryService(session).usage_summary(days)
+
+
+@router.get("/usage/timeseries", response_model=AdminUsageTimeseries)
+def get_usage_timeseries(
+    days: int = Query(default=30, ge=1, le=365),
+    session: Session = Depends(get_session),
+) -> AdminUsageTimeseries:
+    """Return daily chat-usage points for the window, oldest first."""
+    return TelemetryService(session).usage_timeseries(days)
