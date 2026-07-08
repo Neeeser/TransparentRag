@@ -111,23 +111,9 @@ class PgvectorStore(VectorStoreBackend):
             embedding=embedding,
             top_k=min(top_k, self.capabilities.max_top_k),
         )
-        matches: list[ScoredChunk] = []
-        for chunk_id, document_id, chunk_text, metadata, distance in rows:
-            data = dict(metadata)
-            order = data.pop("order", 0)
-            matches.append(
-                ScoredChunk(
-                    chunk=DocumentChunk(
-                        document_id=document_id,
-                        chunk_id=chunk_id,
-                        text=chunk_text,
-                        order=int(order),
-                        metadata=DocumentMetadata(data=data),
-                    ),
-                    score=to_similarity(record.metric, distance),
-                )
-            )
-        return RetrievalResponse(matches=matches)
+        return RetrievalResponse(
+            matches=[self._to_scored_chunk(row, record.metric) for row in rows]
+        )
 
     def delete_namespace(self, index: str, namespace: str) -> None:
         """Delete a namespace's rows; a missing index means nothing to purge."""
@@ -136,6 +122,26 @@ class PgvectorStore(VectorStoreBackend):
         self._repo.delete_namespace(index, namespace)
 
     # -- helpers -------------------------------------------------------------
+
+    @staticmethod
+    def _to_scored_chunk(
+        row: tuple[str, str, str, dict[str, Any], float],
+        metric: str,
+    ) -> ScoredChunk:
+        """Convert one repository query row into a scored chunk."""
+        chunk_id, document_id, chunk_text, metadata, distance = row
+        data = dict(metadata)
+        order = data.pop("order", 0)
+        return ScoredChunk(
+            chunk=DocumentChunk(
+                document_id=document_id,
+                chunk_id=chunk_id,
+                text=chunk_text,
+                order=int(order),
+                metadata=DocumentMetadata(data=data),
+            ),
+            score=to_similarity(metric, distance),
+        )
 
     def _require_record(self, index: str) -> VectorIndexRecord:
         """Return the catalog row or raise `NotFoundError`."""
