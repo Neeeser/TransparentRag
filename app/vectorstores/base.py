@@ -148,7 +148,7 @@ class VectorStoreBackend(ABC):
         *,
         embedding: Sequence[float],
         top_k: int,
-        filter: dict[str, Any] | None = None,  # noqa: A002 - mirrors provider APIs
+        filter: dict[str, Any] | None = None,
     ) -> RetrievalResponse:
         """Return the nearest chunks for a query embedding."""
 

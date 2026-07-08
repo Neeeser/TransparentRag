@@ -61,5 +61,5 @@ def test_spec_bad_name_rejected() -> None:
 
 
 def test_spec_dimension_must_be_positive() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="greater than 0"):
         IndexSpec(name="docs", dimension=0, metric="cosine")
