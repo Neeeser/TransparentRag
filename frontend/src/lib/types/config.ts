@@ -1,3 +1,5 @@
+import type { IndexBackend } from "@/lib/types/common";
+
 /**
  * Runtime application config wire types, hand-mirrored from
  * `app/schemas/app_config.py` (public shape) and `app/schemas/admin.py`
@@ -14,10 +16,8 @@ export interface PublicUploadConfig {
 }
 
 export interface PublicIndexingConfig {
-  default_backend: IndexBackendId;
+  default_backend: IndexBackend;
 }
-
-export type IndexBackendId = "pinecone" | "pgvector";
 
 export interface PublicFeatureFlags {
   umap_visualizations: boolean;
