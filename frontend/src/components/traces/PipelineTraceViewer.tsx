@@ -1,24 +1,27 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ArrowDown, X } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
-import { layoutPipelineNodes, needsAutoLayout } from "@/components/pipelines/lib/pipeline-layout";
-import { toFlowEdges, toFlowNodes } from "@/components/pipelines/lib/pipeline-utils";
+import { buildTraceGraph } from "@/components/traces/trace-graph";
 import { TraceIOColumn } from "@/components/traces/TraceIOColumn";
 import { Button } from "@/components/ui/button";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
 import { GlassCard } from "@/components/ui/panel";
 import { fetchPipelineNodes } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
-import type { PipelineNodeData } from "@/components/pipelines/PipelineNode";
-import type { NodeSpec, PipelineNodeIOTrace, PipelineTraceResponse } from "@/lib/types";
-import type { Node } from "@xyflow/react";
+import type { NodeSpec, PipelineTraceResponse } from "@/lib/types";
 
 type PipelineTraceViewerProps = {
   trace: PipelineTraceResponse | null;
+  /**
+   * The ingestion run that produced the traced chunk. When present, the viewer
+   * plays the document's ingestion first, then the retrieval, as one flow.
+   */
+  originTrace?: PipelineTraceResponse | null;
   /** Optional explicit token; falls back to the signed-in user's token when omitted. */
   token?: string;
   /** When provided, skips the internal node-spec fetch and uses these instead. */
@@ -28,13 +31,9 @@ type PipelineTraceViewerProps = {
   highlightChunkId?: string | null;
 };
 
-type IOGroup = {
-  inputs: PipelineNodeIOTrace[];
-  outputs: PipelineNodeIOTrace[];
-};
-
 export function PipelineTraceViewer({
   trace,
+  originTrace = null,
   token,
   nodeSpecs: providedNodeSpecs,
   isOpen,
@@ -77,43 +76,10 @@ export function PipelineTraceViewer({
     };
   }, [isOpen, providedNodeSpecs, specsLoaded, token, authToken]);
 
-  const orderedRuns = useMemo(
-    () => (trace ? [...trace.node_runs].sort((a, b) => a.sequence_index - b.sequence_index) : []),
-    [trace],
+  const graph = useMemo(
+    () => (trace ? buildTraceGraph(trace, originTrace, nodeSpecs) : null),
+    [trace, originTrace, nodeSpecs],
   );
-
-  const { nodes, edges } = useMemo(() => {
-    if (!trace) return { nodes: [], edges: [] };
-    const runMap = new Map(orderedRuns.map((run) => [run.node_id, run]));
-    let flowNodes: Node<PipelineNodeData>[] = toFlowNodes(trace.definition, nodeSpecs).map(
-      (node) => ({
-        ...node,
-        data: { ...node.data, status: runMap.get(node.id)?.status },
-      }),
-    );
-    const flowEdges = toFlowEdges(trace.definition, nodeSpecs);
-    if (needsAutoLayout(flowNodes)) {
-      flowNodes = layoutPipelineNodes(flowNodes, flowEdges);
-    }
-    return { nodes: flowNodes, edges: flowEdges };
-  }, [trace, nodeSpecs, orderedRuns]);
-
-  const steps = useMemo(() => orderedRuns.map((run) => ({ nodeId: run.node_id })), [orderedRuns]);
-
-  const ioByNode = useMemo(() => {
-    const grouped = new Map<string, IOGroup>();
-    if (!trace) return grouped;
-    trace.node_io.forEach((record) => {
-      const entry = grouped.get(record.node_id) ?? { inputs: [], outputs: [] };
-      if (record.io_type === "input") {
-        entry.inputs.push(record);
-      } else {
-        entry.outputs.push(record);
-      }
-      grouped.set(record.node_id, entry);
-    });
-    return grouped;
-  }, [trace]);
 
   const handleActiveStepChange = useCallback((index: number) => {
     setActiveIndex(index);
@@ -121,13 +87,13 @@ export function PipelineTraceViewer({
     setShowOutputPayloads(false);
   }, []);
 
-  const activeRun = orderedRuns[activeIndex];
-  const selectedIO = activeRun ? ioByNode.get(activeRun.node_id) : undefined;
-  const activeSummary = activeRun?.summary ?? { inputs: [], outputs: [] };
-
-  if (!isOpen || !trace) {
+  if (!isOpen || !trace || !graph) {
     return null;
   }
+
+  const activeStep = graph.steps[activeIndex];
+  const activeRun = activeStep?.run ?? null;
+  const activeSummary = activeRun?.summary ?? { inputs: [], outputs: [] };
 
   return (
     <ModalOverlay
@@ -139,9 +105,11 @@ export function PipelineTraceViewer({
       <div className="relative h-full w-full max-w-6xl overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/95 shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Pipeline trace</p>
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">
+              {graph.combined ? "End-to-end trace" : "Pipeline trace"}
+            </p>
             <h2 id={titleId} className="text-xl font-semibold text-white">
-              {trace.run.status.toUpperCase()} trace
+              {graph.combined ? "Document → retrieval" : `${trace.run.status.toUpperCase()} trace`}
             </h2>
           </div>
           <div className="flex items-center gap-3">
@@ -163,13 +131,26 @@ export function PipelineTraceViewer({
               {nodeSpecsError}
             </div>
           )}
+          {graph.combined && (
+            <div className="flex items-center gap-2 text-[11px] text-slate-400">
+              <span className="flex items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-cyan-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" /> Ingestion — how this chunk
+                was made
+              </span>
+              <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+              <span className="flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1 text-violet-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-violet-300" /> Retrieval — how it was
+                found
+              </span>
+            </div>
+          )}
           <GlassCard className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
             {/* ReactFlow needs a concretely sized parent, not min-height. */}
-            <div className="h-[420px]">
+            <div className={cn(graph.combined ? "h-[520px]" : "h-[420px]")}>
               <FlowPlayer
-                nodes={nodes}
-                edges={edges}
-                steps={steps}
+                nodes={graph.nodes}
+                edges={graph.edges}
+                steps={graph.steps}
                 onActiveStepChange={handleActiveStepChange}
               />
             </div>
@@ -178,9 +159,11 @@ export function PipelineTraceViewer({
           <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Active node</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                  {activeStep ? activeStep.stageLabel : "Active node"}
+                </p>
                 <h3 className="text-lg font-semibold text-white">
-                  {activeRun?.node_name || activeRun?.node_id || "—"}
+                  {activeRun?.node_name || activeStep?.nodeId || "—"}
                 </h3>
               </div>
               {activeRun && (
@@ -196,7 +179,7 @@ export function PipelineTraceViewer({
               title="Inputs"
               tone="cyan"
               summaryItems={activeSummary.inputs}
-              ioRecords={selectedIO?.inputs}
+              ioRecords={activeStep?.io.inputs}
               highlightChunkId={highlightChunkId}
               showPayloads={showInputPayloads}
               onTogglePayloads={() => setShowInputPayloads((prev) => !prev)}
@@ -207,7 +190,7 @@ export function PipelineTraceViewer({
               title="Outputs"
               tone="violet"
               summaryItems={activeSummary.outputs}
-              ioRecords={selectedIO?.outputs}
+              ioRecords={activeStep?.io.outputs}
               highlightChunkId={highlightChunkId}
               showPayloads={showOutputPayloads}
               onTogglePayloads={() => setShowOutputPayloads((prev) => !prev)}
