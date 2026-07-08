@@ -11,14 +11,16 @@ import pytest
 from sqlmodel import Session
 
 from app.db import models
+from app.db.repositories import UserRepository
 from app.schemas.auth import (
     ProviderKeyStatus,
     RunSettingsSection,
     UserCreate,
     UserSettingsUpdate,
 )
+from app.schemas.enums import UserRole
 from app.services import accounts as accounts_module
-from app.services.accounts import AccountService
+from app.services.accounts import AccountService, ensure_admin_exists
 from app.services.errors import InvalidInputError
 from app.services.pipelines import PipelineService
 from app.services.provider_keys import Provider
@@ -53,6 +55,19 @@ def test_register_rejects_duplicate_email(session: Session) -> None:
 
     with pytest.raises(InvalidInputError):
         AccountService(session).register(payload)
+
+
+def test_new_user_defaults_to_user_role(session: Session) -> None:
+    """A freshly registered account (after the first) carries the non-privileged role."""
+    service = AccountService(session)
+    service.register(UserCreate(email="admin-seed@example.com", password="password123"))
+    user = service.register(
+        UserCreate(email="role-default@example.com", password="password123")
+    )
+    with Session(session.get_bind()) as fresh_session:
+        fresh = fresh_session.get(models.User, user.id)
+        assert fresh is not None
+        assert fresh.role == UserRole.USER.value
 
 
 def test_register_provisions_default_pipelines(session: Session) -> None:
@@ -162,3 +177,42 @@ def test_update_base_prompt_sets_and_clears_template(session: Session) -> None:
     AccountService(session).update_base_prompt(user, "   ")
     session.refresh(user)
     assert user.system_prompt_template is None
+
+
+def test_first_registered_user_becomes_admin(session: Session) -> None:
+    """On an empty install the first account is the admin; the second is not."""
+    service = AccountService(session)
+    first = service.register(UserCreate(email="first@example.com", password="password123"))
+    second = service.register(UserCreate(email="second@example.com", password="password123"))
+    with Session(session.get_bind()) as fresh:
+        assert fresh.get(models.User, first.id).role == UserRole.ADMIN.value
+        assert fresh.get(models.User, second.id).role == UserRole.USER.value
+
+
+def test_ensure_admin_exists_promotes_earliest_user(session: Session) -> None:
+    """Upgraded deployments with users but no admin promote the earliest account."""
+    service = AccountService(session)
+    first = service.register(UserCreate(email="old@example.com", password="password123"))
+    service.register(UserCreate(email="new@example.com", password="password123"))
+    # Simulate a pre-roles deployment: nobody is admin.
+    for user in UserRepository(session).list_all():
+        user.role = UserRole.USER.value
+        session.add(user)
+    session.commit()
+
+    ensure_admin_exists(session)
+
+    with Session(session.get_bind()) as fresh:
+        assert fresh.get(models.User, first.id).role == UserRole.ADMIN.value
+
+
+def test_ensure_admin_exists_is_a_noop_with_admin_or_no_users(session: Session) -> None:
+    """No promotion happens when an admin already exists or the table is empty."""
+    ensure_admin_exists(session)  # empty table: must not raise
+    service = AccountService(session)
+    admin = service.register(UserCreate(email="a@example.com", password="password123"))
+    other = service.register(UserCreate(email="b@example.com", password="password123"))
+    ensure_admin_exists(session)
+    with Session(session.get_bind()) as fresh:
+        assert fresh.get(models.User, admin.id).role == UserRole.ADMIN.value
+        assert fresh.get(models.User, other.id).role == UserRole.USER.value

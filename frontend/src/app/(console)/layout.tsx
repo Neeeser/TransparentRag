@@ -1,6 +1,15 @@
 "use client";
 
-import { Bot, FolderTree, GitBranch, Home, LogOut, MessageSquare, Settings } from "lucide-react";
+import {
+  Bot,
+  FolderTree,
+  GitBranch,
+  Home,
+  LogOut,
+  MessageSquare,
+  Settings,
+  Shield,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -86,6 +95,11 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
     );
   }
 
+  const links =
+    user.role === "admin"
+      ? [...navLinks, { href: "/admin", label: "Admin", icon: Shield }]
+      : navLinks;
+
   return (
     <div
       className={cn(
@@ -107,7 +121,7 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
             <span className="sr-only">Ragworks Control Room</span>
           </Link>
           <nav className="flex flex-1 justify-center gap-2 text-sm">
-            {navLinks.map((link) => {
+            {links.map((link) => {
               const isActive = pathname?.startsWith(link.href);
               return (
                 <Link

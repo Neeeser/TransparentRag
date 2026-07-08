@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    admin,
     auth,
     chat,
     collections,
@@ -25,6 +26,7 @@ from app.api.routes import (
 from app.core.config import get_settings
 from app.db.bootstrap import init_db
 from app.db.engine import session_scope
+from app.services.accounts import ensure_admin_exists
 from app.services.pipelines import backfill_default_pipelines
 
 settings = get_settings()
@@ -58,6 +60,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     init_db()
     with session_scope() as session:
         backfill_default_pipelines(session)
+        ensure_admin_exists(session)
     yield
 
 
@@ -78,6 +81,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(models.router)
 app.include_router(pipelines.router)
 app.include_router(indexes.router)

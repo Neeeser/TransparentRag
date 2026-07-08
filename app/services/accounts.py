@@ -8,12 +8,15 @@ the route returns the same 400-with-`{field: message}` body it always has.
 
 from __future__ import annotations
 
+import logging
+
 from sqlmodel import Session
 
 from app.core.security import hash_password
 from app.db import models
 from app.db.repositories import UserRepository
 from app.schemas.auth import UserCreate, UserSettingsUpdate
+from app.schemas.enums import UserRole
 from app.services.errors import InvalidInputError
 from app.services.pipelines import PipelineService
 from app.services.provider_keys import Provider, validate_key
@@ -35,6 +38,7 @@ class AccountService:
             email=payload.email,
             full_name=payload.full_name,
             hashed_password=hash_password(payload.password),
+            role=UserRole.ADMIN.value if self.repo.count() == 0 else UserRole.USER.value,
         )
         self.repo.add(user)
         PipelineService(self.session).ensure_default_pipelines(user)
@@ -84,3 +88,24 @@ class AccountService:
         self.session.commit()
         self.session.refresh(user)
         return user
+
+
+def ensure_admin_exists(session: Session) -> None:
+    """Promote the earliest-created user to admin when no admin exists.
+
+    Covers deployments that predate roles: without this, an upgraded install
+    would have admin-only pages nobody can reach. No-op on empty databases and
+    installs that already have an admin.
+    """
+    repo = UserRepository(session)
+    if repo.count_admins() > 0:
+        return
+    earliest = repo.earliest_created()
+    if earliest is None:
+        return
+    earliest.role = UserRole.ADMIN.value
+    session.add(earliest)
+    session.commit()
+    logging.getLogger(__name__).warning(
+        "No admin account existed; promoted earliest user %s to admin.", earliest.email
+    )

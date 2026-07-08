@@ -18,6 +18,7 @@ from app.schemas.auth import (
     UserRead,
     UserSettingsUpdate,
 )
+from app.schemas.enums import UserRole
 from app.services.accounts import AccountService
 from app.services.errors import ServiceError
 from app.services.provider_keys import validate_user_keys
@@ -32,6 +33,7 @@ def _build_user_read(user: models.User) -> UserRead:
         email=user.email,
         full_name=user.full_name,
         is_active=user.is_active,
+        role=UserRole(user.role),
         openrouter_configured=bool((user.openrouter_api_key or "").strip()),
         pinecone_configured=bool((user.pinecone_api_key or "").strip()),
         last_used_chat_model=user.last_used_chat_model,
@@ -63,7 +65,11 @@ def login_for_access_token(
     """Authenticate a user and return an access token."""
     repo = UserRepository(session)
     user = repo.get_by_email(form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if (
+        not user
+        or not verify_password(form_data.password, user.hashed_password)
+        or not user.is_active
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
