@@ -20,6 +20,8 @@ from app.schemas.enums import UserRole
 from app.services.errors import InvalidInputError
 from app.services.pipelines import PipelineService
 from app.services.provider_keys import Provider, validate_key
+from app.telemetry import record
+from app.telemetry.events import UserRegistered
 
 
 class AccountService:
@@ -44,6 +46,7 @@ class AccountService:
         PipelineService(self.session).ensure_default_pipelines(user)
         self.session.commit()
         self.session.refresh(user)
+        record(UserRegistered(user_id=user.id))
         return user
 
     def update_settings(

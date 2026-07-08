@@ -369,6 +369,38 @@ The admin settings page needs no frontend work for a new field beyond the
 (`iter_config_fields()`), so a new leaf just appears. It only needs new frontend
 code if it introduces a new `ConfigFieldKind` (bool/int/string/string_list today).
 
+## Hooking into telemetry
+
+Telemetry (`app/telemetry/`) records lightweight, aggregatable activity facts to
+the local `telemetry_events` table for the admin dashboards. It is internal-only:
+nothing is ever sent externally. Its one invariant: **recording never breaks the
+feature being recorded** — `record()` opens its own short `session_scope()`
+(never the request session) and swallows any failure with a logged warning, a
+deliberate documented exception to the never-swallow rule, scoped to that module.
+
+1. **Event model** — add a Pydantic model in `app/telemetry/events.py` with a
+   unique dotted `type` literal (`"chat.turn_completed"` style) and add it to the
+   `TelemetryEvent` union. `user_id` comes from the shared base; everything else
+   in the payload should be aggregatable scalars, not blobs.
+2. **Hook** — call `record(SomeEvent(...))` at the service-layer site where the
+   fact becomes true, *after* the owning transaction commits (telemetry must
+   observe outcomes, never participate in them). Never hook in a route — the one
+   exception is login, which has no service; the route says so in a comment.
+3. **Aggregation** — only if a dashboard consumes it, add a query method to
+   `TelemetryRepository`; dashboards never query the table directly.
+4. **Test** — drive the real entry point and assert the row landed
+   (`tests/telemetry/test_instrumentation.py` is the pattern); the recorder's
+   own behavior (kill switch, never-raises, retention) is already pinned in
+   `tests/telemetry/test_recorder.py` — don't re-test it per event.
+
+**Boundary rule:** heavyweight operational records that power features stay
+domain tables (`QueryEvent`/`IngestionEvent` feed the trace UI); telemetry rows
+are the aggregatable activity facts beside them — a flow like retrieval
+deliberately writes both. One table for all event types, on purpose: adding an
+event never needs a migration. `telemetry.enabled` (kill switch) and
+`telemetry.retention_days` (startup purge, `purge_expired` in the lifespan) are
+AppConfig fields like any other.
+
 ## Fixing a bug
 
 Follow the root rule: **regression test in the same commit, verified red-green.**

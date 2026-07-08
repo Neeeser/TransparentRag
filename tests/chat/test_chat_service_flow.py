@@ -596,3 +596,42 @@ def test_stream_message_surfaces_retrieval_failure_without_losing_turn(
         and "tool_calls" in message.tool_payload
     ]
     assert assistant_tool_messages, "the assistant tool-call turn must survive a retrieval failure"
+
+
+def test_send_message_records_chat_turn_telemetry(
+    session: Session, chat_user, make_collection, install_chat_flow
+) -> None:
+    """A completed turn writes one chat.turn_completed event with the usage."""
+    from app.db.repositories import TelemetryRepository
+
+    make_collection(chat_user)
+    model_info = ModelInfo(
+        id="test-model",
+        name="Test Model",
+        context_length=2048,
+        supported_parameters=["tools", "reasoning"],
+    )
+    response = {
+        "id": "resp-telemetry",
+        "provider": "openrouter",
+        "model": "test-model",
+        "choices": [
+            {"index": 0, "message": {"content": "Answer"}, "finish_reason": "stop"}
+        ],
+        "usage": {"prompt_tokens": 3, "completion_tokens": 5, "total_tokens": 8},
+    }
+    install_chat_flow(
+        openrouter=StubOpenRouter(model_info=model_info, response=response),
+        chat_model="test-model",
+    )
+
+    ChatService(session).send_message(
+        user=chat_user, payload=ChatMessageCreate(content="hello")
+    )
+
+    with Session(session.get_bind()) as fresh:
+        rows = TelemetryRepository(fresh).list_by_type("chat.turn_completed")
+    assert len(rows) == 1
+    assert rows[0].user_id == chat_user.id
+    assert rows[0].payload["total_tokens"] == 8
+    assert rows[0].payload["model"] == "test-model"
