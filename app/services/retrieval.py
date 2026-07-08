@@ -19,6 +19,8 @@ from app.pipelines.tracing.summaries import TokenUsage
 from app.schemas.retrieval import CollectionQueryResponse, RetrievedChunk
 from app.services.errors import ExternalServiceError, InvalidInputError, is_external_provider_error
 from app.services.pipeline_resolution import ResolvedRetrievalPipeline, resolve_retrieval_pipeline
+from app.telemetry import record
+from app.telemetry.events import RetrievalQueryRan
 from app.utils.file_storage import FileStorage
 
 
@@ -56,6 +58,14 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
                 payload=payload,
                 handle=handle,
                 latency_ms=latency_ms,
+            )
+            record(
+                RetrievalQueryRan(
+                    user_id=user.id,
+                    collection_id=collection.id,
+                    latency_ms=latency_ms,
+                    top_k=top_k,
+                )
             )
             return CollectionQueryResponse(
                 query=query,

@@ -29,6 +29,7 @@ from app.db.bootstrap import init_db
 from app.db.engine import session_scope
 from app.services.accounts import ensure_admin_exists
 from app.services.pipelines import backfill_default_pipelines
+from app.telemetry import purge_expired as purge_expired_telemetry
 
 settings = get_settings()
 
@@ -62,6 +63,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     with session_scope() as session:
         backfill_default_pipelines(session)
         ensure_admin_exists(session)
+    purge_expired_telemetry()
     yield
 
 

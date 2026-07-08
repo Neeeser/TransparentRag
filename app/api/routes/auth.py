@@ -23,6 +23,8 @@ from app.services.accounts import AccountService
 from app.services.app_config import get_app_config
 from app.services.errors import ServiceError
 from app.services.provider_keys import validate_user_keys
+from app.telemetry import record
+from app.telemetry.events import UserSignedIn
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -81,6 +83,10 @@ def login_for_access_token(
             detail="Incorrect email or password",
         )
     access_token = create_access_token(subject=str(user.id))
+    # Telemetry hooks belong at the service layer, but login has no service --
+    # the credential exchange lives entirely in this route, so the fact is
+    # recorded where it becomes true.
+    record(UserSignedIn(user_id=user.id))
     return Token(access_token=access_token)
 
 

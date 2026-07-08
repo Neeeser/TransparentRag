@@ -20,6 +20,8 @@ from app.retrieval.models import DocumentChunk
 from app.schemas.documents import DocumentRead, IngestionResponse
 from app.services.errors import ExternalServiceError, InvalidInputError, is_external_provider_error
 from app.services.pipeline_resolution import resolve_ingestion_pipeline
+from app.telemetry import record
+from app.telemetry.events import DocumentIngested
 from app.utils.file_storage import FileStorage
 
 logger = logging.getLogger(__name__)
@@ -93,6 +95,15 @@ class IngestionService:  # pylint: disable=too-few-public-methods
                 chunk_records,
             )
             self.session.commit()
+            record(
+                DocumentIngested(
+                    user_id=user.id,
+                    collection_id=collection.id,
+                    document_id=document.id,
+                    status=models.DocumentStatus.READY.value,
+                    chunk_count=len(chunk_records),
+                )
+            )
 
             return IngestionResponse(
                 document=DocumentRead.from_model(document),
@@ -104,6 +115,14 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         except Exception as exc:
             self._record_failure(document, handle.trace if handle else None, exc)
             self.session.commit()
+            record(
+                DocumentIngested(
+                    user_id=user.id,
+                    collection_id=collection.id,
+                    document_id=document.id,
+                    status=models.DocumentStatus.FAILED.value,
+                )
+            )
             if is_external_provider_error(exc):
                 raise ExternalServiceError(f"Ingestion pipeline failed: {exc}") from exc
             raise

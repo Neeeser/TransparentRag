@@ -19,6 +19,7 @@ from sqlmodel import Session
 from app.api.routes import auth as auth_routes
 from app.core.security import hash_password
 from app.db import models
+from app.db.repositories import TelemetryRepository
 
 
 def test_login_for_access_token_rejects_invalid_password(session: Session) -> None:
@@ -67,3 +68,30 @@ def test_login_for_access_token_rejects_deactivated_account(
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Incorrect email or password"
+
+
+def test_login_records_a_user_signed_in_telemetry_event(
+    unauthed_client: TestClient, session: Session
+) -> None:
+    """A successful credential exchange is recorded for the admin dashboards."""
+    user = models.User(
+        email="telemetry-login@example.com",
+        hashed_password=hash_password("password123"),
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    response = unauthed_client.post(
+        "/api/auth/token",
+        data={
+            "grant_type": "password",
+            "username": "telemetry-login@example.com",
+            "password": "password123",
+        },
+    )
+
+    assert response.status_code == 200
+    with Session(session.get_bind()) as fresh:
+        rows = TelemetryRepository(fresh).list_by_type("user.signed_in")
+    assert [row.user_id for row in rows] == [user.id]

@@ -48,6 +48,8 @@ from app.chat.usage import UsageSummary, coerce_usage_value
 from app.db import models
 from app.db.repositories import ChatRepository
 from app.schemas.chat import ChatCompletionResponse, ChatMessageCreate
+from app.telemetry import record
+from app.telemetry.events import ChatTurnCompleted
 
 MAX_TOOL_ITERATIONS = 48
 
@@ -189,6 +191,19 @@ def finalize_response(
     )
     run.session.add(run.setup.session_model)
     run.session.commit()
+    turn_usage = UsageSummary.from_raw(final_usage)
+    record(
+        ChatTurnCompleted(
+            user_id=run.setup.session_model.user_id,
+            session_id=run.setup.session_model.id,
+            model=response_model_name,
+            prompt_tokens=turn_usage.prompt_tokens,
+            completion_tokens=turn_usage.completion_tokens,
+            reasoning_tokens=turn_usage.reasoning_tokens,
+            total_tokens=turn_usage.total_tokens,
+            cost=turn_usage.cost,
+        )
+    )
     tool_collection_ids = [context.collection.id for context in run.setup.tool_collections]
     return ChatCompletionResponse(
         session=convert_session(

@@ -36,6 +36,8 @@ from app.services.prompts import (
     system_prompt_context,
     with_system_prompt_template,
 )
+from app.telemetry import record
+from app.telemetry.events import CollectionCreated
 
 
 class CollectionService:
@@ -91,6 +93,7 @@ class CollectionService:
         self.repo.add(collection)
         self.session.commit()
         self.session.refresh(collection)
+        record(CollectionCreated(user_id=user.id, collection_id=collection.id))
         return collection
 
     def update(

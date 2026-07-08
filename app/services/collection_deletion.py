@@ -17,6 +17,8 @@ from app.db import models
 from app.db.repositories import CollectionRepository, DocumentRepository
 from app.services.errors import ExternalServiceError, InvalidInputError
 from app.services.pipeline_resolution import resolve_ingestion_pipeline
+from app.telemetry import record
+from app.telemetry.events import CollectionDeleted
 from app.utils.file_storage import FileStorage
 
 
@@ -50,10 +52,12 @@ class CollectionDeletionService:
         if not namespace:
             raise InvalidInputError("Ingestion pipeline namespace is not configured.")
 
+        collection_id = collection.id
         self._purge_vectors(user, index_name=resolved.settings.index_name, namespace=namespace)
         self._purge_files(collection)
         self._purge_rows(collection)
         self.session.commit()
+        record(CollectionDeleted(user_id=user.id, collection_id=collection_id))
 
     def _purge_vectors(self, user: models.User, *, index_name: str, namespace: str) -> None:
         """Delete the collection's Pinecone namespace, tolerating a missing one."""

@@ -151,6 +151,11 @@ env vars pin the default chat and embedding models read-only, useful for a
 locked-down deployment: `OPENROUTER_DEFAULT_CHAT_MODEL` and
 `OPENROUTER_DEFAULT_EMBEDDING_MODEL`.
 
+Ragworks records activity telemetry (chat token usage, ingestions, sign-ins)
+**to your own database only**, to power the admin dashboards — nothing is ever
+sent externally. Admins can turn it off or tune its retention in
+**Admin → Settings**.
+
 ## 🛠️ Development setup
 
 **Prerequisites:** Python 3.11+, Node 22, Postgres, [uv](https://docs.astral.sh/uv/), an [OpenRouter](https://openrouter.ai/) key and a [Pinecone](https://www.pinecone.io/) key (entered per-user in the UI).
