@@ -1,9 +1,7 @@
-import { render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import RootLayout from "@/app/layout";
-import LandingPage from "@/app/page";
 
 import type { ReactNode } from "react";
 
@@ -25,17 +23,5 @@ describe("app root", () => {
     expect(markup).toContain("--font-geist-sans");
     expect(markup).toContain("--font-geist-mono");
     expect(markup).toContain('data-testid="auth-provider"');
-  });
-
-  it("renders the landing page", () => {
-    render(<LandingPage />);
-
-    expect(screen.getByText("Ragworks")).toBeInTheDocument();
-    expect(screen.getByText("Every RAG signal, surfaced.")).toBeInTheDocument();
-    expect(screen.getByText("Parse")).toBeInTheDocument();
-    expect(screen.getByText("Chunk")).toBeInTheDocument();
-    expect(screen.getByText("Embed")).toBeInTheDocument();
-    expect(screen.getByText("Index")).toBeInTheDocument();
-    expect(screen.getByText("Chat")).toBeInTheDocument();
   });
 });

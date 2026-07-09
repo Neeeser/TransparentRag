@@ -194,3 +194,29 @@ html {
 .react-flow__edge.pipeline-edge-error .react-flow__edge-path {
   stroke: #f87171;
 }
+
+/* Landing page hero: staggered entrance for the eyebrow, headline, subhead,
+   CTAs, and capability strip. Delay is set per-element via inline style. */
+@keyframes landingRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-rise {
+  opacity: 0;
+  animation: landingRise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

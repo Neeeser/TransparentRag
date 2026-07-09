@@ -18,6 +18,11 @@ type UseFlowPlaybackParams = {
   processMs?: number;
   /** How long the payload dot takes to cross an edge. */
   travelMs?: number;
+  /**
+   * When set, playback restarts from the first step after reaching the end
+   * instead of stopping -- used for ambient, always-running backdrops.
+   */
+  loop?: boolean;
 };
 
 export type UseFlowPlaybackResult = {
@@ -49,6 +54,7 @@ export function useFlowPlayback({
   autoPlay = false,
   processMs = 1000,
   travelMs = 650,
+  loop = false,
 }: UseFlowPlaybackParams): UseFlowPlaybackResult {
   const [activeIndex, setActiveIndex] = useState(0);
   const [phase, setPhase] = useState<PlaybackPhase>("process");
@@ -70,7 +76,14 @@ export function useFlowPlayback({
     if (!playing || steps.length === 0) return;
     if (phase === "process") {
       if (activeIndex >= steps.length - 1) {
-        const timer = window.setTimeout(() => setPlaying(false), processMs);
+        const timer = window.setTimeout(() => {
+          if (loop) {
+            setActiveIndex(0);
+            setPhase("process");
+          } else {
+            setPlaying(false);
+          }
+        }, processMs);
         return () => window.clearTimeout(timer);
       }
       const timer = window.setTimeout(() => {
@@ -84,7 +97,7 @@ export function useFlowPlayback({
       setActiveIndex((prev) => Math.min(prev + 1, steps.length - 1));
     }, travelMs);
     return () => window.clearTimeout(timer);
-  }, [playing, phase, activeIndex, steps.length, processMs, travelMs, edgeBetween]);
+  }, [playing, phase, activeIndex, steps.length, processMs, travelMs, edgeBetween, loop]);
 
   const seek = useCallback(
     (index: number) => {
