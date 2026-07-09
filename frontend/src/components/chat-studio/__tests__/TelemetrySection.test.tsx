@@ -41,6 +41,6 @@ describe("TelemetrySection", () => {
         <div />
       </TelemetrySection>,
     );
-    expect(container.firstChild).toHaveClass("border-emerald-400/60");
+    expect(container.firstChild).toHaveClass("border-data-pos/60");
   });
 });

@@ -45,7 +45,7 @@ export function ChatStudioMessages({
             type="button"
             onClick={onFollow}
             aria-label="Scroll to latest message"
-            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white opacity-90 shadow-2xl backdrop-blur-sm transition hover:bg-black/80 hover:opacity-100"
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-hairline bg-canvas-raised text-primary opacity-90 shadow-elevation-2 backdrop-blur-sm transition hover:bg-surface-strong hover:opacity-100"
           >
             <ArrowDown className="h-5 w-5" />
           </button>

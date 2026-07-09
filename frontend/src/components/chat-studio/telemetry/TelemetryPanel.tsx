@@ -159,7 +159,7 @@ const TelemetryPanelComponent = ({
     systemPrompt: {
       title: "System prompt",
       description: promptDescription,
-      icon: <NotebookPen className="h-4 w-4 text-amber-300" />,
+      icon: <NotebookPen className="h-4 w-4 text-stage-embed" />,
       isOpen: systemPromptOpen,
       onToggle: onSystemPromptToggle,
       sectionId: sectionIds.systemPrompt,
@@ -179,7 +179,7 @@ const TelemetryPanelComponent = ({
     collectionTools: {
       title: "Collection tools",
       description: toolsDescription,
-      icon: <Layers className="h-4 w-4 text-cyan-300" />,
+      icon: <Layers className="h-4 w-4 text-accent-cyan" />,
       isOpen: collectionToolsOpen,
       onToggle: onCollectionToolsToggle,
       sectionId: sectionIds.collectionTools,
@@ -198,7 +198,7 @@ const TelemetryPanelComponent = ({
     streaming: {
       title: "Streaming",
       description: streamingEnabled ? "Live tokens enabled" : "Responses buffered until completion",
-      icon: <Share2 className="h-4 w-4 text-emerald-300" />,
+      icon: <Share2 className="h-4 w-4 text-data-pos" />,
       isOpen: streamingOptionsOpen,
       onToggle: onStreamingOptionsToggle,
       sectionId: sectionIds.streaming,
@@ -210,7 +210,7 @@ const TelemetryPanelComponent = ({
     modelRouting: {
       title: "Model routing",
       description: currentModelInfo?.name || selectedModelKey || "Select a chat model",
-      icon: <RotateCcw className="h-4 w-4 text-violet-300" />,
+      icon: <RotateCcw className="h-4 w-4 text-accent-violet" />,
       isOpen: modelSelectorOpen,
       onToggle: onModelSelectorToggle,
       sectionId: sectionIds.modelRouting,
@@ -237,7 +237,7 @@ const TelemetryPanelComponent = ({
         providerRuleCount === 0
           ? "Load balance across top providers"
           : `${providerRuleCount} routing rule${providerRuleCount === 1 ? "" : "s"} configured`,
-      icon: <Share2 className="h-4 w-4 text-emerald-300" />,
+      icon: <Share2 className="h-4 w-4 text-data-pos" />,
       isOpen: providerPreferencesOpen,
       onToggle: onProviderPreferencesToggle,
       sectionId: sectionIds.providerRouting,
@@ -260,7 +260,7 @@ const TelemetryPanelComponent = ({
     vitals: {
       title: "Collection vitals",
       description: "Current ingestion settings",
-      icon: <MessageCircle className="h-4 w-4 text-cyan-300" />,
+      icon: <MessageCircle className="h-4 w-4 text-accent-cyan" />,
       isOpen: vitalsOpen,
       onToggle: onVitalsToggle,
       sectionId: sectionIds.vitals,
@@ -277,7 +277,7 @@ const TelemetryPanelComponent = ({
       description: currentModelInfo
         ? `${activeParameterCount} override${activeParameterCount === 1 ? "" : "s"} active`
         : "Load model metadata",
-      icon: <SlidersHorizontal className="h-4 w-4 text-violet-300" />,
+      icon: <SlidersHorizontal className="h-4 w-4 text-accent-violet" />,
       isOpen: modelParametersOpen,
       onToggle: onModelParametersToggle,
       sectionId: sectionIds.modelParameters,
@@ -321,15 +321,15 @@ const TelemetryPanelComponent = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b border-white/5 pb-4">
+      <div className="flex items-center justify-between border-b border-hairline pb-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Context</p>
-          <h2 className="text-xl font-semibold text-white">Run settings</h2>
+          <p className="font-mono text-xs uppercase tracking-[0.35em] text-meta">Context</p>
+          <h2 className="text-xl font-semibold text-primary">Run settings</h2>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 p-0 text-slate-300"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-hairline p-0 text-muted"
           onClick={onClose}
           aria-label="Close run settings"
         >

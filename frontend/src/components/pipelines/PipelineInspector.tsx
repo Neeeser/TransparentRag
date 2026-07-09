@@ -136,48 +136,50 @@ export function PipelineInspector({
   return (
     <GlassCard className="rounded-3xl p-5">
       <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Inspector</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">Inspector</p>
         {selectedNode && !isPreview ? (
-          <span className="flex items-center gap-1 text-[10px] text-slate-500">
-            <Check className="h-3 w-3 text-emerald-300" /> changes apply instantly
+          <span className="flex items-center gap-1 text-[10px] text-meta">
+            <Check className="h-3 w-3 text-data-pos" /> changes apply instantly
           </span>
         ) : null}
       </div>
       {selectedNode ? (
         <div className="mt-4 space-y-3 text-sm">
           {isPreview ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+            <div className="rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-muted">
               Preview only. Drag this node into the canvas to add it.
             </div>
           ) : null}
           <div>
-            <p className="text-xs text-slate-400">Node label</p>
+            <p className="text-xs text-muted">Node label</p>
             <input
-              className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-400"
+              className="mt-1 w-full rounded-2xl border border-hairline bg-surface px-3 py-2 text-sm text-primary outline-none focus:border-accent-violet"
               value={selectedNode.data.label}
               onChange={(event) => onLabelChange(event.target.value)}
               readOnly={isPreview}
             />
           </div>
           <div>
-            <p className="text-xs text-slate-400">Description</p>
-            <p className="text-sm text-slate-200">
+            <p className="text-xs text-muted">Description</p>
+            <p className="text-sm text-body">
               {selectedNode.data.description || "No description available."}
             </p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">Example</p>
+            <p className="text-xs text-muted">Example</p>
             {selectedNode.data.example ? (
               <div className="mt-2 flex flex-col items-center gap-2 md:flex-row">
-                <div className="w-full rounded-2xl border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-sky-200/70">Input</p>
+                <div className="w-full rounded-2xl border border-stage-parse/30 bg-stage-parse/10 px-3 py-2 text-xs text-stage-parse">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-stage-parse/70">
+                    Input
+                  </p>
                   <pre className="mt-1 whitespace-pre-wrap font-sans">
                     {selectedNode.data.example.input}
                   </pre>
                 </div>
-                <ArrowRight className="h-4 w-4 rotate-90 text-slate-400 md:rotate-0" />
-                <div className="w-full rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-200/70">
+                <ArrowRight className="h-4 w-4 rotate-90 text-muted md:rotate-0" />
+                <div className="w-full rounded-2xl border border-stage-retrieve/30 bg-stage-retrieve/10 px-3 py-2 text-xs text-stage-retrieve">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-stage-retrieve/70">
                     Output
                   </p>
                   <pre className="mt-1 whitespace-pre-wrap font-sans">
@@ -186,13 +188,13 @@ export function PipelineInspector({
                 </div>
               </div>
             ) : (
-              <p className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
+              <p className="rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body">
                 No example available.
               </p>
             )}
           </div>
           <div>
-            <p className="text-xs text-slate-400">Config</p>
+            <p className="text-xs text-muted">Config</p>
             {isEmbedder ? (
               <div className="mt-2 space-y-3">
                 <EmbeddingModelSelectorCard
@@ -206,9 +208,7 @@ export function PipelineInspector({
             ) : null}
             {isVectorNode && backendSelectable ? (
               <div className="mt-2">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
-                  Vector store
-                </p>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-meta">Vector store</p>
                 <div
                   className="mt-2 grid grid-cols-2 gap-2"
                   role="radiogroup"
@@ -226,18 +226,18 @@ export function PipelineInspector({
                         onClick={() => handleBackendChange(option.value)}
                         className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-left text-xs transition ${
                           active
-                            ? "border-violet-400/70 bg-violet-500/10 text-white"
-                            : "border-white/10 bg-white/5 text-slate-300 hover:border-white/30"
+                            ? "border-accent-violet/70 bg-accent-violet/10 text-primary"
+                            : "border-hairline bg-surface text-body hover:border-strong"
                         }`}
                       >
                         {option.value === "pgvector" ? (
                           <PostgresIcon className="h-4 w-4 shrink-0" />
                         ) : (
-                          <PineconeIcon className="h-4 w-4 shrink-0 text-slate-100" />
+                          <PineconeIcon className="h-4 w-4 shrink-0 text-primary" />
                         )}
                         <span>
                           <span className="block font-semibold">{option.label}</span>
-                          <span className="block text-[10px] text-slate-500">{option.hint}</span>
+                          <span className="block text-[10px] text-meta">{option.hint}</span>
                         </span>
                       </button>
                     );
@@ -262,7 +262,7 @@ export function PipelineInspector({
                   onAction={onOpenIndexManager}
                 >
                   <select
-                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+                    className="w-full rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm text-primary outline-none focus:border-accent-violet"
                     value={indexValue}
                     onChange={(event) => handleIndexChange(event.target.value)}
                     disabled={isPreview}
@@ -317,13 +317,13 @@ export function PipelineInspector({
                 })}
               </div>
             ) : !isEmbedder && !isVectorNode ? (
-              <p className="mt-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
+              <p className="mt-1 rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body">
                 This node has no configurable settings.
               </p>
             ) : null}
           </div>
           {validationErrors.length > 0 ? (
-            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            <div className="rounded-2xl border border-data-neg/40 bg-data-neg/10 px-3 py-2 text-xs text-data-neg">
               {validationErrors.map((error) => (
                 <p key={error}>{error}</p>
               ))}
@@ -331,9 +331,7 @@ export function PipelineInspector({
           ) : null}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-slate-400">
-          Select a node to inspect or tweak configuration.
-        </p>
+        <p className="mt-3 text-sm text-muted">Select a node to inspect or tweak configuration.</p>
       )}
     </GlassCard>
   );

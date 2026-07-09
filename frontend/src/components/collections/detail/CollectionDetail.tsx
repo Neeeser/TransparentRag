@@ -83,7 +83,7 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
 
   if (!collection || !token) {
     return (
-      <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-slate-300">
+      <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-body">
         {message || "Collection not available."}
       </GlassCard>
     );
@@ -98,7 +98,7 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
       />
       <div className="space-y-6">
         {message && (
-          <GlassCard className="rounded-3xl border border-white/10 p-4 text-sm text-slate-200">
+          <GlassCard className="rounded-3xl border border-hairline p-4 text-sm text-body">
             {message}
           </GlassCard>
         )}

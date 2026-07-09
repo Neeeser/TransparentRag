@@ -13,12 +13,12 @@ type IndexDetailsPanelProps = {
  * the delete-confirmation flow (owned by the parent IndexManagerModal). */
 export function IndexDetailsPanel({ index, onDelete }: IndexDetailsPanelProps) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+    <div className="rounded-3xl border border-hairline bg-surface p-5">
       <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Index details</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">Index details</p>
         <button
           type="button"
-          className="rounded-full border border-white/10 p-2 text-slate-300 transition hover:border-rose-400/60 hover:text-rose-200 disabled:opacity-40"
+          className="rounded-full border border-hairline p-2 text-muted transition hover:border-data-neg/60 hover:text-data-neg disabled:opacity-40"
           onClick={() => index && onDelete(index.name)}
           disabled={!index}
           aria-label="Delete index"
@@ -27,42 +27,42 @@ export function IndexDetailsPanel({ index, onDelete }: IndexDetailsPanelProps) {
         </button>
       </div>
       {index ? (
-        <div className="mt-4 grid gap-4 text-sm text-slate-200 md:grid-cols-2">
+        <div className="mt-4 grid gap-4 text-sm text-body md:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Name</p>
-            <p className="text-base font-semibold text-white">{index.name}</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-meta">Name</p>
+            <p className="text-base font-semibold text-primary">{index.name}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Status</p>
-            <p className="text-sm text-slate-200">
+            <p className="text-xs uppercase tracking-[0.3em] text-meta">Status</p>
+            <p className="text-sm text-body">
               {(index.status as { state?: string } | null)?.state ?? "Unknown"}
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Backend</p>
-            <p className="text-sm text-slate-200">
+            <p className="text-xs uppercase tracking-[0.3em] text-meta">Backend</p>
+            <p className="text-sm text-body">
               {index.backend === "pgvector" ? "pgvector (PostgreSQL)" : "Pinecone"}
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Vector type</p>
-            <p className="text-sm text-slate-200">{index.vector_type ?? "dense"}</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-meta">Vector type</p>
+            <p className="text-sm text-body">{index.vector_type ?? "dense"}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Dimension</p>
-            <p className="text-sm text-slate-200">{index.dimension ?? "n/a"}</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-meta">Dimension</p>
+            <p className="text-sm text-body">{index.dimension ?? "n/a"}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Metric</p>
-            <p className="text-sm text-slate-200">{index.metric ?? "cosine"}</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-meta">Metric</p>
+            <p className="text-sm text-body">{index.metric ?? "cosine"}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Host</p>
-            <p className="text-xs text-slate-300 break-all">{index.host ?? "Not available"}</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-meta">Host</p>
+            <p className="text-xs text-body break-all">{index.host ?? "Not available"}</p>
           </div>
         </div>
       ) : (
-        <p className="mt-3 text-sm text-slate-400">Select an index to see details.</p>
+        <p className="mt-3 text-sm text-muted">Select an index to see details.</p>
       )}
     </div>
   );

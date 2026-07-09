@@ -35,12 +35,12 @@ export const SystemPromptCard = ({
   markdownComponents,
 }: SystemPromptCardProps) => {
   if (promptLoading) {
-    return <p className="text-sm text-slate-400">Loading prompt…</p>;
+    return <p className="text-sm text-muted">Loading prompt…</p>;
   }
 
   if (promptError) {
     return (
-      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+      <div className="rounded-2xl border border-data-neg/30 bg-data-neg/10 p-3 text-sm text-data-neg">
         {promptError}
       </div>
     );
@@ -52,7 +52,7 @@ export const SystemPromptCard = ({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted">
         Prompt combines your base instructions with each enabled tool snippet. Use the editor to
         adjust the base template and per-tool prompt blocks.
       </p>
@@ -64,15 +64,15 @@ export const SystemPromptCard = ({
           </span>
         ))}
       </div>
-      <div className="max-h-48 overflow-y-auto rounded-2xl border border-white/10 bg-black/40 p-4 text-sm">
+      <div className="max-h-48 overflow-y-auto rounded-2xl border border-hairline bg-surface p-4 text-sm">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {previewSource}
         </ReactMarkdown>
       </div>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
         {generatedAt && (
           <span>
-            Generated at <strong className="text-white">{generatedAt}</strong>
+            Generated at <strong className="text-primary">{generatedAt}</strong>
           </span>
         )}
         <Button variant="secondary" size="sm" className="ml-auto" onClick={onEdit}>

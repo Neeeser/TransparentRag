@@ -48,11 +48,11 @@ type CollectionStatCardProps = {
 /** Shared label-over-value markup for a single stats card. */
 export function CollectionStatCard({
   item,
-  valueClassName = "mt-2 text-2xl font-semibold text-white",
+  valueClassName = "mt-2 text-2xl font-semibold text-primary",
 }: CollectionStatCardProps) {
   return (
     <>
-      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{item.label}</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">{item.label}</p>
       <p className={valueClassName}>{item.value}</p>
     </>
   );

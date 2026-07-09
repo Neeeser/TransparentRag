@@ -116,7 +116,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
 
   if (loading) {
     return (
-      <GlassCard className="flex items-center justify-center rounded-3xl border border-white/10 p-10">
+      <GlassCard className="flex items-center justify-center rounded-3xl border border-hairline p-10">
         <Loader className="h-6 w-6" />
       </GlassCard>
     );
@@ -124,18 +124,20 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
 
   return (
     <div className="flex min-h-[calc(100vh-240px)] flex-col gap-6">
-      <GlassCard className="rounded-3xl border border-white/10 p-6">
+      <GlassCard className="rounded-3xl border border-hairline p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Visualization</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">UMAP Projection</h3>
+            <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">
+              Visualization
+            </p>
+            <h3 className="mt-2 text-xl font-semibold text-primary">UMAP Projection</h3>
             {projectionSummary ? (
-              <p className="text-sm text-slate-300">
+              <p className="text-sm text-body">
                 Computed {projectionSummary.computedAgo} | {projectionSummary.pointCount} points |{" "}
                 {projectionSummary.embeddingModel}
               </p>
             ) : (
-              <p className="text-sm text-slate-400">No projection saved yet.</p>
+              <p className="text-sm text-muted">No projection saved yet.</p>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -147,12 +149,12 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
             </Button>
           </div>
         </div>
-        {message && <p className="mt-4 text-sm text-rose-200">{message}</p>}
+        {message && <p className="mt-4 text-sm text-data-neg">{message}</p>}
       </GlassCard>
 
       {visualization ? (
         <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <GlassCard className="relative h-full min-h-[420px] rounded-3xl border border-white/10">
+          <GlassCard className="relative h-full min-h-[420px] rounded-3xl border border-hairline">
             <UmapCanvas
               key={projectionId ?? "empty"}
               points={visualization.points}
@@ -171,7 +173,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
           />
         </div>
       ) : (
-        <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-slate-300">
+        <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-body">
           Upload documents and compute a projection to explore the collection.
         </GlassCard>
       )}

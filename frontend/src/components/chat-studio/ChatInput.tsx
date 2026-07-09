@@ -30,12 +30,12 @@ export const ChatInput = ({
   placeholder = "Ask anything…",
 }: ChatInputProps) => {
   return (
-    <div className="border-t border-white/5 bg-black/30 px-6 py-4">
+    <div className="border-t border-hairline bg-surface px-6 py-4">
       <div className="flex flex-col gap-3">
         <textarea
           ref={inputRef}
           rows={1}
-          className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+          className="w-full resize-none rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm text-primary outline-none focus:border-accent-violet"
           placeholder={placeholder}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -44,7 +44,7 @@ export const ChatInput = ({
             maxHeight: CHAT_INPUT_MAX_HEIGHT,
           }}
         />
-        <div className="flex items-center justify-between text-xs text-slate-400">
+        <div className="flex items-center justify-between text-xs text-muted">
           <span>{draft.length} characters</span>
           <div className="flex items-center gap-2">
             <Button

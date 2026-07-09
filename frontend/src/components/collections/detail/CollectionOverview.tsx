@@ -7,6 +7,7 @@ import {
   CollectionStatCard,
 } from "@/components/collections/CollectionStats";
 import { Button } from "@/components/ui/button";
+import { Field, Select } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/panel";
 import { updateCollection } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -84,27 +85,33 @@ export function CollectionOverview({
   return (
     <div className="space-y-6">
       <GlassCard className="rounded-3xl p-6">
-        <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Overview</p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">{collection.name}</h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">Overview</p>
+        <h1 className="mt-2 text-2xl font-semibold text-primary">{collection.name}</h1>
+        <p className="mt-2 text-sm text-muted">
           {collection.description?.trim() || "No description yet."}
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Collection id</p>
-            <p className="mt-2 break-all text-sm text-white">{collection.id}</p>
+          <div className="rounded-2xl border border-hairline bg-surface p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+              Collection id
+            </p>
+            <p className="mt-2 break-all text-sm text-primary">{collection.id}</p>
           </div>
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Ingestion pipeline</p>
-            <p className="mt-2 text-sm text-white">
+          <div className="rounded-2xl border border-hairline bg-surface p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+              Ingestion pipeline
+            </p>
+            <p className="mt-2 text-sm text-primary">
               {pipelineNameById.get(collection.ingestion_pipeline_id ?? "") ??
                 defaultIngestion?.name ??
                 "Default ingestion pipeline"}
             </p>
           </div>
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Retrieval pipeline</p>
-            <p className="mt-2 text-sm text-white">
+          <div className="rounded-2xl border border-hairline bg-surface p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+              Retrieval pipeline
+            </p>
+            <p className="mt-2 text-sm text-primary">
               {pipelineNameById.get(collection.retrieval_pipeline_id ?? "") ??
                 defaultRetrieval?.name ??
                 "Default retrieval pipeline"}
@@ -124,20 +131,21 @@ export function CollectionOverview({
       <GlassCard className="rounded-3xl p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Pipelines</p>
-            <h2 className="text-2xl font-semibold">Collection bindings</h2>
-            <p className="text-sm text-slate-400">
+            <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">
+              Pipelines
+            </p>
+            <h2 className="text-2xl font-semibold text-primary">Collection bindings</h2>
+            <p className="text-sm text-muted">
               Swap ingestion or retrieval flows without reconfiguring the collection.
             </p>
           </div>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              Ingestion pipeline
-            </label>
-            <select
-              className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+          <Field
+            label="Ingestion pipeline"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
+          >
+            <Select
               value={pipelineBindings.ingestion}
               onChange={(event) =>
                 setPipelineBindings((prev) => ({
@@ -151,14 +159,13 @@ export function CollectionOverview({
                   {pipeline.name}
                 </option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              Retrieval pipeline
-            </label>
-            <select
-              className="mt-1 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-400"
+            </Select>
+          </Field>
+          <Field
+            label="Retrieval pipeline"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
+          >
+            <Select
               value={pipelineBindings.retrieval}
               onChange={(event) =>
                 setPipelineBindings((prev) => ({
@@ -172,14 +179,14 @@ export function CollectionOverview({
                   {pipeline.name}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button onClick={handleUpdatePipelines} loading={binding}>
             Apply pipelines
           </Button>
-          {message && <p className="text-sm text-slate-300">{message}</p>}
+          {message && <p className="text-sm text-body">{message}</p>}
         </div>
       </GlassCard>
     </div>

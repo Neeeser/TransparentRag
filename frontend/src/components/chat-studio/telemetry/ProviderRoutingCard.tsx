@@ -4,6 +4,7 @@ import { Loader, Search } from "lucide-react";
 
 import { useProviderRoutingForm } from "@/components/chat-studio/hooks/settings/use-provider-routing-form";
 import { ProviderEndpointCard } from "@/components/chat-studio/telemetry/ProviderEndpointCard";
+import { ProviderMaxPriceSection } from "@/components/chat-studio/telemetry/ProviderMaxPriceSection";
 import { ProviderSelectionFieldList } from "@/components/chat-studio/telemetry/ProviderSelectionFieldList";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,7 +50,7 @@ export const ProviderRoutingCard = ({
   resetProviderPreferences,
 }: ProviderRoutingCardProps) => {
   const inputClasses =
-    "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-white outline-none focus:border-violet-400";
+    "w-full rounded-2xl border border-hairline bg-surface px-4 py-2.5 text-sm text-primary outline-none focus:border-accent-violet";
   const endpoints = providerDirectory?.endpoints ?? [];
   const normalizedSearch = providerSearchTerm.trim().toLowerCase();
   const filteredEndpoints =
@@ -74,11 +75,13 @@ export const ProviderRoutingCard = ({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="space-y-4 rounded-2xl border border-hairline bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Routing strategy</p>
-            <p className="text-sm text-slate-300">
+            <p className="font-mono text-xs uppercase tracking-[0.35em] text-meta">
+              Routing strategy
+            </p>
+            <p className="text-sm text-body">
               Nitro/Floor shortcuts map to these settings. Use the catalog below to build a custom
               provider order.
             </p>
@@ -87,15 +90,17 @@ export const ProviderRoutingCard = ({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 rounded-full border border-white/10 px-3 text-xs text-slate-200"
+              className="h-8 rounded-full border border-hairline px-3 text-xs text-body"
               onClick={resetProviderPreferences}
             >
               Reset rules
             </Button>
           )}
         </div>
-        <label className="space-y-2 text-sm text-slate-200">
-          <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Sort providers</span>
+        <label className="space-y-2 text-sm text-body">
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-meta">
+            Sort providers
+          </span>
           <select
             className={inputClasses}
             value={providerForm.sort}
@@ -112,42 +117,44 @@ export const ProviderRoutingCard = ({
             <option value="latency">Latency</option>
           </select>
         </label>
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-          <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-            <span className="font-medium text-white">Allow fallbacks</span>
+        <div className="rounded-2xl border border-hairline bg-surface p-3">
+          <label className="flex items-center justify-between gap-3 text-sm text-body">
+            <span className="font-medium text-primary">Allow fallbacks</span>
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-white/30 bg-transparent"
+              className="h-4 w-4 rounded border-strong bg-transparent"
               checked={providerForm.allowFallbacks}
               onChange={(event) =>
                 setProviderForm((prev) => ({ ...prev, allowFallbacks: event.target.checked }))
               }
             />
           </label>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-muted">
             Disable this to fail fast if your preferred providers are unavailable.
           </p>
         </div>
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="space-y-4 rounded-2xl border border-hairline bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Provider catalog</p>
-            <p className="text-sm text-slate-300">
+            <p className="font-mono text-xs uppercase tracking-[0.35em] text-meta">
+              Provider catalog
+            </p>
+            <p className="text-sm text-body">
               {providerModelSlug
                 ? `Pulled from OpenRouter for ${providerModelSlug}.`
                 : "Select a model to browse provider endpoints."}
             </p>
           </div>
           {providerDirectory && (
-            <span className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+            <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">
               {providerDirectory.endpoints.length} endpoints
             </span>
           )}
         </div>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-meta" />
           <input
             type="search"
             className={cn(inputClasses, "pl-9 disabled:cursor-not-allowed disabled:opacity-60")}
@@ -157,20 +164,20 @@ export const ProviderRoutingCard = ({
             disabled={!providerModelSlug}
           />
         </div>
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+        <div className="rounded-2xl border border-hairline bg-surface p-3">
           {providerDirectoryLoading ? (
-            <div className="flex items-center gap-2 text-sm text-slate-400">
+            <div className="flex items-center gap-2 text-sm text-muted">
               <Loader className="h-4 w-4" />
               <span>Loading endpoints…</span>
             </div>
           ) : providerDirectoryError ? (
-            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+            <div className="rounded-xl border border-data-neg/30 bg-data-neg/10 p-3 text-sm text-data-neg">
               {providerDirectoryError}
             </div>
           ) : !providerModelSlug ? (
-            <p className="text-sm text-slate-400">Pick a model to inspect its provider list.</p>
+            <p className="text-sm text-muted">Pick a model to inspect its provider list.</p>
           ) : visibleEndpoints.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               {normalizedSearch
                 ? "No providers match your search."
                 : "No endpoints published for this model yet."}
@@ -191,8 +198,10 @@ export const ProviderRoutingCard = ({
         </div>
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Selections & filters</p>
+      <div className="space-y-4 rounded-2xl border border-hairline bg-surface p-4">
+        <p className="font-mono text-xs uppercase tracking-[0.35em] text-meta">
+          Selections & filters
+        </p>
         <ProviderSelectionFieldList
           label="Order priority"
           fieldKey="order"
@@ -203,7 +212,7 @@ export const ProviderRoutingCard = ({
           onMove={moveProviderOrderEntry}
         />
         {providerForm.order.length > 0 && (
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-meta">
             Requests follow this order before falling back to the OpenRouter defaults.
           </p>
         )}
@@ -222,7 +231,9 @@ export const ProviderRoutingCard = ({
           onMove={moveProviderOrderEntry}
         />
         <div className="space-y-2">
-          <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Quantizations</span>
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-meta">
+            Quantizations
+          </span>
           <div className="flex flex-wrap gap-2">
             {QUANTIZATION_OPTIONS.map((option) => {
               const active = providerForm.quantizations.includes(option);
@@ -233,8 +244,8 @@ export const ProviderRoutingCard = ({
                   className={cn(
                     "rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em]",
                     active
-                      ? "border-cyan-400 bg-cyan-500/20 text-white"
-                      : "border-white/10 bg-white/5 text-slate-200 hover:border-white/40",
+                      ? "border-accent-cyan bg-accent-cyan/20 text-primary"
+                      : "border-hairline bg-surface text-body hover:border-strong",
                   )}
                   onClick={() => toggleQuantization(option)}
                 >
@@ -244,36 +255,36 @@ export const ProviderRoutingCard = ({
             })}
           </div>
           {providerForm.quantizations.length === 0 ? (
-            <p className="text-xs text-slate-500">Load balance across all quantization levels.</p>
+            <p className="text-xs text-meta">Load balance across all quantization levels.</p>
           ) : (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-meta">
               {providerForm.quantizations.length} selected • filters apply to open-weight endpoints.
             </p>
           )}
         </div>
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Data guardrails</p>
+      <div className="space-y-3 rounded-2xl border border-hairline bg-surface p-4">
+        <p className="font-mono text-xs uppercase tracking-[0.35em] text-meta">Data guardrails</p>
         <div className="space-y-2">
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-            <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-              <span className="font-medium text-white">Require parameters</span>
+          <div className="rounded-2xl border border-hairline bg-surface p-3">
+            <label className="flex items-center justify-between gap-3 text-sm text-body">
+              <span className="font-medium text-primary">Require parameters</span>
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-white/30 bg-transparent"
+                className="h-4 w-4 rounded border-strong bg-transparent"
                 checked={providerForm.requireParameters}
                 onChange={(event) =>
                   setProviderForm((prev) => ({ ...prev, requireParameters: event.target.checked }))
                 }
               />
             </label>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-muted">
               Only route to providers that support every parameter in your request.
             </p>
           </div>
-          <label className="space-y-2 text-sm text-slate-200">
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
+          <label className="space-y-2 text-sm text-body">
+            <span className="font-mono text-xs uppercase tracking-[0.3em] text-meta">
               Data collection
             </span>
             <select
@@ -290,26 +301,26 @@ export const ProviderRoutingCard = ({
               <option value="deny">Deny (no collection)</option>
             </select>
           </label>
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-            <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-              <span className="font-medium text-white">Zero data retention</span>
+          <div className="rounded-2xl border border-hairline bg-surface p-3">
+            <label className="flex items-center justify-between gap-3 text-sm text-body">
+              <span className="font-medium text-primary">Zero data retention</span>
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-white/30 bg-transparent"
+                className="h-4 w-4 rounded border-strong bg-transparent"
                 checked={providerForm.zdr}
                 onChange={(event) =>
                   setProviderForm((prev) => ({ ...prev, zdr: event.target.checked }))
                 }
               />
             </label>
-            <p className="mt-1 text-xs text-slate-400">Only send requests to ZDR endpoints.</p>
+            <p className="mt-1 text-xs text-muted">Only send requests to ZDR endpoints.</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-            <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-              <span className="font-medium text-white">Distillable text only</span>
+          <div className="rounded-2xl border border-hairline bg-surface p-3">
+            <label className="flex items-center justify-between gap-3 text-sm text-body">
+              <span className="font-medium text-primary">Distillable text only</span>
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-white/30 bg-transparent"
+                className="h-4 w-4 rounded border-strong bg-transparent"
                 checked={providerForm.enforceDistillableText}
                 onChange={(event) =>
                   setProviderForm((prev) => ({
@@ -319,89 +330,26 @@ export const ProviderRoutingCard = ({
                 }
               />
             </label>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-muted">
               Restrict routing to models that permit text distillation.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">
-            Max price ($/m tokens)
-          </p>
-          <p className="text-sm text-slate-300">
-            Cap prompt, completion, request, or image pricing for this turn.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="space-y-1 text-sm text-slate-200">
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Prompt</span>
-            <input
-              type="number"
-              min="0"
-              step="0.0001"
-              className={inputClasses}
-              placeholder="1.00"
-              value={providerForm.maxPrompt}
-              onChange={(event) =>
-                setProviderForm((prev) => ({ ...prev, maxPrompt: event.target.value }))
-              }
-            />
-          </label>
-          <label className="space-y-1 text-sm text-slate-200">
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Completion</span>
-            <input
-              type="number"
-              min="0"
-              step="0.0001"
-              className={inputClasses}
-              placeholder="2.00"
-              value={providerForm.maxCompletion}
-              onChange={(event) =>
-                setProviderForm((prev) => ({ ...prev, maxCompletion: event.target.value }))
-              }
-            />
-          </label>
-          <label className="space-y-1 text-sm text-slate-200">
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Request</span>
-            <input
-              type="number"
-              min="0"
-              step="0.0001"
-              className={inputClasses}
-              placeholder="0.25"
-              value={providerForm.maxRequest}
-              onChange={(event) =>
-                setProviderForm((prev) => ({ ...prev, maxRequest: event.target.value }))
-              }
-            />
-          </label>
-          <label className="space-y-1 text-sm text-slate-200">
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Image</span>
-            <input
-              type="number"
-              min="0"
-              step="0.0001"
-              className={inputClasses}
-              placeholder="0.02"
-              value={providerForm.maxImage}
-              onChange={(event) =>
-                setProviderForm((prev) => ({ ...prev, maxImage: event.target.value }))
-              }
-            />
-          </label>
-        </div>
-      </div>
+      <ProviderMaxPriceSection
+        providerForm={providerForm}
+        setProviderForm={setProviderForm}
+        inputClasses={inputClasses}
+      />
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-meta">
         Need a refresher? Read the{" "}
         <a
           href="https://openrouter.ai/docs/features/provider-routing"
           target="_blank"
           rel="noreferrer"
-          className="text-cyan-300 underline decoration-dotted underline-offset-4"
+          className="text-accent-cyan underline decoration-dotted underline-offset-4"
         >
           provider routing guide
         </a>{" "}

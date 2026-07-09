@@ -110,9 +110,9 @@ export function IndexManagerModal({
         open={open}
         onClose={onClose}
         labelledBy={titleId}
-        backdropClassName="bg-slate-950/80 px-4 py-8"
+        backdropClassName="bg-canvas/80 px-4 py-8"
       >
-        <GlassCard className="relative flex w-full max-w-6xl max-h-[calc(100vh-4rem)] flex-col rounded-[2.5rem] border border-white/10 bg-slate-950/95 p-6 text-white">
+        <GlassCard className="relative flex w-full max-w-6xl max-h-[calc(100vh-4rem)] flex-col rounded-[2.5rem] bg-canvas-raised/95 p-6 text-primary">
           {notificationMessage ? (
             <Notification
               message={notificationMessage}
@@ -122,11 +122,13 @@ export function IndexManagerModal({
           ) : null}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Manage indexes</p>
-              <h2 id={titleId} className="mt-2 text-2xl font-semibold">
+              <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">
+                Manage indexes
+              </p>
+              <h2 id={titleId} className="mt-2 text-2xl font-semibold tracking-tight">
                 Vector index manager
               </h2>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-muted">
                 Create, review, and delete indexes on any configured vector store.
               </p>
             </div>
@@ -149,7 +151,7 @@ export function IndexManagerModal({
           <div
             role="tablist"
             aria-label="Vector store backend"
-            className="mt-4 flex items-center gap-1 rounded-full border border-white/10 bg-black/40 p-1 text-sm self-start"
+            className="mt-4 flex items-center gap-1 rounded-full border border-hairline bg-surface p-1 text-sm self-start"
           >
             {backends.map((info) => {
               const usable = info.available && info.configured;
@@ -176,8 +178,8 @@ export function IndexManagerModal({
                   }}
                   className={`rounded-full px-4 py-1.5 transition ${
                     isActive
-                      ? "bg-violet-500/30 text-white"
-                      : "text-slate-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      ? "bg-accent-violet/30 text-primary"
+                      : "text-muted hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                   }`}
                 >
                   {info.backend === "pgvector" ? "pgvector" : "Pinecone"}
@@ -188,12 +190,12 @@ export function IndexManagerModal({
 
           <div className="mt-4 flex-1 overflow-y-auto pr-2">
             {localError ? (
-              <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+              <div className="mt-4 rounded-2xl border border-data-neg/30 bg-data-neg/10 p-3 text-sm text-data-neg">
                 {localError}
               </div>
             ) : null}
             {error ? (
-              <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+              <div className="mt-4 rounded-2xl border border-data-neg/30 bg-data-neg/10 p-3 text-sm text-data-neg">
                 {error}
               </div>
             ) : null}

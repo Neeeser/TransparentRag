@@ -71,8 +71,8 @@ export const ToolCallBubble = ({
   const statusLabel = status === "pending" ? "In progress" : "Complete";
   const statusClass =
     status === "pending"
-      ? "border-amber-300/60 text-amber-100"
-      : "border-cyan-300/40 text-cyan-200";
+      ? "border-data-warn/60 text-data-warn"
+      : "border-accent-cyan/40 text-accent-cyan";
   const queryEventId =
     typeof response.query_event_id === "string" ? response.query_event_id : undefined;
   const pipelineRunId =
@@ -110,8 +110,10 @@ export const ToolCallBubble = ({
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-200">Tool Call</p>
-              <p className="text-base font-semibold text-white">{formatToolLabel(label)}</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent-cyan">
+                Tool Call
+              </p>
+              <p className="text-base font-semibold text-primary">{formatToolLabel(label)}</p>
             </div>
             <span
               className={cn(
@@ -125,15 +127,15 @@ export const ToolCallBubble = ({
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
-            className="mt-3 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-left text-sm text-slate-200 transition hover:border-cyan-300/40"
+            className="mt-3 flex w-full items-center justify-between rounded-2xl border border-hairline bg-surface px-4 py-2 text-left text-sm text-body transition hover:border-accent-cyan/40"
             aria-expanded={expanded}
           >
             <div className="flex-1 pr-3">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Summary</p>
-              <p className="line-clamp-2 text-sm text-white">{summary}</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted">Summary</p>
+              <p className="line-clamp-2 text-sm text-primary">{summary}</p>
             </div>
             <ChevronDown
-              className={cn("h-4 w-4 text-cyan-200 transition", expanded ? "rotate-180" : "")}
+              className={cn("h-4 w-4 text-accent-cyan transition", expanded ? "rotate-180" : "")}
             />
           </button>
           {expanded && (
@@ -176,9 +178,9 @@ export const ToolCallBubble = ({
                       >
                         {trace ? "Refresh trace" : "Open trace"}
                       </Button>
-                      {traceError && <p className="text-xs text-red-300">{traceError}</p>}
+                      {traceError && <p className="text-xs text-data-neg">{traceError}</p>}
                       {!trace && !traceError && (
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-muted">
                           Load the trace to inspect node inputs and outputs.
                         </p>
                       )}
@@ -193,8 +195,8 @@ export const ToolCallBubble = ({
                   />
                 </ToolPayloadSection>
               )}
-              <details className="rounded-2xl border border-white/10 bg-slate-950/40 p-3 text-xs text-slate-100">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-100">
+              <details className="rounded-2xl border border-hairline bg-surface p-3 text-xs text-body">
+                <summary className="cursor-pointer text-sm font-semibold text-body">
                   Raw payload
                 </summary>
                 <JsonBlock data={rawPayload} className="mt-3" />

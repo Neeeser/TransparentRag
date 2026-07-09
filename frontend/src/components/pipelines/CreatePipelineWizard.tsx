@@ -226,17 +226,17 @@ export function CreatePipelineWizard({
     >
       {stepIndex === 0 && (
         <div className="space-y-4">
-          <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-hairline bg-surface p-4">
             {kind === "ingestion" ? (
-              <FileText className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" />
+              <FileText className="mt-0.5 h-5 w-5 shrink-0 text-accent-cyan" />
             ) : (
-              <MessageCircleQuestion className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" />
+              <MessageCircleQuestion className="mt-0.5 h-5 w-5 shrink-0 text-accent-violet" />
             )}
-            <p className="text-sm leading-relaxed text-slate-300">{copy.explainer}</p>
+            <p className="text-sm leading-relaxed text-body">{copy.explainer}</p>
           </div>
           <Field
             label="Pipeline name"
-            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
           >
             <TextInput
               type="text"
@@ -252,7 +252,9 @@ export function CreatePipelineWizard({
       {stepIndex === 1 && (
         <div className="space-y-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Vector store</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+              Vector store
+            </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {backends.map((info) => (
                 <BackendCard
@@ -266,7 +268,7 @@ export function CreatePipelineWizard({
           </div>
           <Field
             label={`${BACKEND_TITLES[backend]} index`}
-            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
           >
             <Select value={indexName} onChange={(event) => handleIndexSelect(event.target.value)}>
               <option value="">Select an index</option>
@@ -280,13 +282,13 @@ export function CreatePipelineWizard({
             </Select>
           </Field>
           {backendInfo ? (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted">
               Up to {backendInfo.capabilities.max_dimension.toLocaleString()} dimensions · metrics:{" "}
               {backendInfo.capabilities.supported_metrics.join(", ")}
             </p>
           ) : null}
           {backendIndexes.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+            <div className="rounded-2xl border border-hairline bg-surface p-4 text-sm text-body">
               <p>No {BACKEND_TITLES[backend]} indexes yet — create one to continue.</p>
               <Button
                 variant="secondary"

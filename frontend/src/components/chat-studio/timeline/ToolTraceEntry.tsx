@@ -46,7 +46,7 @@ export const ToolTraceEntry = ({
       {shouldShowBranchedFrom ? (
         <div className="flex justify-start">
           <BranchedFromBanner
-            className="mt-2 flex items-center gap-2 text-[11px] text-slate-300/80"
+            className="mt-2 flex items-center gap-2 text-[11px] text-muted"
             branchedFromSessionId={branchedFromSessionId}
             branchedFromLabel={branchedFromLabel}
             onNavigateToSession={onNavigateToSession}

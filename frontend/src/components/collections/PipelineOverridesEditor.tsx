@@ -37,7 +37,7 @@ export function PipelineOverridesEditor({
   );
 
   if (!pipeline) {
-    return <p className="text-sm text-slate-400">Select a pipeline to configure overrides.</p>;
+    return <p className="text-sm text-muted">Select a pipeline to configure overrides.</p>;
   }
 
   const handleConfigChange = (
@@ -60,7 +60,7 @@ export function PipelineOverridesEditor({
 
   return (
     <div className="space-y-4">
-      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{title}</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">{title}</p>
       <div className="space-y-4">
         {pipeline.definition.nodes.map((node) => {
           const spec = specsByType.get(node.type);
@@ -77,10 +77,10 @@ export function PipelineOverridesEditor({
           const draftConfig = overrides[node.id] ?? baseConfig;
 
           return (
-            <div key={node.id} className="space-y-3 rounded-3xl border border-white/10 p-4">
+            <div key={node.id} className="space-y-3 rounded-3xl border border-hairline p-4">
               <div>
-                <p className="text-sm font-semibold text-white">{node.name}</p>
-                <p className="text-xs text-slate-400">{node.type}</p>
+                <p className="text-sm font-semibold text-primary">{node.name}</p>
+                <p className="text-xs text-muted">{node.type}</p>
               </div>
               <div className="space-y-3">
                 {fields.map((field) => {

@@ -78,7 +78,7 @@ describe("ChunkPreviewOverlay", () => {
     expect(screen.getByText("World")).toBeInTheDocument();
     // Active tab state is only expressed through styling (no aria-pressed handle).
     const plainButton = screen.getByText("Plain");
-    expect(plainButton.className).toContain("bg-violet-500/20");
+    expect(plainButton.className).toContain("bg-accent-violet/20");
   });
 
   it("resets to the default render mode when reopened after closing", () => {
@@ -89,6 +89,6 @@ describe("ChunkPreviewOverlay", () => {
     rerender(<ChunkPreviewOverlay isOpen onClose={() => {}} detail={detail} />);
 
     const plainButton = screen.getByText("Plain");
-    expect(plainButton.className).toContain("bg-violet-500/20");
+    expect(plainButton.className).toContain("bg-accent-violet/20");
   });
 });

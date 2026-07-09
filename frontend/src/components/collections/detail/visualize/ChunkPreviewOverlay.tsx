@@ -54,22 +54,24 @@ export function ChunkPreviewOverlay({
   const { document, chunk } = detail;
 
   return (
-    <ModalOverlay open onClose={onClose} labelledBy={titleId} backdropClassName="bg-black/80">
-      <div className="flex h-[85vh] w-full max-w-5xl flex-col rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
+    <ModalOverlay open onClose={onClose} labelledBy={titleId} backdropClassName="bg-canvas/80">
+      <div className="flex h-[85vh] w-full max-w-5xl flex-col rounded-3xl border border-hairline bg-canvas-raised p-6 text-primary shadow-elevation-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Chunk preview</p>
-            <h2 id={titleId} className="mt-2 text-2xl font-semibold text-white">
+            <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-meta">
+              Chunk preview
+            </p>
+            <h2 id={titleId} className="mt-2 text-2xl font-semibold text-primary">
               {document.name}
             </h2>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               Chunk #{chunk.chunk_index + 1} · {chunk.chunk_strategy} · {chunk.chunk_size} tokens
             </p>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 p-0 text-slate-300"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-hairline p-0 text-body"
             onClick={onClose}
             aria-label="Close preview"
           >
@@ -80,15 +82,15 @@ export function ChunkPreviewOverlay({
         <div className="mt-5 grid flex-1 gap-6 overflow-hidden lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="flex flex-col gap-3 overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-white">Chunk text</p>
+              <p className="text-sm font-semibold text-primary">Chunk text</p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setRenderMode("text")}
-                  className={`rounded-full px-3 py-1 text-xs transition ${
+                  className={`rounded-full px-3 py-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ${
                     renderMode === "text"
-                      ? "bg-violet-500/20 text-violet-100"
-                      : "bg-white/5 text-slate-300 hover:bg-white/10"
+                      ? "bg-accent-violet/20 text-accent-violet"
+                      : "bg-surface text-body hover:bg-surface-strong"
                   }`}
                 >
                   Plain
@@ -96,17 +98,17 @@ export function ChunkPreviewOverlay({
                 <button
                   type="button"
                   onClick={() => setRenderMode("markdown")}
-                  className={`rounded-full px-3 py-1 text-xs transition ${
+                  className={`rounded-full px-3 py-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ${
                     renderMode === "markdown"
-                      ? "bg-violet-500/20 text-violet-100"
-                      : "bg-white/5 text-slate-300 hover:bg-white/10"
+                      ? "bg-accent-violet/20 text-accent-violet"
+                      : "bg-surface text-body hover:bg-surface-strong"
                   }`}
                 >
                   Markdown
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-slate-100">
+            <div className="flex-1 overflow-auto rounded-2xl border border-hairline bg-canvas p-4 text-sm text-body">
               {renderMode === "markdown" ? (
                 <div className="prose prose-invert max-w-none text-sm">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownSource}</ReactMarkdown>
@@ -118,34 +120,34 @@ export function ChunkPreviewOverlay({
           </div>
 
           <div className="flex flex-col gap-3 overflow-hidden">
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-slate-300">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Details</p>
+            <div className="rounded-2xl border border-hairline bg-canvas p-4 text-xs text-body">
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">Details</p>
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <span>Document</span>
-                  <span className="text-right text-slate-100">{document.name}</span>
+                  <span className="text-right text-primary">{document.name}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>Indexed</span>
-                  <span className="text-right text-slate-100">{timeAgo(chunk.created_at)}</span>
+                  <span className="text-right text-primary">{timeAgo(chunk.created_at)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>Chunk</span>
-                  <span className="text-right text-slate-100">#{chunk.chunk_index + 1}</span>
+                  <span className="text-right text-primary">#{chunk.chunk_index + 1}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>Strategy</span>
-                  <span className="text-right text-slate-100">{chunk.chunk_strategy}</span>
+                  <span className="text-right text-primary">{chunk.chunk_strategy}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>Size</span>
-                  <span className="text-right text-slate-100">{chunk.chunk_size} tokens</span>
+                  <span className="text-right text-primary">{chunk.chunk_size} tokens</span>
                 </div>
               </div>
             </div>
-            <div className="flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-slate-300">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Metadata</p>
-              <pre className="mt-3 max-h-full overflow-auto whitespace-pre-wrap rounded-2xl bg-slate-950/50 p-3 text-[11px] text-slate-200">
+            <div className="flex-1 overflow-hidden rounded-2xl border border-hairline bg-canvas p-4 text-xs text-body">
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">Metadata</p>
+              <pre className="mt-3 max-h-full overflow-auto whitespace-pre-wrap rounded-2xl border border-hairline bg-canvas-raised p-3 text-[11px] text-body">
                 {prettyJson(chunk.metadata)}
               </pre>
             </div>

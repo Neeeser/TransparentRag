@@ -9,6 +9,9 @@ import { cn, timeAgo } from "@/lib/utils";
 
 import type { ChatSession, Collection } from "@/lib/types";
 
+/** Inactive state shared by the collection-filter rows. */
+const FILTER_ROW_INACTIVE = "border-hairline bg-surface text-body hover:border-strong";
+
 interface HistoryPanelProps {
   collections: Collection[];
   sessions: ChatSession[];
@@ -95,16 +98,16 @@ const HistoryPanelComponent = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-white/5 px-5 py-4">
+      <div className="border-b border-hairline px-5 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">History</p>
-            <h2 className="text-xl font-semibold text-white">Chat sessions</h2>
+            <p className="font-mono text-xs uppercase tracking-[0.35em] text-meta">History</p>
+            <h2 className="text-xl font-semibold text-primary">Chat sessions</h2>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 p-0 text-slate-300"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-hairline p-0 text-muted"
             onClick={onClose}
             aria-label="Close history"
           >
@@ -118,8 +121,8 @@ const HistoryPanelComponent = ({
               className={cn(
                 "flex h-9 items-center gap-2 whitespace-nowrap rounded-full border px-3 text-[11px] uppercase tracking-[0.3em] transition",
                 filterActive
-                  ? "border-violet-400/60 bg-violet-500/10 text-white"
-                  : "border-white/10 text-slate-300 hover:border-white/30 hover:text-white",
+                  ? "border-accent-violet/60 bg-accent-violet/10 text-primary"
+                  : "border-hairline text-body hover:border-strong hover:text-primary",
               )}
               onClick={() => setFilterOpen((prev) => !prev)}
               aria-haspopup="menu"
@@ -129,7 +132,7 @@ const HistoryPanelComponent = ({
               {filterActive ? `${filterCount}` : "Filter"}
             </button>
             {filterOpen && (
-              <div className="absolute left-0 z-30 mt-2 w-72 rounded-2xl border border-white/10 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-xl">
+              <div className="absolute left-0 z-30 mt-2 w-72 rounded-2xl border border-hairline bg-canvas-raised p-3 text-xs text-body shadow-elevation-2">
                 {filterActive && (
                   <div className="mb-3 flex flex-wrap gap-2">
                     {filterCollectionIds.map((collectionId) => (
@@ -146,8 +149,8 @@ const HistoryPanelComponent = ({
                     className={cn(
                       "flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left",
                       filterIncludeUnassigned
-                        ? "border-cyan-400/50 bg-cyan-500/10 text-white"
-                        : "border-white/10 bg-white/5 text-slate-300 hover:border-white/30",
+                        ? "border-accent-cyan/50 bg-accent-cyan/10 text-primary"
+                        : FILTER_ROW_INACTIVE,
                     )}
                     onClick={toggleUnassigned}
                   >
@@ -155,7 +158,7 @@ const HistoryPanelComponent = ({
                     <input type="checkbox" readOnly checked={filterIncludeUnassigned} />
                   </button>
                   {collections.length === 0 ? (
-                    <p className="text-[11px] text-slate-400">No collections available.</p>
+                    <p className="text-[11px] text-muted">No collections available.</p>
                   ) : (
                     collections.map((collection) => {
                       const selected = filterCollectionIds.includes(collection.id);
@@ -166,8 +169,8 @@ const HistoryPanelComponent = ({
                           className={cn(
                             "flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left",
                             selected
-                              ? "border-violet-400/60 bg-violet-500/10 text-white"
-                              : "border-white/10 bg-white/5 text-slate-300 hover:border-white/30",
+                              ? "border-accent-violet/60 bg-accent-violet/10 text-primary"
+                              : FILTER_ROW_INACTIVE,
                           )}
                           onClick={() => toggleFilterCollection(collection.id)}
                         >
@@ -178,14 +181,14 @@ const HistoryPanelComponent = ({
                     })
                   )}
                 </div>
-                <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
-                  <span className="text-[11px] text-slate-500">
+                <div className="mt-3 flex items-center justify-between border-t border-hairline pt-3">
+                  <span className="text-[11px] text-meta">
                     {filterActive ? "Filters active" : "Showing all"}
                   </span>
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="text-[11px] uppercase tracking-[0.3em] text-slate-300 hover:text-white"
+                    className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted hover:text-primary"
                   >
                     Clear
                   </button>
@@ -195,7 +198,7 @@ const HistoryPanelComponent = ({
           </div>
         </div>
       </div>
-      <div className="border-b border-white/5 px-5 py-3">
+      <div className="border-b border-hairline px-5 py-3">
         <Button
           variant="secondary"
           className="flex h-10 w-full items-center justify-center gap-2"
@@ -207,7 +210,7 @@ const HistoryPanelComponent = ({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {sessions.length === 0 ? (
-          <p className="text-sm text-slate-400">No chats yet — start one below.</p>
+          <p className="text-sm text-muted">No chats yet — start one below.</p>
         ) : (
           <div className="space-y-2">
             {sessions.map((session) => {
@@ -226,8 +229,8 @@ const HistoryPanelComponent = ({
                   className={cn(
                     "group flex items-center gap-2 rounded-2xl border px-2 py-2 text-sm transition",
                     isSelected
-                      ? "border-violet-400 bg-violet-500/10 text-white"
-                      : "border-white/5 bg-white/5 text-slate-300 hover:border-white/20",
+                      ? "border-accent-violet bg-accent-violet/10 text-primary"
+                      : FILTER_ROW_INACTIVE,
                   )}
                 >
                   <button
@@ -235,14 +238,14 @@ const HistoryPanelComponent = ({
                     onClick={() => onSelect(session.id)}
                     className={cn(
                       "flex-1 rounded-xl px-2 py-1 text-left",
-                      isSelected ? "text-white" : "text-slate-300 group-hover:text-white",
+                      isSelected ? "text-primary" : "text-body group-hover:text-primary",
                     )}
                   >
                     <p className="text-base font-semibold">{formatSessionTitle(session)}</p>
                     <p
                       className={cn(
                         "text-xs",
-                        isSelected ? "text-slate-300" : "text-slate-400 group-hover:text-slate-200",
+                        isSelected ? "text-body" : "text-muted group-hover:text-body",
                       )}
                     >
                       {session.chat_model} • {timeAgo(session.updated_at)}
@@ -262,10 +265,10 @@ const HistoryPanelComponent = ({
                     title="Delete chat"
                     aria-label={`Delete ${session.title}`}
                     className={cn(
-                      "inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-slate-400 transition hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-50",
+                      "inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-muted transition hover:text-data-neg disabled:cursor-not-allowed disabled:opacity-50",
                       isSelected
-                        ? "border-white/20 hover:border-rose-300/60"
-                        : "border-white/10 hover:border-rose-300/60",
+                        ? "border-strong hover:border-data-neg/60"
+                        : "border-hairline hover:border-data-neg/60",
                     )}
                   >
                     <Trash2 className="h-4 w-4" />

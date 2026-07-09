@@ -19,7 +19,7 @@ export default function PipelinesPage() {
   }, [router]);
 
   return (
-    <div className="flex h-full items-center justify-center text-sm text-slate-400">
+    <div className="flex h-full items-center justify-center text-sm text-muted">
       Loading pipelines…
     </div>
   );

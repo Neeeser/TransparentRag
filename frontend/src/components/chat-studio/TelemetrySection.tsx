@@ -31,26 +31,24 @@ export const TelemetrySection = ({
 }: TelemetrySectionProps) => (
   <div
     id={sectionId}
-    className={`rounded-2xl border border-white/10 bg-white/5 ${
-      isDragging ? "border-emerald-400/60 bg-emerald-500/5" : ""
+    className={`rounded-2xl border border-hairline bg-surface ${
+      isDragging ? "border-data-pos/60 bg-data-pos/5" : ""
     }`}
   >
-    <div className="flex w-full items-center justify-between gap-3 rounded-2xl border-b border-white/5 px-4 py-3 transition hover:bg-white/10">
+    <div className="flex w-full items-center justify-between gap-3 rounded-2xl border-b border-hairline px-4 py-3 transition hover:bg-surface-strong">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
         className="flex flex-1 items-center gap-2 text-left"
       >
-        {icon && <span className="text-slate-300">{icon}</span>}
+        {icon && <span className="text-muted">{icon}</span>}
         <div>
           <div className="flex items-center gap-2">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{title}</p>
-            {overrideActive && (
-              <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
-            )}
+            <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted">{title}</p>
+            {overrideActive && <span className="h-2 w-2 rounded-full bg-data-pos" />}
           </div>
-          {description && <p className="text-[11px] text-slate-300">{description}</p>}
+          {description && <p className="text-[11px] text-body">{description}</p>}
         </div>
       </button>
       <div className="flex items-center gap-2">
@@ -59,7 +57,7 @@ export const TelemetrySection = ({
           type="button"
           onClick={onToggle}
           aria-label={`${title} toggle`}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition hover:bg-surface-strong"
         >
           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>

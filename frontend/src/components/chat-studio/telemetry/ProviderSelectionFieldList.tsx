@@ -23,24 +23,24 @@ export const ProviderSelectionFieldList = ({
 }: ProviderSelectionFieldListProps) => {
   return (
     <div className="space-y-2" key={fieldKey}>
-      <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-slate-500">
+      <div className="flex items-center justify-between font-mono text-xs uppercase tracking-[0.3em] text-meta">
         <span>{label}</span>
-        {values.length === 0 && <span className="text-[10px] text-slate-500">None selected</span>}
+        {values.length === 0 && <span className="text-[10px] text-meta">None selected</span>}
       </div>
       {values.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {values.map((slug, index) => (
             <div
               key={`${fieldKey}-${slug}`}
-              className="flex items-center gap-1 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white"
+              className="flex items-center gap-1 rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs text-primary"
             >
-              {showIndex && <span className="text-[10px] text-slate-400">#{index + 1}</span>}
+              {showIndex && <span className="text-[10px] text-muted">#{index + 1}</span>}
               <span className="font-mono text-[11px]">{slug}</span>
               {allowReorder && values.length > 1 && (
-                <div className="flex items-center gap-1 text-slate-400">
+                <div className="flex items-center gap-1 text-muted">
                   <button
                     type="button"
-                    className="hover:text-white disabled:opacity-30"
+                    className="hover:text-primary disabled:opacity-30"
                     onClick={() => onMove(slug, -1)}
                     disabled={index === 0}
                     aria-label={`Move ${slug} earlier`}
@@ -49,7 +49,7 @@ export const ProviderSelectionFieldList = ({
                   </button>
                   <button
                     type="button"
-                    className="hover:text-white disabled:opacity-30"
+                    className="hover:text-primary disabled:opacity-30"
                     onClick={() => onMove(slug, 1)}
                     disabled={index === values.length - 1}
                     aria-label={`Move ${slug} later`}
@@ -60,7 +60,7 @@ export const ProviderSelectionFieldList = ({
               )}
               <button
                 type="button"
-                className="text-slate-300 hover:text-white"
+                className="text-muted hover:text-primary"
                 onClick={() => onRemove(slug)}
                 aria-label={`Remove ${slug}`}
               >

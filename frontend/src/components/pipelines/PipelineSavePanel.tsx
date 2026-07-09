@@ -35,20 +35,20 @@ export function PipelineSavePanel({
   return (
     <GlassCard className="rounded-3xl p-5">
       <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Save version</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">Save version</p>
         {hasChanges ? (
-          <span className="rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
+          <span className="rounded-full border border-data-warn/40 bg-data-warn/10 px-2 py-0.5 text-[10px] font-medium text-data-warn">
             {pendingChanges.length} unsaved {pendingChanges.length === 1 ? "change" : "changes"}
           </span>
         ) : null}
       </div>
       <div className="mt-3 space-y-3">
         {hasChanges ? (
-          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-2xl border border-hairline bg-surface px-3 py-2">
             {pendingChanges.map((change) => (
               <li
                 key={`${change.kind}-${change.summary}`}
-                className="flex items-start gap-2 text-xs text-slate-300"
+                className="flex items-start gap-2 text-xs text-body"
               >
                 <span
                   className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${changeKindDot(change.kind)}`}
@@ -58,13 +58,13 @@ export function PipelineSavePanel({
             ))}
           </ul>
         ) : (
-          <p className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-500">
+          <p className="rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-meta">
             Everything is saved. Edit a node or connection to create a new revision; moving nodes
             around saves by itself.
           </p>
         )}
         <input
-          className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-400"
+          className="w-full rounded-2xl border border-hairline bg-surface px-3 py-2 text-sm text-primary outline-none focus:border-accent-violet"
           placeholder="Describe this revision (optional)"
           value={changeSummary}
           onChange={(event) => onChangeSummary(event.target.value)}
