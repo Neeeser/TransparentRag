@@ -181,6 +181,20 @@ describe("PipelineTraceViewer", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("seeks to a node's step when its node is clicked", async () => {
+    render(<PipelineTraceViewer trace={trace} token="token" isOpen onClose={() => undefined} />);
+    await waitFor(() => expect(lastReactFlowProps).not.toBeNull());
+
+    // Starts on the first step (Input); clicking the second node jumps to it.
+    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent("Input");
+    act(() => {
+      (lastReactFlowProps?.onNodeClick as (event: unknown, node: { id: string }) => void)(null, {
+        id: nodeTwoId,
+      });
+    });
+    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent("Index");
+  });
+
   it("renders trace and toggles payloads", async () => {
     const onClose = vi.fn();
     render(

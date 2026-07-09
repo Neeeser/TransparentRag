@@ -62,15 +62,26 @@ export function FlowPlayer({
 
   const activeNodeId = steps[activeIndex]?.nodeId;
 
+  const stepIndexByNodeId = useMemo(() => {
+    const map = new Map<string, number>();
+    steps.forEach((step, index) => {
+      if (!map.has(step.nodeId)) map.set(step.nodeId, index);
+    });
+    return map;
+  }, [steps]);
+
   const decoratedNodes = useMemo(
     () =>
       nodes.map((node) => ({
         ...node,
         draggable: false,
         connectable: false,
+        // Nodes that map to a step are clickable to jump there; others (e.g.
+        // the shared-index datastore) keep the default cursor.
+        className: stepIndexByNodeId.has(node.id) ? "cursor-pointer" : undefined,
         data: { ...node.data, active: steps.length > 0 && node.id === activeNodeId },
       })),
-    [nodes, activeNodeId, steps.length],
+    [nodes, activeNodeId, steps.length, stepIndexByNodeId],
   );
 
   const decoratedEdges = useMemo(
@@ -100,6 +111,10 @@ export function FlowPlayer({
         edges={decoratedEdges}
         nodeTypes={mergedNodeTypes}
         edgeTypes={pipelineEdgeTypes}
+        onNodeClick={(_event, node) => {
+          const index = stepIndexByNodeId.get(node.id);
+          if (index !== undefined) playback.seek(index);
+        }}
         fitView
         fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
         minZoom={0.2}
@@ -123,7 +138,7 @@ export function FlowPlayer({
               onClick={playback.stepBack}
               disabled={activeIndex === 0}
               aria-label="Previous step"
-              className="h-7 w-7 p-0"
+              className="flex h-7 w-7 items-center justify-center p-0"
             >
               <SkipBack className="h-3.5 w-3.5" />
             </Button>
@@ -132,7 +147,7 @@ export function FlowPlayer({
               variant="secondary"
               onClick={playback.toggle}
               aria-label={playback.playing ? "Pause playback" : "Play pipeline"}
-              className="h-7 w-7 p-0"
+              className="flex h-7 w-7 items-center justify-center p-0"
             >
               {playback.playing ? (
                 <Pause className="h-3.5 w-3.5" />
@@ -146,7 +161,7 @@ export function FlowPlayer({
               onClick={playback.stepForward}
               disabled={activeIndex >= steps.length - 1}
               aria-label="Next step"
-              className="h-7 w-7 p-0"
+              className="flex h-7 w-7 items-center justify-center p-0"
             >
               <SkipForward className="h-3.5 w-3.5" />
             </Button>
@@ -155,7 +170,7 @@ export function FlowPlayer({
               variant="ghost"
               onClick={playback.restart}
               aria-label="Restart playback"
-              className="h-7 w-7 p-0"
+              className="flex h-7 w-7 items-center justify-center p-0"
             >
               <RotateCcw className="h-3.5 w-3.5" />
             </Button>
