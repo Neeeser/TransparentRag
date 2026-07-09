@@ -37,7 +37,9 @@ export function IndexStoreNode({ data }: NodeProps<Node<IndexStoreNodeData>>) {
       />
       <div className="flex items-center gap-2 text-cyan-100">
         <Database className="h-4 w-4" />
-        <span className="text-[10px] uppercase tracking-[0.3em] text-cyan-300/80">Shared index</span>
+        <span className="text-[10px] uppercase tracking-[0.3em] text-cyan-300/80">
+          Shared index
+        </span>
       </div>
       <p className="mt-1 truncate text-sm font-semibold text-white" title={data.indexName}>
         {data.indexName}

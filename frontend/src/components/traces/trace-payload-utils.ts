@@ -1,9 +1,4 @@
-import { prettyJson, truncate } from "@/lib/utils";
-
 export const EMBEDDING_PREVIEW_COUNT = 12;
-export const TEXT_PREVIEW_LIMIT = 240;
-
-export type TextSummary = { preview: string; length: number; full?: string };
 
 /**
  * Recursively searches a trace payload for a matching chunk_id/chunkId field so the
@@ -62,39 +57,4 @@ export const buildPreviewPayload = (value: unknown, depth = 0): unknown => {
     return preview;
   }
   return value;
-};
-
-/** Pretty-prints a payload, using the truncated preview unless the caller expanded it. */
-export const formatPayload = (payload: unknown, expanded: boolean) =>
-  expanded ? prettyJson(payload) : prettyJson(buildPreviewPayload(payload));
-
-/**
- * Recognizes the two shapes a "text" summary value can take: a raw string, or a
- * pre-truncated { preview, length, full } record produced by the backend.
- */
-export const resolveTextSummary = (value: unknown): TextSummary | null => {
-  if (typeof value === "string") {
-    return { preview: truncate(value, TEXT_PREVIEW_LIMIT), length: value.length, full: value };
-  }
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if (typeof record.preview === "string") {
-      const length = typeof record.length === "number" ? record.length : record.preview.length;
-      const full = typeof record.full === "string" ? record.full : undefined;
-      return { preview: record.preview, length, full };
-    }
-  }
-  return null;
-};
-
-/** Renders a scalar summary value as text, or returns null when it needs a JSON block. */
-export const renderScalarValue = (value: unknown, expanded: boolean): string | null => {
-  if (value == null) return "—";
-  if (typeof value === "string") {
-    return expanded ? value : truncate(value, TEXT_PREVIEW_LIMIT);
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  return null;
 };

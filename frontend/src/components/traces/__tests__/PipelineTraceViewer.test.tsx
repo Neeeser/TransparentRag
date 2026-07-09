@@ -245,7 +245,7 @@ describe("PipelineTraceViewer", () => {
       expect(screen.getByText(/Pipeline trace/)).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/length/)).toBeInTheDocument();
+    expect(screen.getByText(/chars/)).toBeInTheDocument();
 
     vi.useFakeTimers();
     try {
@@ -393,7 +393,7 @@ describe("PipelineTraceViewer", () => {
     );
 
     expect(screen.getByText("Short preview")).toBeInTheDocument();
-    expect(screen.getByText(/length 20/)).toBeInTheDocument();
+    expect(screen.getByText(/20 chars/)).toBeInTheDocument();
     expect(screen.getByText("Scalar string")).toBeInTheDocument();
   });
 

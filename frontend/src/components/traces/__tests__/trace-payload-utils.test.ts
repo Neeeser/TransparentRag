@@ -4,10 +4,6 @@ import {
   buildPreviewPayload,
   containsChunkId,
   EMBEDDING_PREVIEW_COUNT,
-  formatPayload,
-  renderScalarValue,
-  resolveTextSummary,
-  TEXT_PREVIEW_LIMIT,
 } from "@/components/traces/trace-payload-utils";
 
 describe("containsChunkId", () => {
@@ -81,65 +77,5 @@ describe("buildPreviewPayload", () => {
     // At depth > 4 the function returns the value as-is instead of recursing further.
     const result = buildPreviewPayload(value) as Record<string, unknown>;
     expect(result).toBeTruthy();
-  });
-});
-
-describe("formatPayload", () => {
-  it("pretty-prints the full payload when expanded", () => {
-    expect(formatPayload({ a: 1 }, true)).toBe(JSON.stringify({ a: 1 }, null, 2));
-  });
-
-  it("pretty-prints a preview payload when collapsed", () => {
-    const values = Array.from({ length: 20 }, (_, i) => i);
-    const formatted = formatPayload(values, false);
-    expect(formatted).toContain("total_values");
-  });
-});
-
-describe("resolveTextSummary", () => {
-  it("truncates raw strings and reports their full length", () => {
-    const long = "a".repeat(TEXT_PREVIEW_LIMIT + 50);
-    const summary = resolveTextSummary(long);
-    expect(summary?.length).toBe(long.length);
-    expect(summary?.full).toBe(long);
-    expect(summary?.preview.length).toBeLessThan(long.length);
-  });
-
-  it("passes through pre-shaped preview records", () => {
-    const summary = resolveTextSummary({ preview: "short", length: 100, full: "full text" });
-    expect(summary).toEqual({ preview: "short", length: 100, full: "full text" });
-  });
-
-  it("defaults length to the preview length when missing", () => {
-    const summary = resolveTextSummary({ preview: "short" });
-    expect(summary).toEqual({ preview: "short", length: 5, full: undefined });
-  });
-
-  it("returns null for values that are neither a string nor a preview record", () => {
-    expect(resolveTextSummary(42)).toBeNull();
-    expect(resolveTextSummary({ other: "field" })).toBeNull();
-    expect(resolveTextSummary(null)).toBeNull();
-  });
-});
-
-describe("renderScalarValue", () => {
-  it("renders an em dash for nullish values", () => {
-    expect(renderScalarValue(null, false)).toBe("—");
-    expect(renderScalarValue(undefined, false)).toBe("—");
-  });
-
-  it("truncates strings when collapsed and returns them whole when expanded", () => {
-    const long = "b".repeat(TEXT_PREVIEW_LIMIT + 10);
-    expect(renderScalarValue(long, false)).not.toBe(long);
-    expect(renderScalarValue(long, true)).toBe(long);
-  });
-
-  it("stringifies numbers and booleans", () => {
-    expect(renderScalarValue(3, false)).toBe("3");
-    expect(renderScalarValue(true, false)).toBe("true");
-  });
-
-  it("returns null for values needing a JSON block", () => {
-    expect(renderScalarValue({ nested: true }, false)).toBeNull();
   });
 });
