@@ -39,7 +39,7 @@ export function CollapsibleReasoning({
   return (
     <div
       className={cn(
-        "w-full overflow-hidden rounded-2xl border border-amber-400/40 bg-amber-500/10 shadow-[0_20px_60px_rgba(251,191,36,0.25)]",
+        "w-full overflow-hidden rounded-2xl border border-stage-embed/40 bg-stage-embed/10 shadow-elevation-2",
         className,
       )}
     >
@@ -50,33 +50,33 @@ export function CollapsibleReasoning({
           setManualState(next);
           onManualToggle?.(messageId, next);
         }}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-amber-500/15"
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-stage-embed/15"
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-3">
           <div className="flex flex-col leading-tight">
-            <span className="text-[11px] uppercase tracking-[0.35em] text-amber-200/80">
+            <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-stage-embed">
               {title}
             </span>
             {subtitle ? (
-              <span className="text-base font-semibold text-amber-50">{subtitle}</span>
+              <span className="text-base font-semibold text-primary">{subtitle}</span>
             ) : null}
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs text-amber-100">
+          <span className="rounded-full bg-stage-embed/20 px-2 py-0.5 text-xs text-stage-embed">
             {segments.length} {segments.length === 1 ? "step" : "steps"}
           </span>
           {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-amber-300" />
+            <ChevronDown className="h-4 w-4 text-stage-embed" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-amber-300" />
+            <ChevronRight className="h-4 w-4 text-stage-embed" />
           )}
         </div>
       </button>
 
       {isOpen && (
-        <div className="border-t border-amber-400/30 px-4 py-3 space-y-3">
+        <div className="border-t border-stage-embed/30 px-4 py-3 space-y-3">
           {segments.map((segment, idx) => {
             const preferredText =
               (typeof segment.text === "string" && segment.text) ||
@@ -90,17 +90,17 @@ export function CollapsibleReasoning({
             return (
               <div
                 key={`${messageId}-reasoning-${idx}`}
-                className="rounded-xl border border-amber-400/20 bg-amber-900/20 px-3 py-2"
+                className="rounded-xl border border-stage-embed/20 bg-stage-embed/10 px-3 py-2"
               >
                 <div className="mb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-amber-200">Step {idx + 1}</span>
+                  <span className="text-xs font-semibold text-stage-embed">Step {idx + 1}</span>
                   {segment.type && (
-                    <span className="rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-100">
+                    <span className="rounded bg-stage-embed/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-stage-embed">
                       {segment.type}
                     </span>
                   )}
                 </div>
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed text-amber-50">
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed text-body">
                   {reasoningText}
                 </pre>
               </div>

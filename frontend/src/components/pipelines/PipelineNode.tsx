@@ -56,20 +56,20 @@ const CONFIG_ROW_LIMIT = 5;
 const statusBadge = (status: PipelineRunStatus) => {
   if (status === "completed") {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-300">
+      <span className="flex items-center gap-1 text-[10px] font-medium text-data-pos">
         <Check className="h-3 w-3" /> done
       </span>
     );
   }
   if (status === "failed") {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-medium text-rose-300">
+      <span className="flex items-center gap-1 text-[10px] font-medium text-data-neg">
         <AlertTriangle className="h-3 w-3" /> failed
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-1 text-[10px] font-medium text-cyan-300">
+    <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan">
       <Loader2 className="h-3 w-3 animate-spin" /> running
     </span>
   );
@@ -122,9 +122,9 @@ function PortRow({
       {isTargetSide ? (
         <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", portClasses.dot)} />
       ) : null}
-      <span className="truncate text-slate-400" title={`${label} · ${getPortTypeLabel(dataType)}`}>
+      <span className="truncate text-muted" title={`${label} · ${getPortTypeLabel(dataType)}`}>
         {label}
-        {!required && isTargetSide ? <span className="text-slate-600"> (optional)</span> : null}
+        {!required && isTargetSide ? <span className="text-faint"> (optional)</span> : null}
       </span>
       {!isTargetSide ? (
         <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", portClasses.dot)} />
@@ -135,10 +135,10 @@ function PortRow({
         id={portKey}
         isConnectable={connectable}
         className={cn(
-          "!absolute !top-1/2 !h-3 !w-3 !-translate-y-1/2 !rounded-full !border-2 !border-slate-950 !transition-all",
+          "!absolute !top-1/2 !h-3 !w-3 !-translate-y-1/2 !rounded-full !border-2 !border-canvas-raised !transition-all",
           portClasses.handle,
           isTargetSide ? "!-left-[19px]" : "!-right-[19px]",
-          compatible && "!h-4 !w-4 animate-pulse !ring-2 !ring-white/70",
+          compatible && "!h-4 !w-4 animate-pulse !ring-2 !ring-accent-cyan/70",
           incompatible && "!opacity-30",
         )}
       />
@@ -168,12 +168,12 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
   return (
     <div
       className={cn(
-        "relative w-[264px] rounded-2xl border bg-slate-900/95 px-3 pb-2.5 pt-3 text-xs text-slate-200 shadow-lg transition-opacity duration-150",
+        "relative w-[264px] rounded-2xl border bg-canvas-raised/95 px-3 pb-2.5 pt-3 text-xs text-body transition-opacity duration-150",
         familyStyles.border,
         familyStyles.glow,
-        selected && "ring-2 ring-violet-400/70",
-        data.active && "ring-2 ring-cyan-300/80 shadow-[0_0_32px_rgba(103,232,249,0.25)]",
-        hasErrors && "border-rose-400/60",
+        selected && "ring-2 ring-accent-violet/70",
+        data.active && "ring-2 ring-accent-cyan/80",
+        hasErrors && "border-data-neg/60",
         dimWholeNode && "opacity-40",
       )}
     >
@@ -182,19 +182,19 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
           matching ports line up into straight, factory-style runs. */}
       <div className="flex h-[38px] items-start justify-between gap-2 overflow-hidden">
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-semibold text-white">{data.label}</p>
+          <p className="truncate text-[13px] font-semibold text-primary">{data.label}</p>
           <p className={cn("truncate text-[10px] uppercase tracking-[0.2em]", familyStyles.badge)}>
             {getNodeFamilyLabel(family)}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {hasErrors ? <AlertTriangle className="h-3.5 w-3.5 text-rose-300" /> : null}
+          {hasErrors ? <AlertTriangle className="h-3.5 w-3.5 text-data-neg" /> : null}
           {data.status ? statusBadge(data.status) : null}
         </div>
       </div>
 
       {data.inputs.length > 0 || data.outputs.length > 0 ? (
-        <div className="mt-1.5 grid grid-cols-2 gap-x-3 border-t border-white/5 pt-1.5">
+        <div className="mt-1.5 grid grid-cols-2 gap-x-3 border-t border-hairline pt-1.5">
           <div>
             {data.inputs.map((port) => (
               <PortRow
@@ -229,20 +229,20 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
       ) : null}
 
       {displayedEntries.length > 0 ? (
-        <div className="mt-2 space-y-0.5 rounded-xl bg-white/[0.04] px-2 py-1.5">
+        <div className="mt-2 space-y-0.5 rounded-xl bg-surface px-2 py-1.5">
           {displayedEntries.slice(0, CONFIG_ROW_LIMIT).map(([key, value]) => (
             <div
               key={key}
               className="flex items-center justify-between gap-2 text-[10px] leading-4"
             >
-              <span className="truncate text-slate-500">{key}</span>
-              <span className="max-w-[130px] truncate text-slate-300">
+              <span className="truncate text-meta">{key}</span>
+              <span className="max-w-[130px] truncate text-body">
                 {truncate(formatConfigValue(value), CONFIG_PREVIEW_LIMIT)}
               </span>
             </div>
           ))}
           {displayedEntries.length > CONFIG_ROW_LIMIT ? (
-            <p className="text-[10px] text-slate-600">
+            <p className="text-[10px] text-faint">
               +{displayedEntries.length - CONFIG_ROW_LIMIT} more
             </p>
           ) : null}
@@ -254,7 +254,7 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
 
 export function DropPreviewNode({ data }: NodeProps<Node<DropPreviewNodeData>>) {
   return (
-    <div className="pointer-events-none flex w-[264px] items-center justify-center rounded-2xl border border-dashed border-slate-400/60 bg-slate-900/40 px-3 py-8 text-xs uppercase tracking-[0.3em] text-slate-300">
+    <div className="pointer-events-none flex w-[264px] items-center justify-center rounded-2xl border border-dashed border-strong bg-canvas-raised/40 px-3 py-8 text-xs uppercase tracking-[0.3em] text-body">
       {data.label ?? "Drop here"}
     </div>
   );

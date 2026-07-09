@@ -20,6 +20,7 @@ import { Notification } from "@/components/ui/notification";
 import { GlassCard } from "@/components/ui/panel";
 
 import { pipelineEdgeTypes } from "./flow/TypedEdge";
+import { useFlowDotColor } from "./flow/use-flow-dot-color";
 import { getPortTypeColorVar, getPortTypeLabel } from "./lib/pipeline-theme";
 import { pipelineNodeTypes } from "./PipelineNode";
 
@@ -83,16 +84,17 @@ export function PipelineCanvas({
   onInit,
 }: PipelineCanvasProps) {
   const dataTypes = legendTypes(nodes);
+  const dotColor = useFlowDotColor();
   return (
     <div className="h-full">
-      <GlassCard className="relative min-h-[520px] overflow-hidden rounded-3xl border border-white/5 bg-slate-950/80 xl:h-full xl:min-h-0">
+      <GlassCard className="relative min-h-[520px] overflow-hidden rounded-3xl bg-canvas-raised/80 xl:h-full xl:min-h-0">
         {notice ? (
           <div className="absolute left-1/2 top-4 z-20 w-[min(520px,90%)] -translate-x-1/2">
             <Notification key={notice} message={notice} onDismiss={onNoticeDismiss} />
           </div>
         ) : null}
-        <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2 rounded-full border border-white/10 bg-slate-950/80 px-4 py-2 text-xs text-slate-300">
-          <ClipboardCheck className="h-4 w-4 text-cyan-300" />
+        <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2 rounded-full border border-hairline bg-canvas-raised/80 px-4 py-2 text-xs text-body">
+          <ClipboardCheck className="h-4 w-4 text-accent-cyan" />
           {selectedPipeline ? (
             <span>
               {selectedPipeline.name} · v{selectedPipeline.current_version}
@@ -115,9 +117,9 @@ export function PipelineCanvas({
           </div>
         ) : null}
         {dataTypes.length > 0 ? (
-          <div className="absolute bottom-4 right-4 z-10 flex max-w-[70%] flex-wrap items-center justify-end gap-x-3 gap-y-1 rounded-full border border-white/10 bg-slate-950/80 px-4 py-2">
+          <div className="absolute bottom-4 right-4 z-10 flex max-w-[70%] flex-wrap items-center justify-end gap-x-3 gap-y-1 rounded-full border border-hairline bg-canvas-raised/80 px-4 py-2">
             {dataTypes.map((dataType) => (
-              <span key={dataType} className="flex items-center gap-1.5 text-[10px] text-slate-400">
+              <span key={dataType} className="flex items-center gap-1.5 text-[10px] text-muted">
                 <span
                   className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: getPortTypeColorVar(dataType) }}
@@ -149,13 +151,17 @@ export function PipelineCanvas({
             nodeTypes={pipelineNodeTypes}
             edgeTypes={pipelineEdgeTypes}
             connectionLineType={ConnectionLineType.SmoothStep}
-            connectionLineStyle={{ stroke: "#94a3b8", strokeWidth: 2, strokeDasharray: "6 4" }}
+            connectionLineStyle={{
+              stroke: "var(--text-muted)",
+              strokeWidth: 2,
+              strokeDasharray: "6 4",
+            }}
             proOptions={{ hideAttribution: true }}
             fitView
             fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
             minZoom={0.2}
           >
-            <Background gap={18} size={1} color="#1f2937" />
+            <Background gap={18} size={1} color={dotColor} />
             <Controls className="pipeline-controls" />
           </ReactFlow>
         </div>

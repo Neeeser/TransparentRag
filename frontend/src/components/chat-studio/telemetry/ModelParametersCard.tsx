@@ -47,22 +47,22 @@ export const ModelParametersCard = ({
   const selectedModelLabel = currentModelInfo?.id || "the selected model";
 
   if (modelsError) {
-    return <p className="text-sm text-rose-300">{modelsError}</p>;
+    return <p className="text-sm text-data-neg">{modelsError}</p>;
   }
   if (modelsLoading && !currentModelInfo) {
-    return <p className="text-sm text-slate-400">Loading model catalog…</p>;
+    return <p className="text-sm text-muted">Loading model catalog…</p>;
   }
   if (!currentModelInfo) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         Unable to find OpenRouter metadata for{" "}
-        <span className="text-white">{selectedModelLabel}</span>.
+        <span className="text-primary">{selectedModelLabel}</span>.
       </p>
     );
   }
   if (visibleParameterDefinitions.length === 0) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         This model does not expose the common sampling parameters listed in the OpenRouter docs.
       </p>
     );
@@ -117,17 +117,17 @@ export const ModelParametersCard = ({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-slate-300">
-        <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Model</p>
-        <p className="text-white">{currentModelInfo.name}</p>
-        <p className="text-[11px] text-slate-500 break-all">{currentModelInfo.id}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.3em] text-slate-500">
+      <div className="rounded-2xl border border-hairline bg-surface p-3 text-sm text-body">
+        <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-meta">Model</p>
+        <p className="text-primary">{currentModelInfo.name}</p>
+        <p className="text-[11px] text-meta break-all">{currentModelInfo.id}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-meta">
           <span>{visibleParameterDefinitions.length} controls</span>
           {activeParameterCount > 0 && (
             <button
               type="button"
               onClick={resetAllParameters}
-              className="text-slate-200 underline-offset-4 hover:underline"
+              className="text-body underline-offset-4 hover:underline"
             >
               Reset overrides
             </button>

@@ -47,11 +47,11 @@ function BranchFooter({ show, usage, sending, messageId, onBranchMessage }: Bran
     return null;
   }
   return (
-    <div className="absolute left-0 right-0 top-full mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-300/70 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+    <div className="absolute left-0 right-0 top-full mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted opacity-0 transition-opacity duration-300 group-hover:opacity-100">
       {usage && <UsageInline usage={usage} />}
       <button
         type="button"
-        className="pointer-events-auto inline-flex items-center justify-center rounded-full border border-white/20 p-1 text-white/80 hover:border-white/60"
+        className="pointer-events-auto inline-flex items-center justify-center rounded-full border border-hairline p-1 text-body hover:border-strong"
         onClick={() => onBranchMessage(messageId)}
         disabled={sending}
         aria-label="Branch chat"
@@ -83,11 +83,11 @@ function MessageActions({
   onRetryAssistant,
 }: MessageActionsProps) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-white/80">
+    <div className="flex items-center gap-2 text-[11px] text-body">
       {isUser && (
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-2 py-1 hover:border-white/60"
+          className="inline-flex items-center gap-1 rounded-full border border-hairline px-2 py-1 hover:border-strong"
           onClick={() => onEditStart(messageId, content)}
         >
           <Edit3 className="h-3.5 w-3.5" />
@@ -97,7 +97,7 @@ function MessageActions({
       {isAssistant && (
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-2 py-1 hover:border-white/60"
+          className="inline-flex items-center gap-1 rounded-full border border-hairline px-2 py-1 hover:border-strong"
           onClick={() => onRetryAssistant(messageId)}
           disabled={sending}
         >
@@ -140,7 +140,7 @@ function MessageBody({
       <div className="space-y-2">
         <textarea
           ref={editTextareaRef}
-          className="min-h-[64px] w-full resize-none overflow-hidden rounded-xl bg-violet-500/15 px-4 py-3 text-sm leading-relaxed text-white outline-none"
+          className="min-h-[64px] w-full resize-none overflow-hidden rounded-xl bg-accent-violet/15 px-4 py-3 text-sm leading-relaxed text-primary outline-none"
           value={editingDraft}
           onChange={(event) => onEditChange(event.target.value)}
         />
@@ -192,7 +192,7 @@ function resolveBranchBanner(
   }
   const banner = (
     <BranchedFromBanner
-      className="mb-2 flex items-center gap-2 text-[11px] text-slate-300/80"
+      className="mb-2 flex items-center gap-2 text-[11px] text-muted"
       branchedFromSessionId={props.branchedFromSessionId}
       branchedFromLabel={props.branchedFromSessionTitle || "Original chat"}
       onNavigateToSession={props.onNavigateToSession}
@@ -241,12 +241,12 @@ export const MessageEntry = (props: MessageEntryProps) => {
             "chat-bubble rounded-2xl border px-4 py-3 text-sm shadow-2xl transition",
             variant,
             isEditing &&
-              "w-full border-violet-300/80 bg-violet-500/25 shadow-[0_0_0_1px_rgba(196,181,253,0.35)]",
+              "w-full border-accent-violet/80 bg-accent-violet/25 ring-1 ring-accent-violet/35",
           )}
           data-chat-role={entry.type}
         >
           <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+            <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted">
               {headerLabel}
               {entry.message.tool_name ? ` • ${entry.message.tool_name}` : ""}
             </p>

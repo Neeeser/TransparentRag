@@ -61,10 +61,10 @@ export const ProviderEndpointCard = ({
   const parameterCount = endpoint.supported_parameters?.length ?? 0;
   const actionClasses = (active: boolean) =>
     cn(
-      "rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em]",
+      "rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.3em]",
       active
-        ? "border-violet-400 bg-violet-500/20 text-white"
-        : "border-white/10 bg-white/5 text-slate-200 hover:border-white/40",
+        ? "border-accent-violet bg-accent-violet/20 text-primary"
+        : "border-hairline bg-surface text-body hover:border-strong",
     );
   const cardKey = `${slug}-${endpoint.provider_name ?? "unknown"}-${endpoint.tag ?? "default"}-${position}`;
   const quantizationLabel =
@@ -78,56 +78,55 @@ export const ProviderEndpointCard = ({
         : null;
 
   return (
-    <div
-      key={cardKey}
-      className="space-y-4 rounded-2xl border border-white/10 bg-gradient-to-b from-black/60 to-black/30 p-4"
-    >
+    <div key={cardKey} className="space-y-4 rounded-2xl border border-hairline bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-sm text-white">{slug}</p>
-          <p className="text-xs text-slate-400">{endpoint.provider_name || "Unknown provider"}</p>
+          <p className="font-mono text-sm text-primary">{slug}</p>
+          <p className="text-xs text-muted">{endpoint.provider_name || "Unknown provider"}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-meta">
           <span>{getEndpointStatusLabel(endpoint.status)}</span>
           <span>Uptime {formatUptimePercentage(endpoint.uptime_last_30m)}</span>
           {endpoint.tag && (
-            <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-slate-200">
+            <span className="rounded-full bg-surface-strong px-2 py-0.5 text-[10px] text-body">
               {endpoint.tag}
             </span>
           )}
           {endpoint.supports_implicit_caching && (
-            <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200">
+            <span className="rounded-full border border-data-pos/30 bg-data-pos/10 px-2 py-0.5 text-[10px] text-data-pos">
               Cache
             </span>
           )}
           {quantizationLabel && (
-            <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-100">
+            <span className="rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-2 py-0.5 text-[10px] text-accent-cyan">
               {quantizationLabel}
             </span>
           )}
         </div>
       </div>
-      <div className="grid gap-2 text-sm text-slate-200 sm:grid-cols-2">
-        <div className="rounded-xl border border-white/5 bg-black/40 p-3">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Prompt</p>
-          <p className="text-lg font-semibold text-white">{promptPrice}</p>
+      <div className="grid gap-2 text-sm text-body sm:grid-cols-2">
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">Prompt</p>
+          <p className="text-lg font-semibold text-primary">{promptPrice}</p>
         </div>
-        <div className="rounded-xl border border-white/5 bg-black/40 p-3">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Completion</p>
-          <p className="text-lg font-semibold text-white">{completionPrice}</p>
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">Completion</p>
+          <p className="text-lg font-semibold text-primary">{completionPrice}</p>
         </div>
-        <div className="rounded-xl border border-white/5 bg-black/40 p-3">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Capacity</p>
-          <p className="text-lg font-semibold text-white">
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">Capacity</p>
+          <p className="text-lg font-semibold text-primary">
             {maxTokens ? `${Math.round(maxTokens).toLocaleString()} tokens` : "—"}
           </p>
         </div>
-        <div className="rounded-xl border border-white/5 bg-black/40 p-3">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Supported params</p>
-          <p className="text-lg font-semibold text-white">{parameterCount}</p>
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">
+            Supported params
+          </p>
+          <p className="text-lg font-semibold text-primary">{parameterCount}</p>
         </div>
       </div>
-      <div className="grid gap-2 text-center text-xs uppercase tracking-[0.3em] text-white sm:grid-cols-3">
+      <div className="grid gap-2 text-center sm:grid-cols-3">
         <button
           type="button"
           className={actionClasses(orderActive)}

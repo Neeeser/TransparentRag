@@ -54,7 +54,7 @@ export const JsonBlock = ({
   <pre
     style={{ maxHeight }}
     className={cn(
-      "overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-950/40 p-3 text-xs text-slate-100",
+      "overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-surface p-3 text-xs text-body",
       className,
     )}
   >
@@ -68,14 +68,16 @@ interface ToolValueProps {
 
 export const ToolValue = ({ value }: ToolValueProps) => {
   if (value === null || value === undefined) {
-    return <span className="text-slate-400">N/A</span>;
+    return <span className="text-muted">N/A</span>;
   }
   if (typeof value === "string") {
-    return <span className="font-medium text-white">{value}</span>;
+    return <span className="font-medium text-primary">{value}</span>;
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return (
-      <code className="rounded bg-white/10 px-1 py-0.5 text-xs text-cyan-200">{String(value)}</code>
+      <code className="rounded bg-surface-strong px-1 py-0.5 text-xs text-accent-cyan">
+        {String(value)}
+      </code>
     );
   }
   if (Array.isArray(value)) {
@@ -89,7 +91,7 @@ export const ToolValue = ({ value }: ToolValueProps) => {
     );
     if (primitiveItems) {
       return (
-        <ul className="list-disc space-y-1 pl-5 text-slate-100">
+        <ul className="list-disc space-y-1 pl-5 text-body">
           {value.map((item, index) => (
             <li key={`tool-value-${index}`}>{String(item ?? "N/A")}</li>
           ))}
@@ -101,7 +103,7 @@ export const ToolValue = ({ value }: ToolValueProps) => {
   if (typeof value === "object") {
     return <JsonBlock data={value} />;
   }
-  return <span className="text-white">{String(value)}</span>;
+  return <span className="text-primary">{String(value)}</span>;
 };
 
 interface ToolKeyValueGridProps {
@@ -125,14 +127,14 @@ export const ToolKeyValueGrid = ({
   });
 
   if (entries.length === 0) {
-    return <p className="text-xs text-slate-400">{emptyLabel}</p>;
+    return <p className="text-xs text-muted">{emptyLabel}</p>;
   }
 
   return (
     <dl className="grid gap-3 text-left sm:grid-cols-2">
       {entries.map(([key, value]) => (
-        <div key={key} className="rounded-2xl border border-white/10 bg-slate-950/30 p-3">
-          <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+        <div key={key} className="rounded-2xl border border-hairline bg-surface p-3">
+          <dt className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
             {formatKeyLabel(key)}
           </dt>
           <dd className="mt-1 text-sm">
@@ -163,10 +165,10 @@ export const ToolPayloadSection = ({
 
   if (!collapsible) {
     return (
-      <section className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <section className="space-y-2 rounded-2xl border border-hairline bg-surface p-4">
         <header>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-300">{title}</p>
-          {description && <p className="text-xs text-slate-400">{description}</p>}
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted">{title}</p>
+          {description && <p className="text-xs text-muted">{description}</p>}
         </header>
         {children}
       </section>
@@ -174,7 +176,7 @@ export const ToolPayloadSection = ({
   }
 
   return (
-    <section className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+    <section className="space-y-2 rounded-2xl border border-hairline bg-surface p-4">
       <button
         type="button"
         className="flex w-full items-center justify-between text-left"
@@ -182,12 +184,10 @@ export const ToolPayloadSection = ({
         aria-expanded={open}
       >
         <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-300">{title}</p>
-          {description && <p className="text-xs text-slate-400">{description}</p>}
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted">{title}</p>
+          {description && <p className="text-xs text-muted">{description}</p>}
         </div>
-        <ChevronDown
-          className={cn("h-4 w-4 text-slate-200 transition", open ? "rotate-180" : "")}
-        />
+        <ChevronDown className={cn("h-4 w-4 text-body transition", open ? "rotate-180" : "")} />
       </button>
       {open && <div>{children}</div>}
     </section>
@@ -208,7 +208,7 @@ export const ToolChunkList = ({ chunks, activeChunkId, onSelectChunk }: ToolChun
     .filter(Boolean) as Record<string, unknown>[];
 
   if (normalized.length === 0) {
-    return <p className="text-xs text-slate-400">No chunk data returned.</p>;
+    return <p className="text-xs text-muted">No chunk data returned.</p>;
   }
 
   return (
@@ -233,53 +233,59 @@ export const ToolChunkList = ({ chunks, activeChunkId, onSelectChunk }: ToolChun
           <article
             key={`${chunkId}-${index}`}
             className={cn(
-              "rounded-2xl border border-white/10 bg-slate-950/40 p-4",
-              activeChunkId && activeChunkId === chunkId && "border-cyan-400/60 bg-cyan-500/10",
+              "rounded-2xl border border-hairline bg-surface p-4",
+              activeChunkId &&
+                activeChunkId === chunkId &&
+                "border-accent-cyan/60 bg-accent-cyan/10",
             )}
           >
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-slate-400">
+            <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
               <span>Chunk {index + 1}</span>
               {Number.isFinite(score) && (
-                <span className="font-mono text-cyan-200">Score {Number(score).toFixed(3)}</span>
+                <span className="font-mono text-accent-cyan">Score {Number(score).toFixed(3)}</span>
               )}
             </div>
             {onSelectChunk && chunkId && (
               <button
                 type="button"
                 onClick={() => onSelectChunk(chunkId)}
-                className="mt-2 rounded-full border border-cyan-400/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-cyan-200 hover:border-cyan-300/80"
+                className="mt-2 rounded-full border border-accent-cyan/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.3em] text-accent-cyan hover:border-accent-cyan/80"
               >
                 Trace chunk
               </button>
             )}
-            {textValue && <p className="mt-2 text-sm text-slate-100">{truncateText(textValue)}</p>}
-            <dl className="mt-3 grid gap-3 text-xs text-slate-300 sm:grid-cols-2">
+            {textValue && <p className="mt-2 text-sm text-body">{truncateText(textValue)}</p>}
+            <dl className="mt-3 grid gap-3 text-xs text-body sm:grid-cols-2">
               {documentId && (
                 <div>
-                  <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">
                     Document
                   </dt>
-                  <dd className="font-mono text-slate-100">{documentId}</dd>
+                  <dd className="font-mono text-body">{documentId}</dd>
                 </div>
               )}
               {chunkId && (
                 <div>
-                  <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">
                     Chunk ID
                   </dt>
-                  <dd className="font-mono text-slate-100 break-all">{chunkId}</dd>
+                  <dd className="font-mono text-body break-all">{chunkId}</dd>
                 </div>
               )}
               {Number.isFinite(order) && (
                 <div>
-                  <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Order</dt>
-                  <dd className="font-mono text-slate-100">{order}</dd>
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">
+                    Order
+                  </dt>
+                  <dd className="font-mono text-body">{order}</dd>
                 </div>
               )}
             </dl>
             {metadata && Object.keys(metadata).length > 0 && (
               <div className="mt-3">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Metadata</p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-meta">
+                  Metadata
+                </p>
                 <JsonBlock data={metadata} maxHeight={180} className="mt-1" />
               </div>
             )}

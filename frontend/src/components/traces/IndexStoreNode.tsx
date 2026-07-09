@@ -27,34 +27,32 @@ const BACKEND_LABELS: Record<string, string> = {
 export function IndexStoreNode({ data }: NodeProps<Node<IndexStoreNodeData>>) {
   const portClasses = getPortTypeClasses("indexed_batch");
   return (
-    <div className="relative flex w-[220px] flex-col items-center rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-center shadow-[0_0_28px_rgba(34,211,238,0.18)]">
+    <div className="relative flex w-[220px] flex-col items-center rounded-full border border-stage-index/40 bg-stage-index/10 px-4 py-3 text-center shadow-elevation-2">
       <Handle
         type="target"
         position={Position.Top}
         id="write"
         isConnectable={false}
-        className={cn("!h-3 !w-3 !rounded-full !border-2 !border-slate-950", portClasses.handle)}
+        className={cn("!h-3 !w-3 !rounded-full !border-2 !border-canvas", portClasses.handle)}
       />
-      <div className="flex items-center gap-2 text-cyan-100">
+      <div className="flex items-center gap-2 text-stage-index">
         <Database className="h-4 w-4" />
-        <span className="text-[10px] uppercase tracking-[0.3em] text-cyan-300/80">
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-stage-index">
           Shared index
         </span>
       </div>
-      <p className="mt-1 truncate text-sm font-semibold text-white" title={data.indexName}>
+      <p className="mt-1 truncate text-sm font-semibold text-primary" title={data.indexName}>
         {data.indexName}
       </p>
       {data.backend ? (
-        <p className="text-[10px] text-cyan-200/70">
-          {BACKEND_LABELS[data.backend] ?? data.backend}
-        </p>
+        <p className="text-[10px] text-muted">{BACKEND_LABELS[data.backend] ?? data.backend}</p>
       ) : null}
       <Handle
         type="source"
         position={Position.Bottom}
         id="read"
         isConnectable={false}
-        className={cn("!h-3 !w-3 !rounded-full !border-2 !border-slate-950", portClasses.handle)}
+        className={cn("!h-3 !w-3 !rounded-full !border-2 !border-canvas", portClasses.handle)}
       />
     </div>
   );

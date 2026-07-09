@@ -53,16 +53,16 @@ export function ApiKeysForm({
         <Field
           label={
             <>
-              <KeyRound className="h-4 w-4 text-violet-300" />
+              <KeyRound className="h-4 w-4 text-accent-violet" />
               OpenRouter API key
             </>
           }
-          labelClassName="flex items-center gap-2 text-sm text-white"
+          labelClassName="flex items-center gap-2 text-sm text-primary"
           labelEnd={
             <div className="flex items-center gap-2">
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
+                  "rounded-full px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.2em]",
                   openrouterBadge.className,
                 )}
               >
@@ -71,7 +71,7 @@ export function ApiKeysForm({
               {openrouterConfigured && (
                 <button
                   type="button"
-                  className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
+                  className="rounded-full border border-hairline px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted transition hover:border-strong hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                   onClick={onRemoveOpenrouter}
                 >
                   Remove
@@ -90,7 +90,7 @@ export function ApiKeysForm({
           />
         </Field>
         {pendingClearOpenrouter && (
-          <p className="mt-2 text-xs text-amber-300">Will remove on save.</p>
+          <p className="mt-2 text-xs text-data-warn">Will remove on save.</p>
         )}
       </div>
 
@@ -98,19 +98,19 @@ export function ApiKeysForm({
         <Field
           label={
             <>
-              <Cloud className="h-4 w-4 text-cyan-300" />
+              <Cloud className="h-4 w-4 text-accent-cyan" />
               Pinecone API key
-              <span className="text-xs font-normal normal-case tracking-normal text-slate-400">
+              <span className="text-xs font-normal normal-case tracking-normal text-muted">
                 (optional — only for Pinecone-backed pipelines; pgvector needs no key)
               </span>
             </>
           }
-          labelClassName="flex items-center gap-2 text-sm text-white"
+          labelClassName="flex items-center gap-2 text-sm text-primary"
           labelEnd={
             <div className="flex items-center gap-2">
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]",
+                  "rounded-full px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.2em]",
                   pineconeBadge.className,
                 )}
               >
@@ -119,7 +119,7 @@ export function ApiKeysForm({
               {pineconeConfigured && (
                 <button
                   type="button"
-                  className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-300 transition hover:border-white/30 hover:text-white"
+                  className="rounded-full border border-hairline px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted transition hover:border-strong hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                   onClick={onRemovePinecone}
                 >
                   Remove
@@ -138,7 +138,7 @@ export function ApiKeysForm({
           />
         </Field>
         {pendingClearPinecone && (
-          <p className="mt-2 text-xs text-amber-300">Will remove on save.</p>
+          <p className="mt-2 text-xs text-data-warn">Will remove on save.</p>
         )}
       </div>
 
@@ -146,7 +146,7 @@ export function ApiKeysForm({
         <Button type="submit" loading={saving}>
           Save settings
         </Button>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted">
           Leave fields blank to keep existing keys. Use Remove to clear a provider.
         </p>
       </div>

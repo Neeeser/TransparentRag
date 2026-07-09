@@ -23,7 +23,7 @@ export function ChunkDetailPanel({
 }: ChunkDetailPanelProps) {
   if (!selectedPoint) {
     return (
-      <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-slate-300">
+      <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-body">
         Select a point to see chunk details.
       </GlassCard>
     );
@@ -31,7 +31,7 @@ export function ChunkDetailPanel({
 
   if (loading) {
     return (
-      <GlassCard className="flex items-center justify-center rounded-3xl border border-white/10 p-6">
+      <GlassCard className="flex items-center justify-center rounded-3xl border border-hairline p-6">
         <Loader className="h-5 w-5" />
       </GlassCard>
     );
@@ -39,7 +39,7 @@ export function ChunkDetailPanel({
 
   if (errorMessage) {
     return (
-      <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-rose-200">
+      <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-data-neg">
         {errorMessage}
       </GlassCard>
     );
@@ -47,7 +47,7 @@ export function ChunkDetailPanel({
 
   if (!detail) {
     return (
-      <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-slate-300">
+      <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-body">
         No chunk details available.
       </GlassCard>
     );
@@ -56,47 +56,45 @@ export function ChunkDetailPanel({
   const { document, chunk } = detail;
 
   return (
-    <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-slate-200">
+    <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-body">
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Document</p>
-            <p className="mt-2 text-base font-semibold text-white">{document.name}</p>
-            <p className="text-xs text-slate-400">Indexed {timeAgo(chunk.created_at)}</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">Document</p>
+            <p className="mt-2 text-base font-semibold text-primary">{document.name}</p>
+            <p className="text-xs text-muted">Indexed {timeAgo(chunk.created_at)}</p>
           </div>
           {onExpand ? (
             <button
               type="button"
               onClick={onExpand}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 transition hover:border-white/30 hover:bg-white/10"
+              className="rounded-full border border-hairline bg-surface px-3 py-1 text-xs text-body transition hover:border-strong hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             >
               Expand
             </button>
           ) : null}
         </div>
-        <div className="grid gap-2 text-xs text-slate-300">
+        <div className="grid gap-2 text-xs text-body">
           <div className="flex items-center justify-between">
             <span>Chunk</span>
-            <span className="text-slate-100">#{chunk.chunk_index + 1}</span>
+            <span className="text-primary">#{chunk.chunk_index + 1}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Strategy</span>
-            <span className="text-slate-100">{chunk.chunk_strategy}</span>
+            <span className="text-primary">{chunk.chunk_strategy}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Size</span>
-            <span className="text-slate-100">{chunk.chunk_size} tokens</span>
+            <span className="text-primary">{chunk.chunk_size} tokens</span>
           </div>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Text</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-100">
-            {truncate(chunk.text, 600)}
-          </p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">Text</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-body">{truncate(chunk.text, 600)}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Metadata</p>
-          <pre className="mt-2 max-h-56 overflow-auto rounded-2xl bg-slate-950/40 p-3 text-xs text-slate-200">
+          <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">Metadata</p>
+          <pre className="mt-2 max-h-56 overflow-auto rounded-2xl border border-hairline bg-canvas p-3 text-xs text-body">
             {prettyJson(chunk.metadata)}
           </pre>
         </div>

@@ -55,22 +55,22 @@ export function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Users</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-2xl font-semibold text-primary">Users</h1>
+        <p className="text-sm text-muted">
           Manage roles and access. The last remaining admin cannot be demoted or deactivated.
         </p>
       </div>
       {(loadError || actionError) && (
         <p
           role="alert"
-          className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+          className="rounded-2xl border border-data-neg/30 bg-data-neg/10 px-4 py-3 text-sm text-data-neg"
         >
           {loadError || actionError}
         </p>
       )}
       <GlassCard>
         {loading ? (
-          <p className="px-4 py-6 text-sm text-slate-400">Loading users…</p>
+          <p className="px-4 py-6 text-sm text-muted">Loading users…</p>
         ) : (
           <DataTable
             rows={users}
@@ -82,8 +82,8 @@ export function AdminUsersPage() {
                 header: "User",
                 render: (row) => (
                   <div>
-                    <p className="font-medium text-white">{row.full_name || row.email}</p>
-                    <p className="text-xs text-slate-400">{row.email}</p>
+                    <p className="font-medium text-primary">{row.full_name || row.email}</p>
+                    <p className="text-xs text-muted">{row.email}</p>
                   </div>
                 ),
               },
@@ -91,7 +91,7 @@ export function AdminUsersPage() {
                 key: "role",
                 header: "Role",
                 render: (row) => (
-                  <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium capitalize text-slate-200">
+                  <span className="rounded-full bg-surface-strong px-2.5 py-1 text-xs font-medium capitalize text-body">
                     {row.role}
                   </span>
                 ),

@@ -27,14 +27,14 @@ export function IndexListPanel({
 }: IndexListPanelProps) {
   return (
     <div className="space-y-3">
-      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Indexes</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">Indexes</p>
       <div className="space-y-2">
         {loading ? (
-          <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm text-body">
             Loading indexes...
           </p>
         ) : indexes.length === 0 ? (
-          <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm text-body">
             No indexes found.
           </p>
         ) : (
@@ -47,12 +47,12 @@ export function IndexListPanel({
                 onClick={() => onSelectIndex(index.name)}
                 className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
                   isActive
-                    ? "border-violet-400 bg-violet-500/10 text-white"
-                    : "border-white/10 bg-white/5 text-slate-300 hover:border-white/30"
+                    ? "border-accent-violet bg-accent-violet/10 text-primary"
+                    : "border-hairline bg-surface text-body hover:border-strong"
                 }`}
               >
                 <div className="font-semibold">{index.name}</div>
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-muted">
                   {index.vector_type ?? "dense"} · {index.metric ?? "cosine"}
                 </div>
               </button>

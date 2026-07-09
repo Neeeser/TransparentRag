@@ -81,8 +81,10 @@ const SortableTelemetryItem = ({ id, config }: SortableTelemetryItemProps) => {
             title="Drag to reorder"
             {...attributes}
             {...listeners}
-            className={`flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-slate-400 transition ${
-              isDragging ? "bg-white/10 text-white" : "hover:bg-white/10 hover:text-white"
+            className={`flex h-7 w-7 items-center justify-center rounded-full border border-hairline text-muted transition ${
+              isDragging
+                ? "bg-surface-strong text-primary"
+                : "hover:bg-surface-strong hover:text-primary"
             } cursor-grab active:cursor-grabbing touch-none`}
           >
             <GripVertical className="h-3.5 w-3.5" />
@@ -162,7 +164,7 @@ export const SortableSectionList = ({
         </SortableContext>
         <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
           {activeConfig ? (
-            <div className="origin-top-left scale-[1.02] shadow-[0_20px_45px_rgba(0,0,0,0.45)]">
+            <div className="origin-top-left scale-[1.02] shadow-elevation-2">
               <TelemetrySection
                 title={activeConfig.title}
                 description={activeConfig.description}
@@ -172,7 +174,7 @@ export const SortableSectionList = ({
                 sectionId={activeConfig.sectionId}
                 overrideActive={activeConfig.overrideActive}
                 headerAction={
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-slate-200">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border border-hairline text-body">
                     <GripVertical className="h-3.5 w-3.5" />
                   </div>
                 }

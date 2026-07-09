@@ -7,9 +7,5 @@ type PipelineNoticeProps = {
 };
 
 export function PipelineNotice({ message }: PipelineNoticeProps) {
-  return (
-    <GlassCard className="rounded-3xl border border-white/10 p-4 text-sm text-slate-200">
-      {message}
-    </GlassCard>
-  );
+  return <GlassCard className="rounded-3xl p-4 text-sm text-body">{message}</GlassCard>;
 }

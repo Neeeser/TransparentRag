@@ -1,11 +1,11 @@
 import type { UsageBreakdown } from "@/lib/types";
 
 export const roleVariants: Record<string, string> = {
-  user: "border-violet-500/50 bg-violet-600/20 text-violet-50 backdrop-blur-sm",
-  assistant: "border-white/20 bg-white/10 text-white backdrop-blur-sm",
-  tool: "border-cyan-400/40 bg-cyan-500/15 text-cyan-50 backdrop-blur-sm",
-  system: "border-sky-500/30 bg-sky-500/10 text-sky-50",
-  reasoning: "border-amber-400/50 bg-amber-500/15 text-amber-50 backdrop-blur-sm",
+  user: "border-accent-violet/50 bg-accent-violet/15 text-body backdrop-blur-sm",
+  assistant: "border-hairline bg-surface-strong text-body backdrop-blur-sm",
+  tool: "border-accent-cyan/40 bg-accent-cyan/10 text-body backdrop-blur-sm",
+  system: "border-hairline bg-surface text-body",
+  reasoning: "border-stage-embed/50 bg-stage-embed/15 text-body backdrop-blur-sm",
 };
 
 export const UsageInline = ({ usage }: { usage: UsageBreakdown }) => (
@@ -17,7 +17,7 @@ export const UsageInline = ({ usage }: { usage: UsageBreakdown }) => (
       <span>{usage.reasoning_tokens.toLocaleString()} reasoning</span>
     )}
     {usage.cost != null && (
-      <span className="text-slate-100/80">
+      <span className="text-body">
         $
         {usage.cost.toLocaleString(undefined, {
           minimumFractionDigits: 4,

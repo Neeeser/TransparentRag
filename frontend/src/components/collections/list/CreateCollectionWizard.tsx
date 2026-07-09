@@ -238,7 +238,7 @@ export function CreateCollectionWizard({
         <div className="space-y-4">
           <Field
             label="Collection name"
-            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
           >
             <TextInput
               type="text"
@@ -250,7 +250,7 @@ export function CreateCollectionWizard({
           </Field>
           <Field
             label="Description"
-            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
           >
             <TextArea
               placeholder="Summarize what this collection is for."
@@ -268,7 +268,7 @@ export function CreateCollectionWizard({
         <div className="space-y-4">
           <Field
             label="Ingestion pipeline"
-            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
           >
             <Select
               value={form.ingestion_pipeline_id}
@@ -289,7 +289,7 @@ export function CreateCollectionWizard({
           </Field>
           <Field
             label="Retrieval pipeline"
-            labelClassName="text-xs uppercase tracking-[0.3em] text-slate-400"
+            labelClassName="font-mono text-[11px] uppercase tracking-[0.3em] text-muted"
           >
             <Select
               value={form.retrieval_pipeline_id}
@@ -313,26 +313,26 @@ export function CreateCollectionWizard({
 
       {stepIndex === 2 && (
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
+          <div className="rounded-3xl border border-hairline bg-surface p-4">
             <button
               type="button"
-              className="flex w-full items-center justify-between text-sm text-slate-200"
+              className="flex w-full items-center justify-between text-sm text-body"
               onClick={() => setShowAdvanced((prev) => !prev)}
             >
               <span className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-violet-300" />
+                <SlidersHorizontal className="h-4 w-4 text-accent-violet" />
                 Advanced pipeline defaults
               </span>
-              <span className="text-xs text-slate-400">{showAdvanced ? "Hide" : "Show"}</span>
+              <span className="text-xs text-muted">{showAdvanced ? "Hide" : "Show"}</span>
             </button>
             {showAdvanced ? (
               <div className="mt-4 space-y-4">
                 {!usesDefaultPipelines ? (
-                  <p className="text-sm text-slate-400">
+                  <p className="text-sm text-muted">
                     Advanced options are available only when the default pipelines are selected.
                   </p>
                 ) : nodeSpecs.length === 0 ? (
-                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <div className="flex items-center gap-2 text-sm text-muted">
                     <Loader className="h-4 w-4" />
                     Loading node settings...
                   </div>
@@ -356,7 +356,7 @@ export function CreateCollectionWizard({
                 )}
               </div>
             ) : (
-              <p className="mt-3 text-sm text-slate-400">
+              <p className="mt-3 text-sm text-muted">
                 Keep defaults for a fast setup or enable advanced overrides for deeper tuning.
               </p>
             )}
@@ -366,42 +366,44 @@ export function CreateCollectionWizard({
 
       {stepIndex === 3 && (
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Summary</p>
-            <div className="mt-3 space-y-3 text-sm text-slate-200">
+          <div className="rounded-3xl border border-hairline bg-surface p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">Summary</p>
+            <div className="mt-3 space-y-3 text-sm text-body">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Name</p>
-                <p className="text-base font-semibold text-white">{form.name || "Untitled"}</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">Name</p>
+                <p className="text-base font-semibold text-primary">{form.name || "Untitled"}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Description</p>
-                <p className="text-sm text-slate-300">
+                <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">
+                  Description
+                </p>
+                <p className="text-sm text-body">
                   {form.description || "No description provided."}
                 </p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">
                     Ingestion pipeline
                   </p>
-                  <p className="text-sm text-white">
+                  <p className="text-sm text-primary">
                     {pipelineNameById.get(form.ingestion_pipeline_id) || "Default"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">
                     Retrieval pipeline
                   </p>
-                  <p className="text-sm text-white">
+                  <p className="text-sm text-primary">
                     {pipelineNameById.get(form.retrieval_pipeline_id) || "Default"}
                   </p>
                 </div>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+                <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-meta">
                   Advanced defaults
                 </p>
-                <p className="text-sm text-slate-300">
+                <p className="text-sm text-body">
                   {showAdvanced && usesDefaultPipelines ? "Enabled" : "Not configured"}
                 </p>
               </div>

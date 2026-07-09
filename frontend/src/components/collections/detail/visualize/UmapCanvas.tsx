@@ -330,12 +330,12 @@ export function UmapCanvas({
         }
         style={{ position: "absolute", inset: "0" }}
       />
-      <div className="absolute bottom-4 left-4 z-10 flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 text-slate-200">
+      <div className="absolute bottom-4 left-4 z-10 flex flex-col overflow-hidden rounded-2xl border border-hairline bg-canvas-raised/80 text-body">
         <button
           type="button"
           title="Zoom in"
           onClick={() => handleZoom(0.4)}
-          className="flex h-10 w-10 items-center justify-center border-b border-white/10 transition hover:bg-white/10"
+          className="flex h-10 w-10 items-center justify-center border-b border-hairline transition hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-violet"
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -343,7 +343,7 @@ export function UmapCanvas({
           type="button"
           title="Zoom out"
           onClick={() => handleZoom(-0.4)}
-          className="flex h-10 w-10 items-center justify-center border-b border-white/10 transition hover:bg-white/10"
+          className="flex h-10 w-10 items-center justify-center border-b border-hairline transition hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-violet"
         >
           <Minus className="h-4 w-4" />
         </button>
@@ -352,7 +352,7 @@ export function UmapCanvas({
           title="Center on selection"
           onClick={handleCenterOnSelection}
           disabled={!selectedPoint}
-          className="flex h-10 w-10 items-center justify-center border-b border-white/10 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500"
+          className="flex h-10 w-10 items-center justify-center border-b border-hairline transition hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-violet disabled:cursor-not-allowed disabled:text-faint"
         >
           <LocateFixed className="h-4 w-4" />
         </button>
@@ -360,7 +360,7 @@ export function UmapCanvas({
           type="button"
           title="Reset view"
           onClick={handleResetView}
-          className="flex h-10 w-10 items-center justify-center transition hover:bg-white/10"
+          className="flex h-10 w-10 items-center justify-center transition hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-violet"
         >
           <Home className="h-4 w-4" />
         </button>

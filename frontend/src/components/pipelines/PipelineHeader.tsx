@@ -20,8 +20,8 @@ export function PipelineHeader({ kind, onCreatePipeline, onManageIndexes }: Pipe
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Pipelines</p>
-        <h1 className="text-3xl font-semibold text-white">
+        <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">Pipelines</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-primary">
           {kind === "ingestion" ? "Build ingestion flows." : "Design retrieval flows."}
         </h1>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -30,10 +30,10 @@ export function PipelineHeader({ kind, onCreatePipeline, onManageIndexes }: Pipe
               key={value}
               href={`/pipelines/${value}`}
               className={cn(
-                "rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.35em] transition",
+                "rounded-full border border-hairline px-3 py-1 text-xs uppercase tracking-[0.35em] transition",
                 value === kind
-                  ? "border-white/40 bg-white/10 text-white"
-                  : "text-slate-400 hover:border-white/30 hover:text-white",
+                  ? "border-strong bg-surface-strong text-primary"
+                  : "text-muted hover:border-strong hover:text-primary",
               )}
             >
               {value}

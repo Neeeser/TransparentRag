@@ -36,24 +36,26 @@ export const UsageCard = ({ usage, contextWindow, contextConsumed, onExport }: U
     : 0;
 
   return (
-    <div className="space-y-3 text-sm text-slate-300">
-      <div className="space-y-1 text-xs uppercase tracking-[0.3em] text-slate-400">
+    <div className="space-y-3 text-sm text-body">
+      <div className="space-y-1 font-mono text-xs uppercase tracking-[0.3em] text-muted">
         <span>Usage window</span>
-        <span className="block text-sm text-slate-300">{usageDescription}</span>
+        <span className="block text-sm normal-case tracking-normal text-body">
+          {usageDescription}
+        </span>
       </div>
-      <div className="h-2 w-full rounded-full bg-white/10">
+      <div className="h-2 w-full rounded-full bg-surface-strong">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
+          className="h-full rounded-full bg-accent-violet"
           style={{ width: `${contextUtilization}%` }}
         />
       </div>
       <div className="space-y-3">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+        <div className="rounded-2xl border border-hairline bg-surface p-3 text-center">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
             OpenRouter total cost
           </p>
-          <p className="mt-2 text-2xl font-semibold text-white">{usageCostLabel}</p>
-          <p className="text-[11px] text-slate-500">API cost for this session</p>
+          <p className="mt-2 text-2xl font-semibold text-primary">{usageCostLabel}</p>
+          <p className="text-[11px] text-meta">API cost for this session</p>
         </div>
         {usageMetrics.map((metric) => {
           const metricValue = usage?.[metric.key];
@@ -61,10 +63,12 @@ export const UsageCard = ({ usage, contextWindow, contextConsumed, onExport }: U
           return (
             <div
               key={`${metric.key}`}
-              className="rounded-2xl border border-white/10 bg-black/20 p-3 text-center"
+              className="rounded-2xl border border-hairline bg-surface p-3 text-center"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{metric.label}</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{formattedValue}</p>
+              <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted">
+                {metric.label}
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-primary">{formattedValue}</p>
             </div>
           );
         })}
@@ -74,7 +78,7 @@ export const UsageCard = ({ usage, contextWindow, contextConsumed, onExport }: U
           type="button"
           variant="ghost"
           size="sm"
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-white/30 hover:text-white"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-hairline px-3 py-2 text-sm font-semibold text-body hover:border-strong hover:text-primary"
           onClick={onExport}
           title="Exports the full chat messages array as formatted JSON"
         >

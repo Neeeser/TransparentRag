@@ -123,9 +123,11 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
       <GlassCard className="rounded-3xl p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Documents</p>
-            <h2 className="text-2xl font-semibold">Sources and chunk lineage</h2>
-            <p className="text-sm text-slate-400">
+            <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">
+              Documents
+            </p>
+            <h2 className="text-2xl font-semibold text-primary">Sources and chunk lineage</h2>
+            <p className="text-sm text-muted">
               Expand a document to inspect every chunk and its metadata.
             </p>
           </div>
@@ -141,7 +143,7 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
         </div>
         {message && (
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
+          <div className="mt-4 rounded-2xl border border-hairline bg-surface p-3 text-sm text-body">
             {message}
           </div>
         )}
@@ -152,7 +154,7 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
           <Loader className="h-6 w-6" />
         </GlassCard>
       ) : documents.length === 0 ? (
-        <GlassCard className="rounded-3xl p-6 text-sm text-slate-400">
+        <GlassCard className="rounded-3xl p-6 text-sm text-muted">
           No documents yet. Upload a file to start chunking.
         </GlassCard>
       ) : (
@@ -164,22 +166,22 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
             const trace = traceByDocument[doc.id];
             const isTraceLoading = traceLoading[doc.id];
             return (
-              <GlassCard key={doc.id} className="rounded-3xl border border-white/10 p-4">
+              <GlassCard key={doc.id} className="rounded-3xl border border-hairline p-4">
                 <button
                   type="button"
                   onClick={() => toggleDocument(doc)}
-                  className="flex w-full items-center justify-between gap-4 text-left"
+                  className="flex w-full items-center justify-between gap-4 rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                 >
                   <div>
-                    <p className="text-base font-semibold text-white">{doc.name}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-base font-semibold text-primary">{doc.name}</p>
+                    <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
                       {doc.status.toUpperCase()} | {doc.num_chunks} chunks | {doc.num_tokens} tokens
                     </p>
                   </div>
                   <span
                     className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-slate-300 transition",
-                      isOpen && "border-violet-400 text-violet-300",
+                      "flex h-9 w-9 items-center justify-center rounded-full border border-hairline text-body transition",
+                      isOpen && "border-accent-violet text-accent-violet",
                     )}
                   >
                     {isOpen ? (
@@ -191,7 +193,7 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
                 </button>
 
                 {isOpen && (
-                  <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
+                  <div className="mt-4 space-y-4 border-t border-hairline pt-4">
                     <div className="grid gap-3 md:grid-cols-3">
                       {[
                         { label: "Chunk size", value: doc.chunk_size },
@@ -200,12 +202,12 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
                       ].map((item) => (
                         <div
                           key={`${doc.id}-${item.label}`}
-                          className="rounded-2xl border border-white/5 bg-white/5 p-3 text-sm"
+                          className="rounded-2xl border border-hairline bg-surface p-3 text-sm"
                         >
-                          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
                             {item.label}
                           </p>
-                          <p className="mt-2 text-sm text-white">{item.value}</p>
+                          <p className="mt-2 text-sm text-primary">{item.value}</p>
                         </div>
                       ))}
                     </div>
@@ -219,41 +221,41 @@ export function CollectionDocuments({ collectionId, token }: CollectionDocuments
                         {trace ? "Refresh trace" : "View ingestion trace"}
                       </Button>
                       {doc.ingestion_run_id && (
-                        <p className="text-xs text-slate-400">Trace run: {doc.ingestion_run_id}</p>
+                        <p className="text-xs text-muted">Trace run: {doc.ingestion_run_id}</p>
                       )}
                     </div>
 
                     {isLoadingChunks ? (
-                      <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <div className="flex items-center gap-2 text-sm text-muted">
                         <Loader className="h-4 w-4" />
                         Loading chunks...
                       </div>
                     ) : chunks.length === 0 ? (
-                      <p className="text-sm text-slate-400">No chunks ready yet.</p>
+                      <p className="text-sm text-muted">No chunks ready yet.</p>
                     ) : (
                       <div className="space-y-3">
                         {chunks.map((chunk) => (
                           <details
                             key={chunk.id}
-                            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3"
+                            className="rounded-2xl border border-hairline bg-surface px-4 py-3"
                           >
-                            <summary className="cursor-pointer text-sm text-slate-200">
+                            <summary className="cursor-pointer text-sm text-body">
                               Chunk #{chunk.chunk_index} - {truncate(chunk.text, 90)}
                             </summary>
-                            <div className="mt-3 space-y-3 text-sm text-slate-300">
+                            <div className="mt-3 space-y-3 text-sm text-body">
                               <div>
-                                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                                <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
                                   Full text
                                 </p>
-                                <p className="mt-2 whitespace-pre-wrap text-slate-100">
+                                <p className="mt-2 whitespace-pre-wrap text-primary">
                                   {chunk.text}
                                 </p>
                               </div>
                               <div>
-                                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                                <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
                                   Metadata
                                 </p>
-                                <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-black/40 p-3 text-xs text-slate-100">
+                                <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-hairline bg-canvas p-3 text-xs text-body">
                                   {prettyJson(chunk.metadata)}
                                 </pre>
                               </div>

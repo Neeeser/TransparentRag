@@ -70,10 +70,10 @@ export function ChatStudioView({
           ) : (
             <div
               ref={chatPanelRef}
-              className="glass-panel relative flex flex-1 min-h-0 overflow-hidden rounded-[2.5rem] border border-white/5 bg-slate-950/80"
+              className="glass-panel relative flex flex-1 min-h-0 overflow-hidden rounded-[2.5rem] border border-hairline bg-canvas-raised"
             >
               {!isOverlayMode && historyOpen && (
-                <aside className="h-full w-72 flex-shrink-0 border-r border-white/5 bg-black/40">
+                <aside className="h-full w-72 flex-shrink-0 border-r border-hairline bg-surface">
                   {historyPanel}
                 </aside>
               )}
@@ -81,7 +81,7 @@ export function ChatStudioView({
                 <button
                   type="button"
                   aria-label="Open history"
-                  className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 transition-all hover:border-white/40 hover:bg-black/60"
+                  className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-hairline bg-surface p-2 text-body transition-all hover:border-strong hover:bg-surface-strong"
                   onClick={onOpenHistory}
                 >
                   <PanelLeftOpen className="h-4 w-4" />
@@ -93,7 +93,7 @@ export function ChatStudioView({
               </div>
 
               {!isOverlayMode && telemetryOpen && (
-                <aside className="h-full w-[26rem] flex-shrink-0 border-l border-white/5 bg-black/40 p-6">
+                <aside className="h-full w-[26rem] flex-shrink-0 border-l border-hairline bg-surface p-6">
                   {telemetryPanel}
                 </aside>
               )}
@@ -101,7 +101,7 @@ export function ChatStudioView({
                 <button
                   type="button"
                   aria-label="Open run settings"
-                  className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 p-2 text-slate-200 hover:border-white/40"
+                  className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full border border-hairline bg-surface p-2 text-body hover:border-strong"
                   onClick={onOpenTelemetry}
                 >
                   <PanelRightOpen className="h-4 w-4" />
@@ -112,10 +112,10 @@ export function ChatStudioView({
                   <button
                     type="button"
                     aria-label="Close history"
-                    className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                    className="absolute inset-0 bg-canvas/80 backdrop-blur-sm"
                     onClick={onCloseHistory}
                   />
-                  <aside className="relative z-10 h-full w-72 border-r border-white/5 bg-black/90">
+                  <aside className="relative z-10 h-full w-72 border-r border-hairline bg-canvas-raised">
                     {historyPanel}
                   </aside>
                 </div>
@@ -125,10 +125,10 @@ export function ChatStudioView({
                   <button
                     type="button"
                     aria-label="Close run settings"
-                    className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                    className="absolute inset-0 bg-canvas/80 backdrop-blur-sm"
                     onClick={onCloseTelemetry}
                   />
-                  <aside className="relative z-10 h-full w-[26rem] border-l border-white/5 bg-black/90 p-6">
+                  <aside className="relative z-10 h-full w-[26rem] border-l border-hairline bg-canvas-raised p-6">
                     {telemetryPanel}
                   </aside>
                 </div>

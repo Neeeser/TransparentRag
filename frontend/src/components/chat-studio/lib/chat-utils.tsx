@@ -150,35 +150,40 @@ export const normalizeReasoningSegments = (payload: unknown): ReasoningTraceSegm
 
 export const markdownComponents: Components = {
   p: ({ children }) => (
-    <div className="break-words text-sm leading-relaxed text-slate-100">{children}</div>
+    <div className="break-words text-sm leading-relaxed text-body">{children}</div>
   ),
   a: ({ children, href }) => (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="text-cyan-300 underline decoration-dotted underline-offset-4"
+      className="text-accent-cyan underline decoration-dotted underline-offset-4"
     >
       {children}
     </a>
   ),
   code: ({ className, children }) => (
-    <code className={cn("rounded bg-white/10 px-1 py-0.5 text-[0.85em] text-cyan-200", className)}>
+    <code
+      className={cn(
+        "rounded bg-surface-strong px-1 py-0.5 text-[0.85em] text-accent-cyan",
+        className,
+      )}
+    >
       {children}
     </code>
   ),
   pre: ({ children }) => (
-    <pre className="mt-3 overflow-auto rounded-2xl bg-slate-900/70 p-3 text-xs text-slate-100">
+    <pre className="mt-3 overflow-auto rounded-2xl bg-canvas-raised p-3 text-xs text-body">
       {children}
     </pre>
   ),
   ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5 text-sm">{children}</ul>,
   ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5 text-sm">{children}</ol>,
-  li: ({ children }) => <li className="text-slate-100">{children}</li>,
+  li: ({ children }) => <li className="text-body">{children}</li>,
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-violet-400/60 pl-3 text-sm italic text-slate-200">
+    <blockquote className="border-l-2 border-accent-violet/60 pl-3 text-sm italic text-body">
       {children}
     </blockquote>
   ),
-  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+  strong: ({ children }) => <strong className="font-semibold text-primary">{children}</strong>,
 };

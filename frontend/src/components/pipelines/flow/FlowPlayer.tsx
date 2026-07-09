@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { pipelineNodeTypes } from "../PipelineNode";
 
 import { pipelineEdgeTypes } from "./TypedEdge";
+import { useFlowDotColor } from "./use-flow-dot-color";
 import { useFlowPlayback } from "./use-flow-playback";
 
 import type { PipelineNodeData } from "../PipelineNode";
@@ -57,6 +58,7 @@ export function FlowPlayer({
 }: FlowPlayerProps) {
   const playback = useFlowPlayback({ steps, edges, autoPlay, loop: ambient });
   const { activeIndex } = playback;
+  const dotColor = useFlowDotColor();
 
   const mergedNodeTypes = useMemo(
     () => (nodeTypes ? { ...pipelineNodeTypes, ...nodeTypes } : pipelineNodeTypes),
@@ -140,12 +142,12 @@ export function FlowPlayer({
         preventScrolling={false}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={18} size={1} color="#1f2937" />
+        <Background gap={18} size={1} color={dotColor} />
       </ReactFlow>
 
       {steps.length > 0 && !ambient ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/90 px-2 py-1.5 shadow-lg">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-hairline bg-canvas-raised/90 px-2 py-1.5 shadow-elevation-2">
             <Button
               size="sm"
               variant="ghost"
@@ -208,10 +210,10 @@ export function FlowPlayer({
                       className={cn(
                         "h-2 rounded-full transition-all",
                         index === activeIndex
-                          ? "w-5 bg-cyan-300"
+                          ? "w-5 bg-accent-cyan"
                           : index < activeIndex
-                            ? "w-2 bg-cyan-300/50 hover:bg-cyan-200/70"
-                            : "w-2 bg-white/20 hover:bg-white/40",
+                            ? "w-2 bg-accent-cyan/50 hover:bg-accent-cyan/70"
+                            : "w-2 bg-strong hover:brightness-150",
                       )}
                     />
                   );

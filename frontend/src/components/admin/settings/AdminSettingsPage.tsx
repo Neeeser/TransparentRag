@@ -36,8 +36,8 @@ export function AdminSettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8 pb-24">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Settings</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-2xl font-semibold text-primary">Settings</h1>
+        <p className="text-sm text-muted">
           Runtime application configuration. Env-pinned values are read-only here.
         </p>
       </div>
@@ -45,7 +45,7 @@ export function AdminSettingsPage() {
       {(loadError || error) && (
         <p
           role="alert"
-          className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+          className="rounded-2xl border border-data-neg/30 bg-data-neg/10 px-4 py-3 text-sm text-data-neg"
         >
           {loadError || error}
         </p>
@@ -53,25 +53,25 @@ export function AdminSettingsPage() {
       {success && (
         <p
           role="status"
-          className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200"
+          className="rounded-2xl border border-data-pos/30 bg-data-pos/10 px-4 py-3 text-sm text-data-pos"
         >
           {success}
         </p>
       )}
 
       {loading ? (
-        <p className="px-1 py-6 text-sm text-slate-400">Loading settings…</p>
+        <p className="px-1 py-6 text-sm text-muted">Loading settings…</p>
       ) : (
         <div className="space-y-10">
           {Array.from(sections.entries()).map(([section, fields]) => (
             <section key={section} aria-labelledby={`config-section-${section}`}>
               <h2
                 id={`config-section-${section}`}
-                className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"
+                className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted"
               >
                 {titleCase(section)}
               </h2>
-              <div className="mt-2 divide-y divide-white/5 border-t border-white/5">
+              <div className="mt-2 divide-y divide-hairline border-t border-hairline">
                 {fields.map((field) => (
                   <div key={field.key} className="py-5">
                     <ConfigFieldControl
@@ -91,8 +91,8 @@ export function AdminSettingsPage() {
 
       {dirtyCount > 0 && (
         <div className="sticky bottom-4 z-10">
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/95 px-5 py-3 shadow-xl backdrop-blur">
-            <p className="text-sm text-slate-300">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-hairline bg-canvas-raised/95 px-5 py-3 shadow-elevation-2 backdrop-blur">
+            <p className="text-sm text-body">
               {dirtyCount} unsaved {dirtyCount === 1 ? "change" : "changes"}
             </p>
             <div className="flex gap-2">

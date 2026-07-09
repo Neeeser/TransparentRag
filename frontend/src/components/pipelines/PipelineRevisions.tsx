@@ -36,14 +36,11 @@ function RevisionEntry({
   const hiddenCount = changes.length - visible.length;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+    <div className="rounded-2xl border border-hairline bg-surface px-3 py-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-white">v{version.version}</p>
-          <p
-            className="truncate text-xs text-slate-400"
-            title={version.change_summary ?? undefined}
-          >
+          <p className="font-semibold text-primary">v{version.version}</p>
+          <p className="truncate text-xs text-muted" title={version.change_summary ?? undefined}>
             {version.change_summary || "No summary provided."}
           </p>
         </div>
@@ -57,11 +54,11 @@ function RevisionEntry({
         </Button>
       </div>
       {changes.length > 0 ? (
-        <ul className="mt-2 space-y-1 border-t border-white/5 pt-2">
+        <ul className="mt-2 space-y-1 border-t border-hairline pt-2">
           {visible.map((change) => (
             <li
               key={`${change.kind}-${change.summary}`}
-              className="flex items-start gap-2 text-[11px] text-slate-400"
+              className="flex items-start gap-2 text-[11px] text-muted"
             >
               <span
                 className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${changeKindDot(change.kind)}`}
@@ -74,7 +71,7 @@ function RevisionEntry({
               <button
                 type="button"
                 onClick={() => setExpanded((prev) => !prev)}
-                className="text-[11px] text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
+                className="text-[11px] text-meta underline-offset-2 hover:text-body hover:underline"
               >
                 {expanded ? "Show less" : `Show ${hiddenCount} more`}
               </button>
@@ -94,9 +91,9 @@ export function PipelineRevisions({
 }: PipelineRevisionsProps) {
   return (
     <GlassCard className="rounded-3xl p-5">
-      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Revisions</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">Revisions</p>
       <div className="mt-3 space-y-3 text-sm">
-        {versions.length === 0 && <p className="text-sm text-slate-400">No revisions loaded.</p>}
+        {versions.length === 0 && <p className="text-sm text-muted">No revisions loaded.</p>}
         {versions.map((version) => (
           <RevisionEntry
             key={version.id}

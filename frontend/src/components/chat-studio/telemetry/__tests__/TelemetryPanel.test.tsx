@@ -440,7 +440,7 @@ describe("TelemetryPanel", () => {
     render(<TelemetryPanel {...buildProps()} />);
 
     const dragButton = screen.getByRole("button", { name: /Reorder System prompt/ });
-    expect(dragButton.className).toContain("bg-white/10");
+    expect(dragButton.className).toContain("bg-surface-strong");
     mockIsDragging = false;
   });
 });

@@ -9,13 +9,13 @@ export const changeKindDot = (kind: string): string => {
     case "node_added":
     case "edge_added":
     case "created":
-      return "bg-emerald-400";
+      return "bg-data-pos";
     case "node_removed":
     case "edge_removed":
-      return "bg-rose-400";
+      return "bg-data-neg";
     case "layout":
-      return "bg-slate-500";
+      return "bg-stage-neutral";
     default:
-      return "bg-amber-400";
+      return "bg-data-warn";
   }
 };

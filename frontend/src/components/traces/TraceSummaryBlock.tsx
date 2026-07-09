@@ -20,11 +20,13 @@ export function TraceSummaryBlock({ item, highlight, highlightChunkId }: TraceSu
   return (
     <div
       className={cn(
-        "rounded-2xl border border-white/10 bg-black/20 p-3",
-        highlight && "border-cyan-400/70 bg-cyan-500/10",
+        "rounded-2xl border border-hairline bg-surface p-3",
+        highlight && "border-accent-cyan/70 bg-accent-cyan/10",
       )}
     >
-      <p className="mb-2 text-[10px] uppercase tracking-[0.3em] text-slate-400">{item.label}</p>
+      <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
+        {item.label}
+      </p>
       <TraceValueView
         value={item.value}
         kind={item.kind ?? "json"}

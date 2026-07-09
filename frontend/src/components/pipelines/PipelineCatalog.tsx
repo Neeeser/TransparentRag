@@ -24,13 +24,13 @@ export function PipelineCatalog({
 }: PipelineCatalogProps) {
   return (
     <div>
-      <div className="flex items-center gap-2 text-sm font-semibold text-white">
-        <Layers className="h-4 w-4 text-violet-300" />
+      <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+        <Layers className="h-4 w-4 text-accent-violet" />
         Pipeline catalog
       </div>
       <div className="mt-4 space-y-3">
         {pipelines.length === 0 && (
-          <p className="text-sm text-slate-400">No pipelines yet. Create one above.</p>
+          <p className="text-sm text-muted">No pipelines yet. Create one above.</p>
         )}
         {pipelines.map((pipeline) => {
           const isSelected = selectedPipelineId === pipeline.id;
@@ -41,8 +41,8 @@ export function PipelineCatalog({
               className={cn(
                 "group flex items-center gap-2 rounded-2xl border px-2 py-2 text-sm transition",
                 isSelected
-                  ? "border-violet-400 bg-violet-500/10 text-white"
-                  : "border-white/5 bg-white/5 text-slate-300 hover:border-white/20",
+                  ? "border-accent-violet bg-accent-violet/10 text-primary"
+                  : "border-hairline bg-surface text-body hover:border-strong",
               )}
             >
               <button
@@ -50,14 +50,14 @@ export function PipelineCatalog({
                 onClick={() => onSelect(pipeline)}
                 className={cn(
                   "flex-1 rounded-xl px-2 py-1 text-left",
-                  isSelected ? "text-white" : "text-slate-300 group-hover:text-white",
+                  isSelected ? "text-primary" : "text-body group-hover:text-primary",
                 )}
               >
                 <p className="font-semibold">{pipeline.name}</p>
                 <p
                   className={cn(
                     "text-xs",
-                    isSelected ? "text-slate-300" : "text-slate-400 group-hover:text-slate-200",
+                    isSelected ? "text-body" : "text-muted group-hover:text-body",
                   )}
                 >
                   {pipeline.kind} • v{pipeline.current_version}
@@ -70,11 +70,11 @@ export function PipelineCatalog({
                   disabled={isInUse}
                   aria-label={`Delete ${pipeline.name}`}
                   className={cn(
-                    "inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border text-slate-400 transition",
+                    "inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border text-muted transition",
                     isSelected
-                      ? "border-white/20 hover:border-rose-300/60 hover:text-rose-300"
-                      : "border-white/10 hover:border-rose-300/60 hover:text-rose-300",
-                    isInUse && "cursor-not-allowed border-white/10 text-slate-600",
+                      ? "border-strong hover:border-data-neg/60 hover:text-data-neg"
+                      : "border-hairline hover:border-data-neg/60 hover:text-data-neg",
+                    isInUse && "cursor-not-allowed border-hairline text-faint",
                   )}
                 >
                   <Trash2 className="h-4 w-4" />

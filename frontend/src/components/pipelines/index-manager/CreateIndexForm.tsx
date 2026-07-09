@@ -21,7 +21,7 @@ type CreateIndexFormProps = {
   onError: (message: string) => void;
 };
 
-const FIELD_LABEL_CLASS = "text-xs uppercase tracking-[0.3em] text-slate-400";
+const FIELD_LABEL_CLASS = "font-mono text-[11px] uppercase tracking-[0.3em] text-muted";
 
 /** The "create new index" form. Everything the backend constrains — metric
  * options, the dimension ceiling, sparse support, cloud placement — renders
@@ -48,10 +48,12 @@ export function CreateIndexForm({
   const isDense = !form.supportsSparse || form.createForm.vector_type !== "sparse";
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+    <div className="rounded-3xl border border-hairline bg-surface p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Create new index</p>
-        <p className="text-xs text-slate-400">
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+          Create new index
+        </p>
+        <p className="text-xs text-muted">
           {backendInfo.label} · up to {form.maxDimension.toLocaleString()} dimensions
         </p>
       </div>
@@ -89,7 +91,7 @@ export function CreateIndexForm({
               ))}
             </Select>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-200">
+            <div className="rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm text-body">
               dotproduct
             </div>
           )}
@@ -101,24 +103,24 @@ export function CreateIndexForm({
                 <div className="flex items-center gap-2">
                   <p className={FIELD_LABEL_CLASS}>Dimension</p>
                   {form.useModelDimension && form.selectedEmbeddingModel?.dimension ? (
-                    <span className="rounded-full border border-violet-400/40 bg-violet-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.3em] text-violet-200">
+                    <span className="rounded-full border border-accent-violet/40 bg-accent-violet/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.3em] text-accent-violet">
                       Dim {form.selectedEmbeddingModel.dimension.toLocaleString()}
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-muted">
                   Enter it manually or match an embedding model. Max{" "}
                   {form.maxDimension.toLocaleString()}.
                 </p>
               </div>
-              <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/40 p-1 text-[11px] uppercase tracking-[0.3em] text-slate-400">
+              <div className="flex items-center gap-1 rounded-full border border-hairline bg-surface p-1 text-[11px] uppercase tracking-[0.3em] text-muted">
                 <button
                   type="button"
                   onClick={() => form.handleDimensionModeChange("manual")}
                   className={`rounded-full px-3 py-1 transition ${
                     form.useModelDimension
-                      ? "text-slate-400 hover:text-white"
-                      : "bg-violet-500/30 text-white"
+                      ? "text-muted hover:text-primary"
+                      : "bg-accent-violet/30 text-primary"
                   }`}
                 >
                   Manual
@@ -128,8 +130,8 @@ export function CreateIndexForm({
                   onClick={() => form.handleDimensionModeChange("model")}
                   className={`rounded-full px-3 py-1 transition ${
                     form.useModelDimension
-                      ? "bg-violet-500/30 text-white"
-                      : "text-slate-400 hover:text-white"
+                      ? "bg-accent-violet/30 text-primary"
+                      : "text-muted hover:text-primary"
                   }`}
                 >
                   From model
@@ -137,7 +139,7 @@ export function CreateIndexForm({
               </div>
             </div>
             {form.useModelDimension ? (
-              <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-2xl border border-white/10 bg-black/30 p-3">
+              <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-2xl border border-hairline bg-surface p-3">
                 <EmbeddingModelSelectorCard
                   models={embeddingModels}
                   selectedModelKey={form.selectedEmbeddingModelId}
@@ -190,7 +192,7 @@ export function CreateIndexForm({
         ) : null}
       </div>
       {form.createDisabledReason ? (
-        <p className="mt-3 text-xs text-slate-400">{form.createDisabledReason}</p>
+        <p className="mt-3 text-xs text-muted">{form.createDisabledReason}</p>
       ) : null}
       <Button
         onClick={form.handleCreate}

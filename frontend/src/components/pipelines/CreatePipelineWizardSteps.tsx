@@ -83,8 +83,8 @@ export function WizardProcessingStep({
     <div className="space-y-5">
       {kind === "ingestion" ? (
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Chunking</p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">Chunking</p>
+          <p className="mt-1 text-xs text-meta">
             Documents are split into chunks before embedding; chunk size trades precision for
             context.
           </p>
@@ -105,13 +105,13 @@ export function WizardProcessingStep({
                   className={cn(
                     "rounded-2xl border p-3 text-left transition",
                     active
-                      ? "border-violet-400/70 bg-violet-500/10"
-                      : "border-white/10 bg-white/5 hover:border-white/30",
+                      ? "border-accent-violet/70 bg-accent-violet/10"
+                      : "border-hairline bg-surface hover:border-strong",
                   )}
                 >
-                  <p className="text-sm font-semibold text-white">{preset.label}</p>
-                  <p className="mt-0.5 text-[11px] leading-4 text-slate-400">{preset.hint}</p>
-                  <p className="mt-1.5 text-[10px] text-slate-500">
+                  <p className="text-sm font-semibold text-primary">{preset.label}</p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-muted">{preset.hint}</p>
+                  <p className="mt-1.5 text-[10px] text-meta">
                     {preset.size} tokens · {preset.overlap} overlap
                   </p>
                 </button>
@@ -122,7 +122,7 @@ export function WizardProcessingStep({
             type="button"
             onClick={onToggleAdvancedChunking}
             aria-expanded={showAdvancedChunking}
-            className="mt-3 text-xs text-slate-400 underline-offset-2 hover:text-white hover:underline"
+            className="mt-3 text-xs text-muted underline-offset-2 hover:text-primary hover:underline"
           >
             {showAdvancedChunking ? "Hide advanced chunking" : "Advanced chunking"}
           </button>
@@ -149,8 +149,10 @@ export function WizardProcessingStep({
         </div>
       ) : null}
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Embedding model</p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+          Embedding model
+        </p>
+        <p className="mt-1 text-xs text-meta">
           {kind === "ingestion"
             ? "Turns each chunk into a vector. Leave the default unless you know you need a specific model."
             : "Must be the same model your ingestion pipeline used, so queries land in the same vector space."}
@@ -165,7 +167,7 @@ export function WizardProcessingStep({
           />
         </div>
         {dimensionMismatch ? (
-          <p className="mt-2 rounded-2xl border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          <p className="mt-2 rounded-2xl border border-data-warn/40 bg-data-warn/10 px-3 py-2 text-xs text-data-warn">
             {selectedModel?.name ?? "This model"} produces {selectedModel?.dimension}-dimension
             vectors but the index &quot;{indexName}&quot; stores {selectedIndex?.dimension}. Pick a
             matching model or index.
@@ -202,10 +204,10 @@ export function WizardReviewStep({
 }: ReviewStepProps) {
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
-        <div className="flex items-center gap-2 border-b border-white/5 px-4 py-2">
-          <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-canvas-raised/70">
+        <div className="flex items-center gap-2 border-b border-hairline px-4 py-2">
+          <Sparkles className="h-3.5 w-3.5 text-accent-cyan" />
+          <p className="text-[10px] uppercase tracking-[0.3em] text-muted">
             Your pipeline, in motion
           </p>
         </div>
@@ -219,34 +221,32 @@ export function WizardReviewStep({
           />
         </div>
       </div>
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
+      <div className="rounded-2xl border border-hairline bg-surface p-4 text-sm text-body">
         <dl className="grid gap-3 sm:grid-cols-2">
           <div>
-            <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Name</dt>
-            <dd className="mt-0.5 font-semibold text-white">{name || "Untitled"}</dd>
+            <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Name</dt>
+            <dd className="mt-0.5 font-semibold text-primary">{name || "Untitled"}</dd>
           </div>
           <div>
-            <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Type</dt>
-            <dd className="mt-0.5 text-white">
+            <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Type</dt>
+            <dd className="mt-0.5 text-primary">
               {kind === "ingestion" ? "Ingestion" : "Retrieval"}
             </dd>
           </div>
           <div>
-            <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Vector store</dt>
-            <dd className="mt-0.5 text-white">
+            <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Vector store</dt>
+            <dd className="mt-0.5 text-primary">
               {BACKEND_TITLES[backend]} · {indexName || "no index"}
             </dd>
           </div>
           <div>
-            <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
-              Embedding model
-            </dt>
-            <dd className="mt-0.5 text-white">{selectedModelName ?? "Workspace default"}</dd>
+            <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Embedding model</dt>
+            <dd className="mt-0.5 text-primary">{selectedModelName ?? "Workspace default"}</dd>
           </div>
           {kind === "ingestion" ? (
             <div>
-              <dt className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Chunking</dt>
-              <dd className="mt-0.5 text-white">
+              <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Chunking</dt>
+              <dd className="mt-0.5 text-primary">
                 {chunkPresetLabel ? `${chunkPresetLabel} · ` : "Custom · "}
                 {chunkSize}/{chunkOverlap} tokens
               </dd>

@@ -305,7 +305,7 @@ function ChatTimelineComponent({
           data-live-stream-key={liveResponseAnimationKey}
         >
           <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-300/80">ASSISTANT</p>
+            <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted">ASSISTANT</p>
           </div>
           {showStreamingBubble && hasLiveText ? (
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>

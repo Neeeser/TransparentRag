@@ -63,22 +63,22 @@ export function CollectionSidebar({
       : [...baseNavItems, visualizeNavItem];
 
   return (
-    <GlassCard className="rounded-3xl border border-white/10 p-5">
+    <GlassCard className="rounded-3xl border border-hairline p-5">
       <button
         type="button"
         onClick={() => router.push("/collections")}
-        className="flex w-full items-center gap-2 rounded-2xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:border-white/30 hover:text-white"
+        className="flex w-full items-center gap-2 rounded-2xl border border-hairline px-3 py-2 text-sm text-body transition hover:border-strong hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to collections
       </button>
 
       <div className="mt-5">
-        <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Collection</p>
-        <h2 className="mt-2 text-lg font-semibold text-white">
+        <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">Collection</p>
+        <h2 className="mt-2 text-lg font-semibold text-primary">
           {collection?.name || "Loading..."}
         </h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           {collection?.description?.trim() || "No description yet."}
         </p>
       </div>
@@ -93,16 +93,16 @@ export function CollectionSidebar({
               type="button"
               onClick={() => onSelectView(item.id)}
               className={cn(
-                "flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition",
+                "flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
                 isActive
-                  ? "border-violet-400 bg-violet-500/10 text-white"
-                  : "border-white/10 bg-white/5 text-slate-300 hover:border-white/30",
+                  ? "border-accent-violet bg-accent-violet/10 text-primary"
+                  : "border-hairline bg-surface text-body hover:border-strong",
               )}
             >
-              <Icon className="mt-0.5 h-4 w-4 text-violet-300" />
+              <Icon className="mt-0.5 h-4 w-4 text-accent-violet" />
               <div>
                 <p className="text-sm font-semibold">{item.label}</p>
-                <p className="text-xs text-slate-400">{item.description}</p>
+                <p className="text-xs text-muted">{item.description}</p>
               </div>
             </button>
           );
@@ -117,16 +117,16 @@ export function CollectionSidebar({
           }
           disabled={!collection}
           className={cn(
-            "flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition",
+            "flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
             collection
-              ? "border-white/10 bg-white/5 text-slate-300 hover:border-white/30"
-              : "cursor-not-allowed border-white/5 bg-white/5 text-slate-500",
+              ? "border-hairline bg-surface text-body hover:border-strong"
+              : "cursor-not-allowed border-hairline bg-surface text-faint",
           )}
         >
-          <MessageSquare className="mt-0.5 h-4 w-4 text-violet-300" />
+          <MessageSquare className="mt-0.5 h-4 w-4 text-accent-violet" />
           <div>
             <p className="text-sm font-semibold">Chat studio</p>
-            <p className="text-xs text-slate-400">Open with this collection pre-selected.</p>
+            <p className="text-xs text-muted">Open with this collection pre-selected.</p>
           </div>
         </button>
       </div>

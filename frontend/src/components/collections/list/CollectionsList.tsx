@@ -23,7 +23,7 @@ export function CollectionsList({ collections, statsById, onDeleteRequest }: Col
 
   if (collections.length === 0) {
     return (
-      <GlassCard className="rounded-3xl border border-white/10 p-6 text-sm text-slate-300">
+      <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-body">
         No collections yet. Create one to start indexing documents.
       </GlassCard>
     );
@@ -46,19 +46,20 @@ export function CollectionsList({ collections, statsById, onDeleteRequest }: Col
               }
             }}
             className={cn(
-              "group rounded-3xl border border-white/5 bg-white/5 p-5 text-left transition",
-              "hover:border-white/20 hover:bg-white/10",
+              "group rounded-3xl border border-hairline bg-surface p-5 text-left transition",
+              "hover:border-strong hover:bg-surface-strong",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
             )}
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-slate-400">
-                  <FolderKanban className="h-3.5 w-3.5 text-violet-300" />
+                <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.35em] text-muted">
+                  <FolderKanban className="h-3.5 w-3.5 text-accent-violet" />
                   Collection
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-white">{collection.name}</h2>
-                  <p className="mt-1 text-sm text-slate-400">
+                  <h2 className="text-xl font-semibold text-primary">{collection.name}</h2>
+                  <p className="mt-1 text-sm text-muted">
                     {collection.description?.trim() || "No description yet."}
                   </p>
                 </div>
@@ -71,7 +72,8 @@ export function CollectionsList({ collections, statsById, onDeleteRequest }: Col
                 }}
                 className={cn(
                   "inline-flex h-10 w-10 items-center justify-center rounded-full border",
-                  "border-white/10 text-slate-400 transition hover:border-rose-300/60 hover:text-rose-300",
+                  "border-hairline text-muted transition hover:border-data-neg/60 hover:text-data-neg",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
                 )}
                 aria-label={`Delete ${collection.name}`}
               >
@@ -83,11 +85,11 @@ export function CollectionsList({ collections, statsById, onDeleteRequest }: Col
               {statItems.map((item) => (
                 <div
                   key={`${collection.id}-${item.label}`}
-                  className="rounded-2xl border border-white/5 bg-white/5 px-3 py-3 text-sm"
+                  className="rounded-2xl border border-hairline bg-surface px-3 py-3 text-sm"
                 >
                   <CollectionStatCard
                     item={item}
-                    valueClassName="mt-2 text-base font-semibold text-white"
+                    valueClassName="mt-2 text-base font-semibold text-primary"
                   />
                 </div>
               ))}

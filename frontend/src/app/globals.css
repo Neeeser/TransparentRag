@@ -163,15 +163,6 @@
   --shadow-elevation-2: var(--elevation-2);
   --shadow-glow: 0 10px 30px -10px var(--glow);
 
-  /* Legacy aliases — keep pre-migration classes (bg-surface, bg-background,
-     text-foreground, bg-accent, border-border) working while the folder
-     sweep is in flight. Removed once every usage is migrated. */
-  --color-background: var(--canvas);
-  --color-surface-alt: var(--surface-strong);
-  --color-foreground: var(--text-primary);
-  --color-accent: var(--accent-violet);
-  --color-border: var(--border-hairline);
-
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -206,8 +197,8 @@ html {
   }
 }
 
-/* Legacy alias class — points at the token surface + elevation so existing
-   .glass-panel markup keeps working until migrated to bg-surface/shadow. */
+/* Canonical glass card surface (used by GlassCard and a few bespoke panels):
+   token-driven fill + hairline border + themed elevation. */
 .glass-panel {
   background: var(--surface);
   border: 1px solid var(--border-hairline);

@@ -58,40 +58,40 @@ export function EmbeddingModelSelectorCard({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-body">
             {currentModelInfo?.name || selectedModelKey || "Select an embedding model"}
           </p>
           {selectedModelKey && (
-            <p className="text-[11px] text-slate-500 break-all">{selectedModelKey}</p>
+            <p className="text-[11px] text-meta break-all">{selectedModelKey}</p>
           )}
         </div>
-        <div className="text-right text-[11px] uppercase tracking-[0.3em] text-slate-500">
+        <div className="text-right text-[11px] uppercase tracking-[0.3em] text-meta">
           {modelsLoading && (
-            <span className="inline-flex items-center gap-1 text-slate-300">
+            <span className="inline-flex items-center gap-1 text-body">
               <Loader className="h-3.5 w-3.5" />
               Syncing
             </span>
           )}
         </div>
       </div>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted">
         Pick an OpenRouter embedding model to auto-fill its vector dimension.
       </p>
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-meta" />
         <input
           type="search"
-          className="w-full rounded-2xl border border-white/10 bg-black/40 py-2 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-violet-400"
+          className="w-full rounded-2xl border border-hairline bg-surface py-2 pl-9 pr-3 text-sm text-primary outline-none placeholder:text-meta focus:border-accent-violet"
           placeholder="Search OpenRouter embeddings…"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
         />
       </div>
-      {modelsError && <p className="text-sm text-rose-300">{modelsError}</p>}
+      {modelsError && <p className="text-sm text-data-neg">{modelsError}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
+        <div className="flex-1 rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Dimension</span>
+            <span className="text-[11px] uppercase tracking-[0.3em] text-muted">Dimension</span>
             <span>
               {currentModelInfo?.dimension
                 ? currentModelInfo.dimension.toLocaleString()
@@ -101,7 +101,7 @@ export function EmbeddingModelSelectorCard({
         </div>
         <div className="min-w-[160px]">
           <select
-            className="w-full rounded-2xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-slate-200 outline-none focus:border-violet-400"
+            className="w-full rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body outline-none focus:border-accent-violet"
             value={sortOption}
             onChange={(event) => setSortOption(event.target.value as EmbeddingModelSortOption)}
           >
@@ -112,9 +112,9 @@ export function EmbeddingModelSelectorCard({
       </div>
       <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
         {modelsLoading && filteredModels.length === 0 ? (
-          <p className="text-sm text-slate-400">Loading embedding models…</p>
+          <p className="text-sm text-muted">Loading embedding models…</p>
         ) : visibleModels.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             {searchTerm ? `No models match "${searchTerm}".` : "No embedding models available."}
           </p>
         ) : (
@@ -140,19 +140,19 @@ export function EmbeddingModelSelectorCard({
                 className={cn(
                   "w-full rounded-2xl border px-3 py-2 text-left transition",
                   isSelected
-                    ? "border-violet-400 bg-violet-500/10 text-white"
-                    : "border-white/10 bg-white/5 text-slate-200 hover:border-white/40",
+                    ? "border-accent-violet bg-accent-violet/10 text-primary"
+                    : "border-hairline bg-surface text-body hover:border-strong",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">{model.name}</p>
-                    <p className="text-[11px] text-slate-500 break-all">{model.id}</p>
+                    <p className="text-sm font-semibold text-primary">{model.name}</p>
+                    <p className="text-[11px] text-meta break-all">{model.id}</p>
                   </div>
-                  {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-violet-300" />}
+                  {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-accent-violet" />}
                 </div>
-                {description && <p className="mt-2 text-xs text-slate-400">{description}</p>}
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.3em] text-slate-500">
+                {description && <p className="mt-2 text-xs text-muted">{description}</p>}
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.3em] text-meta">
                   {contextLabel && <span>{contextLabel}</span>}
                   {dimensionLabel && <span>{dimensionLabel}</span>}
                   {promptLabel && <span>Prompt {promptLabel}</span>}

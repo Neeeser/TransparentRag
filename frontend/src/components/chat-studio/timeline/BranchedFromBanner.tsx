@@ -12,12 +12,14 @@ export const BranchedFromBanner = ({
   onNavigateToSession,
 }: BranchedFromBannerProps) => (
   <div className={className}>
-    <span className="text-[9px] uppercase tracking-[0.35em] text-slate-500">Branched from</span>
+    <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-meta">
+      Branched from
+    </span>
     {branchedFromSessionId ? (
       <button
         type="button"
         onClick={() => onNavigateToSession(branchedFromSessionId)}
-        className="text-slate-100 underline-offset-4 hover:underline"
+        className="text-body underline-offset-4 hover:underline"
       >
         {branchedFromLabel}
       </button>

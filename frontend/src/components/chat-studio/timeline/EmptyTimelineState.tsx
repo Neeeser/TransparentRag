@@ -16,23 +16,26 @@ export const EmptyTimelineState = ({
       <button
         type="button"
         onClick={onModelSelect}
-        className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-left text-xs text-slate-300 transition hover:border-white/30 hover:text-white"
+        className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-hairline bg-surface px-5 py-3 text-left text-xs text-body transition hover:border-strong hover:text-primary"
       >
-        <span className="shrink-0 text-[10px] uppercase tracking-[0.35em] text-slate-500">
+        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.35em] text-meta">
           Model
         </span>
-        <span className="min-w-0 truncate text-sm font-semibold text-white">{modelLabel}</span>
+        <span className="min-w-0 truncate text-sm font-semibold text-primary">{modelLabel}</span>
       </button>
     </div>
-    <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/70 via-slate-950/40 to-cyan-950/30 p-6 text-left shadow-[0_30px_80px_-50px_rgba(56,189,248,0.35)]">
+    <div className="w-full max-w-3xl rounded-3xl border border-hairline bg-surface p-6 text-left shadow-elevation-2">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Overrides</p>
-          <h4 className="text-lg font-semibold text-white">Run settings active</h4>
-          <p className="text-sm text-slate-400">Tap a section to open it in Run settings.</p>
+          <p className="font-mono text-xs uppercase tracking-[0.35em] text-meta">Overrides</p>
+          <h4 className="text-lg font-semibold text-primary">Run settings active</h4>
+          <p className="text-sm text-muted">Tap a section to open it in Run settings.</p>
         </div>
-        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.4em] text-cyan-300">
-          <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.85)]" />
+        <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.4em] text-accent-cyan">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-cyan opacity-60 motion-reduce:animate-none" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-cyan" />
+          </span>
           Live
         </div>
       </div>
@@ -43,13 +46,13 @@ export const EmptyTimelineState = ({
               key={section.id}
               type="button"
               onClick={() => onOverrideSelect(section.id)}
-              className="rounded-full border border-cyan-200/30 bg-cyan-400/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100 transition hover:border-cyan-200/60 hover:bg-cyan-400/20"
+              className="rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-4 py-1.5 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-accent-cyan transition hover:border-accent-cyan/60 hover:bg-accent-cyan/20"
             >
               {section.label}
             </button>
           ))
         ) : (
-          <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-meta">
             No overrides yet
           </span>
         )}

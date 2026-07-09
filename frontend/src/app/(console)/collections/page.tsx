@@ -150,9 +150,11 @@ export default function CollectionsPage() {
     <div className="relative space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Collections</p>
-          <h1 className="text-3xl font-semibold text-white">Your knowledge bases.</h1>
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">
+            Collections
+          </p>
+          <h1 className="text-3xl font-semibold text-primary">Your knowledge bases.</h1>
+          <p className="mt-2 text-sm text-muted">
             Pick a collection to dive into documents, search, and pipeline settings.
           </p>
         </div>
@@ -173,7 +175,7 @@ export default function CollectionsPage() {
       )}
 
       {message && (
-        <GlassCard className="rounded-3xl border border-white/10 p-4 text-sm text-slate-200">
+        <GlassCard className="rounded-3xl border border-hairline p-4 text-sm text-body">
           {message}
         </GlassCard>
       )}

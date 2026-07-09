@@ -23,11 +23,11 @@ export const CollectionToolsCard = ({
   collectionsError,
 }: CollectionToolsCardProps) => {
   if (collectionsLoading) {
-    return <p className="text-sm text-slate-400">Loading collections…</p>;
+    return <p className="text-sm text-muted">Loading collections…</p>;
   }
 
   if (collectionsError) {
-    return <p className="text-sm text-rose-300">{collectionsError}</p>;
+    return <p className="text-sm text-data-neg">{collectionsError}</p>;
   }
 
   const noneSelected = selectedCollectionIds.length === 0;
@@ -41,14 +41,14 @@ export const CollectionToolsCard = ({
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-white">
+          <p className="text-sm text-primary">
             {noneSelected
               ? "No collections enabled"
               : `${selectedCollectionIds.length} collection${
                   selectedCollectionIds.length === 1 ? "" : "s"
                 } enabled`}
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted">
             Select one or more collections to expose retrieval tools to the model.
           </p>
         </div>
@@ -56,7 +56,7 @@ export const CollectionToolsCard = ({
           <button
             type="button"
             onClick={onClear}
-            className="text-[11px] uppercase tracking-[0.3em] text-slate-300 hover:text-white"
+            className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted hover:text-primary"
           >
             Clear all
           </button>
@@ -81,8 +81,8 @@ export const CollectionToolsCard = ({
           className={cn(
             "flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left",
             noneSelected
-              ? "border-cyan-400/50 bg-cyan-500/10 text-white"
-              : "border-white/10 bg-white/5 text-slate-300 hover:border-white/30",
+              ? "border-accent-cyan/50 bg-accent-cyan/10 text-primary"
+              : "border-hairline bg-surface text-body hover:border-strong",
           )}
           onClick={onClear}
         >
@@ -90,7 +90,7 @@ export const CollectionToolsCard = ({
           <input type="checkbox" readOnly checked={noneSelected} />
         </button>
         {collections.length === 0 ? (
-          <p className="text-[11px] text-slate-400">No collections available.</p>
+          <p className="text-[11px] text-muted">No collections available.</p>
         ) : (
           collections.map((collection) => {
             const selected = selectedCollectionIds.includes(collection.id);
@@ -101,8 +101,8 @@ export const CollectionToolsCard = ({
                 className={cn(
                   "flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left",
                   selected
-                    ? "border-violet-400/60 bg-violet-500/10 text-white"
-                    : "border-white/10 bg-white/5 text-slate-300 hover:border-white/30",
+                    ? "border-accent-violet/60 bg-accent-violet/10 text-primary"
+                    : "border-hairline bg-surface text-body hover:border-strong",
                 )}
                 onClick={() => onToggle(collection.id)}
               >
