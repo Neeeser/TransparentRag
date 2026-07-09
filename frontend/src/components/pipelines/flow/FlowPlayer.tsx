@@ -28,6 +28,12 @@ type FlowPlayerProps = {
   className?: string;
   /** Compact hides the step scrubber (landing-page style ambient playback). */
   compact?: boolean;
+  /**
+   * Ambient mode: an always-looping, non-interactive backdrop. Hides all
+   * controls, disables clicks/pans, and restarts playback at the end. Used
+   * for the landing-page hero flow.
+   */
+  ambient?: boolean;
   /** Extra node types merged over the pipeline defaults (e.g. the trace index store). */
   nodeTypes?: NodeTypes;
 };
@@ -46,9 +52,10 @@ export function FlowPlayer({
   onActiveStepChange,
   className,
   compact = false,
+  ambient = false,
   nodeTypes,
 }: FlowPlayerProps) {
-  const playback = useFlowPlayback({ steps, edges, autoPlay });
+  const playback = useFlowPlayback({ steps, edges, autoPlay, loop: ambient });
   const { activeIndex } = playback;
 
   const mergedNodeTypes = useMemo(
@@ -105,16 +112,23 @@ export function FlowPlayer({
   );
 
   return (
-    <div className={cn("relative h-full w-full", className)}>
+    <div
+      className={cn("relative h-full w-full", ambient && "pointer-events-none", className)}
+      aria-hidden={ambient || undefined}
+    >
       <ReactFlow
         nodes={decoratedNodes}
         edges={decoratedEdges}
         nodeTypes={mergedNodeTypes}
         edgeTypes={pipelineEdgeTypes}
-        onNodeClick={(_event, node) => {
-          const index = stepIndexByNodeId.get(node.id);
-          if (index !== undefined) playback.seek(index);
-        }}
+        onNodeClick={
+          ambient
+            ? undefined
+            : (_event, node) => {
+                const index = stepIndexByNodeId.get(node.id);
+                if (index !== undefined) playback.seek(index);
+              }
+        }
         fitView
         fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
         minZoom={0.2}
@@ -122,14 +136,14 @@ export function FlowPlayer({
         nodesConnectable={false}
         elementsSelectable={false}
         zoomOnScroll={false}
-        panOnDrag={!compact}
+        panOnDrag={!compact && !ambient}
         preventScrolling={false}
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={18} size={1} color="#1f2937" />
       </ReactFlow>
 
-      {steps.length > 0 ? (
+      {steps.length > 0 && !ambient ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
           <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/90 px-2 py-1.5 shadow-lg">
             <Button
