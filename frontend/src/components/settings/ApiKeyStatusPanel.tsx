@@ -13,17 +13,17 @@ export function ApiKeyStatusPanel({
   return (
     <>
       <div className="flex items-center gap-3">
-        <ShieldCheck className="h-5 w-5 text-emerald-300" />
-        <h2 className="text-xl font-semibold text-white">Status</h2>
+        <ShieldCheck className="h-5 w-5 text-accent-cyan" />
+        <h2 className="text-xl font-semibold text-primary">Status</h2>
       </div>
-      <div className="mt-4 space-y-4 text-sm text-slate-300">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">OpenRouter</p>
-          <p className="mt-2 text-sm text-white">{openrouterStatusText}</p>
+      <div className="mt-4 space-y-4">
+        <div className="rounded-2xl border border-hairline bg-surface p-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">OpenRouter</p>
+          <p className="mt-2 text-sm text-body">{openrouterStatusText}</p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Pinecone</p>
-          <p className="mt-2 text-sm text-white">{pineconeStatusText}</p>
+        <div className="rounded-2xl border border-hairline bg-surface p-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">Pinecone</p>
+          <p className="mt-2 text-sm text-body">{pineconeStatusText}</p>
         </div>
       </div>
     </>

@@ -13,7 +13,7 @@ vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
 const api = vi.mocked(apiModule);
 
-const COLLECTIONS_LIVE = "Collections live";
+const COLLECTIONS_HEADING = "Your collections";
 const LOAD_FAILED = "Load failed";
 
 describe("DashboardPage", () => {
@@ -80,29 +80,37 @@ describe("DashboardPage", () => {
     const { container } = render(<DashboardPage />);
     // The Loader spinner exposes no role/text; span presence is the only handle.
     expect(container.querySelector("span")).toBeInTheDocument();
-    expect(screen.queryByText(COLLECTIONS_LIVE)).not.toBeInTheDocument();
+    // Loaded content (the collections section) must not be present while loading.
+    expect(screen.queryByText(COLLECTIONS_HEADING)).not.toBeInTheDocument();
   });
 
-  it("loads dashboard metrics and handles document errors", async () => {
+  it("greets the user and surfaces their collections; a document fetch error degrades gracefully", async () => {
     api.fetchDocuments.mockRejectedValueOnce(new Error("Doc fail"));
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_HEADING)).toBeInTheDocument();
     });
-    expect(screen.getByText(/Hello .*telemetry/)).toBeInTheDocument();
+    // Welcoming greeting, not a telemetry header.
+    expect(screen.getByRole("heading", { name: /welcome back/i })).toBeInTheDocument();
+    // The user's collections are the primary content.
+    expect(screen.getByText("One")).toBeInTheDocument();
+    expect(screen.getByText("Two")).toBeInTheDocument();
   });
 
-  it("handles session fetch errors", async () => {
+  it("survives a chat-session fetch error and shows the recent-chats empty state", async () => {
     api.listChatSessions.mockRejectedValueOnce(new Error("Session fail"));
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Chat sessions")).toBeInTheDocument();
+      expect(screen.getByText("Recent chats")).toBeInTheDocument();
     });
+    expect(
+      screen.getByText("Ask your collections a question to start a session."),
+    ).toBeInTheDocument();
   });
 
-  it("renders empty states when there is no data", async () => {
+  it("renders welcoming empty states when there is no data", async () => {
     api.fetchCollections.mockResolvedValueOnce([]);
     api.fetchPipelines.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     api.fetchDocuments.mockResolvedValueOnce([]);
@@ -111,10 +119,14 @@ describe("DashboardPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("No documents yet. Upload your first source from the collections page."),
+        screen.getByText(
+          "Create a collection to upload sources, tune a pipeline, and start retrieving.",
+        ),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText("Create your first collection to begin.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Uploaded sources land here as they finish processing."),
+    ).toBeInTheDocument();
   });
 
   it("shows error state on load failure", async () => {
@@ -135,36 +147,16 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("handles missing chat settings in pipelines", async () => {
-    const pipelineWithoutSettings = [
-      makePipeline({
-        definition: {
-          nodes: [{ id: "node-1", type: "other", name: "Other", config: {} }],
-          edges: [],
-        },
-      }),
-    ];
-    api.fetchPipelines
-      .mockResolvedValueOnce(pipelineWithoutSettings)
-      .mockResolvedValueOnce(pipelineWithoutSettings);
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
-    });
-    expect(screen.getByText("0% context utilization")).toBeInTheDocument();
-  });
-
-  it("falls back when retrieval pipeline names are missing", async () => {
+  it("falls back to a generic pipeline label when a collection's retrieval pipeline name is missing", async () => {
     api.fetchCollections.mockResolvedValueOnce([
       makeCollection({ id: "col-1", name: "One", retrieval_pipeline_id: null }),
     ]);
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(COLLECTIONS_LIVE)).toBeInTheDocument();
+      expect(screen.getByText(COLLECTIONS_HEADING)).toBeInTheDocument();
     });
-    expect(screen.getAllByText("Retrieval pipeline").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Retrieval").length).toBeGreaterThan(0);
   });
 
   it("avoids state updates after unmount", async () => {

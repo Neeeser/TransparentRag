@@ -11,14 +11,14 @@ type Tone = "cyan" | "violet";
 
 const TONE_CLASSES: Record<Tone, { container: string; title: string; toggle: string }> = {
   cyan: {
-    container: "rounded-3xl border border-cyan-400/30 bg-cyan-500/10 p-4",
-    title: "text-cyan-200",
-    toggle: "text-cyan-100",
+    container: "rounded-3xl border border-accent-cyan/30 bg-accent-cyan/10 p-4",
+    title: "text-accent-cyan",
+    toggle: "text-accent-cyan",
   },
   violet: {
-    container: "rounded-3xl border border-violet-400/30 bg-violet-500/10 p-4",
-    title: "text-violet-200",
-    toggle: "text-violet-100",
+    container: "rounded-3xl border border-accent-violet/30 bg-accent-violet/10 p-4",
+    title: "text-accent-violet",
+    toggle: "text-accent-violet",
   },
 };
 
@@ -52,12 +52,12 @@ export function TraceIOColumn({
   return (
     <div className={classes.container}>
       <div className="flex items-center justify-between gap-2">
-        <p className={`text-xs uppercase tracking-[0.35em] ${classes.title}`}>{title}</p>
+        <p className={`font-mono text-xs uppercase tracking-[0.35em] ${classes.title}`}>{title}</p>
         <Button
           variant="ghost"
           size="sm"
           onClick={onTogglePayloads}
-          className={`text-[10px] uppercase tracking-[0.3em] ${classes.toggle}`}
+          className={`font-mono text-[10px] uppercase tracking-[0.3em] ${classes.toggle}`}
         >
           {showPayloads ? "Hide full payloads" : "Show full payloads"}
         </Button>
@@ -75,17 +75,19 @@ export function TraceIOColumn({
             />
           ))
         ) : (
-          <p className="text-xs text-slate-400">{emptySummaryLabel}</p>
+          <p className="text-xs text-muted">{emptySummaryLabel}</p>
         )}
       </div>
       {showPayloads && (
-        <div className="mt-4 border-t border-white/10 pt-4">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-300">Full payloads</p>
+        <div className="mt-4 border-t border-hairline pt-4">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
+            Full payloads
+          </p>
           <div className="mt-3 space-y-3">
             {ioRecords?.length ? (
               ioRecords.map((record) => (
                 <div key={`${record.id}-${record.port}`} className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-slate-300">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
                     {record.port}
                   </p>
                   <TracePayloadBlock
@@ -99,7 +101,7 @@ export function TraceIOColumn({
                 </div>
               ))
             ) : (
-              <p className="text-xs text-slate-400">{emptyIoLabel}</p>
+              <p className="text-xs text-muted">{emptyIoLabel}</p>
             )}
           </div>
         </div>

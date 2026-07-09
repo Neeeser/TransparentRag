@@ -38,7 +38,7 @@ describe("TraceValueView registry", () => {
     expect(screen.getByText("0.900")).toBeInTheDocument();
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     // The traced chunk's row gets the highlight frame.
-    expect(container.querySelector(".border-cyan-400\\/70")).toBeInTheDocument();
+    expect(container.querySelector(".border-accent-cyan\\/70")).toBeInTheDocument();
   });
 
   it("renders an embedding summary with a dimension chip", () => {

@@ -11,11 +11,6 @@ import type { ChatSession, Collection, Document, Pipeline } from "@/lib/types";
 export type DashboardStats = {
   docCount: number;
   totalChunks: number;
-  totalTokens: number;
-  contextUtilization: number;
-  contextConsumed: number;
-  contextCapacity: number;
-  avgChunkSize: number;
 };
 
 type UseDashboardDataResult = {
@@ -25,19 +20,13 @@ type UseDashboardDataResult = {
   sessions: ChatSession[];
   stats: DashboardStats;
   recentDocuments: Document[];
+  recentSessions: ChatSession[];
   activeCollections: Collection[];
   pipelineNameById: Map<string, string>;
 };
 
-/** Reads a retrieval pipeline's configured chat context window, defaulting to 0. */
-const getContextWindow = (pipeline: Pipeline | null) => {
-  if (!pipeline) return 0;
-  const node = pipeline.definition.nodes.find((item) => item.type === "chat.settings");
-  const value = node?.config?.context_window;
-  return typeof value === "number" ? value : 0;
-};
-
 const RECENT_DOCUMENT_LIMIT = 5;
+const RECENT_SESSION_LIMIT = 5;
 const ACTIVE_COLLECTION_LIMIT = 3;
 
 /**
@@ -124,41 +113,11 @@ export function useDashboardData(): UseDashboardDataResult {
     return new Map(entries);
   }, [ingestionPipelines, retrievalPipelines]);
 
-  const defaultRetrieval = useMemo(
-    () =>
-      retrievalPipelines.find((pipeline) => pipeline.is_default) ?? retrievalPipelines[0] ?? null,
-    [retrievalPipelines],
-  );
-
   const stats = useMemo<DashboardStats>(() => {
     const docCount = documents.length;
     const totalChunks = documents.reduce((sum, doc) => sum + doc.num_chunks, 0);
-    const totalTokens = documents.reduce((sum, doc) => sum + doc.num_tokens, 0);
-    const contextCapacity = collections.reduce((sum, col) => {
-      const pipeline =
-        retrievalPipelines.find((item) => item.id === col.retrieval_pipeline_id) ||
-        defaultRetrieval;
-      return sum + getContextWindow(pipeline);
-    }, 0);
-    const contextConsumed = sessions.reduce((sum, session) => sum + session.context_tokens, 0);
-    const contextUtilization = contextCapacity
-      ? Math.min(100, Math.round((contextConsumed / contextCapacity) * 100))
-      : 0;
-    const avgChunkSize =
-      documents.length > 0
-        ? Math.round(documents.reduce((sum, doc) => sum + doc.chunk_size, 0) / documents.length)
-        : 0;
-
-    return {
-      docCount,
-      totalChunks,
-      totalTokens,
-      contextUtilization,
-      contextConsumed,
-      contextCapacity,
-      avgChunkSize,
-    };
-  }, [collections, documents, sessions, retrievalPipelines, defaultRetrieval]);
+    return { docCount, totalChunks };
+  }, [documents]);
 
   const recentDocuments = useMemo(
     () =>
@@ -166,6 +125,14 @@ export function useDashboardData(): UseDashboardDataResult {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, RECENT_DOCUMENT_LIMIT),
     [documents],
+  );
+
+  const recentSessions = useMemo(
+    () =>
+      [...sessions]
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        .slice(0, RECENT_SESSION_LIMIT),
+    [sessions],
   );
 
   const activeCollections = useMemo(
@@ -180,6 +147,7 @@ export function useDashboardData(): UseDashboardDataResult {
     sessions,
     stats,
     recentDocuments,
+    recentSessions,
     activeCollections,
     pipelineNameById,
   };

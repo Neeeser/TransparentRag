@@ -19,8 +19,8 @@ export function TracePayloadBlock({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-white/10 bg-black/20 p-3",
-        highlight && "border-cyan-400/70 bg-cyan-500/10",
+        "rounded-2xl border border-hairline bg-surface p-3",
+        highlight && "border-accent-cyan/70 bg-accent-cyan/10",
       )}
     >
       <TraceValueView value={payload} kind="json" highlightChunkId={highlightChunkId} />

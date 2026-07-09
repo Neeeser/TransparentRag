@@ -101,25 +101,25 @@ export function PipelineTraceViewer({
       open={isOpen}
       onClose={onClose}
       labelledBy={titleId}
-      backdropClassName="bg-black/70 px-6 py-6"
+      backdropClassName="px-6 py-6"
     >
       {/* Definite viewport-relative height (matching the backdrop's py-6 =
           3rem) so the inner flex-1 IO region can bound and scroll; a plain
           h-full has no definite basis here and would overflow on short/mobile
           screens, clipping the header. */}
-      <div className="relative flex h-[calc(100dvh-3rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/95 shadow-2xl sm:rounded-[32px]">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
+      <div className="relative flex h-[calc(100dvh-3rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-hairline bg-canvas-raised shadow-elevation-2 sm:rounded-[32px]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-hairline px-4 py-3 sm:px-6 sm:py-4">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-slate-500 sm:text-xs">
+            <p className="font-mono text-[10px] uppercase tracking-[0.35em] text-meta sm:text-[11px]">
               {graph.combined ? "End-to-end trace" : "Pipeline trace"}
             </p>
-            <h2 id={titleId} className="truncate text-base font-semibold text-white sm:text-xl">
+            <h2 id={titleId} className="truncate text-base font-semibold text-primary sm:text-xl">
               {graph.combined ? "Document → retrieval" : `${trace.run.status.toUpperCase()} trace`}
             </h2>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {highlightChunkId && (
-              <span className="hidden max-w-[200px] truncate rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-cyan-200 lg:inline-block">
+              <span className="hidden max-w-[200px] truncate rounded-full border border-accent-cyan/40 bg-accent-cyan/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.3em] text-accent-cyan lg:inline-block">
                 chunk {highlightChunkId}
               </span>
             )}
@@ -134,24 +134,24 @@ export function PipelineTraceViewer({
             region below scrolls, so stepping never reflows the layout. */}
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:gap-4 sm:p-6">
           {nodeSpecsError && (
-            <div className="shrink-0 rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+            <div className="shrink-0 rounded-2xl border border-data-warn/40 bg-data-warn/10 px-4 py-2 text-xs text-data-warn">
               {nodeSpecsError}
             </div>
           )}
           {graph.combined && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-cyan-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" /> Ingestion — how this chunk
-                was made
+            <div className="flex shrink-0 flex-wrap items-center gap-2 text-[11px] text-muted">
+              <span className="flex items-center gap-1.5 rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-3 py-1 text-accent-cyan">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan" /> Ingestion — how this
+                chunk was made
               </span>
-              <ArrowDown className="h-3.5 w-3.5 rotate-[-90deg] text-slate-500 sm:rotate-0" />
-              <span className="flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1 text-violet-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-violet-300" /> Retrieval — how it was
-                found
+              <ArrowDown className="h-3.5 w-3.5 rotate-[-90deg] text-meta sm:rotate-0" />
+              <span className="flex items-center gap-1.5 rounded-full border border-accent-violet/30 bg-accent-violet/10 px-3 py-1 text-accent-violet">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent-violet" /> Retrieval — how it
+                was found
               </span>
             </div>
           )}
-          <GlassCard className="relative shrink-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
+          <GlassCard className="relative shrink-0 overflow-hidden rounded-3xl border border-hairline bg-surface">
             {/* ReactFlow needs a concretely sized parent, not min-height. */}
             <div
               className={cn(graph.combined ? "h-[300px] sm:h-[440px]" : "h-[240px] sm:h-[380px]")}
@@ -166,17 +166,17 @@ export function PipelineTraceViewer({
             </div>
           </GlassCard>
 
-          <div className="flex shrink-0 items-center justify-between gap-2 rounded-3xl border border-white/10 bg-slate-950/60 px-4 py-3">
+          <div className="flex shrink-0 items-center justify-between gap-2 rounded-3xl border border-hairline bg-surface px-4 py-3">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400 sm:text-xs">
+              <p className="font-mono text-[10px] uppercase tracking-[0.35em] text-muted sm:text-[11px]">
                 {activeStep ? activeStep.stageLabel : "Active node"}
               </p>
-              <h3 className="truncate text-base font-semibold text-white sm:text-lg">
+              <h3 className="truncate text-base font-semibold text-primary sm:text-lg">
                 {activeRun?.node_name || activeStep?.nodeId || "—"}
               </h3>
             </div>
             {activeRun && (
-              <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-slate-300">
+              <span className="shrink-0 rounded-full border border-hairline bg-surface-strong px-3 py-1 font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
                 {activeRun.status}
               </span>
             )}

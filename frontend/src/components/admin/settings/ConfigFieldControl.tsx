@@ -37,7 +37,7 @@ export function ConfigFieldControl({
   const locked = field.source === "env-locked";
 
   const labelEnd = locked ? (
-    <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-slate-300">
+    <span className="rounded-full bg-surface-strong px-2.5 py-1 text-xs font-medium text-muted">
       Pinned by {field.env_var}
     </span>
   ) : field.source === "db" ? (
@@ -51,7 +51,7 @@ export function ConfigFieldControl({
       <Field label={field.label} hint={field.description} labelEnd={labelEnd}>
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-white/30 bg-transparent"
+          className="h-4 w-4 rounded border-strong bg-transparent accent-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           checked={value === true}
           disabled={locked}
           onChange={(event) => onChange(event.target.checked)}

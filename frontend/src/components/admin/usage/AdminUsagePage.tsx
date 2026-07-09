@@ -35,8 +35,8 @@ export function AdminUsagePage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Usage</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-2xl font-semibold text-primary">Usage</h1>
+          <p className="text-sm text-muted">
             Chat activity recorded by local telemetry. Nothing leaves this deployment.
           </p>
         </div>
@@ -58,7 +58,7 @@ export function AdminUsagePage() {
       {error && (
         <p
           role="alert"
-          className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+          className="rounded-2xl border border-data-neg/30 bg-data-neg/10 px-4 py-3 text-sm text-data-neg"
         >
           {error}
         </p>
@@ -78,16 +78,18 @@ export function AdminUsagePage() {
           },
         ].map((card) => (
           <GlassCard key={card.label} className="px-5 py-4">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{card.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-white">{card.value}</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
+              {card.label}
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-primary">{card.value}</p>
           </GlassCard>
         ))}
       </div>
 
       <GlassCard className="px-5 py-4">
-        <h2 className="text-sm font-medium text-white">Tokens per day</h2>
+        <h2 className="text-sm font-medium text-primary">Tokens per day</h2>
         {points.length === 0 ? (
-          <p className="py-6 text-sm text-slate-400">
+          <p className="py-6 text-sm text-muted">
             {loading ? "Loading…" : "No chat activity in this window yet."}
           </p>
         ) : (
@@ -96,7 +98,7 @@ export function AdminUsagePage() {
               <div
                 key={point.day}
                 title={`${formatDay(point.day)}: ${tokenFormat.format(point.total_tokens)} tokens`}
-                className={cn("flex-1 rounded-t bg-violet-400/70")}
+                className={cn("flex-1 rounded-t bg-accent-violet/70")}
                 style={{ height: `${(point.total_tokens / maxTokens) * 100}%` }}
               />
             ))}
@@ -105,21 +107,21 @@ export function AdminUsagePage() {
       </GlassCard>
 
       <GlassCard className="px-5 py-4">
-        <h2 className="text-sm font-medium text-white">Activity</h2>
-        <p className="text-xs text-slate-400">
+        <h2 className="text-sm font-medium text-primary">Activity</h2>
+        <p className="text-xs text-muted">
           Every recorded event type in this window — new telemetry events appear here automatically.
         </p>
         {eventCounts.length === 0 ? (
-          <p className="py-4 text-sm text-slate-400">No activity in this window yet.</p>
+          <p className="py-4 text-sm text-muted">No activity in this window yet.</p>
         ) : (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {eventCounts.map(([eventType, count]) => (
               <li
                 key={eventType}
-                className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-3 py-2 text-sm"
+                className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2 text-sm"
               >
-                <span className="text-slate-300">{prettyEventType(eventType)}</span>
-                <span className="font-semibold text-white">{tokenFormat.format(count)}</span>
+                <span className="text-body">{prettyEventType(eventType)}</span>
+                <span className="font-semibold text-primary">{tokenFormat.format(count)}</span>
               </li>
             ))}
           </ul>
@@ -128,7 +130,7 @@ export function AdminUsagePage() {
 
       <GlassCard>
         {loading && !summary ? (
-          <p className="px-4 py-6 text-sm text-slate-400">Loading usage…</p>
+          <p className="px-4 py-6 text-sm text-muted">Loading usage…</p>
         ) : (
           <DataTable
             rows={summary?.users ?? []}

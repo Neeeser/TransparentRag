@@ -95,18 +95,18 @@ export default function SettingsPage() {
   const resolveBadge = useCallback(
     (status: UserKeyValidation["openrouter"] | undefined, configured: boolean) => {
       if (checking) {
-        return { label: "Checking", className: "bg-slate-500/15 text-slate-200" };
+        return { label: "Checking", className: "bg-surface-strong text-muted" };
       }
       if (!configured) {
-        return { label: "Missing", className: "bg-amber-500/15 text-amber-200" };
+        return { label: "Missing", className: "bg-data-warn/15 text-data-warn" };
       }
       if (status?.valid) {
-        return { label: "Connected", className: "bg-emerald-500/15 text-emerald-200" };
+        return { label: "Connected", className: "bg-data-pos/15 text-data-pos" };
       }
       if (status) {
-        return { label: "Invalid", className: "bg-rose-500/15 text-rose-200" };
+        return { label: "Invalid", className: "bg-data-neg/15 text-data-neg" };
       }
-      return { label: "Configured", className: "bg-emerald-500/15 text-emerald-200" };
+      return { label: "Configured", className: "bg-data-pos/15 text-data-pos" };
     },
     [checking],
   );
@@ -159,9 +159,14 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Settings</p>
-        <h1 className="text-3xl font-semibold text-white">Configure your API keys.</h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.4em] text-muted">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent-violet" aria-hidden />
+          Settings
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-primary">
+          Configure your API keys.
+        </h1>
+        <p className="mt-2 text-sm text-muted">
           Keys are stored per user and required for collections, chat, and retrieval tooling.
         </p>
       </div>

@@ -22,8 +22,8 @@ export type TraceValueViewProps = {
 };
 
 const chipClass =
-  "rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-slate-300";
-const monoClass = "font-mono text-[10px] text-slate-400";
+  "rounded-full border border-hairline bg-surface px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-muted";
+const monoClass = "font-mono text-[10px] text-muted";
 
 function Chip({ children }: { children: React.ReactNode }) {
   return <span className={chipClass}>{children}</span>;
@@ -46,7 +46,7 @@ export function TextValue({ value }: TraceValueViewProps) {
   const canExpand = Boolean(full && full.length > summary.preview.length);
   return (
     <div className="space-y-2">
-      <p className="max-h-52 overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-slate-100">
+      <p className="max-h-52 overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-body">
         {expanded && full ? full : summary.preview}
       </p>
       <div className="flex items-center gap-2">
@@ -55,7 +55,7 @@ export function TextValue({ value }: TraceValueViewProps) {
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
-            className="text-[10px] uppercase tracking-[0.25em] text-cyan-200 hover:text-cyan-100"
+            className="text-[10px] uppercase tracking-[0.25em] text-accent-cyan transition hover:brightness-110"
           >
             {expanded ? "Show less" : "Show full"}
           </button>
@@ -77,10 +77,10 @@ export function SourceValue({ value }: TraceValueViewProps) {
     <dl className="space-y-1.5">
       {rows.map(([label, val]) => (
         <div key={label} className="flex items-baseline gap-3">
-          <dt className="w-20 shrink-0 text-[10px] uppercase tracking-[0.25em] text-slate-500">
+          <dt className="w-20 shrink-0 text-[10px] uppercase tracking-[0.25em] text-meta">
             {label}
           </dt>
-          <dd className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-200" title={val}>
+          <dd className="min-w-0 flex-1 truncate font-mono text-[11px] text-body" title={val}>
             {val}
           </dd>
         </div>
@@ -105,21 +105,21 @@ export function ChunkListValue({ value, highlightChunkId }: TraceValueViewProps)
             <div
               key={sample.chunk_id}
               className={cn(
-                "rounded-xl border border-white/10 bg-black/30 p-2.5",
-                active && "border-cyan-400/70 bg-cyan-500/10",
+                "rounded-xl border border-hairline bg-canvas p-2.5",
+                active && "border-accent-cyan/70 bg-accent-cyan/10",
               )}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={monoClass}>{sample.chunk_id}</span>
                 <span className={chipClass}>#{sample.order}</span>
               </div>
-              <p className="mt-1.5 line-clamp-3 text-[12px] leading-relaxed text-slate-200">
+              <p className="mt-1.5 line-clamp-3 text-[12px] leading-relaxed text-body">
                 {sample.preview}
               </p>
             </div>
           );
         })}
-        {batch.samples.length === 0 && <p className="text-xs text-slate-500">No chunk samples.</p>}
+        {batch.samples.length === 0 && <p className="text-xs text-meta">No chunk samples.</p>}
       </ScrollBox>
     </div>
   );
@@ -136,10 +136,7 @@ function VectorSparkline({ values }: { values: number[] }) {
         return (
           <span
             key={index}
-            className={cn(
-              "min-w-0 flex-1 rounded-[1px]",
-              val >= 0 ? "bg-cyan-400/80" : "bg-amber-400/70",
-            )}
+            className={cn("min-w-0 flex-1 rounded-[1px]", val >= 0 ? "bg-data-pos" : "bg-data-neg")}
             style={{ height: `${height}%` }}
           />
         );
@@ -171,9 +168,9 @@ export function EmbeddingValue({ value }: TraceValueViewProps) {
       {previews.length ? (
         <div className="space-y-2">
           {previews.slice(0, 2).map((preview, index) => (
-            <div key={index} className="rounded-xl border border-white/10 bg-black/30 p-2.5">
+            <div key={index} className="rounded-xl border border-hairline bg-canvas p-2.5">
               <VectorSparkline values={preview.preview} />
-              <p className="mt-1.5 truncate font-mono text-[10px] text-slate-500">
+              <p className="mt-1.5 truncate font-mono text-[10px] text-meta">
                 [{preview.preview.map((v) => v.toFixed(3)).join(", ")}
                 {preview.total_values > preview.preview.length ? ", …" : ""}]
               </p>
@@ -181,7 +178,7 @@ export function EmbeddingValue({ value }: TraceValueViewProps) {
           ))}
         </div>
       ) : (
-        <p className="text-xs text-slate-500">No embedding recorded.</p>
+        <p className="text-xs text-meta">No embedding recorded.</p>
       )}
     </div>
   );
@@ -201,25 +198,25 @@ export function MatchListValue({ value, highlightChunkId }: TraceValueViewProps)
             <div
               key={match.chunk_id}
               className={cn(
-                "rounded-xl border border-white/10 bg-black/30 p-2.5",
-                active && "border-cyan-400/70 bg-cyan-500/10",
+                "rounded-xl border border-hairline bg-canvas p-2.5",
+                active && "border-accent-cyan/70 bg-accent-cyan/10",
               )}
             >
               <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold leading-none text-slate-200">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-strong text-[10px] font-semibold leading-none text-body">
                   {match.rank}
                 </span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
+                    className="h-full rounded-full bg-gradient-to-r from-accent-violet to-accent-cyan"
                     style={{ width: `${(match.score / maxScore) * 100}%` }}
                   />
                 </div>
-                <span className="shrink-0 font-mono text-[11px] text-slate-200">
+                <span className="shrink-0 font-mono text-[11px] text-body">
                   {match.score.toFixed(3)}
                 </span>
               </div>
-              <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-slate-200">
+              <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-body">
                 {match.preview}
               </p>
               <p className={cn("mt-1 truncate", monoClass)}>{match.chunk_id}</p>
@@ -239,11 +236,11 @@ export function MatchOrderValue({ value }: TraceValueViewProps) {
       {entries.map((entry) => (
         <span
           key={`${entry.rank}-${entry.chunk_id}`}
-          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-2 py-1"
+          className="flex items-center gap-1.5 rounded-full border border-hairline bg-surface px-2 py-1"
           title={entry.chunk_id}
         >
-          <span className="text-[10px] font-semibold text-slate-300">#{entry.rank}</span>
-          <span className="font-mono text-[10px] text-cyan-200">{entry.score.toFixed(3)}</span>
+          <span className="text-[10px] font-semibold text-muted">#{entry.rank}</span>
+          <span className="font-mono text-[10px] text-accent-cyan">{entry.score.toFixed(3)}</span>
         </span>
       ))}
     </div>
@@ -256,11 +253,11 @@ export function KeyValueView({ value }: TraceValueViewProps) {
   return (
     <dl className="grid grid-cols-2 gap-2">
       {Object.entries(record).map(([label, val]) => (
-        <div key={label} className="rounded-xl border border-white/10 bg-black/30 px-2.5 py-1.5">
-          <dt className="text-[10px] uppercase tracking-[0.25em] text-slate-500">
+        <div key={label} className="rounded-xl border border-hairline bg-surface px-2.5 py-1.5">
+          <dt className="text-[10px] uppercase tracking-[0.25em] text-meta">
             {label.replace(/_/g, " ")}
           </dt>
-          <dd className="mt-0.5 truncate text-[12px] text-slate-100">{String(val)}</dd>
+          <dd className="mt-0.5 truncate text-[12px] text-body">{String(val)}</dd>
         </div>
       ))}
     </dl>
@@ -269,7 +266,9 @@ export function KeyValueView({ value }: TraceValueViewProps) {
 
 /** A single scalar shown prominently (e.g. Top K). */
 export function ScalarValue({ value }: TraceValueViewProps) {
-  return <p className="text-lg font-semibold text-white">{value === null ? "—" : String(value)}</p>;
+  return (
+    <p className="text-lg font-semibold text-primary">{value === null ? "—" : String(value)}</p>
+  );
 }
 
 /** Fallback: normalized, array-collapsed JSON with an expand toggle. */
@@ -278,13 +277,13 @@ export function JsonValue({ value }: TraceValueViewProps) {
   const text = expanded ? prettyJson(value) : prettyJson(buildPreviewPayload(value));
   return (
     <div className="space-y-2">
-      <pre className="max-h-52 overflow-auto rounded-xl bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
+      <pre className="max-h-52 overflow-auto rounded-xl border border-hairline bg-canvas p-3 font-mono text-[11px] leading-relaxed text-body">
         {text}
       </pre>
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="text-[10px] uppercase tracking-[0.25em] text-cyan-200 hover:text-cyan-100"
+        className="text-[10px] uppercase tracking-[0.25em] text-accent-cyan transition hover:brightness-110"
       >
         {expanded ? "Collapse" : "Expand"}
       </button>
