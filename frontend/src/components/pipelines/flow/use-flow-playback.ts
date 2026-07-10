@@ -23,6 +23,8 @@ type UseFlowPlaybackParams = {
    * instead of stopping -- used for ambient, always-running backdrops.
    */
   loop?: boolean;
+  /** Step to start on (clamped to the step range) — e.g. the first failed node. */
+  initialIndex?: number;
 };
 
 export type UseFlowPlaybackResult = {
@@ -55,8 +57,11 @@ export function useFlowPlayback({
   processMs = 1000,
   travelMs = 650,
   loop = false,
+  initialIndex = 0,
 }: UseFlowPlaybackParams): UseFlowPlaybackResult {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(() =>
+    Math.max(0, Math.min(initialIndex, steps.length - 1)),
+  );
   const [phase, setPhase] = useState<PlaybackPhase>("process");
   const [playing, setPlaying] = useState(autoPlay);
 

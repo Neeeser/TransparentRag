@@ -31,6 +31,8 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const isChatRoute = pathname?.startsWith("/chat");
   const isPipelinesRoute = pathname?.startsWith("/pipelines");
+  // The trace debugger is a full-viewport working surface, same as chat.
+  const isFullHeightRoute = isChatRoute || pathname?.startsWith("/traces");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -105,7 +107,7 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
     <div
       className={cn(
         "flex min-h-screen flex-col bg-canvas text-body",
-        isChatRoute && "h-screen",
+        isFullHeightRoute && "h-screen",
         isPipelinesRoute && "xl:h-screen",
       )}
     >
@@ -196,12 +198,12 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
       <main
         className={cn(
           "flex-1 px-4 py-6 lg:px-10 lg:py-8 min-h-0",
-          isChatRoute && "overflow-hidden",
+          isFullHeightRoute && "overflow-hidden",
           isPipelinesRoute && "xl:overflow-hidden",
         )}
       >
-        {isChatRoute || isPipelinesRoute ? (
-          <div className={cn(isChatRoute && "h-full", isPipelinesRoute && "xl:h-full")}>
+        {isFullHeightRoute || isPipelinesRoute ? (
+          <div className={cn(isFullHeightRoute && "h-full", isPipelinesRoute && "xl:h-full")}>
             {children}
           </div>
         ) : (

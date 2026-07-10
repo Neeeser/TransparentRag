@@ -1,0 +1,108 @@
+import { renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import { useTraceDebugger } from "@/components/traces/debugger/hooks/use-trace-debugger";
+import * as apiModule from "@/lib/api";
+import { makeNodeRunTrace, makeTraceResponse } from "@/test/fixtures";
+
+vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
+vi.mock("@/providers/auth-provider", async () =>
+  // Inline literal: vi.mock factories are hoisted above const initializers.
+  (await import("@/test/mocks")).mockAuth({ token: "test-token" }),
+);
+
+const TEST_TOKEN = "test-token";
+
+const api = vi.mocked(apiModule);
+
+describe("useTraceDebugger", () => {
+  it("loads a query-event trace and builds its graph", async () => {
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "query", id: "qe-1", chunkId: null }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    expect(api.fetchQueryEventTrace).toHaveBeenCalledWith(TEST_TOKEN, "qe-1");
+    expect(result.current.graph?.combined).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("loads the end-to-end trace when a chunk is targeted", async () => {
+    api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
+      retrieval: makeTraceResponse(),
+      origin: {
+        document_id: "doc-1",
+        document_name: "doc.pdf",
+        chunk_id: "chunk-1",
+        trace: makeTraceResponse({
+          run: { ...makeTraceResponse().run, id: "run-origin", kind: "ingestion" },
+          node_runs: [makeNodeRunTrace({ id: "nr-origin", node_id: "origin-node" })],
+        }),
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "query", id: "qe-1", chunkId: "chunk-1" }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    expect(api.fetchQueryEventEndToEndTrace).toHaveBeenCalledWith(TEST_TOKEN, "qe-1", "chunk-1");
+    expect(result.current.graph?.combined).toBe(true);
+  });
+
+  it("falls back to the plain retrieval graph when no origin exists", async () => {
+    api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
+      retrieval: makeTraceResponse(),
+      origin: null,
+    });
+
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "query", id: "qe-1", chunkId: "chunk-1" }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    expect(result.current.graph?.combined).toBe(false);
+  });
+
+  it("loads a document trace", async () => {
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "document", id: "doc-1", chunkId: null }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    expect(api.fetchDocumentTrace).toHaveBeenCalledWith(TEST_TOKEN, "doc-1");
+  });
+
+  it("loads a pipeline-run trace", async () => {
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "run", id: "run-1", chunkId: null }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    expect(api.fetchPipelineRunTrace).toHaveBeenCalledWith(TEST_TOKEN, "run-1");
+  });
+
+  it("surfaces a trace fetch failure as the page error", async () => {
+    api.fetchDocumentTrace.mockRejectedValueOnce(new Error("nope"));
+
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "document", id: "doc-1", chunkId: null }),
+    );
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.graph).toBeNull();
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("still renders the trace when node specs fail, with a notice", async () => {
+    api.fetchPipelineNodes.mockRejectedValueOnce(new Error("boom"));
+
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "run", id: "run-1", chunkId: null }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    await waitFor(() => expect(result.current.specsNotice).not.toBeNull());
+    expect(result.current.error).toBeNull();
+  });
+});

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CollectionDocuments } from "@/components/collections/detail/CollectionDocuments";
 import * as apiModule from "@/lib/api";
 import { makeChunk, makeDocument, makeIngestionResponse } from "@/test/fixtures";
+import { getMockRouter } from "@/test/test-utils";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
@@ -15,17 +16,6 @@ const FILE_INPUT_SELECTOR = 'input[type="file"]';
 const VIEW_TRACE_LABEL = "View ingestion trace";
 const UPLOAD_FAILED_MESSAGE = "Upload failed.";
 const makeTextFile = () => new File(["hello"], "note.txt", { type: "text/plain" });
-
-vi.mock("@/components/traces/PipelineTraceViewer", () => ({
-  PipelineTraceViewer: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
-    isOpen ? (
-      <div data-testid="trace-viewer">
-        <button type="button" onClick={onClose}>
-          Close trace
-        </button>
-      </div>
-    ) : null,
-}));
 
 const getFileInput = (root: ParentNode = window.document): HTMLInputElement => {
   const input = root.querySelector(FILE_INPUT_SELECTOR) as HTMLInputElement | null;
@@ -60,7 +50,7 @@ describe("CollectionDocuments", () => {
     });
   });
 
-  it("expands documents, loads chunks, and opens trace", async () => {
+  it("expands documents, loads chunks, and navigates to the trace debugger", async () => {
     api.fetchDocuments.mockResolvedValueOnce([{ ...doc, ingestion_run_id: "run-123" }]);
     api.fetchDocumentChunks.mockResolvedValueOnce({ document: doc, chunks: [chunk] });
 
@@ -76,21 +66,14 @@ describe("CollectionDocuments", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
-    await waitFor(() => {
-      expect(screen.getByTestId("trace-viewer")).toBeInTheDocument();
-    });
+    expect(getMockRouter().push).toHaveBeenCalledWith("/traces/documents/doc-1");
     expect(screen.getByText(/Trace run: run-123/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Close trace" }));
-    await waitFor(() => {
-      expect(screen.queryByTestId("trace-viewer")).not.toBeInTheDocument();
-    });
 
     fireEvent.click(screen.getByText(/Chunk #/));
     fireEvent.click(screen.getByRole("button", { name: "Trace this chunk" }));
-    await waitFor(() => {
-      expect(api.fetchDocumentTrace).toHaveBeenCalledWith("token", "doc-1");
-    });
+    expect(getMockRouter().push).toHaveBeenCalledWith(
+      `/traces/documents/doc-1?chunk=${encodeURIComponent(chunk.id)}`,
+    );
   });
 
   it("handles chunk and upload errors", async () => {
@@ -136,60 +119,27 @@ describe("CollectionDocuments", () => {
     expect(clickSpy).toHaveBeenCalled();
   });
 
-  it("handles document load and trace errors", async () => {
+  it("handles document load errors", async () => {
     api.fetchDocuments.mockRejectedValueOnce("bad docs");
-    const { unmount } = render(<CollectionDocuments collectionId="col-1" token="token" />);
+    render(<CollectionDocuments collectionId="col-1" token="token" />);
 
     await waitFor(() => {
       expect(screen.getByText("Unable to load documents.")).toBeInTheDocument();
-    });
-
-    unmount();
-    api.fetchDocuments.mockResolvedValueOnce([doc]);
-    api.fetchDocumentChunks.mockResolvedValueOnce({ document: doc, chunks: [] });
-    api.fetchDocumentTrace.mockRejectedValueOnce("no trace");
-
-    render(<CollectionDocuments collectionId="col-1" token="token" />);
-    await waitFor(() => {
-      expect(screen.getByText("Doc")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Doc"));
-    fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
-    await waitFor(() => {
-      expect(screen.getByText("Unable to load trace.")).toBeInTheDocument();
     });
   });
 
   it("uses error messages from thrown errors", async () => {
     api.fetchDocuments.mockRejectedValueOnce(new Error("Boom"));
-    const { unmount } = render(<CollectionDocuments collectionId="col-1" token="token" />);
+    render(<CollectionDocuments collectionId="col-1" token="token" />);
 
     await waitFor(() => {
       expect(screen.getByText("Boom")).toBeInTheDocument();
     });
-
-    unmount();
-    api.fetchDocuments.mockResolvedValueOnce([doc]);
-    api.fetchDocumentChunks.mockResolvedValueOnce({ document: doc, chunks: [] });
-    api.fetchDocumentTrace.mockRejectedValueOnce(new Error("Trace boom"));
-
-    render(<CollectionDocuments collectionId="col-1" token="token" />);
-    await waitFor(() => {
-      expect(screen.getByText("Doc")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Doc"));
-    fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
-    await waitFor(() => {
-      expect(screen.getByText("Trace boom")).toBeInTheDocument();
-    });
   });
 
-  it("handles non-error chunk, trace, and upload failures", async () => {
+  it("handles non-error chunk and upload failures", async () => {
     api.fetchDocuments.mockResolvedValueOnce([doc]);
     api.fetchDocumentChunks.mockRejectedValueOnce("chunk fail");
-    api.fetchDocumentTrace.mockRejectedValueOnce("trace fail");
     api.uploadDocument.mockRejectedValueOnce("upload fail");
 
     render(<CollectionDocuments collectionId="col-1" token="token" />);
@@ -201,11 +151,6 @@ describe("CollectionDocuments", () => {
     fireEvent.click(screen.getByText("Doc"));
     await waitFor(() => {
       expect(screen.getByText("Unable to load chunks.")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: VIEW_TRACE_LABEL }));
-    await waitFor(() => {
-      expect(screen.getByText("Unable to load trace.")).toBeInTheDocument();
     });
 
     const fileInput = getFileInput();

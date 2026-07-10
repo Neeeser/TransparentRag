@@ -45,3 +45,18 @@ describe("useFlowPlayback loop", () => {
     expect(result.current.activeIndex).toBe(1);
   });
 });
+
+describe("useFlowPlayback initialIndex", () => {
+  it("starts playback on the given step instead of the first", () => {
+    const { result } = renderHook(() => useFlowPlayback({ steps, edges, initialIndex: 1 }));
+
+    expect(result.current.activeIndex).toBe(1);
+    expect(result.current.playing).toBe(false);
+  });
+
+  it("clamps an out-of-range initialIndex to the last step", () => {
+    const { result } = renderHook(() => useFlowPlayback({ steps, edges, initialIndex: 99 }));
+
+    expect(result.current.activeIndex).toBe(1);
+  });
+});

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CollectionSearch } from "@/components/collections/detail/CollectionSearch";
 import * as apiModule from "@/lib/api";
 import { makeQueryResult } from "@/test/fixtures";
+import { getMockRouter } from "@/test/test-utils";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
@@ -13,21 +14,8 @@ const api = vi.mocked(apiModule);
 
 const runQueryLabel = "Run query";
 const viewTraceLabel = "View retrieval trace";
-const closeTraceLabel = "Close trace";
 const queryFailedMessage = "Query failed.";
-const traceViewerTestId = "trace-viewer";
 const ZERO_WIDTH_BAR_SELECTOR = 'div[style*="width: 0%"]';
-
-vi.mock("@/components/traces/PipelineTraceViewer", () => ({
-  PipelineTraceViewer: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
-    isOpen ? (
-      <div data-testid="trace-viewer">
-        <button type="button" onClick={onClose}>
-          Close trace
-        </button>
-      </div>
-    ) : null,
-}));
 
 describe("CollectionSearch", () => {
   it("skips empty queries", async () => {
@@ -39,7 +27,7 @@ describe("CollectionSearch", () => {
     expect(api.runCollectionQuery).not.toHaveBeenCalled();
   });
 
-  it("runs queries and renders results", async () => {
+  it("runs queries and navigates to the trace debugger", async () => {
     const result = makeQueryResult({
       query: "test query",
       top_k: 3,
@@ -73,32 +61,19 @@ describe("CollectionSearch", () => {
     });
 
     fireEvent.click(screen.getByText(viewTraceLabel));
-    await waitFor(() => {
-      expect(screen.getByTestId(traceViewerTestId)).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByRole("button", { name: closeTraceLabel }));
+    expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1");
 
-    // Tracing a specific chunk joins retrieval with the chunk's ingestion
-    // origin, so it calls the end-to-end endpoint with the chunk id.
+    // Tracing a specific chunk targets it so the debugger joins retrieval
+    // with the chunk's ingestion origin.
     fireEvent.click(screen.getAllByRole("button", { name: "Trace result" })[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId(traceViewerTestId)).toBeInTheDocument();
-    });
-    expect(api.fetchQueryEventEndToEndTrace).toHaveBeenLastCalledWith(
-      "token",
-      "event-1",
-      "chunk-1",
-    );
-    fireEvent.click(screen.getByRole("button", { name: closeTraceLabel }));
+    expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-1");
 
+    // Chunks without a chunk_id fall back to their row id.
     fireEvent.click(screen.getAllByRole("button", { name: "Trace result" })[2]);
-    await waitFor(() => {
-      expect(screen.getByTestId(traceViewerTestId)).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByRole("button", { name: closeTraceLabel }));
+    expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-3");
   });
 
-  it("handles query and trace errors", async () => {
+  it("handles query errors and traces without a query event", async () => {
     api.runCollectionQuery.mockRejectedValueOnce(new Error(queryFailedMessage));
     render(<CollectionSearch collectionId="col-1" token="token" />);
 
@@ -115,43 +90,7 @@ describe("CollectionSearch", () => {
     });
     fireEvent.click(screen.getByText(viewTraceLabel));
     expect(screen.getByText("Trace is not available for this query.")).toBeInTheDocument();
-
-    api.runCollectionQuery.mockResolvedValueOnce(
-      makeQueryResult({
-        query_event_id: "event-2",
-        chunks: [{ id: "chunk-3", chunk_index: 0, score: undefined, text: "" }],
-      }),
-    );
-    api.fetchQueryEventTrace.mockRejectedValueOnce("Trace failed.");
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
-    fireEvent.click(screen.getByText(viewTraceLabel));
-    await waitFor(() => {
-      expect(screen.getByText("Unable to load trace.")).toBeInTheDocument();
-    });
-  });
-
-  it("uses error messages from trace failures", async () => {
-    api.runCollectionQuery.mockResolvedValueOnce(
-      makeQueryResult({
-        query_event_id: "event-3",
-        chunks: [{ id: "chunk-4", chunk_index: 0, score: 0.5, text: "Hit" }],
-      }),
-    );
-    api.fetchQueryEventTrace.mockRejectedValueOnce(new Error("Trace boom"));
-
-    render(<CollectionSearch collectionId="col-1" token="token" />);
-
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Find" } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
-
-    fireEvent.click(screen.getByText(viewTraceLabel));
-    await waitFor(() => {
-      expect(screen.getByText("Trace boom")).toBeInTheDocument();
-    });
+    expect(getMockRouter().push).not.toHaveBeenCalled();
   });
 
   it("falls back for missing scores and text", async () => {
@@ -190,33 +129,5 @@ describe("CollectionSearch", () => {
     });
 
     expect(screen.getByText(queryFailedMessage)).toBeInTheDocument();
-  });
-
-  it("renders zero-score bars and handles non-error trace failures", async () => {
-    api.runCollectionQuery.mockResolvedValueOnce(
-      makeQueryResult({
-        query_event_id: "event-3",
-        chunks: [{ id: "chunk-4", chunk_index: 0, score: 0, text: "Zero score" }],
-      }),
-    );
-    api.fetchQueryEventTrace.mockRejectedValueOnce("no trace");
-
-    const { container } = render(<CollectionSearch collectionId="col-1" token="token" />);
-
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Find" } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Zero score")).toBeInTheDocument();
-    });
-
-    expect(container.querySelector(ZERO_WIDTH_BAR_SELECTOR)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText(viewTraceLabel));
-    await waitFor(() => {
-      expect(screen.getByText("Unable to load trace.")).toBeInTheDocument();
-    });
   });
 });

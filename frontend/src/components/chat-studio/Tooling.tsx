@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -11,14 +12,8 @@ import {
   ToolPayloadSection,
   truncateText,
 } from "@/components/chat-studio/ToolPayloadPrimitives";
-import { PipelineTraceViewer } from "@/components/traces/PipelineTraceViewer";
 import { Button } from "@/components/ui/button";
-import { fetchPipelineRunTrace, fetchQueryEventTrace } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/providers/auth-provider";
-
-import type { PipelineTraceResponse } from "@/lib/types";
 
 interface ToolCallBubbleProps {
   label: string;
@@ -41,12 +36,7 @@ export const ToolCallBubble = ({
   status = "complete",
   footer,
 }: ToolCallBubbleProps) => {
-  const { token } = useAuth();
-  const [trace, setTrace] = useState<PipelineTraceResponse | null>(null);
-  const [traceLoading, setTraceLoading] = useState(false);
-  const [traceChunkId, setTraceChunkId] = useState<string | null>(null);
-  const [traceOpen, setTraceOpen] = useState(false);
-  const [traceError, setTraceError] = useState<string | null>(null);
+  const router = useRouter();
   const responseMeta: Record<string, unknown> = { ...response };
   const rawChunks = responseMeta.chunks;
   if (Object.prototype.hasOwnProperty.call(responseMeta, "chunks")) {
@@ -79,27 +69,13 @@ export const ToolCallBubble = ({
     typeof response.pipeline_run_id === "string" ? response.pipeline_run_id : undefined;
   const traceAvailable = Boolean(queryEventId || pipelineRunId);
 
-  const loadTrace = async (chunkId?: string | null) => {
-    if (!token) {
-      return;
-    }
+  const openTrace = (chunkId?: string | null) => {
     if (!traceAvailable) {
       return;
     }
-    setTraceLoading(true);
-    try {
-      const payload = queryEventId
-        ? await fetchQueryEventTrace(token, queryEventId)
-        : await fetchPipelineRunTrace(token, pipelineRunId as string);
-      setTrace(payload);
-      setTraceChunkId(chunkId ?? null);
-      setTraceOpen(true);
-      setTraceError(null);
-    } catch (error) {
-      setTraceError(getErrorMessage(error, "Unable to load the retrieval trace."));
-    } finally {
-      setTraceLoading(false);
-    }
+    const chunkParam = chunkId ? `?chunk=${encodeURIComponent(chunkId)}` : "";
+    const path = queryEventId ? `/traces/queries/${queryEventId}` : `/traces/runs/${pipelineRunId}`;
+    router.push(`${path}${chunkParam}`);
   };
 
   return (
@@ -153,8 +129,7 @@ export const ToolCallBubble = ({
                   >
                     <ToolChunkList
                       chunks={chunkList}
-                      activeChunkId={traceChunkId}
-                      onSelectChunk={(chunkId) => loadTrace(chunkId)}
+                      onSelectChunk={(chunkId) => openTrace(chunkId)}
                     />
                   </ToolPayloadSection>
                   {hasResponseMeta && (
@@ -165,25 +140,13 @@ export const ToolCallBubble = ({
                   {traceAvailable && (
                     <ToolPayloadSection
                       title="Retrieval trace"
-                      description="Replay the retrieval pipeline for this tool call."
+                      description="Step through the retrieval pipeline for this tool call."
                       collapsible
                       defaultOpen={false}
                     >
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={traceLoading}
-                        onClick={() => loadTrace()}
-                        className="mb-3"
-                      >
-                        {trace ? "Refresh trace" : "Open trace"}
+                      <Button size="sm" variant="secondary" onClick={() => openTrace()}>
+                        Open trace
                       </Button>
-                      {traceError && <p className="text-xs text-data-neg">{traceError}</p>}
-                      {!trace && !traceError && (
-                        <p className="text-xs text-muted">
-                          Load the trace to inspect node inputs and outputs.
-                        </p>
-                      )}
                     </ToolPayloadSection>
                   )}
                 </>
@@ -206,13 +169,6 @@ export const ToolCallBubble = ({
         </div>
         {footer}
       </div>
-      <PipelineTraceViewer
-        key={trace?.run.id ?? "trace"}
-        trace={trace}
-        isOpen={traceOpen}
-        onClose={() => setTraceOpen(false)}
-        highlightChunkId={traceChunkId}
-      />
     </div>
   );
 };

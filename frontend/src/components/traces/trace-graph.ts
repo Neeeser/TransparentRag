@@ -138,7 +138,15 @@ export const buildTraceGraph = (
   nodeSpecs: NodeSpec[],
 ): TraceGraph => {
   if (!origin) {
-    const stage = buildStage(retrieval, nodeSpecs, "retrieval", "Retrieval");
+    // A solo trace can be either kind — a document's ingestion run also lands
+    // here. Label the steps by what actually ran.
+    const isIngestion = retrieval.run.kind === "ingestion";
+    const stage = buildStage(
+      retrieval,
+      nodeSpecs,
+      isIngestion ? "origin" : "retrieval",
+      isIngestion ? "Ingestion" : "Retrieval",
+    );
     return { ...stage, combined: false };
   }
 
