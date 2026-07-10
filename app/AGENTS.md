@@ -404,8 +404,10 @@ code if it introduces a new `ConfigFieldKind` (bool/int/string/string_list today
   tables are `vec_<name>` with `-`→`_`; every identifier derives from an index
   name that already passed the strict `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$` rule
   (≤45 chars, shared with Pinecone so names stay portable). Values always travel
-  as bound parameters; embeddings bind as pgvector text (`"[0.1,0.2]"`) with a
-  `::vector` cast — no pgvector Python dependency.
+  as bound parameters; embeddings bind through `pgvector.sqlalchemy.VECTOR`
+  typed bindparams. Importing `pgvector.sqlalchemy` also registers the
+  `vector` type for SQLAlchemy reflection — `app/db/schema.py` imports it for
+  exactly that, so boot-time inspection of `vec_<name>` tables doesn't warn.
 - **The extension is best-effort at bootstrap.** `ensure_pgvector_extension`
   (`app/db/bootstrap.py`) runs `CREATE EXTENSION IF NOT EXISTS vector` (pgvector
   is not a trusted extension, so this needs superuser — true in the shipped

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+# Importing pgvector.sqlalchemy registers the `vector` type with SQLAlchemy
+# reflection, so inspecting the dynamic `vec_<name>` tables at boot doesn't
+# warn "Did not recognize type 'vector'".
+import pgvector.sqlalchemy  # noqa: F401
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import inspect
 from sqlalchemy.engine import Engine
