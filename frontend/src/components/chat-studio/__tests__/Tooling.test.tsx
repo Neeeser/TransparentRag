@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToolCallBubble } from "@/components/chat-studio/Tooling";
@@ -10,41 +10,14 @@ import {
   ToolPayloadSection,
   formatToolLabel,
 } from "@/components/chat-studio/ToolPayloadPrimitives";
-import * as apiModule from "@/lib/api";
-import { makeTraceResponse } from "@/test/fixtures";
 import { resetMockAuth, setMockAuth } from "@/test/mocks";
-
-import type { PipelineTraceResponse } from "@/lib/types";
-
-const baseTimestamp = "2024-01-01T00:00:00.000Z";
+import { getMockRouter } from "@/test/test-utils";
 
 vi.mock("@/providers/auth-provider", async () =>
   (await import("@/test/mocks")).mockAuth({ token: "token" }),
 );
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
-
-const api = vi.mocked(apiModule);
-
-vi.mock("@/components/traces/PipelineTraceViewer", () => ({
-  PipelineTraceViewer: ({
-    trace,
-    isOpen,
-    onClose,
-  }: {
-    trace: PipelineTraceResponse | null;
-    isOpen: boolean;
-    onClose: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="trace-viewer">
-        {trace?.run.id}
-        <button type="button" onClick={onClose}>
-          Close trace
-        </button>
-      </div>
-    ) : null,
-}));
 
 describe("Tooling", () => {
   beforeEach(() => {
@@ -139,7 +112,6 @@ describe("Tooling", () => {
             score: { value: 1 },
           },
         ]}
-        activeChunkId="c1"
         onSelectChunk={onSelectChunk}
       />,
     );
@@ -161,25 +133,7 @@ describe("Tooling", () => {
     expect(screen.getByText(/No chunk data returned/)).toBeInTheDocument();
   });
 
-  it("renders tool call bubble and loads traces", async () => {
-    const trace = makeTraceResponse({
-      run: {
-        id: "trace-1",
-        kind: "ingestion",
-        user_id: "user-1",
-        collection_id: "col-1",
-        status: "completed",
-        started_at: baseTimestamp,
-        created_at: baseTimestamp,
-        updated_at: baseTimestamp,
-        pipeline_id: "pipe-1",
-        pipeline_version: 1,
-      },
-      node_runs: [],
-    });
-
-    api.fetchQueryEventTrace.mockResolvedValueOnce(trace);
-
+  it("renders tool call bubble and navigates to the query trace", () => {
     render(
       <ToolCallBubble
         label="vector_search"
@@ -199,16 +153,10 @@ describe("Tooling", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
     fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
-    await waitFor(() => {
-      expect(api.fetchQueryEventTrace).toHaveBeenCalledWith("token", "q1");
-    });
-    expect(screen.getByTestId("trace-viewer")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Close trace" }));
+    expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/q1");
   });
 
-  it("surfaces an error when loading the trace fails", async () => {
-    api.fetchQueryEventTrace.mockRejectedValueOnce(new Error("trace fetch failed"));
-
+  it("navigates to a chunk-targeted trace from the chunk list", () => {
     render(
       <ToolCallBubble
         label="vector_search"
@@ -224,12 +172,9 @@ describe("Tooling", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Summary/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
-
-    await waitFor(() => {
-      expect(screen.getByText("trace fetch failed")).toBeInTheDocument();
-    });
+    fireEvent.click(screen.getByRole("button", { name: /Retrieved chunks/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Trace chunk/ }));
+    expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/q1?chunk=c1");
   });
 
   it("uses response metadata for tool summaries", () => {
@@ -268,24 +213,7 @@ describe("Tooling", () => {
     expect(screen.getByText("View tool output")).toBeInTheDocument();
   });
 
-  it("loads pipeline run traces when available", async () => {
-    const trace = makeTraceResponse({
-      run: {
-        id: "trace-2",
-        kind: "ingestion",
-        user_id: "user-1",
-        collection_id: "col-1",
-        status: "completed",
-        started_at: baseTimestamp,
-        created_at: baseTimestamp,
-        updated_at: baseTimestamp,
-        pipeline_id: "pipe-1",
-        pipeline_version: 1,
-      },
-      node_runs: [],
-    });
-    api.fetchPipelineRunTrace.mockResolvedValueOnce(trace);
-
+  it("falls back to the pipeline-run trace route when there is no query event", () => {
     render(
       <ToolCallBubble
         label="pipeline"
@@ -300,9 +228,7 @@ describe("Tooling", () => {
     fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
     fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
 
-    await waitFor(() => {
-      expect(api.fetchPipelineRunTrace).toHaveBeenCalledWith("token", "run-1");
-    });
+    expect(getMockRouter().push).toHaveBeenCalledWith("/traces/runs/run-1");
   });
 
   it("handles missing tokens and response-only payloads", () => {
@@ -325,25 +251,7 @@ describe("Tooling", () => {
     expect(screen.getByText("bar")).toBeInTheDocument();
   });
 
-  it("skips trace loads when unauthenticated", () => {
-    setMockAuth({ token: null });
-    render(
-      <ToolCallBubble
-        label="trace"
-        variantClass=""
-        args={{}}
-        response={{ pipeline_run_id: "run-2", chunks: [{ id: "c1", text: "chunk" }] }}
-        rawPayload={{}}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Summary/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Retrieval trace/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Open trace/ }));
-    expect(api.fetchPipelineRunTrace).not.toHaveBeenCalled();
-  });
-
-  it("skips trace loads when trace metadata is missing", () => {
+  it("does not navigate when trace metadata is missing", () => {
     render(
       <ToolCallBubble
         label="trace"
@@ -358,7 +266,6 @@ describe("Tooling", () => {
     fireEvent.click(screen.getByRole("button", { name: /Retrieved chunks/ }));
     fireEvent.click(screen.getByRole("button", { name: /Trace chunk/ }));
 
-    expect(api.fetchQueryEventTrace).not.toHaveBeenCalled();
-    expect(api.fetchPipelineRunTrace).not.toHaveBeenCalled();
+    expect(getMockRouter().push).not.toHaveBeenCalled();
   });
 });

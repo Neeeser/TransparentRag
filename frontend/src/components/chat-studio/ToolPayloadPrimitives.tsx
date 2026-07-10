@@ -196,11 +196,10 @@ export const ToolPayloadSection = ({
 
 interface ToolChunkListProps {
   chunks: unknown[];
-  activeChunkId?: string | null;
   onSelectChunk?: (chunkId: string) => void;
 }
 
-export const ToolChunkList = ({ chunks, activeChunkId, onSelectChunk }: ToolChunkListProps) => {
+export const ToolChunkList = ({ chunks, onSelectChunk }: ToolChunkListProps) => {
   const normalized = chunks
     .map((chunk) =>
       chunk && typeof chunk === "object" ? (chunk as Record<string, unknown>) : null,
@@ -232,12 +231,7 @@ export const ToolChunkList = ({ chunks, activeChunkId, onSelectChunk }: ToolChun
         return (
           <article
             key={`${chunkId}-${index}`}
-            className={cn(
-              "rounded-2xl border border-hairline bg-surface p-4",
-              activeChunkId &&
-                activeChunkId === chunkId &&
-                "border-accent-cyan/60 bg-accent-cyan/10",
-            )}
+            className="rounded-2xl border border-hairline bg-surface p-4"
           >
             <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
               <span>Chunk {index + 1}</span>

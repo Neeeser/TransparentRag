@@ -16,7 +16,7 @@ import { useFlowPlayback } from "./use-flow-playback";
 
 import type { PipelineNodeData } from "../PipelineNode";
 import type { TypedEdgeType } from "./TypedEdge";
-import type { FlowStep } from "./use-flow-playback";
+import type { FlowStep, UseFlowPlaybackResult } from "./use-flow-playback";
 import type { Node, NodeTypes } from "@xyflow/react";
 
 type FlowPlayerProps = {
@@ -37,7 +37,19 @@ type FlowPlayerProps = {
   ambient?: boolean;
   /** Extra node types merged over the pipeline defaults (e.g. the trace index store). */
   nodeTypes?: NodeTypes;
+  /**
+   * Externally owned playback state. When provided, the player renders and
+   * controls this instead of creating its own — so a surrounding surface (the
+   * trace debugger's step rail, keyboard shortcuts) can share one stepper.
+   */
+  playback?: UseFlowPlaybackResult;
 };
+
+/** Internal playback never auto-plays when an external one is in charge. */
+const resolveInternalAutoPlay = (
+  externalPlayback: UseFlowPlaybackResult | undefined,
+  autoPlay: boolean,
+): boolean => (externalPlayback ? false : autoPlay);
 
 /**
  * Read-only pipeline graph with synchronized playback: the active node glows
@@ -55,8 +67,18 @@ export function FlowPlayer({
   compact = false,
   ambient = false,
   nodeTypes,
+  playback: externalPlayback,
 }: FlowPlayerProps) {
-  const playback = useFlowPlayback({ steps, edges, autoPlay, loop: ambient });
+  // Always created so hook order is stable; inert (autoPlay off, no timers
+  // running) whenever an external playback is in charge.
+  const internalAutoPlay = resolveInternalAutoPlay(externalPlayback, autoPlay);
+  const internalPlayback = useFlowPlayback({
+    steps,
+    edges,
+    autoPlay: internalAutoPlay,
+    loop: ambient,
+  });
+  const playback = externalPlayback ?? internalPlayback;
   const { activeIndex } = playback;
   const dotColor = useFlowDotColor();
 

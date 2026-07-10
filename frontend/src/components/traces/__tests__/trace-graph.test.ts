@@ -52,7 +52,16 @@ describe("buildTraceGraph", () => {
 
     expect(graph.combined).toBe(false);
     expect(graph.steps.map((step) => step.stage)).toEqual(["retrieval", "retrieval"]);
+    expect(graph.steps[0].stageLabel).toBe("Retrieval");
     expect(graph.nodes.some((node) => node.id === STORE_ID)).toBe(false);
+  });
+
+  it("labels a solo ingestion trace as ingestion, not retrieval", () => {
+    const graph = buildTraceGraph(ingestionTrace(), null, nodeSpecs);
+
+    expect(graph.combined).toBe(false);
+    expect(graph.steps[0].stage).toBe("origin");
+    expect(graph.steps[0].stageLabel).toBe("Ingestion");
   });
 
   it("joins ingestion and retrieval as isolated bands sharing an index store", () => {

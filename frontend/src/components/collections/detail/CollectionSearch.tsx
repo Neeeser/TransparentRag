@@ -1,17 +1,17 @@
 "use client";
 
 import { Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { PipelineTraceViewer } from "@/components/traces/PipelineTraceViewer";
 import { Button } from "@/components/ui/button";
 import { TextArea, TextInput } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/panel";
-import { fetchQueryEventEndToEndTrace, fetchQueryEventTrace, runCollectionQuery } from "@/lib/api";
+import { runCollectionQuery } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { truncate } from "@/lib/utils";
 
-import type { CollectionQueryResult, PipelineTraceResponse } from "@/lib/types";
+import type { CollectionQueryResult } from "@/lib/types";
 import type { FormEvent } from "react";
 
 type CollectionSearchProps = {
@@ -20,16 +20,12 @@ type CollectionSearchProps = {
 };
 
 export function CollectionSearch({ collectionId, token }: CollectionSearchProps) {
+  const router = useRouter();
   const [query, setQuery] = useState("What does this collection contain?");
   const [topK, setTopK] = useState(4);
   const [queryResult, setQueryResult] = useState<CollectionQueryResult | null>(null);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [trace, setTrace] = useState<PipelineTraceResponse | null>(null);
-  const [originTrace, setOriginTrace] = useState<PipelineTraceResponse | null>(null);
-  const [traceLoading, setTraceLoading] = useState(false);
-  const [traceChunkId, setTraceChunkId] = useState<string | null>(null);
-  const [traceOpen, setTraceOpen] = useState(false);
 
   const handleQuery = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,10 +35,6 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     try {
       const result = await runCollectionQuery(token, collectionId, { query, top_k: topK });
       setQueryResult(result);
-      setTrace(null);
-      setOriginTrace(null);
-      setTraceChunkId(null);
-      setTraceOpen(false);
     } catch (error) {
       setMessage(getErrorMessage(error, "Query failed."));
     } finally {
@@ -50,37 +42,15 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     }
   };
 
-  const loadTrace = async (chunkId?: string | null) => {
+  // Targeting a chunk makes the debugger join retrieval with the ingestion
+  // run that produced it — the whole document → chunk → index → query path.
+  const openTrace = (chunkId?: string | null) => {
     if (!queryResult?.query_event_id) {
       setMessage("Trace is not available for this query.");
       return;
     }
-    setTraceLoading(true);
-    setMessage(null);
-    try {
-      if (chunkId) {
-        // Tracing a specific chunk: join retrieval with the ingestion run that
-        // produced it, so the whole document → chunk → index → retrieval path
-        // plays as one flow.
-        const payload = await fetchQueryEventEndToEndTrace(
-          token,
-          queryResult.query_event_id,
-          chunkId,
-        );
-        setTrace(payload.retrieval);
-        setOriginTrace(payload.origin?.trace ?? null);
-      } else {
-        const payload = await fetchQueryEventTrace(token, queryResult.query_event_id);
-        setTrace(payload);
-        setOriginTrace(null);
-      }
-      setTraceChunkId(chunkId ?? null);
-      setTraceOpen(true);
-    } catch (error) {
-      setMessage(getErrorMessage(error, "Unable to load trace."));
-    } finally {
-      setTraceLoading(false);
-    }
+    const chunkParam = chunkId ? `?chunk=${encodeURIComponent(chunkId)}` : "";
+    router.push(`/traces/queries/${queryResult.query_event_id}${chunkParam}`);
   };
 
   const topScores = useMemo(() => {
@@ -151,13 +121,8 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
           {!queryResult && <p className="text-sm text-muted">No queries yet.</p>}
           {queryResult && (
             <div className="flex flex-wrap items-center gap-3 text-sm text-body">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={traceLoading}
-                onClick={() => loadTrace()}
-              >
-                {trace ? "Refresh trace" : "View retrieval trace"}
+              <Button variant="secondary" size="sm" onClick={() => openTrace()}>
+                View retrieval trace
               </Button>
               {queryResult.query_event_id && (
                 <span className="text-xs text-muted">
@@ -178,7 +143,7 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => loadTrace((chunk.chunk_id ?? chunk.id) as string)}
+                  onClick={() => openTrace((chunk.chunk_id ?? chunk.id) as string)}
                 >
                   Trace result
                 </Button>
@@ -206,14 +171,6 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
           ))}
         </div>
       </GlassCard>
-      <PipelineTraceViewer
-        key={`${trace?.run.id ?? "trace"}-${originTrace?.run.id ?? "solo"}`}
-        trace={trace}
-        originTrace={originTrace}
-        isOpen={traceOpen}
-        onClose={() => setTraceOpen(false)}
-        highlightChunkId={traceChunkId}
-      />
     </div>
   );
 }
