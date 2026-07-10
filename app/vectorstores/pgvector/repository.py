@@ -3,9 +3,9 @@
 Every dynamic identifier is derived from an index name that has already
 passed `validate_index_name` (strict `[a-z0-9-]`), then mapped through
 `data_table_name` — so identifier interpolation is safe by construction.
-All values travel as bound parameters; embeddings are bound as their pgvector
-text form (`"[0.1,0.2]"`) and cast with `::vector` in SQL, which keeps the
-backend free of any pgvector Python dependency.
+All values travel as bound parameters; embeddings bind through
+`pgvector.sqlalchemy.VECTOR`, whose import also registers the `vector` type
+for SQLAlchemy reflection.
 """
 
 from __future__ import annotations
@@ -15,7 +15,8 @@ from collections.abc import Sequence
 from typing import Any
 
 import sqlalchemy
-from sqlalchemy import text
+from pgvector.sqlalchemy import VECTOR
+from sqlalchemy import bindparam, text
 from sqlmodel import Session, select
 
 from app.db.models import VectorIndexRecord
@@ -32,11 +33,6 @@ _METRIC_OPS: dict[str, tuple[str, str]] = {
 def data_table_name(index_name: str) -> str:
     """Map a validated logical index name onto its data table name."""
     return "vec_" + index_name.replace("-", "_")
-
-
-def embedding_literal(embedding: Sequence[float]) -> str:
-    """Serialize an embedding to pgvector's text input format."""
-    return "[" + ",".join(repr(float(value)) for value in embedding) + "]"
 
 
 def to_similarity(metric: str, distance: float) -> float:
@@ -113,13 +109,13 @@ class PgvectorRepository:
     # -- DML ---------------------------------------------------------------
 
     def upsert_chunks(self, name: str, namespace: str, chunks: Sequence[DocumentChunk]) -> None:
-        """Insert-or-update chunk rows (embeddings bound as pgvector text)."""
+        """Insert-or-update chunk rows (embeddings bound via the pgvector type)."""
         table = data_table_name(name)
         statement = text(
             f"""
             INSERT INTO {table} (chunk_id, namespace, document_id, text, metadata, embedding)
             VALUES (:chunk_id, :namespace, :document_id, :text,
-                    CAST(:metadata AS jsonb), CAST(:embedding AS vector))
+                    CAST(:metadata AS jsonb), :embedding)
             ON CONFLICT (chunk_id) DO UPDATE SET
                 namespace = EXCLUDED.namespace,
                 document_id = EXCLUDED.document_id,
@@ -127,7 +123,7 @@ class PgvectorRepository:
                 metadata = EXCLUDED.metadata,
                 embedding = EXCLUDED.embedding
             """
-        )
+        ).bindparams(bindparam("embedding", type_=VECTOR()))
         for chunk in chunks:
             if chunk.embedding is None:
                 raise ValueError(f"Chunk {chunk.chunk_id} missing embedding.")
@@ -139,7 +135,7 @@ class PgvectorRepository:
                     "document_id": chunk.document_id,
                     "text": chunk.text,
                     "metadata": json.dumps({**chunk.metadata.data, "order": chunk.order}),
-                    "embedding": embedding_literal(chunk.embedding),
+                    "embedding": list(chunk.embedding),
                 },
             )
 
@@ -158,17 +154,17 @@ class PgvectorRepository:
         statement = text(
             f"""
             SELECT chunk_id, document_id, text, metadata,
-                   embedding {operator} CAST(:embedding AS vector) AS distance
+                   embedding {operator} :embedding AS distance
             FROM {table}
             WHERE namespace = :namespace
             ORDER BY distance
             LIMIT :top_k
             """
-        )
+        ).bindparams(bindparam("embedding", type_=VECTOR()))
         rows = self._session.exec(  # type: ignore[call-overload]
             statement,
             params={
-                "embedding": embedding_literal(embedding),
+                "embedding": list(embedding),
                 "namespace": namespace,
                 "top_k": top_k,
             },

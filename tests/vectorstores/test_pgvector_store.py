@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import warnings
+
 import pytest
+import sqlalchemy
+from sqlalchemy import exc as sa_exc
 from sqlmodel import Session
 
 from app.retrieval.models import DocumentChunk, DocumentMetadata
@@ -127,3 +131,20 @@ def test_ensure_index_creates_once(pgvector_session: Session) -> None:
     store.ensure_index(spec)
     store.ensure_index(spec)
     assert [index.name for index in store.list_indexes()] == ["docs"]
+
+
+def test_schema_inspection_recognizes_vector_columns(pgvector_session: Session) -> None:
+    """Reflecting a vec_ table must not warn about the `vector` column type.
+
+    Boot-time schema validation inspects every table's columns; without the
+    pgvector SQLAlchemy type registered, reflection emits `SAWarning: Did not
+    recognize type 'vector'` on each vec_ table.
+    """
+    store = PgvectorStore(pgvector_session)
+    _make_index(store)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", sa_exc.SAWarning)
+        inspector = sqlalchemy.inspect(pgvector_session.connection())
+        columns = {column["name"] for column in inspector.get_columns("vec_docs")}
+    assert "embedding" in columns
