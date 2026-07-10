@@ -21,6 +21,7 @@ from app.api.routes import (
     models,
     pipelines,
     search,
+    setup,
     traces,
     visualizations,
 )
@@ -96,6 +97,7 @@ app.include_router(indexes.router)
 app.include_router(collections.router)
 app.include_router(documents.router)
 app.include_router(search.router)
+app.include_router(setup.router)
 app.include_router(traces.router)
 app.include_router(chat.router)
 app.include_router(visualizations.router)

@@ -744,7 +744,10 @@ construction site.
   under test just handled proves nothing — the session's identity map hands back the
   same in-memory instance, so the test passes even when nothing was ever written. The
   `update_collection_prompt` JSON-mutation bug survived precisely because its test
-  read back through the same session.
+  read back through the same session. **And always close that fresh session**
+  (`with Session(session.get_bind()) as fresh:`) — an unclosed read-back session sits
+  idle-in-transaction and deadlocks the next test's `DROP SCHEMA` reset, hanging the
+  whole suite.
 - **Coverage is a floor, not a goal, and an untested line needs a stated reason, not
   silence.** Use `term-missing` to find genuinely untested behavior, not to pad. Named
   reasons we've actually used: a thin wrapper over a third-party SDK where the test

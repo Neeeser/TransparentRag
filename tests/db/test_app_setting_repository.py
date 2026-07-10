@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlmodel import Session
 
 from app.db.repositories import AppSettingRepository
+from tests.utils.db import TEST_DEFAULT_EMBEDDING_MODEL
 
 
 def test_upsert_insert_update_and_read_back(session: Session) -> None:
@@ -19,6 +20,8 @@ def test_upsert_insert_update_and_read_back(session: Session) -> None:
     assert overrides == {
         "uploads.max_upload_size_mb": 25,
         "auth.allow_registration": False,
+        # Seeded by every test session (see tests/utils/db.py).
+        "models.default_embedding_model": TEST_DEFAULT_EMBEDDING_MODEL,
     }
 
 
@@ -31,4 +34,6 @@ def test_delete_clears_an_override_and_tolerates_absence(session: Session) -> No
     session.commit()
 
     with Session(session.get_bind()) as fresh:
-        assert AppSettingRepository(fresh).all_overrides() == {}
+        assert AppSettingRepository(fresh).all_overrides() == {
+            "models.default_embedding_model": TEST_DEFAULT_EMBEDDING_MODEL,
+        }

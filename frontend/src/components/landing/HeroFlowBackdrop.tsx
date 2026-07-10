@@ -1,29 +1,10 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 
 import { buildDemoFlow } from "@/components/landing/lib/demo-flow";
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
-
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-
-/**
- * Subscribe to the user's reduced-motion preference the hydration-safe way:
- * the server snapshot assumes motion is allowed (the permissive default), and
- * `useSyncExternalStore` reconciles the real value on the client without a
- * setState-in-effect.
- */
-function usePrefersReducedMotion(): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
-      const media = window.matchMedia(REDUCED_MOTION_QUERY);
-      media.addEventListener("change", onChange);
-      return () => media.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
-    () => false,
-  );
-}
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 
 /**
  * The hero's signature: a synthetic RAG pipeline running continuously behind

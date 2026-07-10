@@ -368,3 +368,45 @@ html {
     transform: none !important;
   }
 }
+
+/* First-run setup wizard: one directional slide per step change. The keyframe
+   pair mirrors landingRise; direction is chosen by class. No-ops under
+   reduced motion. */
+@keyframes setupStepForward {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes setupStepBack {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.setup-step-forward {
+  animation: setupStepForward 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.setup-step-back {
+  animation: setupStepBack 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-step-forward,
+  .setup-step-back {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

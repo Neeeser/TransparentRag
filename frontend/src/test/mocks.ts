@@ -144,6 +144,14 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     fetchPublicConfig: vi.fn(async () => makePublicConfig()),
     fetchAdminConfig: vi.fn(async () => []),
     updateAdminConfig: vi.fn(async () => []),
+    // setup
+    fetchSetupStatus: vi.fn(async () => ({
+      openrouter_configured: true,
+      has_index: true,
+      has_collection: true,
+      setup_complete: true,
+    })),
+    bootstrapSetup: vi.fn(async () => ({ collection: makeCollection() })),
     ...overrides,
   };
 }

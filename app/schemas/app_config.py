@@ -19,7 +19,10 @@ from app.schemas.enums import IndexBackend
 # Code defaults for the model fields mirror app/core/config.py's Settings
 # defaults so an un-overridden install behaves identically either way.
 _DEFAULT_CHAT_MODEL = "openai/gpt-oss-120b"
-_DEFAULT_EMBEDDING_MODEL = "qwen/qwen3-embedding-0.6b"
+# Deliberately empty: OpenRouter's embedding catalog shifts over time, so a
+# hardcoded model id rots (we shipped one that 502'd every first upload).
+# The first-run setup wizard seeds this with the user's confirmed choice.
+_DEFAULT_EMBEDDING_MODEL = ""
 
 
 def _meta(
@@ -95,11 +98,11 @@ class ModelDefaults(BaseModel):
     )
     default_embedding_model: str = Field(
         default=_DEFAULT_EMBEDDING_MODEL,
-        min_length=1,
         json_schema_extra=_meta(
             "Default embedding model",
             "OpenRouter model id used to embed documents and queries in "
-            "newly created default pipelines.",
+            "newly created default pipelines. Empty until the first-run "
+            "setup wizard seeds it with a confirmed choice.",
             env_var="OPENROUTER_DEFAULT_EMBEDDING_MODEL",
         ),
     )

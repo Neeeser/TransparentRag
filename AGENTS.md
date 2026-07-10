@@ -86,7 +86,12 @@ drift from it:
   (`PublicConfig`) unauthenticated; `GET /api/admin/config` and `PATCH
   /api/admin/config` (admin-gated) serve/edit the full field catalog. Do **not**
   introduce file-based runtime config (config.yaml in a volume) — the DB is the
-  config store.
+  config store. `models.default_embedding_model` is deliberately **empty by
+  default** — no OpenRouter embedding model id is evergreen, so a hardcoded one
+  rots (a shipped default once 502'd every first upload). The first-run setup
+  wizard (`/setup`, `POST /api/setup/bootstrap`) seeds it with the user's
+  confirmed choice; default-pipeline scaffolding raises a clear
+  `InvalidInputError` when it's unset rather than building broken pipelines.
 - **Layer 3 — per-user settings** (provider API keys, session preferences) — already
   exists; stays per-user, never migrates into global config.
 - **The frontend is an API client, never a config owner.** Frontend-related settings

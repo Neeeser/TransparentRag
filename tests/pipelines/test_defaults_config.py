@@ -24,6 +24,7 @@ from app.pipelines.nodes.indexing import VectorIndexerConfig
 from app.pipelines.nodes.retrieval import VectorRetrieverConfig
 from app.schemas.enums import IndexBackend
 from app.services.app_config import invalidate_app_config_cache
+from app.services.errors import InvalidInputError
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +37,12 @@ def _invalidate_cache() -> Iterator[None]:
 
 def _set_override(session: Session, key: str, value: object) -> None:
     AppSettingRepository(session).upsert(key, value, updated_by=None)
+    session.commit()
+    invalidate_app_config_cache()
+
+
+def _clear_override(session: Session, key: str) -> None:
+    AppSettingRepository(session).delete(key)
     session.commit()
     invalidate_app_config_cache()
 
@@ -119,3 +126,42 @@ def test_build_default_retrieval_pipeline_uses_overridden_models(session: Sessio
 
     embedder_node = next(node for node in definition.nodes if node.id == "embed-query")
     assert embedder_node.config["model_name"] == "override/embedding-model"
+
+
+def test_builders_raise_when_no_embedding_model_configured(session: Session) -> None:
+    """An unconfigured install must fail loudly, pointing at first-run setup."""
+    _clear_override(session, "models.default_embedding_model")
+
+    with pytest.raises(InvalidInputError, match="setup"):
+        build_default_ingestion_pipeline()
+    with pytest.raises(InvalidInputError, match="setup"):
+        build_default_retrieval_pipeline()
+
+
+def test_builders_accept_explicit_setup_choices(session: Session) -> None:
+    """The setup wizard's choices override config entirely, even when unset."""
+    _clear_override(session, "models.default_embedding_model")
+
+    ingestion = build_default_ingestion_pipeline(
+        embedding_model="wizard/model",
+        backend=IndexBackend.PGVECTOR,
+        index_name="first-index",
+        chunk_size=512,
+        chunk_overlap=64,
+    )
+    retrieval = build_default_retrieval_pipeline(
+        embedding_model="wizard/model",
+        backend=IndexBackend.PGVECTOR,
+        index_name="first-index",
+    )
+
+    embedder = next(node for node in ingestion.nodes if node.id == "embed-chunks")
+    chunker = next(node for node in ingestion.nodes if node.id == "chunk-document")
+    indexer = next(node for node in ingestion.nodes if node.id == "index-chunks")
+    query_embedder = next(node for node in retrieval.nodes if node.id == "embed-query")
+    retriever = next(node for node in retrieval.nodes if node.id == "vector-retriever")
+    assert embedder.config["model_name"] == "wizard/model"
+    assert chunker.config == {"chunk_size": 512, "chunk_overlap": 64}
+    assert indexer.config["index_name"] == "first-index"
+    assert query_embedder.config["model_name"] == "wizard/model"
+    assert retriever.config["index_name"] == "first-index"
