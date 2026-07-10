@@ -26,6 +26,7 @@ from app.services.app_config import (
     invalidate_app_config_cache,
 )
 from app.services.errors import InvalidInputError
+from tests.utils.db import TEST_DEFAULT_EMBEDDING_MODEL
 
 
 @pytest.fixture(autouse=True)
@@ -95,7 +96,10 @@ def test_patch_writes_overrides_and_null_resets(session: Session) -> None:
 
     with Session(session.get_bind()) as fresh:
         overrides = AppSettingRepository(fresh).all_overrides()
-    assert overrides == {"auth.allow_registration": False}
+    assert overrides == {
+        "auth.allow_registration": False,
+        "models.default_embedding_model": TEST_DEFAULT_EMBEDDING_MODEL,
+    }
     assert service.effective_config().auth.allow_registration is False
 
     reset = service.apply_update({"auth": {"allow_registration": None}}, admin.id)
@@ -103,7 +107,7 @@ def test_patch_writes_overrides_and_null_resets(session: Session) -> None:
 
     with Session(session.get_bind()) as fresh:
         overrides = AppSettingRepository(fresh).all_overrides()
-    assert overrides == {}
+    assert overrides == {"models.default_embedding_model": TEST_DEFAULT_EMBEDDING_MODEL}
     assert service.effective_config().auth.allow_registration is True
 
 

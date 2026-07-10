@@ -216,3 +216,27 @@ def test_ensure_admin_exists_is_a_noop_with_admin_or_no_users(session: Session) 
     with Session(session.get_bind()) as fresh:
         assert fresh.get(models.User, admin.id).role == UserRole.ADMIN.value
         assert fresh.get(models.User, other.id).role == UserRole.USER.value
+
+
+def test_register_succeeds_without_a_configured_embedding_model(session: Session) -> None:
+    """Sign-up must never depend on setup state — the wizard runs after login.
+
+    Regression: registration eagerly scaffolded default pipelines, which
+    rightly refuse to build without an embedding model — bricking sign-up on
+    a fresh install.
+    """
+    from app.db.repositories import AppSettingRepository
+    from app.services.app_config import invalidate_app_config_cache
+
+    AppSettingRepository(session).delete("models.default_embedding_model")
+    session.commit()
+    invalidate_app_config_cache()
+    try:
+        user = AccountService(session).register(
+            UserCreate(email="fresh@example.com", full_name="Fresh", password="Str0ngPass!")
+        )
+    finally:
+        invalidate_app_config_cache()
+
+    assert user.id is not None
+    assert not list(PipelineService(session).list_pipelines(user.id))

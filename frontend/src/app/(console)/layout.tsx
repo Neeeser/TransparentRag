@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { SetupStatusProvider } from "@/providers/setup-status-provider";
 
 const navLinks = [
   { href: "/dashboard", label: "Overview", icon: Home },
@@ -200,13 +201,15 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
           isPipelinesRoute && "xl:overflow-hidden",
         )}
       >
-        {isChatRoute || isPipelinesRoute ? (
-          <div className={cn(isChatRoute && "h-full", isPipelinesRoute && "xl:h-full")}>
-            {children}
-          </div>
-        ) : (
-          children
-        )}
+        <SetupStatusProvider>
+          {isChatRoute || isPipelinesRoute ? (
+            <div className={cn(isChatRoute && "h-full", isPipelinesRoute && "xl:h-full")}>
+              {children}
+            </div>
+          ) : (
+            children
+          )}
+        </SetupStatusProvider>
       </main>
     </div>
   );

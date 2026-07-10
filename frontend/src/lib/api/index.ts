@@ -6,3 +6,4 @@ export * from "@/lib/api/config";
 export * from "@/lib/api/pipelines";
 export * from "@/lib/api/chat";
 export * from "@/lib/api/models";
+export * from "@/lib/api/setup";

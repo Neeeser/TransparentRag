@@ -11,7 +11,7 @@ const loginPassword = "password123";
 const emailLabel = "Email";
 const passwordLabel = "Password";
 const enterDashboardLabel = "Enter dashboard";
-const createWorkspaceLabel = "Create workspace";
+const createAccountLabel = "Create account";
 const needAnAccountText = "Need an account?";
 
 vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).mockAuth());
@@ -41,7 +41,7 @@ describe("SignInPage", () => {
     expect(getMockRouter().push).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("handles registration flow and toggles back to login", async () => {
+  it("registers, signs the new account straight in, and redirects", async () => {
     render(<SignInPage />);
 
     fireEvent.click(screen.getByText(needAnAccountText));
@@ -50,13 +50,13 @@ describe("SignInPage", () => {
     fireEvent.change(screen.getByLabelText(passwordLabel), { target: { value: loginPassword } });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: createWorkspaceLabel }));
+      fireEvent.click(screen.getByRole("button", { name: createAccountLabel }));
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Workspace created. You can sign in now.")).toBeInTheDocument();
+      expect(auth.signIn).toHaveBeenCalledWith("new@example.com", loginPassword);
     });
-    expect(screen.getByText(enterDashboardLabel)).toBeInTheDocument();
+    expect(getMockRouter().push).toHaveBeenCalledWith("/dashboard");
   });
 
   it("shows errors when submit fails", async () => {
@@ -78,7 +78,7 @@ describe("SignInPage", () => {
     render(<SignInPage />);
 
     fireEvent.click(screen.getByText(needAnAccountText));
-    expect(screen.getByRole("button", { name: createWorkspaceLabel })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: createAccountLabel })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Already have access?"));
     expect(screen.getByText(enterDashboardLabel)).toBeInTheDocument();
 
