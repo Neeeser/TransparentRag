@@ -42,8 +42,11 @@ export default function SignInPage() {
         router.push("/dashboard");
       } else {
         await registerUser(form);
-        setMessage("Workspace created. You can sign in now.");
-        setMode("login");
+        // The account was just created with these credentials — sign the
+        // user straight in instead of bouncing them back to the login form.
+        setMessage("Account created — signing you in…");
+        await signIn(form.email, form.password);
+        router.push("/dashboard");
       }
     } catch (error) {
       setMessage(getErrorMessage(error, "Something went wrong."));
@@ -155,7 +158,7 @@ export default function SignInPage() {
 
             <div className="flex flex-col items-center gap-4 pt-1">
               <Button type="submit" className="w-full" loading={submitting || loading} size="lg">
-                {isLogin ? "Enter dashboard" : "Create workspace"}
+                {isLogin ? "Enter dashboard" : "Create account"}
               </Button>
               {allowRegistration && (
                 <button

@@ -12,6 +12,7 @@ from app.pipelines.nodes.retrieval import VectorRetrieverNode
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
 from app.schemas.enums import IndexBackend
 from app.services.app_config import get_app_config
+from app.services.errors import InvalidInputError
 
 # Horizontal spacing between scaffolded nodes; comfortably wider than the
 # editor's rendered node cards so default pipelines never overlap.
@@ -23,10 +24,41 @@ def _default_backend() -> IndexBackend:
     return IndexBackend(get_app_config().indexing.default_backend)
 
 
-def build_default_ingestion_pipeline() -> PipelineDefinition:
-    """Return the default ingestion pipeline definition."""
-    backend = _default_backend()
-    model_defaults = get_app_config().models
+def _resolve_embedding_model(explicit: str | None) -> str:
+    """Return the model a scaffold embeds with, or fail pointing at setup.
+
+    The code default is deliberately empty (no OpenRouter embedding model id
+    is evergreen), so an install that has never run the first-run setup
+    wizard has no model to scaffold with -- failing here, with a message
+    that names the fix, beats a 502 on the first upload.
+    """
+    model = explicit or get_app_config().models.default_embedding_model
+    if not model.strip():
+        raise InvalidInputError(
+            "No default embedding model is configured. Complete the "
+            "first-time setup wizard (or set models.default_embedding_model) "
+            "before creating default pipelines."
+        )
+    return model
+
+
+def build_default_ingestion_pipeline(
+    *,
+    embedding_model: str | None = None,
+    backend: IndexBackend | None = None,
+    index_name: str | None = None,
+    chunk_size: int = 1024,
+    chunk_overlap: int = 200,
+) -> PipelineDefinition:
+    """Return the default ingestion pipeline definition.
+
+    Explicit arguments (the setup wizard's confirmed choices) win over the
+    runtime config; with no arguments this scaffolds from config and raises
+    `InvalidInputError` when no embedding model has been configured yet.
+    """
+    backend = backend or _default_backend()
+    embedding_model = _resolve_embedding_model(embedding_model)
+    index_name = index_name or default_index_name(backend)
     nodes = [
         PipelineNodeDefinition(
             id="ingest-input",
@@ -46,8 +78,8 @@ def build_default_ingestion_pipeline() -> PipelineDefinition:
             name="Token Chunker",
             position={"x": NODE_SPACING_X * 2, "y": 0},
             config={
-                "chunk_size": 1024,
-                "chunk_overlap": 200,
+                "chunk_size": chunk_size,
+                "chunk_overlap": chunk_overlap,
             },
         ),
         PipelineNodeDefinition(
@@ -55,7 +87,7 @@ def build_default_ingestion_pipeline() -> PipelineDefinition:
             type="embedder.openrouter",
             name="Embedder",
             position={"x": NODE_SPACING_X * 3, "y": 0},
-            config={"model_name": model_defaults.default_embedding_model},
+            config={"model_name": embedding_model},
         ),
         PipelineNodeDefinition(
             id="index-chunks",
@@ -64,7 +96,7 @@ def build_default_ingestion_pipeline() -> PipelineDefinition:
             position={"x": NODE_SPACING_X * 4, "y": 0},
             config={
                 "backend": backend.value,
-                "index_name": default_index_name(backend),
+                "index_name": index_name,
                 "namespace": DEFAULT_NAMESPACE_TEMPLATE,
                 "metric": "cosine",
                 "ensure_index": True,
@@ -117,10 +149,20 @@ def build_default_ingestion_pipeline() -> PipelineDefinition:
     return PipelineDefinition(nodes=nodes, edges=edges, viewport={})
 
 
-def build_default_retrieval_pipeline() -> PipelineDefinition:
-    """Return the default retrieval pipeline definition."""
-    backend = _default_backend()
-    model_defaults = get_app_config().models
+def build_default_retrieval_pipeline(
+    *,
+    embedding_model: str | None = None,
+    backend: IndexBackend | None = None,
+    index_name: str | None = None,
+) -> PipelineDefinition:
+    """Return the default retrieval pipeline definition.
+
+    Same contract as `build_default_ingestion_pipeline`: explicit setup
+    choices win over config; no configured model raises.
+    """
+    backend = backend or _default_backend()
+    embedding_model = _resolve_embedding_model(embedding_model)
+    index_name = index_name or default_index_name(backend)
     nodes = [
         PipelineNodeDefinition(
             id="query-input",
@@ -133,7 +175,7 @@ def build_default_retrieval_pipeline() -> PipelineDefinition:
             type="embedder.openrouter",
             name="Embedder",
             position={"x": NODE_SPACING_X, "y": 0},
-            config={"model_name": model_defaults.default_embedding_model},
+            config={"model_name": embedding_model},
         ),
         PipelineNodeDefinition(
             id="vector-retriever",
@@ -142,7 +184,7 @@ def build_default_retrieval_pipeline() -> PipelineDefinition:
             position={"x": NODE_SPACING_X * 2, "y": 0},
             config={
                 "backend": backend.value,
-                "index_name": default_index_name(backend),
+                "index_name": index_name,
                 "namespace": DEFAULT_NAMESPACE_TEMPLATE,
             },
         ),

@@ -272,11 +272,19 @@ class PipelineService:
 
 
 def backfill_default_pipelines(session: Session) -> None:
-    """Ensure all users and collections have default pipelines assigned."""
+    """Ensure all users and collections have default pipelines assigned.
+
+    A user with no defaults on an install with no configured embedding model
+    is skipped, not failed: they haven't completed first-run setup yet, and
+    the wizard scaffolds their defaults with an explicit model when they do.
+    """
     service = PipelineService(session)
     collection_repo = CollectionRepository(session)
     for user in UserRepository(session).list_all():
-        defaults = service.ensure_default_pipelines(user)
+        try:
+            defaults = service.ensure_default_pipelines(user)
+        except InvalidInputError:
+            continue
         for collection in collection_repo.list_for_user(user.id):
             service.ensure_collection_pipelines(collection, defaults)
 

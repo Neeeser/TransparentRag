@@ -84,6 +84,11 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     getProfile: vi.fn(async () => makeUser()),
     updateUserSettings: vi.fn(async () => makeUser()),
     updateRunSettingsOrder: vi.fn(async () => makeUser()),
+    validateProviderKey: vi.fn(async () => ({
+      configured: true,
+      valid: true,
+      message: null,
+    })),
     validateUserKeys: vi.fn(async () => ({
       openrouter: { configured: true, valid: true },
       pinecone: { configured: true, valid: true },
@@ -144,6 +149,14 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     fetchPublicConfig: vi.fn(async () => makePublicConfig()),
     fetchAdminConfig: vi.fn(async () => []),
     updateAdminConfig: vi.fn(async () => []),
+    // setup
+    fetchSetupStatus: vi.fn(async () => ({
+      openrouter_configured: true,
+      has_index: true,
+      has_collection: true,
+      setup_complete: true,
+    })),
+    bootstrapSetup: vi.fn(async () => ({ collection: makeCollection() })),
     ...overrides,
   };
 }

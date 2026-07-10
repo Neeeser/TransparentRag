@@ -9,6 +9,7 @@ the route returns the same 400-with-`{field: message}` body it always has.
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 
 from sqlmodel import Session
 
@@ -43,7 +44,11 @@ class AccountService:
             role=UserRole.ADMIN.value if self.repo.count() == 0 else UserRole.USER.value,
         )
         self.repo.add(user)
-        PipelineService(self.session).ensure_default_pipelines(user)
+        # Best-effort scaffolding: on an install that hasn't completed
+        # first-run setup there is no embedding model to build defaults
+        # around — sign-up still succeeds and the wizard scaffolds later.
+        with suppress(InvalidInputError):
+            PipelineService(self.session).ensure_default_pipelines(user)
         self.session.commit()
         self.session.refresh(user)
         record(UserRegistered(user_id=user.id))

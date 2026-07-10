@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.api.dependencies import get_session, require_openrouter_key
-from app.api.routes.utils import get_collection_or_404, to_http_exception
+from app.api.routes.utils import collection_to_schema, get_collection_or_404, to_http_exception
 from app.db import models
 from app.db.repositories import CollectionRepository, CollectionStats
 from app.schemas.collections import (
@@ -35,17 +35,7 @@ router = APIRouter(prefix="/api/collections", tags=["collections"])
 
 def _to_schema(collection: models.Collection) -> CollectionRead:
     """Convert a collection model into a response schema."""
-    return CollectionRead(
-        id=collection.id,
-        user_id=collection.user_id,
-        name=collection.name,
-        description=collection.description,
-        ingestion_pipeline_id=collection.ingestion_pipeline_id,
-        retrieval_pipeline_id=collection.retrieval_pipeline_id,
-        created_at=collection.created_at,
-        updated_at=collection.updated_at,
-        metadata=collection.extra_metadata,
-    )
+    return collection_to_schema(collection)
 
 
 def _stats_read(collection_id: UUID, stats: CollectionStats) -> CollectionStatsRead:

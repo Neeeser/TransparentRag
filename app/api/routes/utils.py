@@ -9,11 +9,32 @@ from sqlmodel import Session
 
 from app.db import models
 from app.db.repositories import CollectionRepository
+from app.schemas.collections import CollectionRead
 from app.services.errors import (
     ExternalServiceError,
     NotFoundError,
     ServiceError,
 )
+
+
+def collection_to_schema(collection: models.Collection) -> CollectionRead:
+    """Convert a collection row into its wire schema.
+
+    Field-by-field on purpose: the db column `extra_metadata` maps to the
+    schema field `metadata`, so `model_validate(from_attributes=...)` cannot
+    build this shape.
+    """
+    return CollectionRead(
+        id=collection.id,
+        user_id=collection.user_id,
+        name=collection.name,
+        description=collection.description,
+        ingestion_pipeline_id=collection.ingestion_pipeline_id,
+        retrieval_pipeline_id=collection.retrieval_pipeline_id,
+        created_at=collection.created_at,
+        updated_at=collection.updated_at,
+        metadata=collection.extra_metadata,
+    )
 
 
 def get_collection_or_404(
