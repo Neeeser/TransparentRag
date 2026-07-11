@@ -240,7 +240,7 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
             {BackendIcon ? <BackendIcon className="h-3.5 w-3.5 shrink-0" /> : null}
             <p
               className={cn(
-                "truncate font-mono text-[13px] leading-5",
+                "truncate font-mono text-[11px] leading-4",
                 signature.missing ? "text-meta italic" : familyStyles.badge,
               )}
               title={signature.value}
