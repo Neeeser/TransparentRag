@@ -6,6 +6,7 @@ import { formatBytes } from "@/components/files/lib/tree";
 import { cn } from "@/lib/utils";
 
 import type { FileNode } from "@/lib/types";
+import type { KeyboardEvent } from "react";
 
 type FileGridViewProps = {
   entries: FileNode[];
@@ -25,18 +26,31 @@ export function FileGridView({
   onRetry,
   animationKey,
 }: FileGridViewProps) {
+  const activate = (node: FileNode) =>
+    node.kind === "folder" ? onOpenFolder(node) : onSelectFile(node);
+
   return (
     <div
       key={animationKey}
       className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
     >
       {entries.map((node, position) => (
-        <button
+        // A div with button semantics, not a <button>: the ingestion badge
+        // inside is itself a button (retry), and buttons can't nest.
+        <div
           key={node.id}
-          type="button"
-          onClick={() => (node.kind === "folder" ? onOpenFolder(node) : onSelectFile(node))}
+          role="button"
+          tabIndex={0}
+          aria-label={node.name}
+          onClick={() => activate(node)}
+          onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              activate(node);
+            }
+          }}
           className={cn(
-            "files-rise group flex flex-col items-start gap-3 rounded-3xl border p-4 text-left transition",
+            "files-rise group flex cursor-pointer flex-col items-start gap-3 rounded-3xl border p-4 text-left transition",
             node.id === selectedId
               ? "border-accent-violet bg-accent-violet/10"
               : "border-hairline bg-surface hover:border-strong hover:bg-surface-strong",
@@ -57,7 +71,7 @@ export function FileGridView({
               {node.kind === "folder" ? "Folder" : formatBytes(node.size_bytes)}
             </p>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   );

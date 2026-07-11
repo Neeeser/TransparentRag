@@ -143,8 +143,8 @@ export function FilePreviewContent({ token, node }: { token: string; node: FileN
 
   const { objectUrl } = loaded;
   if (kind === "image") {
-    // eslint-disable-next-line @next/next/no-img-element -- blob URLs can't go through next/image
     return (
+      // eslint-disable-next-line @next/next/no-img-element -- blob URLs can't go through next/image
       <img
         src={objectUrl}
         alt={node.name}

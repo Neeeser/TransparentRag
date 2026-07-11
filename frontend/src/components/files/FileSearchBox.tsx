@@ -211,8 +211,9 @@ export function FileSearchBox({
         </button>
       </div>
 
+      {/* The filters panel sits above the results dropdown (z-30), which shares this anchor. */}
       {filtersOpen && (
-        <div className="absolute right-0 top-11 z-30 w-56 rounded-2xl border border-hairline bg-canvas-raised p-3 shadow-elevation-2">
+        <div className="absolute right-0 top-11 z-40 w-56 rounded-2xl border border-hairline bg-canvas-raised p-3 shadow-elevation-2">
           <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">Search in</p>
           <div className="mt-2 space-y-1.5">
             {MODE_LABELS.map(({ mode, label }) => (
