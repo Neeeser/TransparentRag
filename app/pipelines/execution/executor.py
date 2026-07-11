@@ -69,6 +69,7 @@ class PipelineExecutor:
         """Run nodes for a pipeline definition and return outputs."""
         node_map = definition.node_map()
         outgoing = definition.outgoing_edges()
+        fanin = self._expected_fanin(definition)
         inputs: dict[str, dict[str, object]] = {node_id: {} for node_id in node_map}
         outputs: dict[str, dict[str, object]] = {}
         pending = set(node_map.keys())
@@ -77,14 +78,14 @@ class PipelineExecutor:
         while pending and progressed:
             progressed = False
             for node_id in list(pending):
-                if not self._is_ready(node_id, node_map, inputs):
+                if not self._is_ready(node_id, node_map, inputs, fanin):
                     continue
 
                 node_outputs = self._run_node_traced(node_map[node_id], inputs[node_id], context)
                 outputs[node_id] = node_outputs
                 pending.remove(node_id)
                 progressed = True
-                self._propagate(node_id, node_outputs, outgoing, inputs)
+                self._propagate(node_id, node_outputs, outgoing, inputs, node_map)
 
         self._resolve_stalled(pending, inputs)
 
@@ -95,11 +96,21 @@ class PipelineExecutor:
         }
         return outputs, terminal_outputs
 
+    @staticmethod
+    def _expected_fanin(definition: PipelineDefinition) -> dict[tuple[str, str], int]:
+        """Count inbound edges per `(target node id, target port)` pair."""
+        counts: dict[tuple[str, str], int] = {}
+        for edge in definition.edges:
+            key = (edge.target, edge.target_port or "default")
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
     def _is_ready(
         self,
         node_id: str,
         node_map: dict[str, PipelineNodeDefinition],
         inputs: dict[str, dict[str, object]],
+        fanin: dict[tuple[str, str], int],
     ) -> bool:
         """Return True when a pending node has all the inputs it needs to run."""
         node_def = node_map[node_id]
@@ -111,8 +122,18 @@ class PipelineExecutor:
         if node_spec.input_ports and not available_inputs:
             return False
 
-        required_inputs = {port.key for port in node_spec.input_ports if port.required}
-        return required_inputs.issubset(available_inputs.keys())
+        for port in node_spec.input_ports:
+            if port.accepts_many:
+                collected = available_inputs.get(port.key)
+                arrived = len(collected) if isinstance(collected, list) else 0
+                expected = fanin.get((node_id, port.key), 0)
+                # A variadic port waits for every wired edge; required with
+                # nothing wired can never run (the validator flags it first).
+                if arrived < expected or (port.required and expected == 0):
+                    return False
+            elif port.required and port.key not in available_inputs:
+                return False
+        return True
 
     def _run_node_traced(
         self,
@@ -140,21 +161,42 @@ class PipelineExecutor:
             context.trace.finish_node(node_run, node_outputs, summary)
         return node_outputs
 
-    @staticmethod
     def _propagate(
+        self,
         node_id: str,
         node_outputs: dict[str, object],
         outgoing: dict[str, list[PipelineEdgeDefinition]],
         inputs: dict[str, dict[str, object]],
+        node_map: dict[str, PipelineNodeDefinition],
     ) -> None:
-        """Copy a node's outputs onto its downstream edges' target inputs."""
+        """Copy a node's outputs onto its downstream edges' target inputs.
+
+        Values bound for an `accepts_many` port collect into a list; every
+        other port receives the single value directly.
+        """
         for edge in outgoing.get(node_id, []):
             output_key = edge.source_port or "default"
             if output_key not in node_outputs:
                 continue
             target_inputs = inputs[edge.target]
             input_key = edge.target_port or "default"
-            target_inputs[input_key] = node_outputs[output_key]
+            if self._is_many_port(node_map.get(edge.target), input_key):
+                collected = target_inputs.get(input_key)
+                if isinstance(collected, list):
+                    collected.append(node_outputs[output_key])
+                else:
+                    target_inputs[input_key] = [node_outputs[output_key]]
+            else:
+                target_inputs[input_key] = node_outputs[output_key]
+
+    def _is_many_port(self, node_def: PipelineNodeDefinition | None, port_key: str) -> bool:
+        """Return True when the target node declares `port_key` as accepts_many."""
+        if node_def is None:
+            return False
+        spec = self._registry.get_spec(node_def.type)
+        if spec is None:
+            return False
+        return any(port.key == port_key and port.accepts_many for port in spec.input_ports)
 
     @staticmethod
     def _resolve_stalled(
