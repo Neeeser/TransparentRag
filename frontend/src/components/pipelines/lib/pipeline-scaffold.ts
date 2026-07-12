@@ -158,7 +158,7 @@ export const buildDefaultDefinition = (
           type: BM25_RETRIEVER_NODE_TYPE,
           name: "BM25 Retriever",
           config: bm25Config,
-          position: { x: SCAFFOLD_SPACING_X * 1.5, y: SCAFFOLD_SPACING_Y },
+          position: { x: SCAFFOLD_SPACING_X * 1, y: SCAFFOLD_SPACING_Y },
         },
         {
           id: NODE_FUSE_RESULTS,
@@ -300,7 +300,7 @@ export const buildDefaultDefinition = (
       type: BM25_INDEXER_NODE_TYPE,
       name: "BM25 Indexer",
       config: bm25Config,
-      position: { x: SCAFFOLD_SPACING_X * 3.5, y: SCAFFOLD_SPACING_Y },
+      position: { x: SCAFFOLD_SPACING_X * 3, y: SCAFFOLD_SPACING_Y },
     });
     edges.push(
       {

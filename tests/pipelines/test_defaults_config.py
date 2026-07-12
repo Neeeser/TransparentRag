@@ -202,3 +202,22 @@ def test_bm25_sibling_name_truncates_to_backend_capability(monkeypatch) -> None:
 
     assert len(sibling) <= 20
     assert sibling.endswith("-bm25")
+
+
+def test_bm25_branch_nodes_sit_in_the_column_after_their_source(session: Session) -> None:
+    """The BM25 branch shares a column with the next main-row node.
+
+    A half-column offset makes the branch edge run horizontally at the
+    source's row — visually hidden behind the intervening card (embedder /
+    query embedder). Placing the branch directly below the next column keeps
+    the descent inside the first gap.
+    """
+    _set_override(session, "models.default_embedding_model", "test/embed")
+
+    ingestion = build_default_ingestion_pipeline()
+    positions = {node.id: node.position for node in ingestion.nodes}
+    assert positions["index-bm25"].x == positions["embed-chunks"].x
+
+    retrieval = build_default_retrieval_pipeline()
+    positions = {node.id: node.position for node in retrieval.nodes}
+    assert positions["bm25-retriever"].x == positions["embed-query"].x

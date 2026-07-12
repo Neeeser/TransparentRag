@@ -186,7 +186,7 @@ def build_default_ingestion_pipeline(
                 id="index-bm25",
                 type=Bm25IndexerNode.type,
                 name="BM25 Indexer",
-                position={"x": NODE_SPACING_X * 3.5, "y": NODE_SPACING_Y},
+                position={"x": NODE_SPACING_X * 3, "y": NODE_SPACING_Y},
                 config={
                     "backend": backend.value,
                     "index_name": bm25_sibling_index_name(index_name, backend),
@@ -289,7 +289,7 @@ def build_default_retrieval_pipeline(
                     id="bm25-retriever",
                     type=Bm25RetrieverNode.type,
                     name="BM25 Retriever",
-                    position={"x": NODE_SPACING_X * 1.5, "y": NODE_SPACING_Y},
+                    position={"x": NODE_SPACING_X * 1, "y": NODE_SPACING_Y},
                     config={
                         "backend": backend.value,
                         "index_name": bm25_sibling_index_name(index_name, backend),
