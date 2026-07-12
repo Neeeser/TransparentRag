@@ -132,3 +132,27 @@ def test_copy_file_with_missing_bytes_is_rejected(session: Session) -> None:
 
     with pytest.raises(InvalidInputError, match="no stored bytes"):
         FileCopyService(session).copy(user, collection, original, target_parent_id=None)
+
+
+def test_copy_resolves_cwd_relative_storage_paths(
+    session: Session, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dev installs store cwd-relative paths that already include the storage
+    base (`storage/collections/…`); copying must not re-join the base onto
+    them (regression: every dev copy 400'd with 'no stored bytes')."""
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    fs = FileSystemService(session)
+    original = _upload(fs, user, collection).file
+
+    monkeypatch.chdir(tmp_path)
+    relative = Path("storage") / "collections" / str(collection.id) / "files" / str(original.id)
+    relative.parent.mkdir(parents=True)
+    relative.write_bytes(b"copied content")
+    original.storage_path = str(relative)
+    session.add(original)
+    session.commit()
+
+    result = FileCopyService(session).copy(user, collection, original, target_parent_id=None)
+
+    assert Path(result.root.storage_path).read_bytes() == b"copied content"

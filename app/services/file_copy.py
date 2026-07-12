@@ -113,9 +113,11 @@ class FileCopyService:
         """Duplicate the stored bytes under the clone's own storage key."""
         if not source.storage_path:
             raise InvalidInputError(f"'{source.name}' has no stored bytes to copy.")
+        # `storage_path` is stored exactly as `save_stream` returned it —
+        # absolute when the storage root is absolute, otherwise already
+        # cwd-relative *including* the base (e.g. `storage/collections/…`).
+        # Joining the base again would double it and miss every dev file.
         source_path = Path(source.storage_path)
-        if not source_path.is_absolute():
-            source_path = self.storage.base_path / source_path
         if not source_path.exists():
             raise InvalidInputError(f"'{source.name}' has no stored bytes to copy.")
         with source_path.open("rb") as stream:
