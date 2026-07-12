@@ -85,10 +85,4 @@ export interface ProviderPreferences {
  * as two near-identical unions (`ParameterInputKind` / `ParameterInputType`).
  */
 export type ParameterInputKind =
-  | "number"
-  | "integer"
-  | "boolean"
-  | "list"
-  | "json"
-  | "select"
-  | "text";
+  "number" | "integer" | "boolean" | "list" | "json" | "select" | "text";

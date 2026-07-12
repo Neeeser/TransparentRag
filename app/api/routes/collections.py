@@ -16,7 +16,7 @@ from sqlmodel import Session
 from app.api.dependencies import get_session, require_openrouter_key
 from app.api.routes.utils import collection_to_schema, get_collection_or_404, to_http_exception
 from app.db import models
-from app.db.repositories import CollectionRepository, CollectionStats
+from app.db.repositories import HISTORY_WINDOWS, CollectionRepository, CollectionStats
 from app.schemas.collections import (
     CollectionCreate,
     CollectionDeleteResponse,
@@ -28,6 +28,7 @@ from app.schemas.collections import (
     CollectionStatsRead,
     CollectionUpdate,
 )
+from app.schemas.enums import StatsHistoryRange
 from app.services.collection_deletion import CollectionDeletionService
 from app.services.collections import CollectionService
 from app.services.errors import ServiceError
@@ -89,21 +90,23 @@ def get_collection_stats(
 @router.get("/{collection_id}/stats/history", response_model=CollectionStatsHistoryRead)
 def get_collection_stats_history(
     collection_id: UUID,
-    days: int = Query(default=30, ge=7, le=365),
+    range_: StatsHistoryRange = Query(default=StatsHistoryRange.DAYS_30, alias="range"),
     current_user: models.User = Depends(require_openrouter_key),
     session: Session = Depends(get_session),
 ) -> CollectionStatsHistoryRead:
-    """Return daily-bucketed activity history for a collection."""
+    """Return bucketed activity history for a collection's trailing window."""
     collection = get_collection_or_404(collection_id, current_user.id, session)
+    window = HISTORY_WINDOWS[range_]
     points = CollectionRepository(session).stats_history_for(
         current_user.id,
         collection.id,
-        days=days,
-        today=utc_now().date(),
+        window=window,
+        now=utc_now(),
     )
     return CollectionStatsHistoryRead(
         collection_id=collection.id,
-        days=days,
+        range=range_,
+        bucket=window.trunc,
         points=[
             CollectionStatsHistoryPoint.model_validate(point, from_attributes=True)
             for point in points
