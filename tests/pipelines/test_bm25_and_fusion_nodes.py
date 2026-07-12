@@ -106,7 +106,8 @@ def test_bm25_indexer_ensures_sparse_index_and_upserts_text(session: Session) ->
 
     outputs = node.run({"chunks": payload}, context)
 
-    assert store.ensure_calls and store.ensure_calls[0].vector_type == "sparse"
+    assert len(store.ensure_calls) == 1
+    assert store.ensure_calls[0].vector_type == "sparse"
     assert store.ensure_calls[0].name == "docs-bm25"
     assert store.ensure_calls[0].dimension is None
     assert [len(call["chunks"]) for call in store.upsert_lexical_calls] == [3]

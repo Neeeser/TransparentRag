@@ -27,9 +27,11 @@ from app.pipelines.ports import NodePort
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE, resolve_collection_template
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.pipelines.tracing.summaries import summarize_match_order, summarize_matches, summarize_text
+from app.retrieval.models import RetrievalResponse
 from app.retrieval.rerankers.cross_encoder import CrossEncoderReranker
 from app.schemas.enums import IndexBackend
 from app.services.app_config import get_app_config
+from app.services.errors import NotFoundError
 from app.vectorstores.registry import CAPABILITIES_BY_BACKEND
 
 if TYPE_CHECKING:
@@ -272,13 +274,20 @@ class Bm25RetrieverNode(PipelineNodeBase[Bm25RetrieverConfig]):
         )
 
         store = context.vector_stores.get(self.config.backend)
-        response = store.lexical_query(
-            index_name,
-            namespace or "",
-            text=request.text,
-            top_k=request.top_k,
-            filter=request.filter,
-        )
+        try:
+            response = store.lexical_query(
+                index_name,
+                namespace or "",
+                text=request.text,
+                top_k=request.top_k,
+                filter=request.filter,
+            )
+        except NotFoundError:
+            # The sparse index is created by the first ingest (ensure_index on
+            # the BM25 indexer); querying before then means nothing has been
+            # lexically indexed yet — an honest empty branch, not an error.
+            logger.info("BM25 index '%s' does not exist yet; returning no matches.", index_name)
+            response = RetrievalResponse(matches=[])
         logger.info(
             "Pipeline BM25 retrieval returned %s matches for query.",
             len(response.matches),

@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from typing import Any, ClassVar
 
 from pinecone import Pinecone, ServerlessSpec  # pylint: disable=no-name-in-module
+from pinecone.exceptions import NotFoundException as PineconeNotFoundException
 
 from app.clients.pinecone import (
     LEXICAL_TEXT_FIELD,
@@ -243,7 +244,12 @@ class PineconeStore(VectorStoreBackend):
         }
         if filter:
             query["filter"] = filter
-        result = self._get_index(index).search(namespace=namespace, query=query)
+        try:
+            result = self._get_index(index).search(namespace=namespace, query=query)
+        except PineconeNotFoundException as exc:
+            # Normalized so callers handle a not-yet-created sparse index the
+            # same way across backends (pgvector raises NotFoundError too).
+            raise NotFoundError(f"Pinecone index '{index}' not found.") from exc
         hits = [PineconeSearchHit.from_sdk(hit) for hit in result.result.hits]
         return RetrievalResponse(matches=[self._hit_to_scored_chunk(hit) for hit in hits])
 

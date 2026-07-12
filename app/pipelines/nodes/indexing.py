@@ -55,11 +55,6 @@ def default_index_name(backend: IndexBackend) -> str:
     return get_settings().pinecone_index_name
 
 
-def default_bm25_index_name(backend: IndexBackend) -> str:
-    """Return the default sparse (BM25) index name for a backend."""
-    return default_index_name(backend) + BM25_INDEX_SUFFIX
-
-
 class IndexerConfig(BaseModel):
     """Configuration for Pinecone indexing nodes."""
 
