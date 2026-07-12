@@ -1,11 +1,25 @@
+<div align="center">
+
 # Ragworks
 
-Ragworks is a self-hosted application for building, running, and inspecting
-retrieval-augmented generation pipelines. It provides a visual pipeline editor,
-per-node execution traces, document collections, hybrid retrieval, and chat.
+### Follow every document from upload to answer.
+
+**Build and inspect retrieval pipelines as directed graphs—from document
+ingestion through retrieval and chat.**
 
 [![CI](https://github.com/Neeeser/Ragworks/actions/workflows/ci.yml/badge.svg)](https://github.com/Neeeser/Ragworks/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-frontend-black?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![pgvector](https://img.shields.io/badge/pgvector-default-336791?logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
+[![Pinecone](https://img.shields.io/badge/Pinecone-optional-000000?logo=pinecone)](https://www.pinecone.io/)
+[![OpenRouter](https://img.shields.io/badge/OpenRouter-supported-6467F2)](https://openrouter.ai/)
+
+[Overview](#overview) · [Features](#features) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Development](#development)
+
+</div>
 
 <p align="center">
   <picture>
@@ -32,13 +46,20 @@ models. Pinecone can be selected as an alternative vector store.
 
 ## Features
 
-- Visual ingestion and retrieval pipelines with typed ports and validation
-- Versioned pipeline definitions and per-node execution traces
-- Hybrid semantic and BM25 retrieval with reciprocal rank fusion
-- Document collections backed by pgvector or Pinecone
-- Streaming, multi-turn chat with collection search tools
-- Embedding projections for exploring collection contents
-- Per-user provider credentials and administrator-managed runtime settings
+- **Visual pipelines:** build ingestion and retrieval graphs with typed ports and
+  validation before execution.
+- **Execution traces:** inspect node inputs, outputs, duration, and status against
+  the exact pipeline version that ran.
+- **Hybrid retrieval:** combine semantic and BM25 results with reciprocal rank
+  fusion.
+- **Pluggable vector storage:** keep vectors in the included PostgreSQL instance
+  with pgvector or select Pinecone per pipeline.
+- **Collection-aware chat:** stream multi-turn conversations that can search one
+  or more document collections.
+- **Embedding visualization:** project collection embeddings for interactive
+  inspection.
+- **Runtime administration:** manage provider credentials per user and application
+  settings centrally.
 
 ## Quick start
 
@@ -135,14 +156,20 @@ services configured by the user.
 
 ## How it works
 
-An ingestion pipeline parses an uploaded document, creates chunks, embeds them,
-and writes the results to an index. The default pipeline also writes chunk text
-to a BM25 index when lexical search is available.
+**A Ragworks pipeline is a directed graph.** Nodes represent parsing, chunking,
+embedding, indexing, retrieval, fusion, and output stages. Typed edges define how
+data moves between them, and validation catches incompatible ports, cycles, and
+invalid configuration before a run starts.
 
-A retrieval pipeline sends a query through semantic and BM25 branches, merges
-their rankings with reciprocal rank fusion, and returns the selected chunks to
-the calling search or chat workflow. Pipeline versions preserve the graph used
-for each run, and traces retain the result of each node.
+The default ingestion graph parses an uploaded document, creates chunks, embeds
+them, and writes the results to an index. When lexical search is available, the
+same chunks also flow through a parallel BM25 indexing branch.
+
+The default retrieval graph sends a query through semantic and BM25 branches,
+merges their rankings with reciprocal rank fusion, and returns the selected
+chunks to search or chat. Both graphs can be edited and versioned. Every run pins
+the graph version it used and records a trace for each node, connecting an answer
+back to the pipeline that produced it.
 
 The backend uses FastAPI, Pydantic, SQLModel, PostgreSQL, and pgvector. The
 frontend uses Next.js, React, and TypeScript. See the

@@ -124,9 +124,10 @@ drift from it:
 
 - Write for self-hosters first in concise, factual language. Keep the project identity
   provider-neutral; name currently supported providers only where the setup requires it.
-- Avoid decorative emoji, badge walls, slogans, inflated claims, volatile metrics, and
-  roadmap checklists. Link to the canonical development or release documentation instead
-  of duplicating details that change frequently.
+- A centered header may use one short tagline, a curated row of stable project/technology
+  badges, and section navigation. Avoid decorative emoji, oversized badge walls, inflated
+  claims, volatile metrics, and roadmap checklists. Link to canonical development or
+  release documentation instead of duplicating details that change frequently.
 - Keep the README Compose block byte-for-byte identical to `docker-compose.yml`. Keep the
   YAML free of explanatory comments and put operational context in the surrounding prose.
 - Run `make readme-assets` whenever default pipeline definitions or their rendered
