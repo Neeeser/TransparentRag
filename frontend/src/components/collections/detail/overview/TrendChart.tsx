@@ -181,6 +181,25 @@ export function TrendChart({
               vectorEffect="non-scaling-stroke"
             />
           ))}
+          {/* A sample with no neighbors draws no line segment — mark it. */}
+          {series.map((entry) =>
+            entry.values.map((value, index) => {
+              if (value === null) return null;
+              const prev = index > 0 ? entry.values[index - 1] : null;
+              const next = index < entry.values.length - 1 ? entry.values[index + 1] : null;
+              if (prev !== null || next !== null) return null;
+              return (
+                <circle
+                  key={`${entry.id}-${index}`}
+                  cx={x(index)}
+                  cy={y(value)}
+                  r={3}
+                  style={{ fill: COLOR_VAR[entry.color] }}
+                  vectorEffect="non-scaling-stroke"
+                />
+              );
+            }),
+          )}
           {hovered && (
             <line
               x1={x(hovered.index)}

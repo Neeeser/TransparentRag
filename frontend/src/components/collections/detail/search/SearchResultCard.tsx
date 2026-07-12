@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 
 import type { QueryChunk } from "@/lib/types";
 
+const ID_METADATA_KEYS = new Set(["document_id", "collection_id", "chunk_id", "id"]);
+
 function documentLabel(chunk: QueryChunk): string {
   const metadata = chunk.metadata ?? {};
-  for (const key of ["document_name", "file_name", "name", "source"]) {
+  for (const key of ["filename", "document_name", "file_name", "name", "source"]) {
     const value = metadata[key];
     if (typeof value === "string" && value.trim()) {
       return value;
@@ -34,7 +36,9 @@ export function SearchResultCard({ chunk, rank, topScore, onTrace }: SearchResul
   const [expanded, setExpanded] = useState(false);
   const score = chunk.score ?? 0;
   const text = chunk.text ?? "";
+  // Raw ids are trace territory — the Trace button already leads there.
   const metadataEntries = Object.entries(chunk.metadata ?? {})
+    .filter(([key]) => !ID_METADATA_KEYS.has(key))
     .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
     .slice(0, 4);
 
