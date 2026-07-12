@@ -16,7 +16,12 @@ from sqlmodel import Session
 from app.api.dependencies import get_session, require_openrouter_key
 from app.api.routes.utils import collection_to_schema, get_collection_or_404, to_http_exception
 from app.db import models
-from app.db.repositories import HISTORY_WINDOWS, CollectionRepository, CollectionStats
+from app.db.repositories import (
+    HISTORY_WINDOWS,
+    CollectionRepository,
+    CollectionStats,
+    CollectionStatsRepository,
+)
 from app.schemas.collections import (
     CollectionCreate,
     CollectionDeleteResponse,
@@ -71,7 +76,7 @@ def list_collection_stats(
     """Return aggregated stats for all collections."""
     repo = CollectionRepository(session)
     collections = list(repo.list_for_user(current_user.id))
-    stats_map = repo.stats_for(current_user.id, [collection.id for collection in collections])
+    stats_map = CollectionStatsRepository(session).stats_for(current_user.id, [collection.id for collection in collections])
     return [_stats_read(collection.id, stats_map[collection.id]) for collection in collections]
 
 
@@ -83,7 +88,7 @@ def get_collection_stats(
 ) -> CollectionStatsRead:
     """Return aggregated stats for a single collection."""
     collection = get_collection_or_404(collection_id, current_user.id, session)
-    stats_map = CollectionRepository(session).stats_for(current_user.id, [collection.id])
+    stats_map = CollectionStatsRepository(session).stats_for(current_user.id, [collection.id])
     return _stats_read(collection.id, stats_map[collection.id])
 
 
@@ -97,7 +102,7 @@ def get_collection_stats_history(
     """Return bucketed activity history for a collection's trailing window."""
     collection = get_collection_or_404(collection_id, current_user.id, session)
     window = HISTORY_WINDOWS[range_]
-    points = CollectionRepository(session).stats_history_for(
+    points = CollectionStatsRepository(session).stats_history_for(
         current_user.id,
         collection.id,
         window=window,
