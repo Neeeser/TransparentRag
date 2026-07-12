@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import ClassVar
 
 import pytest
+from sqlalchemy import text
 
 from app.db import engine as engine_module
 
@@ -63,3 +65,21 @@ def test_stream_scoped_session_does_not_commit_or_rollback(monkeypatch) -> None:
         assert isinstance(session, _StrictSession)
 
     assert session.closed is True
+
+
+def test_engine_sessions_are_pinned_to_utc() -> None:
+    """App sessions always run with TimeZone=UTC, whatever the server default.
+
+    Regression: our timestamp columns are TIMESTAMP WITHOUT TIME ZONE, and
+    Postgres casts the timezone-aware datetimes we insert using the *session*
+    timezone. On a server defaulting to local time (e.g. Homebrew Postgres),
+    rows landed hours off from the UTC wall time every reader assumes, so
+    "last updated" read hours behind reality.
+    """
+    with engine_module.engine.connect() as connection:
+        zone = connection.execute(text("SHOW TimeZone")).scalar_one()
+        assert zone == "UTC"
+        stored = connection.execute(
+            text("SELECT '2026-01-01 12:00:00+00'::timestamptz::timestamp")
+        ).scalar_one()
+        assert stored == datetime(2026, 1, 1, 12, 0, 0)
