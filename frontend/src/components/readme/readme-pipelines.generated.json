@@ -349,11 +349,7 @@
         "properties": {
           "mode": {
             "default": "auto",
-            "enum": [
-              "auto",
-              "pdf",
-              "text"
-            ],
+            "enum": ["auto", "pdf", "text"],
             "title": "Mode",
             "type": "string"
           },
@@ -518,10 +514,7 @@
         "$defs": {
           "IndexBackend": {
             "description": "Vector-store backends a pipeline can index into and query from.",
-            "enum": [
-              "pinecone",
-              "pgvector"
-            ],
+            "enum": ["pinecone", "pgvector"],
             "title": "IndexBackend",
             "type": "string"
           }
@@ -606,10 +599,7 @@
         "$defs": {
           "IndexBackend": {
             "description": "Vector-store backends a pipeline can index into and query from.",
-            "enum": [
-              "pinecone",
-              "pgvector"
-            ],
+            "enum": ["pinecone", "pgvector"],
             "title": "IndexBackend",
             "type": "string"
           }
@@ -732,10 +722,7 @@
         "$defs": {
           "IndexBackend": {
             "description": "Vector-store backends a pipeline can index into and query from.",
-            "enum": [
-              "pinecone",
-              "pgvector"
-            ],
+            "enum": ["pinecone", "pgvector"],
             "title": "IndexBackend",
             "type": "string"
           }
@@ -794,10 +781,7 @@
         "$defs": {
           "IndexBackend": {
             "description": "Vector-store backends a pipeline can index into and query from.",
-            "enum": [
-              "pinecone",
-              "pgvector"
-            ],
+            "enum": ["pinecone", "pgvector"],
             "title": "IndexBackend",
             "type": "string"
           }

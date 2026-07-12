@@ -119,6 +119,7 @@ const main = async () => {
   run("uv", ["run", "python", "-m", "scripts.export_readme_pipelines", "--output", fixturePath], {
     cwd: repoRoot,
   });
+  run("npx", ["prettier", "--write", fixturePath], { cwd: frontendDir });
 
   const tempDir = await mkdtemp(path.join(tmpdir(), "ragworks-readme-"));
   const server = spawn("npm", ["run", "dev", "--", "-p", String(PORT)], {

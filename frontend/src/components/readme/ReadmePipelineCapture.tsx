@@ -1,8 +1,8 @@
 "use client";
 
-import fixtureJson from "@/components/readme/readme-pipelines.generated.json";
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
 import { toFlowEdges, toFlowNodes } from "@/components/pipelines/lib/pipeline-utils";
+import fixtureJson from "@/components/readme/readme-pipelines.generated.json";
 
 import { buildPlaybackSteps } from "./capture-flow";
 
