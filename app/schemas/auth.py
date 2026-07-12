@@ -55,6 +55,7 @@ class UserRead(UserBase):
     last_used_stream: bool | None = None
     last_used_tool_collection_ids: list[UUID] | None = None
     run_settings_order: list[RunSettingsSection] | None = None
+    remember_session_days: Literal[30, 90, 180] = 30
     created_at: datetime
     updated_at: datetime
 
@@ -65,6 +66,7 @@ class UserSettingsUpdate(BaseModel):
     openrouter_api_key: str | None = None
     pinecone_api_key: str | None = None
     run_settings_order: list[RunSettingsSection] | None = None
+    remember_session_days: Literal[30, 90, 180] | None = None
 
     @field_validator("run_settings_order")
     @classmethod
@@ -106,3 +108,15 @@ class Token(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class AuthSessionRead(BaseModel):
+    """Safe browser-session metadata."""
+
+    id: UUID
+    user_agent: str | None
+    ip_address: str | None
+    created_at: datetime
+    last_used_at: datetime
+    expires_at: datetime
+    current: bool

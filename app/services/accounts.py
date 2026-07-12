@@ -83,6 +83,8 @@ class AccountService:
             user.pinecone_api_key = normalized["pinecone_api_key"] or None
         if payload.run_settings_order is not None:
             user.run_settings_order = [entry.value for entry in payload.run_settings_order]
+        if payload.remember_session_days is not None:
+            user.remember_session_days = payload.remember_session_days
         self.session.add(user)
         self.session.commit()
         self.session.refresh(user)

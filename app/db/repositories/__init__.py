@@ -23,10 +23,11 @@ from app.db.repositories.pipeline import (
 )
 from app.db.repositories.query import QueryRepository
 from app.db.repositories.telemetry import TelemetryRepository
-from app.db.repositories.user import UserRepository
+from app.db.repositories.user import AuthSessionRepository, UserRepository
 
 __all__ = [
     "AppSettingRepository",
+    "AuthSessionRepository",
     "ChatRepository",
     "ChunkRepository",
     "CollectionRepository",

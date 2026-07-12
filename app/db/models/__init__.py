@@ -29,7 +29,7 @@ from app.db.models.pipeline import (
     PipelineVersion,
 )
 from app.db.models.telemetry import TelemetryEventRow
-from app.db.models.user import TimestampMixin, User
+from app.db.models.user import AuthSession, TimestampMixin, User
 from app.db.models.vectors import VectorIndexRecord
 from app.db.models.visualization import UmapPointRecord, UmapProjectionRecord
 from app.schemas.enums import (
@@ -45,6 +45,7 @@ from app.schemas.enums import (
 
 __all__ = [
     "AppSetting",
+    "AuthSession",
     "ChatMessage",
     "ChatMode",
     "ChatRole",

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func
+from sqlalchemy import update as sa_update
+from sqlalchemy.engine import CursorResult
 from sqlmodel import col, select
 
 from app.db import models
@@ -60,3 +64,60 @@ class UserRepository(Repository):
         """Return the oldest account (first-registered) if any users exist."""
         statement = select(models.User).order_by(col(models.User.created_at).asc()).limit(1)
         return self.session.exec(statement).first()
+
+
+class AuthSessionRepository(Repository):
+    """Persistence helpers for revocable browser sessions."""
+
+    def add(self, auth_session: models.AuthSession) -> models.AuthSession:
+        return self._add(auth_session)
+
+    def get_by_digest(self, digest: str) -> models.AuthSession | None:
+        statement = select(models.AuthSession).where(models.AuthSession.token_digest == digest)
+        return self.session.exec(statement).first()
+
+    def get_by_previous_digest(self, digest: str) -> models.AuthSession | None:
+        statement = select(models.AuthSession).where(
+            models.AuthSession.previous_token_digest == digest
+        )
+        return self.session.exec(statement).first()
+
+    def get_owned(self, session_id: UUID, user_id: UUID) -> models.AuthSession | None:
+        statement = select(models.AuthSession).where(
+            models.AuthSession.id == session_id, models.AuthSession.user_id == user_id
+        )
+        return self.session.exec(statement).first()
+
+    def rotate_if_current(
+        self,
+        session_id: UUID,
+        *,
+        current_digest: str,
+        rotated_digest: str,
+        used_at: datetime,
+    ) -> bool:
+        """Atomically rotate a refresh digest if it is still current."""
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                sa_update(models.AuthSession)
+                .where(
+                    col(models.AuthSession.id) == session_id,
+                    col(models.AuthSession.token_digest) == current_digest,
+                    col(models.AuthSession.revoked_at).is_(None),
+                )
+                .values(
+                    previous_token_digest=current_digest,
+                    token_digest=rotated_digest,
+                    last_used_at=used_at,
+                )
+            )
+        )
+        return result.rowcount == 1
+
+    def list_active(self, user_id: UUID) -> list[models.AuthSession]:
+        statement = select(models.AuthSession).where(
+            models.AuthSession.user_id == user_id,
+            col(models.AuthSession.revoked_at).is_(None),
+        )
+        return list(self.session.exec(statement).all())

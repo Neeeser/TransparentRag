@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, Column, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlmodel import Field, SQLModel
 
 from app.schemas.enums import UserRole
@@ -67,8 +67,41 @@ class User(SQLModel, TimestampMixin, table=True):
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
+    remember_session_days: int = Field(default=30, nullable=False)
     is_active: bool = Field(default=True, nullable=False)
     role: str = Field(
         default=UserRole.USER.value,
         sa_column=Column(String, nullable=False, server_default=UserRole.USER.value),
+    )
+
+
+class AuthSession(SQLModel, table=True):
+    """Revocable refresh session for one signed-in browser."""
+
+    __tablename__ = "auth_sessions"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    user_id: UUID = Field(
+        sa_column=Column(
+            ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    token_digest: str = Field(
+        sa_column=Column(String(64), unique=True, index=True, nullable=False)
+    )
+    previous_token_digest: str | None = Field(
+        default=None, sa_column=Column(String(64), index=True, nullable=True)
+    )
+    user_agent: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    ip_address: str | None = Field(default=None, sa_column=Column(String(45), nullable=True))
+    persistent: bool = Field(default=False, nullable=False)
+    created_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    last_used_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    revoked_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
