@@ -72,7 +72,6 @@ describe("collections list and sidebar", () => {
 
     expect(screen.getByText("120 ms")).toBeInTheDocument();
   });
-
 });
 
 const makeOverridesNodeSpec = (overrides: Partial<NodeSpec>): NodeSpec =>

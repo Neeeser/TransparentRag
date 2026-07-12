@@ -65,7 +65,9 @@ export function CollectionSidebar({ collection }: CollectionSidebarProps) {
 
       <nav aria-label="Collection" className="mt-6 space-y-1">
         {navItems.map((item) => {
-          const isActive = item.matchPrefix ? pathname.startsWith(item.href) : pathname === item.href;
+          const isActive = item.matchPrefix
+            ? pathname.startsWith(item.href)
+            : pathname === item.href;
           const Icon = item.icon;
           return (
             <Link

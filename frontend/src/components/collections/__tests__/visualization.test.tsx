@@ -125,7 +125,9 @@ describe("CollectionVisualization", () => {
     await waitFor(() => {
       expect(screen.getByText(umapProjectionHeading)).toBeInTheDocument();
       expect(
-        screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent === "1 points"),
+        screen.getByText(
+          (_, element) => element?.tagName === "SPAN" && element.textContent === "1 points",
+        ),
       ).toBeInTheDocument();
     });
     await waitFor(() => {

@@ -41,9 +41,7 @@ export function SearchResultCard({ chunk, rank, topScore, onTrace }: SearchResul
   return (
     <article className="rounded-2xl border border-hairline bg-surface p-4 transition hover:border-strong">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-meta">
-          #{rank}
-        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-meta">#{rank}</span>
         <FileText className="h-4 w-4 shrink-0 text-muted" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-primary">
           {documentLabel(chunk)}

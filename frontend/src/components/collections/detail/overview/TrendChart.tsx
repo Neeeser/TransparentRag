@@ -83,10 +83,7 @@ function TrendTooltip({ date, index, leftPct, series, formatValue }: TrendToolti
       {series.map((entry) => {
         const value = entry.values[index];
         return (
-          <p
-            key={entry.id}
-            className="flex items-center gap-2 whitespace-nowrap text-xs text-body"
-          >
+          <p key={entry.id} className="flex items-center gap-2 whitespace-nowrap text-xs text-body">
             <span
               className="inline-block h-2 w-2 rounded-full"
               style={{ background: COLOR_VAR[entry.color] }}
@@ -115,12 +112,14 @@ export function TrendChart({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const max = Math.max(1, ...series.flatMap((s) => s.values.filter((v): v is number => v !== null)));
+  const max = Math.max(
+    1,
+    ...series.flatMap((s) => s.values.filter((v): v is number => v !== null)),
+  );
   const stepX = dates.length > 1 ? (VIEW_W - PAD_X * 2) / (dates.length - 1) : 0;
   const x = useCallback((index: number) => PAD_X + index * stepX, [stepX]);
   const y = useCallback(
-    (value: number) =>
-      VIEW_H - PAD_BOTTOM - (value / max) * (VIEW_H - PAD_TOP - PAD_BOTTOM),
+    (value: number) => VIEW_H - PAD_BOTTOM - (value / max) * (VIEW_H - PAD_TOP - PAD_BOTTOM),
     [max],
   );
 

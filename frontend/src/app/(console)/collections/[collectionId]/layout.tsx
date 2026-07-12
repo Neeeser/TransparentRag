@@ -2,7 +2,10 @@
 
 import { useParams } from "next/navigation";
 
-import { CollectionProvider, useCollection } from "@/components/collections/detail/collection-context";
+import {
+  CollectionProvider,
+  useCollection,
+} from "@/components/collections/detail/collection-context";
 import { CollectionSidebar } from "@/components/collections/detail/CollectionSidebar";
 
 import type { ReactNode } from "react";

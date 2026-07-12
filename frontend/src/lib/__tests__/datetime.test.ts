@@ -18,12 +18,8 @@ describe("parseApiDate", () => {
 
   it("leaves zone-suffixed timestamps and Date instances untouched", () => {
     expect(parseApiDate(SUFFIXED_UTC).getTime()).toBe(Date.UTC(2026, 6, 12, 15, 30));
-    expect(parseApiDate("2026-07-12T15:30:00+00:00").getTime()).toBe(
-      Date.UTC(2026, 6, 12, 15, 30),
-    );
-    expect(parseApiDate("2026-07-12T11:30:00-04:00").getTime()).toBe(
-      Date.UTC(2026, 6, 12, 15, 30),
-    );
+    expect(parseApiDate("2026-07-12T15:30:00+00:00").getTime()).toBe(Date.UTC(2026, 6, 12, 15, 30));
+    expect(parseApiDate("2026-07-12T11:30:00-04:00").getTime()).toBe(Date.UTC(2026, 6, 12, 15, 30));
     const date = new Date();
     expect(parseApiDate(date)).toBe(date);
   });

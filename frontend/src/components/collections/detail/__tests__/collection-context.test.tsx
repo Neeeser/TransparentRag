@@ -21,10 +21,7 @@ function Probe() {
       <p>{collection.name}</p>
       <p>{stats?.document_count} documents</p>
       <p>{ingestionPipelines[0]?.name}</p>
-      <button
-        type="button"
-        onClick={() => onCollectionUpdated({ ...collection, name: "Renamed" })}
-      >
+      <button type="button" onClick={() => onCollectionUpdated({ ...collection, name: "Renamed" })}>
         Rename
       </button>
     </div>

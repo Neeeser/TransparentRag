@@ -131,9 +131,7 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
         {projectionSummary && (
           <p className="flex flex-wrap items-center gap-x-4 font-mono text-[11px] text-meta">
             <span>
-              <span className="text-primary">
-                {projectionSummary.pointCount.toLocaleString()}
-              </span>{" "}
+              <span className="text-primary">{projectionSummary.pointCount.toLocaleString()}</span>{" "}
               points
             </span>
             <span className="text-faint" aria-hidden>

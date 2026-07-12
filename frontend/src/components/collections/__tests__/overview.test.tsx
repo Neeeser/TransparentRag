@@ -5,7 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CollectionOverview } from "@/components/collections/detail/CollectionOverview";
 import * as apiModule from "@/lib/api";
-import { makeCollection, makeCollectionStats, makePipeline, makeStatsHistory } from "@/test/fixtures";
+import {
+  makeCollection,
+  makeCollectionStats,
+  makePipeline,
+  makeStatsHistory,
+} from "@/test/fixtures";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 
