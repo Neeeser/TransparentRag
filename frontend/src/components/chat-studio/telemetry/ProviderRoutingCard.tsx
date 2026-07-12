@@ -97,7 +97,7 @@ export const ProviderRoutingCard = ({
             </Button>
           )}
         </div>
-        <label className="space-y-2 text-sm text-body">
+        <label className="flex flex-col gap-1.5 text-sm text-body">
           <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
             Sort providers
           </span>
@@ -286,7 +286,7 @@ export const ProviderRoutingCard = ({
               Only route to providers that support every parameter in your request.
             </p>
           </div>
-          <label className="space-y-2 text-sm text-body">
+          <label className="flex flex-col gap-1.5 text-sm text-body">
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
               Data collection
             </span>
