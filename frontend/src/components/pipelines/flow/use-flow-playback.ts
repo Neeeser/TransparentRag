@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+/**
+ * One playback stage: every node in `nodeIds` is active ("processing") at
+ * once. Linear pipelines use single-element stages; a fan-out (e.g. hybrid
+ * ingestion's chunker feeding both the embedder and a BM25 indexer) lists the
+ * parallel branch nodes together so their payload dots travel simultaneously.
+ */
 export type FlowStep = {
-  nodeId: string;
+  nodeIds: string[];
 };
 
 export type PlaybackPhase = "process" | "travel";
@@ -25,14 +31,19 @@ type UseFlowPlaybackParams = {
   loop?: boolean;
   /** Step to start on (clamped to the step range) — e.g. the first failed node. */
   initialIndex?: number;
+  /**
+   * Fired once when a non-looping run finishes its last step's process
+   * window — e.g. the landing page rotating to its next scene.
+   */
+  onRunComplete?: () => void;
 };
 
 export type UseFlowPlaybackResult = {
   activeIndex: number;
   phase: PlaybackPhase;
   playing: boolean;
-  /** Edge the payload is currently crossing (travel phase only). */
-  travelingEdgeId: string | null;
+  /** Edges the payload is currently crossing (travel phase only). */
+  travelingEdgeIds: Set<string>;
   /** Edges the payload has already crossed this run. */
   visitedEdgeIds: Set<string>;
   travelMs: number;
@@ -44,11 +55,13 @@ export type UseFlowPlaybackResult = {
   seek: (index: number) => void;
 };
 
+const EMPTY_EDGE_SET: Set<string> = new Set();
+
 /**
- * Timing engine for pipeline playback. Each step runs two phases -- the node
- * "processes" (highlighted), then the payload "travels" the edge to the next
- * step -- so the highlight, the dot, and the step index can never drift apart:
- * they are all views of one (index, phase) state.
+ * Timing engine for pipeline playback. Each stage runs two phases -- its
+ * nodes "process" (highlighted), then the payload "travels" every edge into
+ * the next stage -- so the highlights, the dots, and the step index can never
+ * drift apart: they are all views of one (index, phase) state.
  */
 export function useFlowPlayback({
   steps,
@@ -58,19 +71,42 @@ export function useFlowPlayback({
   travelMs = 650,
   loop = false,
   initialIndex = 0,
+  onRunComplete,
 }: UseFlowPlaybackParams): UseFlowPlaybackResult {
   const [activeIndex, setActiveIndex] = useState(() =>
     Math.max(0, Math.min(initialIndex, steps.length - 1)),
   );
   const [phase, setPhase] = useState<PlaybackPhase>("process");
   const [playing, setPlaying] = useState(autoPlay);
+  // Ref so a rerender with a new callback identity can't retrigger the timer.
+  const onRunCompleteRef = useRef(onRunComplete);
+  useEffect(() => {
+    onRunCompleteRef.current = onRunComplete;
+  }, [onRunComplete]);
 
-  const edgeBetween = useCallback(
-    (fromIndex: number) => {
-      const from = steps[fromIndex]?.nodeId;
-      const to = steps[fromIndex + 1]?.nodeId;
-      if (!from || !to) return null;
-      return edges.find((edge) => edge.source === from && edge.target === to)?.id ?? null;
+  const edgesBetween = useCallback(
+    (fromIndex: number): string[] => {
+      const from = steps[fromIndex]?.nodeIds;
+      const next = steps[fromIndex + 1]?.nodeIds;
+      if (!from || !next) return [];
+      const fromSet = new Set(from);
+      const nextSet = new Set(next);
+      // Every node still ahead of this hop — a payload may travel straight to
+      // a merge node several stages downstream (asymmetric branches).
+      const downstream = new Set<string>();
+      for (let index = fromIndex + 1; index < steps.length; index += 1) {
+        for (const nodeId of steps[index].nodeIds) downstream.add(nodeId);
+      }
+      // An edge departs when its source node finishes this stage (active now,
+      // not held into the next stage) and its target lies downstream — so
+      // every branch leaving a fan-out departs simultaneously, even when one
+      // branch's next node is further away than the other's.
+      return edges
+        .filter(
+          (edge) =>
+            fromSet.has(edge.source) && !nextSet.has(edge.source) && downstream.has(edge.target),
+        )
+        .map((edge) => edge.id);
     },
     [steps, edges],
   );
@@ -87,13 +123,14 @@ export function useFlowPlayback({
             setPhase("process");
           } else {
             setPlaying(false);
+            onRunCompleteRef.current?.();
           }
         }, processMs);
         return () => window.clearTimeout(timer);
       }
       const timer = window.setTimeout(() => {
-        setPhase(edgeBetween(activeIndex) ? "travel" : "process");
-        if (!edgeBetween(activeIndex)) setActiveIndex((prev) => prev + 1);
+        setPhase(edgesBetween(activeIndex).length > 0 ? "travel" : "process");
+        if (edgesBetween(activeIndex).length === 0) setActiveIndex((prev) => prev + 1);
       }, processMs);
       return () => window.clearTimeout(timer);
     }
@@ -102,7 +139,7 @@ export function useFlowPlayback({
       setActiveIndex((prev) => Math.min(prev + 1, steps.length - 1));
     }, travelMs);
     return () => window.clearTimeout(timer);
-  }, [playing, phase, activeIndex, steps.length, processMs, travelMs, edgeBetween, loop]);
+  }, [playing, phase, activeIndex, steps.length, processMs, travelMs, edgesBetween, loop]);
 
   const seek = useCallback(
     (index: number) => {
@@ -138,22 +175,24 @@ export function useFlowPlayback({
     setPlaying(true);
   }, []);
 
-  const travelingEdgeId = phase === "travel" ? edgeBetween(activeIndex) : null;
+  const travelingEdgeIds = useMemo(
+    () => (phase === "travel" ? new Set(edgesBetween(activeIndex)) : EMPTY_EDGE_SET),
+    [phase, activeIndex, edgesBetween],
+  );
 
   const visitedEdgeIds = useMemo(() => {
     const visited = new Set<string>();
     for (let index = 0; index < activeIndex; index += 1) {
-      const id = edgeBetween(index);
-      if (id) visited.add(id);
+      for (const id of edgesBetween(index)) visited.add(id);
     }
     return visited;
-  }, [activeIndex, edgeBetween]);
+  }, [activeIndex, edgesBetween]);
 
   return {
     activeIndex,
     phase,
     playing,
-    travelingEdgeId,
+    travelingEdgeIds,
     visitedEdgeIds,
     travelMs,
     atEnd,

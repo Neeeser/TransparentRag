@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useFlowPlayback } from "@/components/pipelines/flow/use-flow-playback";
 
-const steps = [{ nodeId: "a" }, { nodeId: "b" }];
+const steps = [{ nodeIds: ["a"] }, { nodeIds: ["b"] }];
 const edges = [{ id: "a-b", source: "a", target: "b" }];
 const PROCESS_MS = 1000;
 const TRAVEL_MS = 650;
@@ -43,6 +43,112 @@ describe("useFlowPlayback loop", () => {
     act(() => vi.advanceTimersByTime(PROCESS_MS));
     expect(result.current.playing).toBe(false);
     expect(result.current.activeIndex).toBe(1);
+  });
+});
+
+describe("useFlowPlayback parallel stages", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const EDGE_CHUNK_EMBED = "chunk-embed";
+  const EDGE_CHUNK_BM25 = "chunk-bm25";
+  const branchSteps = [
+    { nodeIds: ["chunk"] },
+    { nodeIds: ["embed", "bm25"] },
+    { nodeIds: ["out"] },
+  ];
+  const branchEdges = [
+    { id: EDGE_CHUNK_EMBED, source: "chunk", target: "embed" },
+    { id: EDGE_CHUNK_BM25, source: "chunk", target: "bm25" },
+    { id: "embed-out", source: "embed", target: "out" },
+    { id: "bm25-out", source: "bm25", target: "out" },
+  ];
+
+  it("travels every edge into a fan-out stage simultaneously", () => {
+    const { result } = renderHook(() =>
+      useFlowPlayback({ steps: branchSteps, edges: branchEdges, autoPlay: true }),
+    );
+
+    act(() => vi.advanceTimersByTime(PROCESS_MS));
+    expect(result.current.travelingEdgeIds).toEqual(new Set([EDGE_CHUNK_EMBED, EDGE_CHUNK_BM25]));
+
+    act(() => vi.advanceTimersByTime(TRAVEL_MS));
+    expect(result.current.activeIndex).toBe(1);
+    expect(result.current.travelingEdgeIds).toEqual(new Set());
+  });
+
+  it("departs a finished branch's merge edge alongside the other branch's next hop", () => {
+    // Asymmetric branches: the top path has two hops (embed → index →
+    // collection), the bottom one (bm25 → collection). When the split stage
+    // finishes, BOTH departures happen at once — embed's dot to index and
+    // bm25's dot straight to the merge — instead of the bottom branch
+    // waiting for the top to catch up.
+    const asymmetricSteps = [
+      { nodeIds: ["chunk"] },
+      { nodeIds: ["embed", "bm25"] },
+      { nodeIds: ["index"] },
+      { nodeIds: ["collection"] },
+    ];
+    const asymmetricEdges = [
+      { id: EDGE_CHUNK_EMBED, source: "chunk", target: "embed" },
+      { id: EDGE_CHUNK_BM25, source: "chunk", target: "bm25" },
+      { id: "embed-index", source: "embed", target: "index" },
+      { id: "bm25-collection", source: "bm25", target: "collection" },
+      { id: "index-collection", source: "index", target: "collection" },
+    ];
+    const { result } = renderHook(() =>
+      useFlowPlayback({ steps: asymmetricSteps, edges: asymmetricEdges, autoPlay: true }),
+    );
+
+    advanceOneHop(); // chunk → split
+    act(() => vi.advanceTimersByTime(PROCESS_MS));
+    expect(result.current.travelingEdgeIds).toEqual(new Set(["embed-index", "bm25-collection"]));
+
+    act(() => vi.advanceTimersByTime(TRAVEL_MS));
+    act(() => vi.advanceTimersByTime(PROCESS_MS));
+    expect(result.current.travelingEdgeIds).toEqual(new Set(["index-collection"]));
+  });
+
+  it("marks every crossed branch edge as visited after the merge", () => {
+    const { result } = renderHook(() =>
+      useFlowPlayback({ steps: branchSteps, edges: branchEdges, autoPlay: true }),
+    );
+
+    advanceOneHop();
+    advanceOneHop();
+    expect(result.current.activeIndex).toBe(2);
+    expect(result.current.visitedEdgeIds).toEqual(
+      new Set([EDGE_CHUNK_EMBED, EDGE_CHUNK_BM25, "embed-out", "bm25-out"]),
+    );
+  });
+});
+
+describe("useFlowPlayback onRunComplete", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("fires once when a non-looping run finishes its last step", () => {
+    const onRunComplete = vi.fn();
+    renderHook(() => useFlowPlayback({ steps, edges, autoPlay: true, onRunComplete }));
+
+    advanceOneHop();
+    expect(onRunComplete).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(PROCESS_MS));
+    expect(onRunComplete).toHaveBeenCalledTimes(1);
+
+    // Nothing further fires once playback has stopped.
+    act(() => vi.advanceTimersByTime(PROCESS_MS * 3));
+    expect(onRunComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire when looping past the end", () => {
+    const onRunComplete = vi.fn();
+    renderHook(() => useFlowPlayback({ steps, edges, autoPlay: true, loop: true, onRunComplete }));
+
+    advanceOneHop();
+    act(() => vi.advanceTimersByTime(PROCESS_MS));
+    expect(onRunComplete).not.toHaveBeenCalled();
   });
 });
 

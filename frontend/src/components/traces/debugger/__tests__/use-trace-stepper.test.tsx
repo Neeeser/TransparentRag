@@ -9,6 +9,7 @@ import type { TraceGraph, TraceStep } from "@/components/traces/trace-graph";
 function makeStep(nodeId: string, status: "completed" | "failed" = "completed"): TraceStep {
   return {
     nodeId,
+    nodeIds: [nodeId],
     run: makeNodeRunTrace({ node_id: nodeId, status }),
     io: { inputs: [], outputs: [] },
     stage: "retrieval",

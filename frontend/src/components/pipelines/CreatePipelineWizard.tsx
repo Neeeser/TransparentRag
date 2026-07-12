@@ -161,7 +161,7 @@ export function CreatePipelineWizard({
     () => ({
       nodes: toFlowNodes(definition, nodeSpecs),
       edges: toFlowEdges(definition, nodeSpecs),
-      steps: definition.nodes.map((node) => ({ nodeId: node.id })),
+      steps: definition.nodes.map((node) => ({ nodeIds: [node.id] })),
     }),
     [definition, nodeSpecs],
   );
