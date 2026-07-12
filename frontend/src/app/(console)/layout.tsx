@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  Bot,
-  FolderTree,
-  GitBranch,
-  Home,
-  LogOut,
-  MessageSquare,
-  Settings,
-  Shield,
-} from "lucide-react";
+import { FolderTree, GitBranch, Home, LogOut, MessageSquare, Settings, Shield } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -115,9 +107,22 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
       <header className="sticky top-0 z-30 border-b border-hairline bg-canvas/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 lg:px-8">
           <Link href="/dashboard" className="flex items-center gap-3 text-primary">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-violet/15 text-accent-violet">
-              <Bot className="h-6 w-6" />
-            </div>
+            <span className="relative block h-[29px] w-14 shrink-0" aria-hidden>
+              <Image
+                src="/ragworks-mark-dark.svg"
+                alt=""
+                fill
+                className="ragworks-mark-dark object-contain"
+                unoptimized
+              />
+              <Image
+                src="/ragworks-mark-light.svg"
+                alt=""
+                fill
+                className="ragworks-mark-light object-contain"
+                unoptimized
+              />
+            </span>
             <div className="hidden lg:block">
               <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
                 Ragworks

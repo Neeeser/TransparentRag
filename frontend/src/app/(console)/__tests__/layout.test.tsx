@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +19,32 @@ describe("ConsoleLayout", () => {
   beforeEach(() => {
     auth = setMockAuth();
     setMockPathname("/dashboard");
+  });
+
+  it("renders both decorative theme marks for pre-paint selection", () => {
+    const globalStyles = readFileSync("src/app/globals.css", "utf8");
+    const style = document.createElement("style");
+    style.textContent = globalStyles.match(/\/\* The no-flash[\s\S]*?(?=\/\* Tailwind)/)?.[0] ?? "";
+    expect(style.textContent).toContain(".ragworks-mark-dark");
+    document.head.append(style);
+    render(<ConsoleLayout>Child</ConsoleLayout>);
+
+    const brandLink = screen.getByText("Control Room").closest("a");
+    const marks = brandLink?.querySelectorAll("img") ?? [];
+
+    expect(marks).toHaveLength(2);
+    expect(marks[0]).toHaveAttribute("src", "/ragworks-mark-dark.svg");
+    expect(marks[1]).toHaveAttribute("src", "/ragworks-mark-light.svg");
+    expect(marks[0]).toHaveAttribute("alt", "");
+    expect(marks[1]).toHaveAttribute("alt", "");
+
+    document.documentElement.dataset.theme = "dark";
+    expect(getComputedStyle(marks[0]).display).toBe("block");
+    expect(getComputedStyle(marks[1]).display).toBe("none");
+
+    document.documentElement.dataset.theme = "light";
+    expect(getComputedStyle(marks[0]).display).toBe("none");
+    expect(getComputedStyle(marks[1]).display).toBe("block");
   });
 
   it("redirects to sign-in when user is missing", () => {

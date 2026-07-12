@@ -121,6 +121,24 @@
   color-scheme: light;
 }
 
+/* The no-flash theme script sets data-theme before body paint, so the
+   navbar's explicit logo variant is correct before React hydrates. */
+.ragworks-mark-dark {
+  display: block;
+}
+
+.ragworks-mark-light {
+  display: none;
+}
+
+:root[data-theme="light"] .ragworks-mark-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .ragworks-mark-light {
+  display: block;
+}
+
 /* Tailwind v4 utility generation. Mapping a token to --color-* emits the
    bg-/text-/border- utilities (e.g. bg-canvas, text-body, border-hairline,
    from-grad-from). --shadow-* emits shadow utilities. */
