@@ -28,10 +28,6 @@ ingestion through retrieval and chat.**
   </picture>
 </p>
 
-> **Project status:** Ragworks is under active development. It is suitable for
-> personal deployments and evaluation, but interfaces and configuration may
-> change between releases.
-
 ## Overview
 
 Ragworks is intended for people who want to run retrieval workflows on their own
