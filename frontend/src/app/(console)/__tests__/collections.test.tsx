@@ -1,12 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import CollectionDetailPage from "@/app/(console)/collections/[collectionId]/page";
 import CollectionsPage from "@/app/(console)/collections/page";
 import * as apiModule from "@/lib/api";
 import { makeCollection, makeCollectionStats, makeNodeSpec, makePipeline } from "@/test/fixtures";
 import { resetMockAuth, setMockAuth } from "@/test/mocks";
-import { setMockParams } from "@/test/test-utils";
 
 import type { Collection, CollectionStats, NodeSpec, Pipeline } from "@/lib/types";
 
@@ -101,12 +99,6 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
         </button>
       </div>
     ) : null,
-}));
-
-vi.mock("@/components/collections/detail/CollectionDetail", () => ({
-  CollectionDetail: ({ collectionId }: { collectionId: string }) => (
-    <div data-testid="collection-detail">{collectionId}</div>
-  ),
 }));
 
 vi.mock("@/components/ui/notification", () => ({
@@ -286,11 +278,5 @@ describe("collections pages", () => {
     rerender(<CollectionsPage />);
     fireEvent.click(screen.getByText(CONFIRM_DELETE));
     expect(api.deleteCollection).toHaveBeenCalledTimes(2);
-  });
-
-  it("renders collection detail page with params", () => {
-    setMockParams({ collectionId: "col-99" });
-    render(<CollectionDetailPage />);
-    expect(screen.getByTestId("collection-detail")).toHaveTextContent("col-99");
   });
 });

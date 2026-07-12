@@ -3,20 +3,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatDateTime, parseApiDate, resolvedTimeZone } from "@/lib/datetime";
 import { timeAgo } from "@/lib/utils";
 
+const NAIVE_UTC = "2026-07-12T15:30:00";
+const SUFFIXED_UTC = "2026-07-12T15:30:00Z";
+
 describe("parseApiDate", () => {
   it("treats offset-less API timestamps as UTC, not local time", () => {
     // Regression: backend timestamps without a zone suffix were parsed as
     // local time, showing times hours behind reality outside UTC.
-    expect(parseApiDate("2026-07-12T15:30:00").getTime()).toBe(
-      Date.UTC(2026, 6, 12, 15, 30, 0),
-    );
+    expect(parseApiDate(NAIVE_UTC).getTime()).toBe(Date.UTC(2026, 6, 12, 15, 30, 0));
     expect(parseApiDate("2026-07-12T15:30:00.123456").getTime()).toBe(
       Date.UTC(2026, 6, 12, 15, 30, 0, 123),
     );
   });
 
   it("leaves zone-suffixed timestamps and Date instances untouched", () => {
-    expect(parseApiDate("2026-07-12T15:30:00Z").getTime()).toBe(Date.UTC(2026, 6, 12, 15, 30));
+    expect(parseApiDate(SUFFIXED_UTC).getTime()).toBe(Date.UTC(2026, 6, 12, 15, 30));
     expect(parseApiDate("2026-07-12T15:30:00+00:00").getTime()).toBe(
       Date.UTC(2026, 6, 12, 15, 30),
     );
@@ -38,8 +39,8 @@ describe("timeAgo", () => {
     vi.setSystemTime(new Date("2026-07-12T15:35:00Z"));
     // 5 minutes ago in UTC; parsed as local time on an Eastern machine this
     // would read "in about 4 hours" / "4 hours ago" instead.
-    expect(timeAgo("2026-07-12T15:30:00")).toBe(timeAgo("2026-07-12T15:30:00Z"));
-    expect(timeAgo("2026-07-12T15:30:00")).toContain("5 minutes ago");
+    expect(timeAgo(NAIVE_UTC)).toBe(timeAgo(SUFFIXED_UTC));
+    expect(timeAgo(NAIVE_UTC)).toContain("5 minutes ago");
   });
 });
 
