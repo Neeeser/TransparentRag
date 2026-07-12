@@ -120,6 +120,19 @@ drift from it:
 - **Docs are updated incrementally.** When a fix or incident teaches a rule, add it to
   the relevant AGENTS.md in that same PR — never batched later.
 
+# README style and maintenance
+
+- Write for self-hosters first in concise, factual language. Keep the project identity
+  provider-neutral; name currently supported providers only where the setup requires it.
+- Avoid decorative emoji, badge walls, slogans, inflated claims, volatile metrics, and
+  roadmap checklists. Link to the canonical development or release documentation instead
+  of duplicating details that change frequently.
+- Keep the README Compose block byte-for-byte identical to `docker-compose.yml`. Keep the
+  YAML free of explanatory comments and put operational context in the surrounding prose.
+- Run `make readme-assets` whenever default pipeline definitions or their rendered
+  components change, then commit the generated animation and poster. Verify README links,
+  commands, release references, and factual claims with every update.
+
 # Make commands
 
 - `make env`: install backend deps via `uv` and frontend deps via `npm`
@@ -135,6 +148,8 @@ drift from it:
 - `make verify`: the backend gate — typecheck → lint → test
 - `make lint-frontend` / `make format-frontend` / `make format-check-frontend`:
   ESLint / Prettier write / Prettier check on `frontend/`
+- `make readme-assets`: regenerate the README pipeline animation and poster from the
+  backend defaults and frontend renderer
 - `make bump-patch` / `make bump-minor` / `make bump-major` / `make bump-rc`: bump the
   version in `pyproject.toml` + `frontend/package.json`, commit, and tag; push manually
   to publish
