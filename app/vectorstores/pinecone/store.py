@@ -15,7 +15,14 @@ from typing import Any, ClassVar
 
 from pinecone import Pinecone, ServerlessSpec  # pylint: disable=no-name-in-module
 
-from app.clients.pinecone import IndexDescription, PineconeIndexAdmin, PineconeMatch, PineconeVector
+from app.clients.pinecone import (
+    LEXICAL_TEXT_FIELD,
+    IndexDescription,
+    PineconeIndexAdmin,
+    PineconeMatch,
+    PineconeSearchHit,
+    PineconeVector,
+)
 from app.core.config import get_settings
 from app.retrieval.models import (
     DocumentChunk,
@@ -37,11 +44,13 @@ logger = logging.getLogger(__name__)
 # The metadata key chunk text is stored under in Pinecone records.
 TEXT_METADATA_KEY = "text"
 
-# Limits from docs/external-api/pinecone/reference/api/database-limits.md.
+# Limits from docs/external-api/pinecone/reference/api/database-limits.md
+# (text-record upserts cap at 96 records per batch vs 1000 with vectors).
 PINECONE_CAPABILITIES = VectorStoreCapabilities(
     max_dimension=20000,
     supported_metrics=("cosine", "euclidean", "dotproduct"),
     supported_vector_types=("dense", "sparse"),
+    max_lexical_upsert_batch=96,
     requires_api_key=True,
 )
 
@@ -88,18 +97,35 @@ class PineconeStore(VectorStoreBackend):
         return self._to_description(description)
 
     def create_index(self, spec: IndexSpec) -> VectorIndexDescription:
-        """Create a serverless index (spec already capability-validated)."""
+        """Create a serverless index (spec already capability-validated).
+
+        Sparse indexes are always created with the integrated sparse text
+        model: in this app a sparse index exists to serve lexical (BM25)
+        search, and a sparse index without integrated embedding cannot be
+        text-upserted or text-searched.
+        """
         settings = get_settings()
-        description = self._admin.create_index(
-            name=spec.name,
-            vector_type=spec.vector_type,
-            metric=spec.metric,
-            cloud=(spec.cloud or settings.pinecone_cloud).strip(),
-            region=(spec.region or settings.pinecone_region).strip(),
-            dimension=spec.dimension,
-            deletion_protection=spec.deletion_protection,
-            tags=spec.tags,
-        )
+        cloud = (spec.cloud or settings.pinecone_cloud).strip()
+        region = (spec.region or settings.pinecone_region).strip()
+        if spec.vector_type == "sparse":
+            description = self._admin.create_sparse_text_index(
+                name=spec.name,
+                cloud=cloud,
+                region=region,
+                deletion_protection=spec.deletion_protection,
+                tags=spec.tags,
+            )
+        else:
+            description = self._admin.create_index(
+                name=spec.name,
+                vector_type=spec.vector_type,
+                metric=spec.metric,
+                cloud=cloud,
+                region=region,
+                dimension=spec.dimension,
+                deletion_protection=spec.deletion_protection,
+                tags=spec.tags,
+            )
         return self._to_description(description)
 
     def delete_index(self, name: str) -> None:
@@ -114,9 +140,18 @@ class PineconeStore(VectorStoreBackend):
         """Create the index if it does not already exist."""
         if self._client.has_index(spec.name):
             return
+        settings = get_settings()
+        if spec.vector_type == "sparse":
+            self._admin.create_sparse_text_index(
+                name=spec.name,
+                cloud=(spec.cloud or settings.pinecone_cloud).strip(),
+                region=(spec.region or settings.pinecone_region).strip(),
+                deletion_protection=spec.deletion_protection,
+                tags=spec.tags,
+            )
+            return
         if spec.dimension is None:
             raise InvalidInputError("Dense indexes require a dimension.")
-        settings = get_settings()
         self._client.create_index(
             name=spec.name,
             dimension=spec.dimension,
@@ -174,6 +209,44 @@ class PineconeStore(VectorStoreBackend):
         matches = [PineconeMatch.from_sdk(match) for match in result.matches]
         return RetrievalResponse(matches=self._convert_matches(matches))
 
+    def upsert_lexical(self, index: str, namespace: str, chunks: Sequence[DocumentChunk]) -> None:
+        """Upsert chunk texts as records; the index embeds them server-side."""
+        if not chunks:
+            return
+        records: list[dict[str, Any]] = []
+        for chunk in chunks:
+            record: dict[str, Any] = dict(chunk.metadata.data)
+            record["_id"] = chunk.chunk_id
+            record[LEXICAL_TEXT_FIELD] = chunk.text
+            record["document_id"] = chunk.document_id
+            record["order"] = chunk.order
+            records.append(record)
+        self._get_index(index).upsert_records(namespace=namespace, records=records)
+
+    def lexical_query(
+        self,
+        index: str,
+        namespace: str,
+        *,
+        text: str,
+        top_k: int,
+        filter: dict[str, Any] | None = None,
+    ) -> RetrievalResponse:
+        """Return the lexically best-matching chunks for raw query text.
+
+        The integrated sparse model embeds the query server-side
+        (docs/external-api/pinecone/guides/search/lexical-search.md).
+        """
+        query: dict[str, Any] = {
+            "inputs": {"text": text},
+            "top_k": min(top_k, self.capabilities.max_top_k),
+        }
+        if filter:
+            query["filter"] = filter
+        result = self._get_index(index).search(namespace=namespace, query=query)
+        hits = [PineconeSearchHit.from_sdk(hit) for hit in result.result.hits]
+        return RetrievalResponse(matches=[self._hit_to_scored_chunk(hit) for hit in hits])
+
     def delete_namespace(self, index: str, namespace: str) -> None:
         """Delete a namespace's vectors, tolerating a missing namespace."""
         try:
@@ -228,6 +301,29 @@ class PineconeStore(VectorStoreBackend):
             )
             scored.append(ScoredChunk(chunk=chunk, score=match.score))
         return scored
+
+    @staticmethod
+    def _hit_to_scored_chunk(hit: PineconeSearchHit) -> ScoredChunk:
+        """Convert one typed search hit into a scored chunk."""
+        fields = dict(hit.fields)
+        text_value = fields.pop(LEXICAL_TEXT_FIELD, "")
+        document_id = fields.pop("document_id", hit.id)
+        order = fields.pop("order", 0)
+        metadata = {
+            key: value
+            for key, value in fields.items()
+            if isinstance(value, str | int | float | bool)
+        }
+        return ScoredChunk(
+            chunk=DocumentChunk(
+                document_id=str(document_id),
+                chunk_id=hit.id,
+                text=str(text_value),
+                order=int(order) if isinstance(order, int | float) else 0,
+                metadata=DocumentMetadata(data=metadata),
+            ),
+            score=hit.score,
+        )
 
     @staticmethod
     def _to_description(description: IndexDescription) -> VectorIndexDescription:
