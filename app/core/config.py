@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     )
     jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(
-        default=60 * 24,
+        default=15,
         validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES",
     )
     log_level: str | None = Field(

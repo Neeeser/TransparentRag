@@ -9,20 +9,17 @@ itself owns end-to-end: password verification on token issue. The cross-cutting
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
-import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.api.routes import auth as auth_routes
 from app.core.security import hash_password
 from app.db import models
 from app.db.repositories import TelemetryRepository
 
 
-def test_login_for_access_token_rejects_invalid_password(session: Session) -> None:
+def test_login_for_access_token_rejects_invalid_password(
+    unauthed_client: TestClient, session: Session
+) -> None:
     user = models.User(
         email="user@example.com",
         full_name="User",
@@ -31,12 +28,16 @@ def test_login_for_access_token_rejects_invalid_password(session: Session) -> No
     session.add(user)
     session.commit()
 
-    form_data = SimpleNamespace(username="user@example.com", password="wrong-password")
+    response = unauthed_client.post(
+        "/api/auth/token",
+        data={
+            "grant_type": "password",
+            "username": "user@example.com",
+            "password": "wrong-password",
+        },
+    )
 
-    with pytest.raises(HTTPException) as excinfo:
-        auth_routes.login_for_access_token(form_data, session=session)
-
-    assert excinfo.value.status_code == 401
+    assert response.status_code == 401
 
 
 def test_login_for_access_token_rejects_deactivated_account(
@@ -103,6 +104,19 @@ def test_validate_key_probe_requires_auth(unauthed_client) -> None:
         json={"provider": "openrouter", "api_key": "sk-or-x"},
     )
     assert response.status_code == 401
+
+
+def test_user_can_choose_remembered_session_lifetime(client, auth_user) -> None:
+    response = client.patch("/api/auth/me", json={"remember_session_days": 180})
+
+    assert response.status_code == 200
+    assert response.json()["remember_session_days"] == 180
+
+
+def test_user_cannot_choose_arbitrary_session_lifetime(client) -> None:
+    response = client.patch("/api/auth/me", json={"remember_session_days": 365})
+
+    assert response.status_code == 422
 
 
 def test_validate_key_probe_checks_without_persisting(client, auth_user, session, monkeypatch) -> None:
