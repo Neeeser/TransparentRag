@@ -17,7 +17,16 @@ from app.core.config import get_settings
 settings = get_settings()
 
 database_url = settings.database_url
-engine = create_engine(database_url, pool_pre_ping=True)
+# Pin every session to UTC: our timestamp columns are TIMESTAMP WITHOUT TIME
+# ZONE, and Postgres casts the timezone-aware datetimes we insert using the
+# *session* timezone — on a server defaulting to local time (e.g. Homebrew
+# Postgres), rows would be stored hours off from the UTC wall time every
+# reader assumes.
+engine = create_engine(
+    database_url,
+    pool_pre_ping=True,
+    connect_args={"options": "-c TimeZone=UTC"},
+)
 
 
 @contextmanager

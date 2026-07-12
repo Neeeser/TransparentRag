@@ -3,7 +3,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { CollectionSidebar } from "@/components/collections/detail/CollectionSidebar";
 import { CollectionsList } from "@/components/collections/list/CollectionsList";
 import { PipelineOverridesEditor } from "@/components/collections/PipelineOverridesEditor";
 import { makeCollection, makeCollectionStats, makeNodeSpec, makePipeline } from "@/test/fixtures";
@@ -72,30 +71,6 @@ describe("collections list and sidebar", () => {
     );
 
     expect(screen.getByText("120 ms")).toBeInTheDocument();
-  });
-
-  it("renders the sidebar and handles actions", () => {
-    const onSelectView = vi.fn();
-    const collection = makeCollection({ name: "Collection", description: "Primary collection" });
-    const { rerender } = render(
-      <CollectionSidebar
-        collection={collection}
-        activeView="overview"
-        onSelectView={onSelectView}
-      />,
-    );
-
-    fireEvent.click(screen.getByText("Back to collections"));
-    expect(getMockRouter().push).toHaveBeenCalledWith("/collections");
-    fireEvent.click(screen.getByText("Search"));
-    expect(onSelectView).toHaveBeenCalledWith("search");
-    fireEvent.click(screen.getByText("Chat studio"));
-    expect(getMockRouter().push).toHaveBeenCalledWith("/chat?collections=col-1");
-
-    rerender(
-      <CollectionSidebar collection={null} activeView="overview" onSelectView={onSelectView} />,
-    );
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
 });
 

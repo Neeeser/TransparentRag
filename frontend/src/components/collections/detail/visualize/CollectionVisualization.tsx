@@ -124,37 +124,44 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
 
   return (
     <div className="flex min-h-[calc(100vh-240px)] flex-col gap-6">
-      <GlassCard className="rounded-3xl border border-hairline p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-muted">
-              Visualization
-            </p>
-            <h3 className="mt-2 text-xl font-semibold text-primary">UMAP Projection</h3>
-            {projectionSummary ? (
-              <p className="text-sm text-body">
-                Computed {projectionSummary.computedAgo} | {projectionSummary.pointCount} points |{" "}
-                {projectionSummary.embeddingModel}
-              </p>
-            ) : (
-              <p className="text-sm text-muted">No projection saved yet.</p>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" size="sm" onClick={loadVisualization}>
-              Refresh
-            </Button>
-            <Button size="sm" onClick={handleCompute} loading={computing}>
-              {projectionSummary ? "Recompute UMAP" : "Compute UMAP"}
-            </Button>
-          </div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
+          UMAP projection
+        </p>
+        {projectionSummary && (
+          <p className="flex flex-wrap items-center gap-x-4 font-mono text-[11px] text-meta">
+            <span>
+              <span className="text-primary">{projectionSummary.pointCount.toLocaleString()}</span>{" "}
+              points
+            </span>
+            <span className="text-faint" aria-hidden>
+              /
+            </span>
+            <span>{projectionSummary.embeddingModel}</span>
+            <span className="text-faint" aria-hidden>
+              /
+            </span>
+            <span>computed {projectionSummary.computedAgo}</span>
+          </p>
+        )}
+        <div className="ml-auto flex items-center gap-3">
+          <Button variant="secondary" size="sm" onClick={loadVisualization}>
+            Refresh
+          </Button>
+          <Button size="sm" onClick={handleCompute} loading={computing}>
+            {projectionSummary ? "Recompute" : "Compute UMAP"}
+          </Button>
         </div>
-        {message && <p className="mt-4 text-sm text-data-neg">{message}</p>}
-      </GlassCard>
+      </div>
+      {message && (
+        <div className="rounded-2xl border border-data-neg/30 bg-data-neg/10 p-3 text-sm text-data-neg">
+          {message}
+        </div>
+      )}
 
       {visualization ? (
         <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <GlassCard className="relative h-full min-h-[420px] rounded-3xl border border-hairline">
+          <GlassCard className="relative h-full min-h-[480px] overflow-hidden rounded-3xl border border-hairline">
             <UmapCanvas
               key={projectionId ?? "empty"}
               points={visualization.points}
@@ -173,8 +180,10 @@ export function CollectionVisualization({ collectionId, token }: CollectionVisua
           />
         </div>
       ) : (
-        <GlassCard className="rounded-3xl border border-hairline p-6 text-sm text-body">
-          Upload documents and compute a projection to explore the collection.
+        <GlassCard className="flex flex-1 items-center justify-center rounded-3xl border border-hairline p-10">
+          <p className="max-w-sm text-center text-sm text-muted text-balance">
+            Upload documents and compute a projection to explore the collection.
+          </p>
         </GlassCard>
       )}
       <ChunkPreviewOverlay

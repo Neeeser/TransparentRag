@@ -14,120 +14,140 @@ const api = vi.mocked(apiModule);
 
 const runQueryLabel = "Run query";
 const viewTraceLabel = "View retrieval trace";
-const queryFailedMessage = "Query failed.";
-const ZERO_WIDTH_BAR_SELECTOR = 'div[style*="width: 0%"]';
+const queryInputLabel = "Search query";
+const firstQuery = "first question";
+
+async function runQuery(text = "Find") {
+  fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: text } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
+  });
+}
 
 describe("CollectionSearch", () => {
-  it("skips empty queries", async () => {
+  it("disables the run button for empty queries", () => {
     render(<CollectionSearch collectionId="col-1" token="token" />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "   " } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
+    fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: "   " } });
+    expect(screen.getByRole("button", { name: runQueryLabel })).toBeDisabled();
     expect(api.runCollectionQuery).not.toHaveBeenCalled();
   });
 
-  it("runs queries and navigates to the trace debugger", async () => {
-    const result = makeQueryResult({
-      query: "test query",
-      top_k: 3,
-      query_event_id: "event-1",
-      chunks: [
-        {
-          id: "chunk-1",
-          chunk_id: "chunk-1",
-          chunk_index: 0,
-          score: 0.7,
-          text: "Chunk text",
-          metadata: { source: "doc" },
-        },
-        { id: "chunk-2", chunk_id: "chunk-2", chunk_index: 1, score: 0, text: "Empty score" },
-        { id: "chunk-3", chunk_index: 2, score: 0.4, text: "Fallback id" },
-      ],
-    });
-    api.runCollectionQuery.mockResolvedValueOnce(result);
-
+  it("runs queries, expands results, and navigates to traces", async () => {
+    api.runCollectionQuery.mockResolvedValueOnce(
+      makeQueryResult({
+        query_event_id: "event-1",
+        chunks: [
+          {
+            id: "chunk-1",
+            chunk_id: "chunk-1",
+            chunk_index: 0,
+            score: 0.7,
+            text: "Chunk text",
+            metadata: { document_name: "guide.pdf" },
+          },
+          { id: "chunk-3", chunk_index: 2, score: 0.4, text: "Fallback id" },
+        ],
+      }),
+    );
     render(<CollectionSearch collectionId="col-1" token="token" />);
 
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Find" } });
-    fireEvent.change(screen.getByLabelText("Top K"), { target: { value: "3" } });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
-
+    await runQuery();
     await waitFor(() => {
       expect(screen.getByText("Chunk text")).toBeInTheDocument();
     });
+    expect(api.runCollectionQuery).toHaveBeenCalledWith("token", "col-1", {
+      query: "Find",
+      top_k: 5,
+    });
+    // The source document name comes from chunk metadata.
+    expect(screen.getByText("guide.pdf")).toBeInTheDocument();
+
+    // Expand/collapse the full chunk text.
+    const expand = screen.getAllByRole("button", { name: /Chunk text/ })[0];
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(expand);
+    expect(expand).toHaveAttribute("aria-expanded", "true");
 
     fireEvent.click(screen.getByText(viewTraceLabel));
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1");
 
-    // Tracing a specific chunk targets it so the debugger joins retrieval
-    // with the chunk's ingestion origin.
-    fireEvent.click(screen.getAllByRole("button", { name: "Trace result" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Trace" })[0]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-1");
-
     // Chunks without a chunk_id fall back to their row id.
-    fireEvent.click(screen.getAllByRole("button", { name: "Trace result" })[2]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Trace" })[1]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-3");
   });
 
-  it("handles query errors and traces without a query event", async () => {
-    api.runCollectionQuery.mockRejectedValueOnce(new Error(queryFailedMessage));
-    render(<CollectionSearch collectionId="col-1" token="token" />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
-    expect(screen.getByText(queryFailedMessage)).toBeInTheDocument();
-
-    api.runCollectionQuery.mockResolvedValueOnce(
-      makeQueryResult({ query_event_id: undefined, chunks: [] }),
-    );
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
-    fireEvent.click(screen.getByText(viewTraceLabel));
-    expect(screen.getByText("Trace is not available for this query.")).toBeInTheDocument();
-    expect(getMockRouter().push).not.toHaveBeenCalled();
-  });
-
-  it("falls back for missing scores and text", async () => {
+  it("filters results below the min-score floor client-side", async () => {
     api.runCollectionQuery.mockResolvedValueOnce(
       makeQueryResult({
-        query_event_id: "event-4",
+        query_event_id: "event-2",
         chunks: [
-          { id: "chunk-5", chunk_index: 0, score: 0.5, text: "Alpha" },
-          { id: "chunk-6", chunk_index: 1, score: undefined, text: undefined },
+          { id: "c1", chunk_index: 0, score: 1.0, text: "Strong" },
+          { id: "c2", chunk_index: 1, score: 0.2, text: "Weak" },
         ],
       }),
     );
+    render(<CollectionSearch collectionId="col-1" token="token" />);
+    await runQuery();
 
-    const { container } = render(<CollectionSearch collectionId="col-1" token="token" />);
-
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Find" } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
+    await waitFor(() => {
+      expect(screen.getByText("Strong")).toBeInTheDocument();
     });
+    expect(screen.getByText("Weak")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "50" } });
+    expect(screen.queryByText("Weak")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 of 2 matches/)).toBeInTheDocument();
+    expect(screen.getByText(/1 below score floor/)).toBeInTheDocument();
+  });
+
+  it("remembers recent queries and re-runs them from chips", async () => {
+    api.runCollectionQuery.mockResolvedValue(makeQueryResult({ chunks: [] }));
+    render(<CollectionSearch collectionId="col-1" token="token" />);
+
+    await runQuery(firstQuery);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: firstQuery })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: "other" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: firstQuery }));
+    });
+    expect(api.runCollectionQuery).toHaveBeenLastCalledWith("token", "col-1", {
+      query: firstQuery,
+      top_k: 5,
+    });
+  });
+
+  it("surfaces query failures, with a fallback for non-error rejections", async () => {
+    api.runCollectionQuery.mockRejectedValueOnce(new Error("Backend exploded"));
+    render(<CollectionSearch collectionId="col-1" token="token" />);
+
+    await runQuery();
+    expect(screen.getByText("Backend exploded")).toBeInTheDocument();
+
+    api.runCollectionQuery.mockRejectedValueOnce("nope");
+    await runQuery("again");
+    expect(screen.getByText("Query failed.")).toBeInTheDocument();
+  });
+
+  it("omits trace actions when the query has no event id", async () => {
+    api.runCollectionQuery.mockResolvedValueOnce(
+      makeQueryResult({
+        query_event_id: undefined,
+        chunks: [{ id: "c1", chunk_index: 0, score: 0.5, text: "Alpha" }],
+      }),
+    );
+    render(<CollectionSearch collectionId="col-1" token="token" />);
+    await runQuery();
 
     await waitFor(() => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
-
-    // Score bar width is a styled <div> with no accessible handle; assert the
-    // zero-score chunk renders a 0% bar.
-    expect(container.querySelector(ZERO_WIDTH_BAR_SELECTOR)).toBeInTheDocument();
-  });
-
-  it("uses fallback errors for non-error query failures", async () => {
-    api.runCollectionQuery.mockRejectedValueOnce("nope");
-    render(<CollectionSearch collectionId="col-1" token="token" />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
-    });
-
-    expect(screen.getByText(queryFailedMessage)).toBeInTheDocument();
+    expect(screen.queryByText(viewTraceLabel)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Trace" }));
+    expect(getMockRouter().push).not.toHaveBeenCalled();
   });
 });

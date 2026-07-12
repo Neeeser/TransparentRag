@@ -14,8 +14,8 @@ vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 const api = vi.mocked(apiModule);
 
 const selectPointLabel = "Select point";
-const umapProjectionHeading = "UMAP Projection";
-const recomputeUmapLabel = "Recompute UMAP";
+const umapProjectionHeading = "UMAP projection";
+const recomputeUmapLabel = "Recompute";
 const unableToLoadUmapMessage = "Unable to load UMAP.";
 
 vi.mock("@/components/collections/detail/visualize/UmapCanvas", () => ({
@@ -124,7 +124,11 @@ describe("CollectionVisualization", () => {
 
     await waitFor(() => {
       expect(screen.getByText(umapProjectionHeading)).toBeInTheDocument();
-      expect(screen.getByText(/1 points/)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          (_, element) => element?.tagName === "SPAN" && element.textContent === "1 points",
+        ),
+      ).toBeInTheDocument();
     });
     await waitFor(() => {
       expect(screen.getByText("Select a point to see chunk details.")).toBeInTheDocument();
