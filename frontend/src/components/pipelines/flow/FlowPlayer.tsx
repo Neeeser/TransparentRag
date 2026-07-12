@@ -25,6 +25,8 @@ type FlowPlayerProps = {
   /** Node visits in execution order; empty renders a static (non-playing) graph. */
   steps: FlowStep[];
   autoPlay?: boolean;
+  processMs?: number;
+  travelMs?: number;
   onActiveStepChange?: (index: number) => void;
   className?: string;
   /** Compact hides the step scrubber (landing-page style ambient playback). */
@@ -70,6 +72,8 @@ export function FlowPlayer({
   edges,
   steps,
   autoPlay = false,
+  processMs,
+  travelMs,
   onActiveStepChange,
   className,
   compact = false,
@@ -86,6 +90,8 @@ export function FlowPlayer({
     steps,
     edges,
     autoPlay: internalAutoPlay,
+    processMs,
+    travelMs,
     loop: loop ?? ambient,
     onRunComplete,
   });
