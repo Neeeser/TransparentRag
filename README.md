@@ -22,10 +22,12 @@ ingestion through retrieval and chat.**
 </div>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/pipeline-flow.png">
-    <img src="docs/assets/pipeline-flow.gif" alt="The default Ragworks ingestion and retrieval pipelines running through semantic and BM25 branches" width="100%">
-  </picture>
+  <a href="docs/assets/pipeline-flow.png" title="Open the full-resolution pipeline view">
+    <picture>
+      <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/pipeline-flow.png">
+      <img src="docs/assets/pipeline-flow.gif" alt="The default Ragworks ingestion and retrieval pipelines running through semantic and BM25 branches" width="100%">
+    </picture>
+  </a>
 </p>
 
 ## Overview

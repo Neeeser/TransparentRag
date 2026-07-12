@@ -12,7 +12,8 @@ const HOLD_MS = 800;
 const PORT = 3417;
 const MAX_ASSET_BYTES = 8 * 1024 * 1024;
 export const CAPTURE_SIZE = { width: 1920, height: 1080 };
-export const GIF_WIDTH = 1440;
+export const GIF_ENCODER = "gifski";
+export const GIF_WIDTH = 1920;
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(scriptDir, "..");
@@ -117,20 +118,30 @@ const encodeAnimation = (ingestionVideo, retrievalVideo, tempDir) => {
     "-an",
     combinedPath,
   ]);
-  run("ffmpeg", [
-    "-y",
-    "-i",
-    combinedPath,
-    "-filter_complex",
-    `fps=10,scale=${GIF_WIDTH}:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle`,
-    "-loop",
+  run(GIF_ENCODER, [
+    "--fps",
+    "10",
+    "--quality",
+    "90",
+    "--motion-quality",
+    "100",
+    "--lossy-quality",
+    "100",
+    "--width",
+    String(GIF_WIDTH),
+    "--repeat",
     "0",
+    "--fixed-color",
+    "05060a",
+    "--output",
     gifPath,
+    combinedPath,
   ]);
 };
 
 const main = async () => {
   run("ffmpeg", ["-version"]);
+  run(GIF_ENCODER, ["--version"]);
   run("uv", ["run", "python", "-m", "scripts.export_readme_pipelines", "--output", fixturePath], {
     cwd: repoRoot,
   });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAPTURE_SIZE,
+  GIF_ENCODER,
   GIF_WIDTH,
   captureDurationMs,
   trimmedDurationSeconds,
@@ -15,7 +16,8 @@ describe("captureDurationMs", () => {
 
   it("captures above GitHub display resolution before encoding", () => {
     expect(CAPTURE_SIZE).toEqual({ width: 1920, height: 1080 });
-    expect(GIF_WIDTH).toBe(1440);
+    expect(GIF_WIDTH).toBe(1920);
+    expect(GIF_ENCODER).toBe("gifski");
   });
 
   it("subtracts the pre-render recording lead from encoded scene duration", () => {
