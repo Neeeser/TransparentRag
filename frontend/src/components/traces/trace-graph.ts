@@ -25,6 +25,8 @@ export type TraceStage = "origin" | "retrieval";
 
 /** One playback step: the visited node plus its resolved run and IO records. */
 export type TraceStep = {
+  /** FlowStep contract — trace steps always visit exactly one node. */
+  nodeIds: string[];
   nodeId: string;
   run: PipelineNodeRunTrace | null;
   io: TraceIOGroup;
@@ -82,6 +84,7 @@ const buildStage = (
   }
 
   const steps: TraceStep[] = orderedRuns.map((run) => ({
+    nodeIds: [run.node_id],
     nodeId: run.node_id,
     run,
     io: ioByNode.get(run.node_id) ?? { inputs: [], outputs: [] },
@@ -106,7 +109,11 @@ const prefixStage = (graph: StageGraph, prefix: string): StageGraph => ({
     source: `${prefix}${edge.source}`,
     target: `${prefix}${edge.target}`,
   })),
-  steps: graph.steps.map((step) => ({ ...step, nodeId: `${prefix}${step.nodeId}` })),
+  steps: graph.steps.map((step) => ({
+    ...step,
+    nodeId: `${prefix}${step.nodeId}`,
+    nodeIds: step.nodeIds.map((id) => `${prefix}${id}`),
+  })),
 });
 
 /** Lowest pixel the band occupies (top-y + estimated card height). */

@@ -5,17 +5,17 @@ import type { NodePort } from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
 /**
- * The landing-page hero backdrop shows a *synthetic* end-to-end RAG pipeline —
- * a document flowing from ingestion through retrieval to chat. It is built
- * entirely in memory, with no telemetry, no real traces, and no network calls,
- * so it can render on the unauthenticated public page. The visualization
- * itself is the real product component (`FlowPlayer`), fed hand-authored
- * nodes/edges/steps in the same shape the trace viewer produces.
+ * Builder for the landing page's *synthetic* pipeline scenes — hand-authored
+ * graphs built entirely in memory (no telemetry, no traces, no network) so
+ * they render on the unauthenticated public page. The visualization itself is
+ * the real product component (`FlowPlayer`), fed nodes/edges/steps in the
+ * same shape the trace viewer produces. Scene content lives in `scenes.ts`;
+ * this module only turns a `SceneDefinition` into renderable flow data.
  */
 
-type DemoPort = { key: string; label: string; dataType: string };
+export type DemoPort = { key: string; label: string; dataType: string };
 
-type DemoNode = {
+export type DemoNode = {
   id: string;
   /** Prefix (before the dot) drives the node's color family in PipelineNode. */
   nodeType: string;
@@ -23,72 +23,43 @@ type DemoNode = {
   description: string;
   input?: DemoPort;
   output?: DemoPort;
+  /**
+   * Fake-but-plausible config rendered on the card's signature readout
+   * (model name, index name, chunk size) so no node shows an unset
+   * "no model selected" placeholder.
+   */
+  config?: Record<string, unknown>;
+  /** Grid column (left-to-right pipeline order). */
+  col: number;
+  /**
+   * Grid row: 0 is the main path, 1 the parallel branch below it. Fractional
+   * rows (0.5) center a merge node between the branches so its inbound wires
+   * approach from above and below instead of hiding behind a card.
+   */
+  row?: number;
 };
 
-/**
- * Document → Parse → Chunk → Embed → Index → Retrieve → Chat. Each hop's wire
- * is colored by the upstream node's output data type, matching the port-color
- * language used throughout the pipeline editor and trace viewer.
- */
-const DEMO_NODES: DemoNode[] = [
-  {
-    id: "source",
-    nodeType: "ingestion.source",
-    label: "Document",
-    description: "A source file enters the pipeline.",
-    output: { key: "file", label: "Source file", dataType: "document_source" },
-  },
-  {
-    id: "parse",
-    nodeType: "parser.pdf",
-    label: "Parse",
-    description: "Extract clean text from the raw file.",
-    input: { key: "file", label: "Source file", dataType: "document_source" },
-    output: { key: "document", label: "Parsed document", dataType: "document" },
-  },
-  {
-    id: "chunk",
-    nodeType: "chunker.recursive",
-    label: "Chunk",
-    description: "Split text into overlapping passages.",
-    input: { key: "document", label: "Parsed document", dataType: "document" },
-    output: { key: "chunks", label: "Chunks", dataType: "chunk_batch" },
-  },
-  {
-    id: "embed",
-    nodeType: "embedder.openrouter",
-    label: "Embed",
-    description: "Turn each chunk into a vector.",
-    input: { key: "chunks", label: "Chunks", dataType: "chunk_batch" },
-    output: { key: "embedded", label: "Embedded chunks", dataType: "embedded_batch" },
-  },
-  {
-    id: "index",
-    nodeType: "indexer.vector",
-    label: "Index",
-    description: "Store vectors in the collection.",
-    input: { key: "embedded", label: "Embedded chunks", dataType: "embedded_batch" },
-    output: { key: "indexed", label: "Indexed chunks", dataType: "indexed_batch" },
-  },
-  {
-    id: "retrieve",
-    nodeType: "retriever.vector",
-    label: "Retrieve",
-    description: "Find the passages that matter.",
-    input: { key: "indexed", label: "Indexed chunks", dataType: "indexed_batch" },
-    output: { key: "results", label: "Results", dataType: "retrieval_results" },
-  },
-  {
-    id: "chat",
-    nodeType: "chat.completion",
-    label: "Chat",
-    description: "Answer, grounded in the evidence.",
-    input: { key: "results", label: "Results", dataType: "retrieval_results" },
-  },
-];
+export type SceneDefinition = {
+  nodes: DemoNode[];
+  /** Wires as `[sourceId, targetId]`; handles/color derive from the node ports. */
+  edges: [string, string][];
+  /**
+   * Playback stages, in order. Each stage's nodes glow together, and every
+   * edge from stage N into stage N+1 travels simultaneously — list a branch
+   * node in consecutive stages to hold its glow while the other branch
+   * catches up before a merge.
+   */
+  stages: string[][];
+};
 
 /** Matches the pipeline editor's scaffold spacing so the graph reads familiarly. */
 const NODE_SPACING_X = 368;
+/**
+ * Vertical drop of the parallel branch row — wide enough that a wire crossing
+ * under a main-row card clears the card's bottom edge instead of hiding
+ * behind it.
+ */
+const NODE_SPACING_Y = 250;
 
 const toPort = (port: DemoPort): NodePort => ({
   key: port.key,
@@ -104,41 +75,43 @@ export type DemoFlow = {
   steps: FlowStep[];
 };
 
-/** Build the synthetic hero pipeline graph. Pure — safe to memoize once. */
-export function buildDemoFlow(): DemoFlow {
-  const nodes: Node<PipelineNodeData>[] = DEMO_NODES.map((node, index) => ({
+/** Turn a hand-authored scene definition into renderable flow data. Pure. */
+export function buildSceneFlow(scene: SceneDefinition): DemoFlow {
+  const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+
+  const nodes: Node<PipelineNodeData>[] = scene.nodes.map((node) => ({
     id: node.id,
     type: "pipelineNode",
-    position: { x: NODE_SPACING_X * index, y: 0 },
+    position: { x: NODE_SPACING_X * node.col, y: NODE_SPACING_Y * (node.row ?? 0) },
     data: {
       label: node.label,
       nodeType: node.nodeType,
       description: node.description,
       inputs: node.input ? [toPort(node.input)] : [],
       outputs: node.output ? [toPort(node.output)] : [],
-      config: {},
+      config: node.config ?? {},
     },
   }));
 
-  const edges: TypedEdgeType[] = [];
-  for (let i = 0; i < DEMO_NODES.length - 1; i += 1) {
-    const source = DEMO_NODES[i];
-    const target = DEMO_NODES[i + 1];
-    // Only chain nodes that actually expose the connecting ports.
-    if (!source.output || !target.input) continue;
-    edges.push({
-      id: `${source.id}-${target.id}`,
-      source: source.id,
-      target: target.id,
+  const edges: TypedEdgeType[] = scene.edges.map(([sourceId, targetId]) => {
+    const source = byId.get(sourceId);
+    const target = byId.get(targetId);
+    if (!source?.output || !target?.input) {
+      throw new Error(`Scene edge ${sourceId} → ${targetId} references missing ports.`);
+    }
+    return {
+      id: `${sourceId}-${targetId}`,
+      source: sourceId,
+      target: targetId,
       sourceHandle: source.output.key,
       targetHandle: target.input.key,
       type: "typed",
       // Wire color comes from the upstream output port, as toFlowEdges does.
       data: { dataType: source.output.dataType },
-    });
-  }
+    };
+  });
 
-  const steps: FlowStep[] = DEMO_NODES.map((node) => ({ nodeId: node.id }));
+  const steps: FlowStep[] = scene.stages.map((nodeIds) => ({ nodeIds }));
 
   return { nodes, edges, steps };
 }

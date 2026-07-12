@@ -9,6 +9,7 @@ import type { TraceStep } from "@/components/traces/trace-graph";
 function makeStep(overrides: Partial<TraceStep["run"] & object> = {}): TraceStep {
   return {
     nodeId: "node-1",
+    nodeIds: ["node-1"],
     run: makeNodeRunTrace({
       node_name: "Embedder",
       status: "completed",

@@ -13,6 +13,7 @@ function makeStep(
 ): TraceStep {
   return {
     nodeId,
+    nodeIds: [nodeId],
     run: makeNodeRunTrace({
       node_id: nodeId,
       node_name: `Node ${nodeId}`,

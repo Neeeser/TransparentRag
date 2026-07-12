@@ -35,6 +35,14 @@ type FlowPlayerProps = {
    * for the landing-page hero flow.
    */
   ambient?: boolean;
+  /**
+   * Whether playback restarts after the last step. Defaults to `ambient`
+   * (an ambient backdrop loops forever); pass `false` with `onRunComplete`
+   * to let a surrounding surface rotate scenes between runs instead.
+   */
+  loop?: boolean;
+  /** Fired once when a non-looping run finishes (see useFlowPlayback). */
+  onRunComplete?: () => void;
   /** Extra node types merged over the pipeline defaults (e.g. the trace index store). */
   nodeTypes?: NodeTypes;
   /**
@@ -66,6 +74,8 @@ export function FlowPlayer({
   className,
   compact = false,
   ambient = false,
+  loop,
+  onRunComplete,
   nodeTypes,
   playback: externalPlayback,
 }: FlowPlayerProps) {
@@ -76,7 +86,8 @@ export function FlowPlayer({
     steps,
     edges,
     autoPlay: internalAutoPlay,
-    loop: ambient,
+    loop: loop ?? ambient,
+    onRunComplete,
   });
   const playback = externalPlayback ?? internalPlayback;
   const { activeIndex } = playback;
@@ -91,12 +102,17 @@ export function FlowPlayer({
     onActiveStepChange?.(activeIndex);
   }, [activeIndex, onActiveStepChange]);
 
-  const activeNodeId = steps[activeIndex]?.nodeId;
+  const activeNodeIds = useMemo(
+    () => new Set(steps[activeIndex]?.nodeIds ?? []),
+    [steps, activeIndex],
+  );
 
   const stepIndexByNodeId = useMemo(() => {
     const map = new Map<string, number>();
     steps.forEach((step, index) => {
-      if (!map.has(step.nodeId)) map.set(step.nodeId, index);
+      for (const nodeId of step.nodeIds) {
+        if (!map.has(nodeId)) map.set(nodeId, index);
+      }
     });
     return map;
   }, [steps]);
@@ -110,9 +126,9 @@ export function FlowPlayer({
         // Nodes that map to a step are clickable to jump there; others (e.g.
         // the shared-index datastore) keep the default cursor.
         className: stepIndexByNodeId.has(node.id) ? "cursor-pointer" : undefined,
-        data: { ...node.data, active: steps.length > 0 && node.id === activeNodeId },
+        data: { ...node.data, active: steps.length > 0 && activeNodeIds.has(node.id) },
       })),
-    [nodes, activeNodeId, steps.length, stepIndexByNodeId],
+    [nodes, activeNodeIds, steps.length, stepIndexByNodeId],
   );
 
   const decoratedEdges = useMemo(
@@ -120,7 +136,7 @@ export function FlowPlayer({
       edges.map((edge) => {
         // The dot's <g> unmounts whenever `traveling` flips off, so each travel
         // phase remounts it and animateMotion restarts from the edge's start.
-        const traveling = playback.travelingEdgeId === edge.id;
+        const traveling = playback.travelingEdgeIds.has(edge.id);
         return {
           ...edge,
           data: {
@@ -132,7 +148,7 @@ export function FlowPlayer({
           },
         };
       }),
-    [edges, playback.travelingEdgeId, playback.visitedEdgeIds, playback.travelMs],
+    [edges, playback.travelingEdgeIds, playback.visitedEdgeIds, playback.travelMs],
   );
 
   return (
@@ -219,15 +235,19 @@ export function FlowPlayer({
                 aria-label="Pipeline steps"
               >
                 {steps.map((step, index) => {
-                  const node = nodes.find((entry) => entry.id === step.nodeId);
+                  const node = nodes.find((entry) => entry.id === step.nodeIds[0]);
+                  const label =
+                    step.nodeIds.length > 1
+                      ? step.nodeIds.join(" + ")
+                      : (node?.data.label ?? step.nodeIds[0]);
                   return (
                     <button
-                      key={`${step.nodeId}-${index}`}
+                      key={`${step.nodeIds.join("+")}-${index}`}
                       type="button"
                       role="tab"
                       aria-selected={index === activeIndex}
-                      aria-label={node?.data.label ?? step.nodeId}
-                      title={node?.data.label ?? step.nodeId}
+                      aria-label={label}
+                      title={label}
                       onClick={() => playback.seek(index)}
                       className={cn(
                         "h-2 rounded-full transition-all",
