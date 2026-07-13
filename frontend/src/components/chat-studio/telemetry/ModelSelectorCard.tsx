@@ -6,6 +6,7 @@ import { modelSelectionKey } from "@/components/chat-studio/hooks/settings/use-m
 import { formatContextLength, formatPricePerMillion } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import type { ConnectionOption } from "@/components/chat-studio/hooks/settings/use-model-catalog";
 import type { ChatModelSortOption } from "@/lib/model-sorting";
 import type { CatalogModel } from "@/lib/types";
 
@@ -18,6 +19,9 @@ interface ModelSelectorCardProps {
   onSearchChange: (value: string) => void;
   sortOption: ChatModelSortOption;
   onSortChange: (value: ChatModelSortOption) => void;
+  connectionFilter: string;
+  onConnectionFilterChange: (connectionId: string) => void;
+  connectionOptions: ConnectionOption[];
   modelsLoading: boolean;
   modelsError: string | null;
   toolsEnabled: boolean;
@@ -58,6 +62,9 @@ export const ModelSelectorCard = ({
   onSearchChange,
   sortOption,
   onSortChange,
+  connectionFilter,
+  onConnectionFilterChange,
+  connectionOptions,
   modelsLoading,
   modelsError,
   toolsEnabled,
@@ -108,6 +115,22 @@ export const ModelSelectorCard = ({
         </div>
         <div className="min-w-[160px]">
           <select
+            aria-label="Filter models by provider"
+            className="w-full rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body outline-none focus:border-accent-violet"
+            value={connectionFilter}
+            onChange={(event) => onConnectionFilterChange(event.target.value)}
+          >
+            <option value="">All providers</option>
+            {connectionOptions.map((option) => (
+              <option key={option.connectionId} value={option.connectionId}>
+                {option.label} ({option.providerType})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-[160px]">
+          <select
+            aria-label="Sort models"
             className="w-full rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body outline-none focus:border-accent-violet"
             value={sortOption}
             onChange={(event) => onSortChange(event.target.value as ChatModelSortOption)}

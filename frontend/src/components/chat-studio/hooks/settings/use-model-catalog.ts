@@ -26,6 +26,12 @@ const PARAMETER_DEFINITION_MAP: Record<ModelParameterKey, ParameterDefinition> =
 export const modelSelectionKey = (connectionId: UUID, modelId: string) =>
   `${connectionId}::${modelId}`;
 
+export interface ConnectionOption {
+  connectionId: UUID;
+  label: string;
+  providerType: string;
+}
+
 interface UseModelCatalogParams {
   authToken: string;
   authLoading: boolean;
@@ -44,6 +50,11 @@ interface UseModelCatalogResult {
   setModelSearchTerm: React.Dispatch<React.SetStateAction<string>>;
   modelSortOption: ChatModelSortOption;
   setModelSortOption: React.Dispatch<React.SetStateAction<ChatModelSortOption>>;
+  /** Connection id to restrict the picker to, or "" for every provider. */
+  connectionFilter: string;
+  setConnectionFilter: React.Dispatch<React.SetStateAction<string>>;
+  /** One entry per connection present in the catalog, for the filter dropdown. */
+  connectionOptions: ConnectionOption[];
   currentModelInfo: CatalogModel | null;
   providerModelSlug: string | null;
   supportedParameterKeys: Set<ModelParameterKey>;
@@ -73,6 +84,7 @@ export function useModelCatalog({
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [modelSearchTerm, setModelSearchTerm] = useState("");
   const [modelSortOption, setModelSortOption] = useState<ChatModelSortOption>("price");
+  const [connectionFilter, setConnectionFilter] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -166,17 +178,36 @@ export function useModelCatalog({
     );
   }, [modelCatalog, toolsEnabled]);
 
+  const connectionOptions = useMemo(() => {
+    const options = new Map<UUID, ConnectionOption>();
+    for (const model of modelCatalog) {
+      if (!options.has(model.connection_id)) {
+        options.set(model.connection_id, {
+          connectionId: model.connection_id,
+          label: model.connection_label,
+          providerType: model.provider_type,
+        });
+      }
+    }
+    return [...options.values()];
+  }, [modelCatalog]);
+
+  const connectionScopedModels = useMemo(() => {
+    if (!connectionFilter) return toolReadyModels;
+    return toolReadyModels.filter((model) => model.connection_id === connectionFilter);
+  }, [connectionFilter, toolReadyModels]);
+
   const filteredModelCatalog = useMemo(() => {
     const query = modelSearchTerm.trim().toLowerCase();
-    if (!query) return toolReadyModels;
-    return toolReadyModels.filter((model) => {
+    if (!query) return connectionScopedModels;
+    return connectionScopedModels.filter((model) => {
       const haystack = [model.name, model.id, model.connection_label, model.description]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [modelSearchTerm, toolReadyModels]);
+  }, [connectionScopedModels, modelSearchTerm]);
 
   const sortedModelCatalog = useMemo(
     () => sortChatModels(filteredModelCatalog, modelSortOption),
@@ -199,6 +230,9 @@ export function useModelCatalog({
     setModelSearchTerm,
     modelSortOption,
     setModelSortOption,
+    connectionFilter,
+    setConnectionFilter,
+    connectionOptions,
     currentModelInfo,
     providerModelSlug,
     supportedParameterKeys,
