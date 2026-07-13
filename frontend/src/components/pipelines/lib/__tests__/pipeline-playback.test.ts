@@ -186,7 +186,7 @@ describe("buildTopologyPlaybackSteps", () => {
     );
 
     expect(() => buildTopologyPlaybackSteps(pipeline)).toThrowError(
-      "Pipeline playback graph contains a cycle involving: a, b.",
+      "Pipeline playback graph contains a cycle; cyclic or blocked nodes: a, b.",
     );
   });
 

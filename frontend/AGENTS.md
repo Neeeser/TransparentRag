@@ -145,6 +145,9 @@ chat-stream-reducer.ts`) with focused tests. New features follow this shape: add
   hydration mismatches. Initialize with the default, hydrate in a mount effect, and gate
   any effect that reacts to the hydrated value behind a `hydrated` flag so it can't fire
   against first-paint defaults.
+- **Autoplay policy stays reactive.** An `autoPlay` initializer is not enough when
+  reduced-motion can change after hydration; stop and reset pending playback immediately
+  when autoplay turns off, and distinguish a final step in progress from a completed run.
 - **Effects must not write state they derive.** Computing a value in a `useMemo` and then
   copying it into `useState` via an effect adds a render per change and a stale window.
   Derive it where you use it.

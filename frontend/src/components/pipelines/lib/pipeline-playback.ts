@@ -74,7 +74,9 @@ export function buildTopologyPlaybackSteps(graph: PlaybackGraph): FlowStep[] {
 
   if (scheduled.size !== nodeIds.size) {
     const cyclic = [...nodeIds].filter((nodeId) => !scheduled.has(nodeId)).sort();
-    throw new Error(`Pipeline playback graph contains a cycle involving: ${cyclic.join(", ")}.`);
+    throw new Error(
+      `Pipeline playback graph contains a cycle; cyclic or blocked nodes: ${cyclic.join(", ")}.`,
+    );
   }
 
   return steps;
