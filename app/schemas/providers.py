@@ -10,7 +10,7 @@ values — secret fields are echoed as `secrets_configured` booleans only.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -18,9 +18,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.base import DateTimeConfigMixin
 from app.schemas.enums import ProviderKind, ProviderType
+from app.schemas.models import ModelPricing
 
 
-class ConfigFieldKind(str, Enum):
+class ConfigFieldKind(StrEnum):
     """Rendering kinds for provider config fields (drives the generic form)."""
 
     STRING = "string"
@@ -130,6 +131,40 @@ class ConnectionValidationResult(BaseModel):
 
     valid: bool
     message: str | None = None
+
+
+class CatalogModel(BaseModel):
+    """One selectable model qualified by the connection that serves it."""
+
+    connection_id: UUID
+    connection_label: str
+    provider_type: ProviderType
+    id: str
+    name: str
+    description: str | None = None
+    context_length: int | None = None
+    pricing: ModelPricing | None = None
+    dimension: int | None = None
+    supported_parameters: list[str] = Field(default_factory=list)
+
+
+class ConnectionCatalogError(BaseModel):
+    """A connection whose catalog fetch failed while listing models."""
+
+    connection_id: UUID
+    connection_label: str
+    message: str
+
+
+class ModelCatalogResponse(BaseModel):
+    """Unified model listing across every connection of the requested kind.
+
+    One unreachable connection degrades to a `connection_errors` entry rather
+    than failing the whole listing.
+    """
+
+    models: list[CatalogModel] = Field(default_factory=list)
+    connection_errors: list[ConnectionCatalogError] = Field(default_factory=list)
 
 
 class ProviderCoverage(BaseModel):

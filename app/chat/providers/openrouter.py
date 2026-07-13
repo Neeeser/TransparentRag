@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.chat.parameters import build_openrouter_body
 from app.chat.providers.base import ChatRequest, ParsedChatResponse, ParsedStreamChunk
 from app.clients.openrouter import OpenRouterClient
 from app.schemas.models import ModelInfo
@@ -46,10 +47,15 @@ class OpenRouterProvider:
             tools=request.tools,
             model=request.model,
             parallel_tool_calls=True,
-            extra_body=request.extra_body,
+            extra_body=self._build_extra_body(request),
             parameters=request.parameters or None,
         )
         return response.model_dump(exclude_none=True)
+
+    @staticmethod
+    def _build_extra_body(request: ChatRequest) -> dict[str, Any]:
+        """Map the normalized request onto OpenRouter's `extra_body` shape."""
+        return build_openrouter_body(request.reasoning_options, request.provider_preferences)
 
     def chat_stream(self, request: ChatRequest) -> Iterable[dict[str, Any]]:
         """Stream a chat completion request, dumping each typed chunk to a dict."""
@@ -58,7 +64,7 @@ class OpenRouterProvider:
             tools=request.tools,
             model=request.model,
             parallel_tool_calls=True,
-            extra_body=request.extra_body,
+            extra_body=self._build_extra_body(request),
             parameters=request.parameters or None,
         ):
             yield chunk.model_dump(exclude_none=True)
