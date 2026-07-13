@@ -6,7 +6,11 @@ UV_SYNC_FLAGS ?= --locked
 PYTHON ?=
 UV_PYTHON_FLAG := $(if $(PYTHON),-p $(PYTHON),)
 
-API_HOST ?= 127.0.0.1
+# Must stay `localhost` (not 127.0.0.1) to match the frontend origin and the
+# CORS default (http://localhost:3000): the refresh cookie is SameSite=Lax, and
+# localhost vs 127.0.0.1 are different *sites*, so a 127.0.0.1 API base would
+# make the cross-site refresh POST drop the cookie and break persistent login.
+API_HOST ?= localhost
 API_PORT ?= 8000
 NEXT_PUBLIC_API_BASE_URL ?= http://$(API_HOST):$(API_PORT)
 # Dev opts into debug mode; the app default is production-safe (DEBUG=false).

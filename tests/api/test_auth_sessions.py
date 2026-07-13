@@ -68,6 +68,41 @@ def test_non_remembered_login_uses_browser_session_cookie(
     assert "Max-Age" not in response.headers["set-cookie"]
 
 
+def test_refresh_cookie_secure_follows_forwarded_proto(
+    unauthed_client: TestClient, session: Session
+) -> None:
+    """`Secure` tracks the browser-facing scheme, not the process DEBUG flag.
+
+    Regression: the cookie used to be `secure=not DEBUG`, so every non-debug
+    deployment marked it `Secure` -- a self-hosted stack served over plain HTTP
+    (docker compose, no TLS) had the browser silently drop the refresh cookie
+    and login never persisted. Over HTTPS the cookie must still be `Secure`.
+    """
+    user = models.User(
+        email="proto@example.com", hashed_password=hash_password("password123")
+    )
+    session.add(user)
+    session.commit()
+
+    over_http = _login(unauthed_client, user.email)
+    assert over_http.status_code == 200
+    assert "Secure" not in over_http.headers["set-cookie"]
+
+    unauthed_client.cookies.clear()
+    over_https = unauthed_client.post(
+        "/api/auth/token",
+        data={
+            "grant_type": "password",
+            "username": user.email,
+            "password": "password123",
+            "remember_me": "true",
+        },
+        headers={"X-Forwarded-Proto": "https"},
+    )
+    assert over_https.status_code == 200
+    assert "Secure" in over_https.headers["set-cookie"]
+
+
 def test_logout_revokes_refresh_session(
     unauthed_client: TestClient, session: Session
 ) -> None:
