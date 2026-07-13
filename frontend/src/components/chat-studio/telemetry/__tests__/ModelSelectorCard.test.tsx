@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ModelSelectorCard } from "@/components/chat-studio/telemetry/ModelSelectorCard";
+import { makeCatalogModel } from "@/test/fixtures";
 
-import type { ModelInfo } from "@/lib/types";
+import type { CatalogModel } from "@/lib/types";
 
 describe("ModelSelectorCard", () => {
   it("shows loading and empty states", () => {
@@ -67,77 +68,69 @@ describe("ModelSelectorCard", () => {
     const onSearchChange = vi.fn();
     const onSortChange = vi.fn();
     const onSelectModel = vi.fn();
-    const models: ModelInfo[] = [
-      {
+    const models: CatalogModel[] = [
+      makeCatalogModel({
         id: "model-1",
         name: "Alpha",
-        canonical_slug: "alpha",
         supported_parameters: [],
         context_length: 4096,
         pricing: { prompt: 0.0002, completion: 0.00002 },
-      },
-      {
+      }),
+      makeCatalogModel({
         id: "model-2",
         name: "Beta",
-        canonical_slug: "beta",
         supported_parameters: [],
         context_length: 1024,
         pricing: { prompt: 0.0000015, completion: 0.00000015 },
-      },
-      {
+      }),
+      makeCatalogModel({
         id: "model-3",
         name: "Gamma",
-        canonical_slug: "gamma",
         supported_parameters: [],
         context_length: 0,
         pricing: { prompt: "n/a", completion: null },
-      },
-      {
+      }),
+      makeCatalogModel({
         id: "model-4",
         name: "Delta",
-        canonical_slug: "delta",
         supported_parameters: [],
         context_length: 2048,
         pricing: { prompt: 0.0000000005, completion: 0.0000000005 },
-      },
-      {
+      }),
+      makeCatalogModel({
         id: "model-5",
         name: "Epsilon",
-        canonical_slug: "epsilon",
         supported_parameters: [],
         context_length: 4096,
         pricing: { prompt: 0.0000002, completion: 0.00000002 },
-      },
-      {
+      }),
+      makeCatalogModel({
         id: "model-6",
         name: "Zeta",
-        canonical_slug: "zeta",
         supported_parameters: [],
         context_length: 512,
         pricing: { prompt: "   ", completion: "free" },
-      },
-      {
+      }),
+      makeCatalogModel({
         id: "model-7",
         name: "Eta",
-        canonical_slug: "eta",
         supported_parameters: [],
         context_length: 512,
         pricing: { prompt: "1e309", completion: 0.0000000005 },
-      },
-      {
+      }),
+      makeCatalogModel({
         id: "model-8",
         name: "Theta",
-        canonical_slug: "theta",
         supported_parameters: [],
         context_length: 256,
         pricing: { prompt: "0.00005", completion: null },
-      },
+      }),
     ];
 
     render(
       <ModelSelectorCard
         currentModelInfo={models[0]}
-        selectedModelKey="alpha"
+        selectedModelKey="model-1"
         toolReadyModels={models}
         filteredModelCatalog={models}
         modelSearchTerm=""
@@ -158,7 +151,9 @@ describe("ModelSelectorCard", () => {
     expect(onSortChange).toHaveBeenCalledWith("price");
 
     fireEvent.click(screen.getByRole("button", { name: /Beta/ }));
-    expect(onSelectModel).toHaveBeenCalledWith("model-2");
+    expect(onSelectModel).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "model-2", connection_id: "conn-openrouter-1" }),
+    );
 
     expect(screen.getByText("$200/M")).toBeInTheDocument();
     expect(screen.getByText("$20.0/M")).toBeInTheDocument();

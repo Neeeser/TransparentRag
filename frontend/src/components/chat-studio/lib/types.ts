@@ -7,7 +7,7 @@ import type { ChatModelSortOption } from "@/lib/model-sorting";
 import type {
   Collection,
   ModelEndpointDirectory,
-  ModelInfo,
+  CatalogModel,
   RunSettingsSectionKey,
   UsageBreakdown,
 } from "@/lib/types";
@@ -100,13 +100,13 @@ export interface TelemetryModelProps {
   onModelSearchChange: (value: string) => void;
   modelSortOption: ChatModelSortOption;
   onModelSortChange: (value: ChatModelSortOption) => void;
-  toolReadyModels: ModelInfo[];
-  filteredModelCatalog: ModelInfo[];
+  toolReadyModels: CatalogModel[];
+  filteredModelCatalog: CatalogModel[];
   modelsLoading: boolean;
   modelsError: string | null;
   selectedModelKey: string;
-  onSelectModel: (id: string) => void;
-  currentModelInfo: ModelInfo | null;
+  onSelectModel: (model: CatalogModel) => void;
+  currentModelInfo: CatalogModel | null;
   toolsEnabled: boolean;
 }
 
