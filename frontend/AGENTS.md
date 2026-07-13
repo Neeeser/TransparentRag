@@ -145,6 +145,9 @@ chat-stream-reducer.ts`) with focused tests. New features follow this shape: add
 - **Effects must not write state they derive.** Computing a value in a `useMemo` and then
   copying it into `useState` via an effect adds a render per change and a stale window.
   Derive it where you use it.
+- **Worker-backed providers own their full teardown.** On unmount, terminate the worker,
+  cancel in-flight and pending work, and make already-queued microtasks no-op so tests and
+  route transitions cannot retain stale background work.
 - **When replacing an effect, enumerate every ordering it handled.** A reactive effect
   re-fires when async data arrives; a click handler runs once. Converting one to the
   other silently drops the "data resolved after the interaction" path — we shipped (and

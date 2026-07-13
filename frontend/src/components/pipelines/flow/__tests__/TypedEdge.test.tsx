@@ -8,29 +8,16 @@ import type { TypedEdgeType } from "@/components/pipelines/flow/TypedEdge";
 import type { EdgeProps } from "@xyflow/react";
 import type { CSSProperties } from "react";
 
-const SMART_PATH = "M 264 74 L 300 74 L 300 222 L 736 222";
 const BATCH_PATH = "M 264 74 L 680 74 L 680 222 L 736 222";
 const EDGE_TEST_ID = "base-edge";
 const STROKE_ATTRIBUTE = "data-stroke";
-const getSmartEdge = vi.fn((input: unknown) => {
-  void input;
-  return {
-    svgPathString: SMART_PATH,
-    edgeCenterX: 300,
-    edgeCenterY: 120,
-    points: [
-      [300, 46],
-      [300, 194],
-    ],
-  };
-});
 type MockRoute = {
   svgPathString: string;
   edgeCenterX: number;
   edgeCenterY: number;
   points: number[][];
 };
-const useSmartEdgeRoute = vi.fn<(input: unknown) => MockRoute | null>(() => ({
+const usePipelineEdgeRoute = vi.fn<(input: unknown) => MockRoute | null>(() => ({
   svgPathString: BATCH_PATH,
   edgeCenterX: 500,
   edgeCenterY: 148,
@@ -40,15 +27,8 @@ const useSmartEdgeRoute = vi.fn<(input: unknown) => MockRoute | null>(() => ({
   ],
 }));
 
-vi.mock("@tisoap/react-flow-smart-edge", () => ({
-  getSmartEdge: (input: unknown) => getSmartEdge(input),
-  useSmartEdgeRoute: (input: unknown) => useSmartEdgeRoute(input),
-  smartEdgePresets: {
-    smoothstep: {
-      drawEdge: vi.fn(),
-      generatePath: vi.fn(),
-    },
-  },
+vi.mock("@/components/pipelines/flow/PipelineEdgeRoutingProvider", () => ({
+  usePipelineEdgeRoute: (input: unknown) => usePipelineEdgeRoute(input),
 }));
 
 vi.mock("@xyflow/react", () => ({
@@ -91,7 +71,7 @@ describe("TypedEdge", () => {
       </svg>,
     );
 
-    expect(useSmartEdgeRoute).toHaveBeenCalledWith(
+    expect(usePipelineEdgeRoute).toHaveBeenCalledWith(
       expect.objectContaining({
         id: edgeProps.id,
         source: edgeProps.source,
@@ -102,7 +82,6 @@ describe("TypedEdge", () => {
         targetY: edgeProps.targetY,
       }),
     );
-    expect(getSmartEdge).not.toHaveBeenCalled();
     expect(screen.getByTestId(EDGE_TEST_ID)).toHaveAttribute("d", BATCH_PATH);
     expect(screen.getByTestId(EDGE_TEST_ID)).toHaveAttribute(
       STROKE_ATTRIBUTE,
@@ -116,7 +95,7 @@ describe("TypedEdge", () => {
   });
 
   it("uses the smooth-step fallback while a batch route is pending", () => {
-    useSmartEdgeRoute.mockReturnValueOnce(null);
+    usePipelineEdgeRoute.mockReturnValueOnce(null);
 
     render(
       <svg>

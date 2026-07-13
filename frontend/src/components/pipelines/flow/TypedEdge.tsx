@@ -1,13 +1,14 @@
 "use client";
 
-import { useSmartEdgeRoute } from "@tisoap/react-flow-smart-edge";
 import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 
 import { getPortTypeColorVar } from "../lib/pipeline-theme";
 
-export { PIPELINE_EDGE_ROUTING_OPTIONS } from "./PipelineEdgeRoutingProvider";
+import { usePipelineEdgeRoute } from "./PipelineEdgeRoutingProvider";
 
 import type { Edge, EdgeProps } from "@xyflow/react";
+
+export { PIPELINE_EDGE_ROUTING_OPTIONS } from "./PipelineEdgeRoutingProvider";
 
 export type TypedEdgeData = {
   /** Port data type leaving the source handle; colors the wire. */
@@ -32,7 +33,7 @@ type EdgeCoordinates = Pick<
 >;
 
 const resolveEdgePath = (
-  route: ReturnType<typeof useSmartEdgeRoute>,
+  route: ReturnType<typeof usePipelineEdgeRoute>,
   coordinates: EdgeCoordinates,
 ) => {
   if (route) return route.svgPathString;
@@ -76,7 +77,7 @@ export function TypedEdge({
     sourcePosition,
     targetPosition,
   };
-  const route = useSmartEdgeRoute({ id, source, target, data, ...coordinates });
+  const route = usePipelineEdgeRoute({ id, source, target, data, ...coordinates });
   const path = resolveEdgePath(route, coordinates);
   // Theme-aware color via CSS var; applied through `style` (var() is invalid in
   // SVG presentation attributes like fill=/stroke=, valid only in inline style).
