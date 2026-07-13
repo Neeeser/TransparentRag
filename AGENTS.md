@@ -204,7 +204,9 @@ extends the root, it never restates or contradicts it.
 **What doesn't belong.** Generic language/framework advice, transient feature
 status, tutorials, and facts easily discovered from the code. Known gaps and tech
 debt become GitHub issues, not AGENTS.md sections — a "tracked" claim with no issue
-behind it is how stale text accumulates.
+behind it is how stale text accumulates. When work surfaces a gap worth tracking,
+don't interrupt the task and never open the issue unprompted: finish the task, then
+list the candidate issues and open only the ones the user confirms.
 
 **Editing or condensing these files is high-risk** — deleting the wrong sentence
 silently weakens every future change. Treat it as a behavior-preserving refactor:
