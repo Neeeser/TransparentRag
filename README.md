@@ -17,7 +17,7 @@ ingestion through retrieval and chat.**
 [![Pinecone](https://img.shields.io/badge/Pinecone-optional-000000?logo=pinecone)](https://www.pinecone.io/)
 [![OpenRouter](https://img.shields.io/badge/OpenRouter-supported-6467F2)](https://openrouter.ai/)
 
-[Overview](#overview) · [Features](#features) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Development](#development)
+[Why Ragworks](#-why-ragworks) · [Features](#-features) · [How it works](#-how-it-works) · [Quick start](#-quick-start) · [Development](#development)
 
 </div>
 
@@ -30,7 +30,7 @@ ingestion through retrieval and chat.**
   </a>
 </p>
 
-## Overview
+## 💡 Why Ragworks
 
 Ragworks is an open-source RAG workbench for building, comparing, and inspecting
 retrieval workflows on your own infrastructure. Ingestion and retrieval are
@@ -43,7 +43,7 @@ The included Docker Compose stack runs Ragworks with PostgreSQL, pgvector, and
 BM25 search locally. Ragworks uses OpenRouter for embeddings and chat models,
 with Pinecone available as an alternative vector store.
 
-## Features
+## ✨ Features
 
 - **Visual pipelines:** build ingestion and retrieval graphs with typed ports and
   validation before execution.
@@ -60,7 +60,7 @@ with Pinecone available as an alternative vector store.
 - **Runtime administration:** manage provider credentials per user and application
   settings centrally.
 
-## Quick start
+## 🚀 Quick start
 
 Ragworks publishes backend and frontend container images for each release. To run
 the default stack, save the following as `docker-compose.yml`:
@@ -131,7 +131,7 @@ The Compose file follows the current release through the `latest` image tag. For
 a reproducible deployment, replace `latest` with a version from the
 [releases page](https://github.com/Neeeser/Ragworks/releases).
 
-## How it works
+## 🔎 How it works
 
 **A Ragworks pipeline is a directed graph.** Nodes represent parsing, chunking,
 embedding, indexing, retrieval, fusion, and output stages. Typed edges define how
@@ -185,7 +185,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for pull request conventions and
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed setup and architecture
 notes.
 
-## Contributing
+## 🤝 Contributing
 
 Issues and pull requests are welcome. Bug fixes require a regression test that
 fails before the fix and passes afterward. Start with
