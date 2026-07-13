@@ -53,21 +53,42 @@ def _rotate_refresh_token(token: str) -> str:
     ).hexdigest()
 
 
-def _set_refresh_cookie(response: Response, token: str, persistent: bool, days: int) -> None:
+def _request_is_https(request: Request) -> bool:
+    """Whether the browser-facing connection uses HTTPS.
+
+    The `Secure` cookie attribute must track the *browser* connection, not this
+    process's socket: behind the frontend same-origin proxy (docker) or a
+    TLS-terminating reverse proxy the backend is reached over plain HTTP, so the
+    real scheme arrives in `X-Forwarded-Proto`. Falling back to `DEBUG` (the old
+    behavior) marked the cookie `Secure` on every non-debug deployment, so a
+    self-hosted stack served over plain HTTP had its refresh cookie silently
+    dropped by the browser -- login never persisted. Tying it to the actual
+    scheme keeps the cookie `Secure` under HTTPS without breaking HTTP self-hosts.
+    """
+    forwarded = request.headers.get("x-forwarded-proto")
+    scheme = forwarded.split(",")[0].strip() if forwarded else request.url.scheme
+    return scheme == "https"
+
+
+def _set_refresh_cookie(
+    response: Response, request: Request, token: str, persistent: bool, days: int
+) -> None:
     response.set_cookie(
         _REFRESH_COOKIE,
         token,
         max_age=days * 86400 if persistent else None,
         httponly=True,
-        secure=not get_settings().debug,
+        secure=_request_is_https(request),
         samesite="lax",
         path="/api/auth",
     )
     response.headers["Cache-Control"] = "no-store"
 
 
-def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(_REFRESH_COOKIE, path="/api/auth")
+def _clear_refresh_cookie(response: Response, request: Request) -> None:
+    response.delete_cookie(
+        _REFRESH_COOKIE, path="/api/auth", secure=_request_is_https(request), samesite="lax"
+    )
     response.headers["Cache-Control"] = "no-store"
 
 
@@ -150,7 +171,7 @@ def login_for_access_token(
         )
     refresh_token, auth_session = _create_refresh_session(user, request, session, remember_me)
     access_token = create_access_token(subject=str(user.id), session_id=str(auth_session.id))
-    _set_refresh_cookie(response, refresh_token, remember_me, user.remember_session_days)
+    _set_refresh_cookie(response, request, refresh_token, remember_me, user.remember_session_days)
     # Telemetry hooks belong at the service layer, but login has no service --
     # the credential exchange lives entirely in this route, so the fact is
     # recorded where it becomes true.
@@ -178,11 +199,12 @@ def refresh_access_token(request: Request, response: Response, session: Session 
                 replayed.revoked_at = now
                 session.add(replayed)
                 session.commit()
-                _clear_refresh_cookie(response)
+                _clear_refresh_cookie(response, request)
                 raise HTTPException(status_code=401, detail="Could not refresh session")
             rotated = _rotate_refresh_token(token or "")
             _set_refresh_cookie(
                 response,
+                request,
                 rotated,
                 replayed.persistent,
                 max(1, (ensure_utc(replayed.expires_at) - now).days + 1),
@@ -201,14 +223,14 @@ def refresh_access_token(request: Request, response: Response, session: Session 
         or auth_session.revoked_at
         or ensure_utc(auth_session.expires_at) <= now
     ):
-        _clear_refresh_cookie(response)
+        _clear_refresh_cookie(response, request)
         raise HTTPException(status_code=401, detail="Could not refresh session")
     user = UserRepository(session).get(auth_session.user_id)
     if not user or not user.is_active:
         auth_session.revoked_at = now
         session.add(auth_session)
         session.commit()
-        _clear_refresh_cookie(response)
+        _clear_refresh_cookie(response, request)
         raise HTTPException(status_code=401, detail="Could not refresh session")
     rotated = _rotate_refresh_token(token or "")
     claimed = repo.rotate_if_current(
@@ -227,10 +249,10 @@ def refresh_access_token(request: Request, response: Response, session: Session 
             or ensure_utc(concurrent_winner.expires_at) <= now
             or now - ensure_utc(concurrent_winner.last_used_at) > _ROTATION_GRACE
         ):
-            _clear_refresh_cookie(response)
+            _clear_refresh_cookie(response, request)
             raise HTTPException(status_code=401, detail="Could not refresh session")
     remaining_days = max(1, (ensure_utc(auth_session.expires_at) - now).days + 1)
-    _set_refresh_cookie(response, rotated, auth_session.persistent, remaining_days)
+    _set_refresh_cookie(response, request, rotated, auth_session.persistent, remaining_days)
     return Token(
         access_token=create_access_token(str(user.id), session_id=str(auth_session.id))
     )
@@ -244,7 +266,7 @@ def logout(request: Request, response: Response, session: Session = Depends(get_
         auth_session.revoked_at = utc_now()
         session.add(auth_session)
         session.commit()
-    _clear_refresh_cookie(response)
+    _clear_refresh_cookie(response, request)
 
 
 @router.get("/sessions", response_model=list[AuthSessionRead])
@@ -278,6 +300,7 @@ def revoke_auth_session(
 
 @router.delete("/sessions", status_code=status.HTTP_204_NO_CONTENT)
 def revoke_all_auth_sessions(
+    request: Request,
     response: Response,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -287,7 +310,7 @@ def revoke_all_auth_sessions(
         item.revoked_at = now
         session.add(item)
     session.commit()
-    _clear_refresh_cookie(response)
+    _clear_refresh_cookie(response, request)
 
 
 @router.get("/me", response_model=UserRead)
