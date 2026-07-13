@@ -113,6 +113,9 @@ Follow the root rule: **regression test in the same commit, verified red-green.*
 - **Shared downstream nodes sit between parallel branch rows.** In a hybrid pipeline,
   center a merge or output node vertically between its inputs so smooth-step edges do
   not route through either branch's node card.
+- **Static pipeline playback follows topology, never serialization order.** Build
+  `FlowStep[]` with `buildTopologyPlaybackSteps`; trace playback is the exception and
+  keeps its authoritative recorded execution order.
 - **Feature folders separate components from logic.** Inside a feature folder
   (`chat-studio/`, `pipelines/`, …), components live at the root, pure non-React modules
   (helpers, constants, types, reducers) in `lib/`, and hooks in `hooks/` — grouped into

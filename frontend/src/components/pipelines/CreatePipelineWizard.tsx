@@ -11,6 +11,7 @@ import {
   WizardReviewStep,
 } from "@/components/pipelines/CreatePipelineWizardSteps";
 import { CREATE_SENTINEL } from "@/components/pipelines/lib/pipeline-kinds";
+import { buildTopologyPlaybackSteps } from "@/components/pipelines/lib/pipeline-playback";
 import { buildDefaultDefinition } from "@/components/pipelines/lib/pipeline-scaffold";
 import {
   sortIndexesByName,
@@ -161,7 +162,7 @@ export function CreatePipelineWizard({
     () => ({
       nodes: toFlowNodes(definition, nodeSpecs),
       edges: toFlowEdges(definition, nodeSpecs),
-      steps: definition.nodes.map((node) => ({ nodeIds: [node.id] })),
+      steps: buildTopologyPlaybackSteps(definition),
     }),
     [definition, nodeSpecs],
   );

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreatePipelineWizard } from "@/components/pipelines/CreatePipelineWizard";
 import * as apiModule from "@/lib/api";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import {
   makeBackendInfo,
   makePineconeBackendInfo,
@@ -17,6 +18,7 @@ import type { ComponentProps } from "react";
 const pipelineUtils = {
   buildDefaultDefinition: vi.fn(),
 };
+const flowPlayerSpy = vi.fn();
 const createPipelineLabel = "Create pipeline";
 
 vi.mock("@/providers/config-provider", async () => (await import("@/test/mocks")).mockAppConfig());
@@ -31,7 +33,13 @@ vi.mock("@/components/pipelines/lib/pipeline-utils", () => ({
   toFlowEdges: () => [],
 }));
 vi.mock("@/components/pipelines/flow/FlowPlayer", () => ({
-  FlowPlayer: () => <div data-testid="flow-player" />,
+  FlowPlayer: (props: object) => {
+    flowPlayerSpy(props);
+    return <div data-testid="flow-player" />;
+  },
+}));
+vi.mock("@/lib/use-prefers-reduced-motion", () => ({
+  usePrefersReducedMotion: vi.fn(() => false),
 }));
 vi.mock("@/components/pipelines/EmbeddingModelSelectorCard", () => ({
   EmbeddingModelSelectorCard: ({ onSelectModel }: { onSelectModel: (id: string) => void }) => (
@@ -42,6 +50,7 @@ vi.mock("@/components/pipelines/EmbeddingModelSelectorCard", () => ({
 }));
 
 const api = vi.mocked(apiModule);
+const prefersReducedMotion = vi.mocked(usePrefersReducedMotion);
 
 type WizardProps = ComponentProps<typeof CreatePipelineWizard>;
 
@@ -68,6 +77,8 @@ describe("CreatePipelineWizard", () => {
   const pipeline = makePipeline({ kind: "ingestion", definition: { nodes: [], edges: [] } });
 
   beforeEach(() => {
+    flowPlayerSpy.mockClear();
+    prefersReducedMotion.mockReturnValue(false);
     pipelineUtils.buildDefaultDefinition.mockReturnValue({ nodes: [], edges: [] });
   });
 
@@ -196,6 +207,47 @@ describe("CreatePipelineWizard", () => {
     expect(screen.getByText("Untitled")).toBeInTheDocument();
     expect(screen.getByText(/no index/)).toBeInTheDocument();
     expect(screen.getByText("Workspace default")).toBeInTheDocument();
+  });
+
+  it("previews the hybrid scaffold in topology order instead of serialized node order", async () => {
+    const user = userEvent.setup();
+    pipelineUtils.buildDefaultDefinition.mockReturnValue({
+      nodes: ["input", "semantic", "output", "lexical"].map((id) => ({
+        id,
+        type: `test.${id}`,
+        name: id,
+        config: {},
+      })),
+      edges: [
+        { id: "input-semantic", source: "input", target: "semantic" },
+        { id: "input-lexical", source: "input", target: "lexical" },
+        { id: "semantic-output", source: "semantic", target: "output" },
+        { id: "lexical-output", source: "lexical", target: "output" },
+      ],
+    });
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /Review/ }));
+
+    expect(flowPlayerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        steps: [
+          { nodeIds: ["input"] },
+          { nodeIds: ["lexical", "semantic"] },
+          { nodeIds: ["output"] },
+        ],
+      }),
+    );
+  });
+
+  it("renders the review graph without autoplay under reduced motion", async () => {
+    const user = userEvent.setup();
+    prefersReducedMotion.mockReturnValue(true);
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /Review/ }));
+
+    expect(flowPlayerSpy).toHaveBeenLastCalledWith(expect.objectContaining({ autoPlay: false }));
   });
 });
 

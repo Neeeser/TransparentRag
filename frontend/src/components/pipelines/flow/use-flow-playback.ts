@@ -2,15 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-/**
- * One playback stage: every node in `nodeIds` is active ("processing") at
- * once. Linear pipelines use single-element stages; a fan-out (e.g. hybrid
- * ingestion's chunker feeding both the embedder and a BM25 indexer) lists the
- * parallel branch nodes together so their payload dots travel simultaneously.
- */
-export type FlowStep = {
-  nodeIds: string[];
-};
+import type { FlowStep } from "@/components/pipelines/lib/pipeline-playback";
 
 export type PlaybackPhase = "process" | "travel";
 

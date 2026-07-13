@@ -14,9 +14,10 @@ import { pipelineEdgeTypes } from "./TypedEdge";
 import { useFlowDotColor } from "./use-flow-dot-color";
 import { useFlowPlayback } from "./use-flow-playback";
 
+import type { FlowStep } from "../lib/pipeline-playback";
 import type { PipelineNodeData } from "../PipelineNode";
 import type { TypedEdgeType } from "./TypedEdge";
-import type { FlowStep, UseFlowPlaybackResult } from "./use-flow-playback";
+import type { UseFlowPlaybackResult } from "./use-flow-playback";
 import type { Node, NodeTypes } from "@xyflow/react";
 
 type FlowPlayerProps = {

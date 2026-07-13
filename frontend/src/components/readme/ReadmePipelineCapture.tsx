@@ -3,10 +3,9 @@
 import { useState } from "react";
 
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
+import { buildTopologyPlaybackSteps } from "@/components/pipelines/lib/pipeline-playback";
 import { toFlowEdges, toFlowNodes } from "@/components/pipelines/lib/pipeline-utils";
 import fixtureJson from "@/components/readme/readme-pipelines.generated.json";
-
-import { buildPlaybackSteps } from "./capture-flow";
 
 import type { NodeSpec, PipelineDefinition, PipelineKind } from "@/lib/types";
 
@@ -31,7 +30,7 @@ export function ReadmePipelineCapture({ kind }: ReadmePipelineCaptureProps) {
   }
   const nodes = toFlowNodes(scene.definition, fixture.node_specs);
   const edges = toFlowEdges(scene.definition, fixture.node_specs);
-  const steps = buildPlaybackSteps(scene.definition);
+  const steps = buildTopologyPlaybackSteps(scene.definition);
 
   return (
     <main
