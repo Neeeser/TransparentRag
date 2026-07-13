@@ -84,9 +84,10 @@ shape. Then run the gate (`npm run verify`).
 ## Fixing a bug
 
 Follow the root rule: regression test in the same commit, verified red-green.
-Reproduce at the lowest level that exhibits the bug (pure `lib/` function or reducer
-> hook > component) and watch it fail for the bug's reason. If the bug teaches a
-reusable rule, add one line to the relevant section of this file in the same PR.
+Reproduce at the lowest level that exhibits the bug (pure `lib/` function or
+reducer, then hook, then component) and watch it fail for the bug's reason. If the
+bug teaches a reusable rule, add one line to the relevant section of this file in
+the same PR.
 
 ## Code structure
 
@@ -139,7 +140,7 @@ reusable rule, add one line to the relevant section of this file in the same PR.
   one to the other silently drops the "data resolved after the interaction" path
   (we shipped a data-loss bug exactly this way). For seed/sync logic, prefer a
   render-time state adjustment guarded so it fires only when the target is still
-  empty *and* the seed is non-empty (the second guard prevents an infinite
+  empty _and_ the seed is non-empty (the second guard prevents an infinite
   setState loop).
 - **Delete dead code on sight.** No-op callbacks drilled through props,
   "convenience" re-export blocks, helpers wrapping a single operator — remove them.
