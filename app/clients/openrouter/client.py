@@ -166,14 +166,14 @@ class OpenRouterClient:
     def embed(
         self,
         texts: Iterable[str],
-        model: str | None = None,
+        model: str,
         extra_headers: dict[str, str] | None = None,
         dimensions: int | None = None,
     ) -> OpenRouterEmbeddingsResponse:
         """Create embeddings for the provided texts."""
         headers = self._merge_extra_headers(extra_headers)
         kwargs: dict[str, Any] = {
-            "model": model or self.settings.default_embedding_model,
+            "model": model,
             "input": list(texts),
             "encoding_format": "float",
             "extra_headers": headers,
@@ -190,7 +190,7 @@ class OpenRouterClient:
     def _build_chat_kwargs(
         self,
         messages: list[dict[str, Any]],
-        model: str | None,
+        model: str,
         tools: list[dict[str, Any]] | None,
         tool_choice: dict[str, Any] | None,
         parallel_tool_calls: bool | None,
@@ -202,7 +202,7 @@ class OpenRouterClient:
         """Assemble the SDK kwargs shared by `chat` and `chat_stream`."""
         kwargs: dict[str, Any] = {
             "messages": messages,
-            "model": model or self.settings.default_chat_model,
+            "model": model,
         }
         if tools:
             kwargs["tools"] = tools
@@ -227,7 +227,7 @@ class OpenRouterClient:
     def chat(
         self,
         messages: list[dict[str, Any]],
-        model: str | None = None,
+        model: str,
         tools: list[dict[str, Any]] | None = None,
         tool_choice: dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
@@ -255,7 +255,7 @@ class OpenRouterClient:
     def chat_stream(
         self,
         messages: list[dict[str, Any]],
-        model: str | None = None,
+        model: str,
         tools: list[dict[str, Any]] | None = None,
         tool_choice: dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
