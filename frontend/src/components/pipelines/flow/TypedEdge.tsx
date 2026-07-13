@@ -1,10 +1,12 @@
 "use client";
 
-import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
+import { getSmartEdge, smartEdgePresets } from "@tisoap/react-flow-smart-edge";
+import { BaseEdge, getSmoothStepPath, useNodes } from "@xyflow/react";
 
 import { getPortTypeColorVar } from "../lib/pipeline-theme";
 
-import type { Edge, EdgeProps } from "@xyflow/react";
+import type { GetSmartEdgeOptions } from "@tisoap/react-flow-smart-edge";
+import type { Edge, EdgeProps, Node } from "@xyflow/react";
 
 export type TypedEdgeData = {
   /** Port data type leaving the source handle; colors the wire. */
@@ -23,6 +25,39 @@ export type TypedEdgeData = {
 
 export type TypedEdgeType = Edge<TypedEdgeData, "typed">;
 
+export const PIPELINE_EDGE_ROUTING_OPTIONS = {
+  drawEdge: smartEdgePresets.smoothstep.drawEdge,
+  generatePath: smartEdgePresets.smoothstep.generatePath,
+  gridRatio: 10,
+  nodePadding: 16,
+} satisfies GetSmartEdgeOptions;
+
+type EdgeCoordinates = Pick<
+  EdgeProps<TypedEdgeType>,
+  "sourceX" | "sourceY" | "targetX" | "targetY" | "sourcePosition" | "targetPosition"
+>;
+
+const resolveEdgePath = (nodes: Node[], coordinates: EdgeCoordinates) => {
+  const route = getSmartEdge({
+    nodes,
+    ...coordinates,
+    options: PIPELINE_EDGE_ROUTING_OPTIONS,
+  });
+  if (!(route instanceof Error)) return route.svgPathString;
+  return getSmoothStepPath({ ...coordinates, borderRadius: 6 })[0];
+};
+
+const resolveEdgeAppearance = (data: TypedEdgeData | undefined, selected: boolean | undefined) => {
+  const color = data?.error ? "var(--data-neg)" : getPortTypeColorVar(data?.dataType);
+  const emphasized = Boolean(data?.active || data?.error || selected);
+  return {
+    color,
+    emphasized,
+    lit: emphasized || Boolean(data?.visited),
+    travelMs: data?.travelMs ?? 700,
+  };
+};
+
 /**
  * Orthogonal step edge colored by the data type it carries -- the same color
  * language as the port dots -- with an optional animated payload dot for
@@ -39,23 +74,18 @@ export function TypedEdge({
   data,
   selected,
 }: EdgeProps<TypedEdgeType>) {
-  // Rigid orthogonal routing (small corner radius): pipelines read as an
-  // assembly line, so the wires run like conveyor tracks, not loose curves.
-  const [path] = getSmoothStepPath({
+  const nodes = useNodes();
+  const path = resolveEdgePath(nodes, {
     sourceX,
     sourceY,
     targetX,
     targetY,
     sourcePosition,
     targetPosition,
-    borderRadius: 6,
   });
   // Theme-aware color via CSS var; applied through `style` (var() is invalid in
   // SVG presentation attributes like fill=/stroke=, valid only in inline style).
-  const color = data?.error ? "var(--data-neg)" : getPortTypeColorVar(data?.dataType);
-  const emphasized = Boolean(data?.active || data?.error || selected);
-  const lit = emphasized || Boolean(data?.visited);
-  const travelMs = data?.travelMs ?? 700;
+  const { color, emphasized, lit, travelMs } = resolveEdgeAppearance(data, selected);
 
   return (
     <>

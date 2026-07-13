@@ -57,7 +57,7 @@ It will:
 3. Minimize crossings using alternating forward and backward barycenter sweeps. Stable
    node order is the tie-breaker.
 4. Seed each layer as a non-overlapping vertical stack using estimated rendered heights.
-5. Repeatedly center nodes toward the median of adjacent predecessors and successors,
+5. Repeatedly center nodes toward the average of adjacent predecessors and successors,
    resolving collisions after each sweep while preserving the chosen order.
 6. Normalize each component to the origin and pack disconnected components vertically
    with a fixed component gap.
