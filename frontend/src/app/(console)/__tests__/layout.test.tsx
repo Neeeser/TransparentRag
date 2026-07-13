@@ -82,7 +82,9 @@ describe("ConsoleLayout", () => {
 
     await act(async () => {
       statusRequest.resolve({
-        openrouter_configured: false,
+        has_embedding_provider: false,
+        has_chat_provider: false,
+        has_vector_store: false,
         has_index: false,
         has_collection: false,
         setup_complete: false,
