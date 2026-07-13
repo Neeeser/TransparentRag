@@ -136,6 +136,13 @@ app/
 tests/             mirrors the app/ layout (tests/api, tests/services, …)
 ```
 
+**Default prompt instructions stay in their rendering scope.**
+`DEFAULT_BASE_PROMPT_TEMPLATE` is always rendered, so it must remain tool-agnostic.
+Collection retrieval, citation, and tool-call instructions belong in
+`DEFAULT_SYSTEM_PROMPT_TEMPLATE`, which `render_system_prompt` appends only for the
+collection tools active on that chat turn. Adding tool policy to the base prompt makes
+an empty tool list tell the model to call tools it cannot access.
+
 New code goes in the existing folder that owns its concern. A new folder is justified
 only when it names a genuinely new ownership boundary (the way `retrieval/rerankers/`
 does), not to house one file — colocate a single file with its consumer instead.
