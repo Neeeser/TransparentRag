@@ -292,6 +292,10 @@ config-provider.tsx`), never a one-off `fetchPublicConfig()` call — the provid
   `Math.random()`, locale-dependent formatting, and browser-only globals during the
   first render. Same rule as the storage one above — render the deterministic default,
   then update after mount.
+- **Async readiness redirects gate the entire protected shell.** Keep navigation and page
+  content unmounted behind an accessible loading state until the readiness check resolves,
+  and keep the gate closed while redirecting; rendering first and redirecting from an effect
+  flashes content the user cannot use yet.
 - **This app's data flow is deliberately client-side** (token in localStorage →
   `apiFetch`), so don't introduce one-off server-side data fetching or route handlers
   for a single feature; that's an architecture change, not a feature.
