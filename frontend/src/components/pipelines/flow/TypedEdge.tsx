@@ -1,12 +1,13 @@
 "use client";
 
-import { getSmartEdge, smartEdgePresets } from "@tisoap/react-flow-smart-edge";
-import { BaseEdge, getSmoothStepPath, useNodes } from "@xyflow/react";
+import { useSmartEdgeRoute } from "@tisoap/react-flow-smart-edge";
+import { BaseEdge, getSmoothStepPath } from "@xyflow/react";
 
 import { getPortTypeColorVar } from "../lib/pipeline-theme";
 
-import type { GetSmartEdgeOptions } from "@tisoap/react-flow-smart-edge";
-import type { Edge, EdgeProps, Node } from "@xyflow/react";
+export { PIPELINE_EDGE_ROUTING_OPTIONS } from "./PipelineEdgeRoutingProvider";
+
+import type { Edge, EdgeProps } from "@xyflow/react";
 
 export type TypedEdgeData = {
   /** Port data type leaving the source handle; colors the wire. */
@@ -25,25 +26,16 @@ export type TypedEdgeData = {
 
 export type TypedEdgeType = Edge<TypedEdgeData, "typed">;
 
-export const PIPELINE_EDGE_ROUTING_OPTIONS = {
-  drawEdge: smartEdgePresets.smoothstep.drawEdge,
-  generatePath: smartEdgePresets.smoothstep.generatePath,
-  gridRatio: 10,
-  nodePadding: 16,
-} satisfies GetSmartEdgeOptions;
-
 type EdgeCoordinates = Pick<
   EdgeProps<TypedEdgeType>,
   "sourceX" | "sourceY" | "targetX" | "targetY" | "sourcePosition" | "targetPosition"
 >;
 
-const resolveEdgePath = (nodes: Node[], coordinates: EdgeCoordinates) => {
-  const route = getSmartEdge({
-    nodes,
-    ...coordinates,
-    options: PIPELINE_EDGE_ROUTING_OPTIONS,
-  });
-  if (!(route instanceof Error)) return route.svgPathString;
+const resolveEdgePath = (
+  route: ReturnType<typeof useSmartEdgeRoute>,
+  coordinates: EdgeCoordinates,
+) => {
+  if (route) return route.svgPathString;
   return getSmoothStepPath({ ...coordinates, borderRadius: 6 })[0];
 };
 
@@ -65,6 +57,8 @@ const resolveEdgeAppearance = (data: TypedEdgeData | undefined, selected: boolea
  */
 export function TypedEdge({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -74,15 +68,16 @@ export function TypedEdge({
   data,
   selected,
 }: EdgeProps<TypedEdgeType>) {
-  const nodes = useNodes();
-  const path = resolveEdgePath(nodes, {
+  const coordinates = {
     sourceX,
     sourceY,
     targetX,
     targetY,
     sourcePosition,
     targetPosition,
-  });
+  };
+  const route = useSmartEdgeRoute({ id, source, target, data, ...coordinates });
+  const path = resolveEdgePath(route, coordinates);
   // Theme-aware color via CSS var; applied through `style` (var() is invalid in
   // SVG presentation attributes like fill=/stroke=, valid only in inline style).
   const { color, emphasized, lit, travelMs } = resolveEdgeAppearance(data, selected);

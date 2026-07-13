@@ -1,3 +1,6 @@
+import { countHiddenOverrides, resolveNodeSignature } from "./node-signature";
+import { buildPipelineConfigFields } from "./pipeline-config";
+
 import type { PipelineNodeData } from "../PipelineNode";
 import type { Edge, Node } from "@xyflow/react";
 
@@ -7,24 +10,44 @@ import type { Edge, Node } from "@xyflow/react";
  * Longest-path layering establishes the flow direction, alternating barycenter
  * sweeps reduce crossings, and adjacent-node centering positions fan-outs and
  * merges relative to every connected branch. Weakly connected components are
- * laid out independently and packed into separate vertical bands.
+ * laid out independently and packed into deterministic, bounded shelves.
  */
 
 export const ESTIMATED_NODE_WIDTH = 264;
 export const LAYER_GAP_X = 104;
 export const NODE_GAP_Y = 56;
+export const COMPONENT_GAP_X = 104;
 export const COMPONENT_GAP_Y = 112;
 
-/** Height estimate used for stacking and overlap checks (header + ports + config). */
+/** Safe pre-measurement height estimate for the rendered card. */
 export const estimateNodeHeight = (
-  data: Pick<PipelineNodeData, "config" | "inputs" | "outputs">,
+  data: Pick<PipelineNodeData, "config" | "configSchema" | "inputs" | "nodeType" | "outputs">,
 ) => {
-  const configRows = Math.min(Object.keys(data.config ?? {}).length, 5);
   const portRows = Math.max(data.inputs.length, data.outputs.length);
-  return 68 + portRows * 24 + (configRows > 0 ? 20 + configRows * 20 : 0);
+  const fields = buildPipelineConfigFields(data.configSchema);
+  const signature = resolveNodeSignature(data.nodeType, data.config ?? {}, fields);
+  const hiddenOverrides = countHiddenOverrides(
+    data.config ?? {},
+    fields,
+    signature?.consumedKeys ?? [],
+  );
+  return (
+    68 +
+    portRows * 24 +
+    (signature ? (signature.detail ? 64 : 56) : 0) +
+    (hiddenOverrides > 0 ? 24 : 0)
+  );
 };
 
 type LayoutNode = Node<PipelineNodeData>;
+export type NodeDimensions = { width: number; height: number };
+
+/** Prefer React Flow's live measurement, with conservative pre-render fallbacks. */
+export const resolveNodeDimensions = (node: LayoutNode): NodeDimensions => ({
+  width: node.measured?.width ?? node.width ?? ESTIMATED_NODE_WIDTH,
+  height: node.measured?.height ?? node.height ?? estimateNodeHeight(node.data),
+});
+
 type Relations = {
   predecessors: Map<string, string[]>;
   successors: Map<string, string[]>;
@@ -228,17 +251,27 @@ const layoutComponent = (
   const layers = buildLayers(component, relations);
   const columns = makeColumns(component, layers, relations);
   minimizeCrossings(columns, relations);
-  const heights = new Map(component.map((id) => [id, estimateNodeHeight(nodesById.get(id)!.data)]));
+  const dimensions = new Map(
+    component.map((id) => [id, resolveNodeDimensions(nodesById.get(id)!)]),
+  );
+  const heights = new Map(component.map((id) => [id, dimensions.get(id)!.height]));
   const centers = positionColumns(columns, relations, heights);
   const top = Math.min(...component.map((id) => centers.get(id)! - heights.get(id)! / 2));
   const bottom = Math.max(...component.map((id) => centers.get(id)! + heights.get(id)! / 2));
+  const columnWidths = columns.map((column) =>
+    Math.max(...column.map((id) => dimensions.get(id)!.width)),
+  );
+  const columnLefts = columnWidths.map((_width, index) =>
+    columnWidths.slice(0, index).reduce((sum, width) => sum + width + LAYER_GAP_X, 0),
+  );
   return {
+    width: columnLefts.at(-1)! + columnWidths.at(-1)!,
     height: bottom - top,
     positions: new Map(
       component.map((id) => [
         id,
         {
-          x: (layers.get(id) ?? 0) * (ESTIMATED_NODE_WIDTH + LAYER_GAP_X),
+          x: columnLefts[layers.get(id) ?? 0],
           y: centers.get(id)! - heights.get(id)! / 2 - top,
         },
       ]),
@@ -252,11 +285,31 @@ export const layoutPipelineNodes = (nodes: LayoutNode[], edges: Edge[]): LayoutN
   const relations = buildRelations(nodes, edges);
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const positioned = new Map<string, { x: number; y: number }>();
-  let componentTop = 0;
-  findComponents(nodes, relations).forEach((component) => {
-    const layout = layoutComponent(component, nodesById, relations);
-    layout.positions.forEach(({ x, y }, id) => positioned.set(id, { x, y: y + componentTop }));
-    componentTop += layout.height + COMPONENT_GAP_Y;
+  const layouts = findComponents(nodes, relations).map((component) =>
+    layoutComponent(component, nodesById, relations),
+  );
+  const paddedArea = layouts.reduce(
+    (sum, layout) => sum + (layout.width + COMPONENT_GAP_X) * (layout.height + COMPONENT_GAP_Y),
+    0,
+  );
+  const shelfWidth = Math.max(
+    ...layouts.map((layout) => layout.width),
+    Math.ceil(Math.sqrt(paddedArea * 1.6)),
+  );
+  let shelfLeft = 0;
+  let shelfTop = 0;
+  let shelfHeight = 0;
+  layouts.forEach((layout) => {
+    if (shelfLeft > 0 && shelfLeft + layout.width > shelfWidth) {
+      shelfLeft = 0;
+      shelfTop += shelfHeight + COMPONENT_GAP_Y;
+      shelfHeight = 0;
+    }
+    layout.positions.forEach(({ x, y }, id) =>
+      positioned.set(id, { x: x + shelfLeft, y: y + shelfTop }),
+    );
+    shelfLeft += layout.width + COMPONENT_GAP_X;
+    shelfHeight = Math.max(shelfHeight, layout.height);
   });
   return nodes.map((node) => ({
     ...node,
@@ -265,13 +318,13 @@ export const layoutPipelineNodes = (nodes: LayoutNode[], edges: Edge[]): LayoutN
 };
 
 const rectsOverlap = (
-  a: { x: number; y: number; height: number },
-  b: { x: number; y: number; height: number },
+  a: { x: number; y: number; height: number; width: number },
+  b: { x: number; y: number; height: number; width: number },
 ) => {
   const margin = 12;
   return (
-    a.x < b.x + ESTIMATED_NODE_WIDTH - margin &&
-    b.x < a.x + ESTIMATED_NODE_WIDTH - margin &&
+    a.x < b.x + b.width - margin &&
+    b.x < a.x + a.width - margin &&
     a.y < b.y + b.height - margin &&
     b.y < a.y + a.height - margin
   );
@@ -285,11 +338,7 @@ export const needsAutoLayout = (nodes: LayoutNode[]): boolean => {
   if (nodes.length < 2) return false;
   const allAtOrigin = nodes.every((node) => node.position.x === 0 && node.position.y === 0);
   if (allAtOrigin) return true;
-  const rects = nodes.map((node) => ({
-    x: node.position.x,
-    y: node.position.y,
-    height: estimateNodeHeight(node.data),
-  }));
+  const rects = nodes.map((node) => ({ ...node.position, ...resolveNodeDimensions(node) }));
   for (let first = 0; first < rects.length; first += 1) {
     for (let second = first + 1; second < rects.length; second += 1) {
       if (rectsOverlap(rects[first], rects[second])) return true;

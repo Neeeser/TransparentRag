@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 import { pipelineNodeTypes } from "../PipelineNode";
 
+import { PipelineEdgeRoutingProvider } from "./PipelineEdgeRoutingProvider";
 import { pipelineEdgeTypes } from "./TypedEdge";
 import { useFlowDotColor } from "./use-flow-dot-color";
 import { useFlowPlayback } from "./use-flow-playback";
@@ -164,32 +165,34 @@ export function FlowPlayer({
       className={cn("relative h-full w-full", ambient && "pointer-events-none", className)}
       aria-hidden={ambient || undefined}
     >
-      <ReactFlow
-        nodes={decoratedNodes}
-        edges={decoratedEdges}
-        nodeTypes={mergedNodeTypes}
-        edgeTypes={pipelineEdgeTypes}
-        onNodeClick={
-          ambient
-            ? undefined
-            : (_event, node) => {
-                const index = stepIndexByNodeId.get(node.id);
-                if (index !== undefined) playback.seek(index);
-              }
-        }
-        fitView
-        fitViewOptions={{ padding: fitViewPadding, maxZoom: 1 }}
-        minZoom={0.2}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        zoomOnScroll={false}
-        panOnDrag={!compact && !ambient}
-        preventScrolling={false}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background gap={18} size={1} color={dotColor} />
-      </ReactFlow>
+      <PipelineEdgeRoutingProvider nodes={decoratedNodes}>
+        <ReactFlow
+          nodes={decoratedNodes}
+          edges={decoratedEdges}
+          nodeTypes={mergedNodeTypes}
+          edgeTypes={pipelineEdgeTypes}
+          onNodeClick={
+            ambient
+              ? undefined
+              : (_event, node) => {
+                  const index = stepIndexByNodeId.get(node.id);
+                  if (index !== undefined) playback.seek(index);
+                }
+          }
+          fitView
+          fitViewOptions={{ padding: fitViewPadding, maxZoom: 1 }}
+          minZoom={0.2}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          zoomOnScroll={false}
+          panOnDrag={!compact && !ambient}
+          preventScrolling={false}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={18} size={1} color={dotColor} />
+        </ReactFlow>
+      </PipelineEdgeRoutingProvider>
 
       {steps.length > 0 && !ambient ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
