@@ -17,7 +17,7 @@ ingestion through retrieval and chat.**
 [![Pinecone](https://img.shields.io/badge/Pinecone-optional-000000?logo=pinecone)](https://www.pinecone.io/)
 [![OpenRouter](https://img.shields.io/badge/OpenRouter-supported-6467F2)](https://openrouter.ai/)
 
-[Why Ragworks](#-why-ragworks) · [Features](#-features) · [How it works](#-how-it-works) · [Quick start](#-quick-start) · [Development](#development)
+[Why Ragworks](#-why-ragworks) · [Features](#-features) · [How Ragworks](#-how-ragworks) · [Quick start](#-quick-start) · [Development](#development)
 
 </div>
 
@@ -134,7 +134,7 @@ The Compose file follows the current release through the `latest` image tag. For
 a reproducible deployment, replace `latest` with a version from the
 [releases page](https://github.com/Neeeser/Ragworks/releases).
 
-## 🔎 How it works
+## 🔎 How Ragworks
 
 **A Ragworks pipeline is a directed graph.** Nodes represent parsing, chunking,
 embedding, indexing, retrieval, fusion, and output stages. Typed edges define how
