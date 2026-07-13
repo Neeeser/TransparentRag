@@ -5,6 +5,7 @@ from typing import Any, ClassVar
 
 import pytest
 
+from app.clients.cache import ClientCache
 from app.clients.openrouter import OpenRouterClient
 from app.clients.openrouter import client as openrouter_module
 from app.schemas.models import EndpointsListResponse, ListEndpointsResponse, ModelInfo
@@ -540,9 +541,7 @@ def test_get_openrouter_client_closes_evicted_clients(monkeypatch) -> None:
     # Isolated cache instance: mutating the module-level singleton would leave 64
     # stub entries in the production cache for the rest of the pytest session and
     # could evict (and close) a real cached client held by other fixtures.
-    monkeypatch.setattr(
-        openrouter_module, "_client_cache", openrouter_module._ClientCache(max_size=64)
-    )
+    monkeypatch.setattr(openrouter_module, "_client_cache", ClientCache(max_size=64))
 
     keys = [f"cache-eviction-test-key-{i}" for i in range(65)]
     clients = [openrouter_module.get_openrouter_client(key) for key in keys]
