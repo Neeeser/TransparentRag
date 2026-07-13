@@ -142,7 +142,7 @@ describe("CreatePipelineWizard", () => {
         indexName: "alpha",
         indexDimension: 768,
         embeddingModel: undefined,
-        chunkSize: 1024,
+        chunkSize: 512,
         chunkOverlap: 200,
         includeBm25: true,
         indexNameMaxLength: 45,
@@ -186,6 +186,39 @@ describe("CreatePipelineWizard", () => {
       });
     });
   }, 15000);
+
+  it("returns to chunking and shows a model-limit error beside the field", async () => {
+    const user = userEvent.setup();
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: false,
+      errors: ["Chunk size exceeds the embedding input limit."],
+      warnings: [],
+      issues: [
+        {
+          code: "embedding_input_limit_exceeded",
+          message: "Chunk size 1,024 exceeds this model's 512-token input limit.",
+          severity: "error",
+          node_id: "chunk-document",
+          field: "chunk_size",
+          configured_value: 1024,
+          model: "sentence-transformers/all-minilm-l6-v2",
+          allowed_max: 512,
+        },
+      ],
+    });
+    renderWizard({ indexes: [makeVectorIndex({ name: "alpha", dimension: 384 })] });
+
+    await user.type(screen.getByPlaceholderText(/Research library/), "Pipe");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.selectOptions(screen.getByRole("combobox"), "alpha");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("radio", { name: /Balanced/ }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: createPipelineLabel }));
+
+    expect(await screen.findByText(/Chunk size 1,024 exceeds/)).toBeInTheDocument();
+    expect(api.createPipeline).not.toHaveBeenCalled();
+  });
 
   it("shows summary defaults when details are missing", async () => {
     const user = userEvent.setup();

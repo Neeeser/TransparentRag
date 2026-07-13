@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from pydantic import BaseModel, Field
 
 from app.pipelines.definition import (
     PipelineDefinition,
     PipelineNodeDefinition,
 )
+from app.pipelines.node import PipelineValidationIssue
+from app.pipelines.nodes.chunking import BaseChunkerNode
+from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
 from app.pipelines.ports import compatible
 from app.pipelines.registry import NodeRegistry
+from app.schemas.models import EmbeddingModelInfo
 
 
 class PipelineValidationResult(BaseModel):
@@ -18,14 +24,36 @@ class PipelineValidationResult(BaseModel):
     valid: bool
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    issues: list[PipelineValidationIssue] = Field(default_factory=list)
 
 
 class PipelineValidator:
     """Validation helper for pipeline definitions."""
 
-    def __init__(self, registry: NodeRegistry) -> None:
-        """Initialize the validator with a node registry."""
+    def __init__(
+        self,
+        registry: NodeRegistry,
+        *,
+        embedding_models: Iterable[EmbeddingModelInfo] | None = None,
+    ) -> None:
+        """Initialize with registry metadata and an optional provider model catalog.
+
+        A missing catalog means the caller has no authoritative provider data
+        (for example, the user has no OpenRouter key), so model-dependent
+        checks are skipped. A present catalog with a missing/null limit emits
+        an explicit warning while remaining saveable for compatibility.
+        """
         self._registry = registry
+        self._embedding_limits = (
+            None
+            if embedding_models is None
+            else {
+                model.id.casefold(): (
+                    int(model.context_length) if model.context_length is not None else None
+                )
+                for model in embedding_models
+            }
+        )
 
     def validate(self, definition: PipelineDefinition) -> PipelineValidationResult:
         """Validate the pipeline definition and return any errors."""
@@ -41,10 +69,18 @@ class PipelineValidator:
         if self._has_cycle(definition):
             errors.append("Pipeline contains at least one cycle.")
 
-        node_errors, warnings = self._collect_node_issues(definition)
+        issues = self._collect_node_issues(definition)
+        issues.extend(self._check_embedding_input_limits(definition))
+        node_errors = [issue.message for issue in issues if issue.severity == "error"]
+        warnings = [issue.message for issue in issues if issue.severity == "warning"]
         errors.extend(node_errors)
 
-        return PipelineValidationResult(valid=not errors, errors=errors, warnings=warnings)
+        return PipelineValidationResult(
+            valid=not errors,
+            errors=errors,
+            warnings=warnings,
+            issues=issues,
+        )
 
     def _check_node_identity(
         self,
@@ -194,18 +230,80 @@ class PipelineValidator:
     def _collect_node_issues(
         self,
         definition: PipelineDefinition,
-    ) -> tuple[list[str], list[str]]:
-        """Run each node class's own validation hook and split issues by severity."""
-        errors: list[str] = []
-        warnings: list[str] = []
+    ) -> list[PipelineValidationIssue]:
+        """Run each node class's own validation hook."""
+        issues: list[PipelineValidationIssue] = []
         for node in definition.nodes:
             node_cls = self._registry.get_node_class(node.type)
             if not node_cls:
                 continue
-            issues = node_cls.validation_issues_for_node(node, definition, self._registry)
-            for issue in issues:
-                if issue.severity == "warning":
-                    warnings.append(issue.message)
-                else:
-                    errors.append(issue.message)
-        return errors, warnings
+            issues.extend(node_cls.validation_issues_for_node(node, definition, self._registry))
+        return issues
+
+    def _check_embedding_input_limits(
+        self,
+        definition: PipelineDefinition,
+    ) -> list[PipelineValidationIssue]:
+        """Compare each chunker feeding an embedder with its provider limit."""
+        if self._embedding_limits is None:
+            return []
+        node_map = definition.node_map()
+        incoming = definition.incoming_edges()
+        chunk_input = next(
+            port.key for port in EmbedderNode.input_ports if port.data_type == "chunk_batch"
+        )
+        issues: list[PipelineValidationIssue] = []
+        for embedder in definition.nodes:
+            if embedder.type != EmbedderNode.type:
+                continue
+            model = EmbedderConfig.model_validate(embedder.config or {}).model_name
+            maximum = self._embedding_limits.get(model.casefold())
+            if maximum is None:
+                issues.append(self._unknown_embedding_limit_issue(embedder.id, model))
+                continue
+            for edge in incoming.get(embedder.id, []):
+                if edge.target_port not in (None, chunk_input):
+                    continue
+                chunker = node_map.get(edge.source)
+                if chunker is None:
+                    continue
+                chunker_cls = self._registry.get_node_class(chunker.type)
+                if chunker_cls is None or not issubclass(chunker_cls, BaseChunkerNode):
+                    continue
+                config = chunker_cls.config_model.model_validate(chunker.config or {})
+                chunk_size = getattr(config, "chunk_size", None)
+                if isinstance(chunk_size, int) and chunk_size > maximum:
+                    issues.append(
+                        PipelineValidationIssue(
+                            code="embedding_input_limit_exceeded",
+                            message=(
+                                f"Chunk size {chunk_size:,} on node '{chunker.id}' exceeds "
+                                f"embedding model '{model}' input limit of {maximum:,} tokens."
+                            ),
+                            node_id=chunker.id,
+                            field="chunk_size",
+                            configured_value=chunk_size,
+                            model=model,
+                            allowed_max=maximum,
+                        )
+                    )
+        return issues
+
+    @staticmethod
+    def _unknown_embedding_limit_issue(
+        node_id: str,
+        model: str,
+    ) -> PipelineValidationIssue:
+        """Return the documented saveable warning for unpublished model limits."""
+        return PipelineValidationIssue(
+            code="embedding_input_limit_unknown",
+            message=(
+                f"Embedding model '{model}' does not publish an input token limit; "
+                "chunk-size compatibility could not be verified."
+            ),
+            severity="warning",
+            node_id=node_id,
+            field="model_name",
+            configured_value=model,
+            model=model,
+        )

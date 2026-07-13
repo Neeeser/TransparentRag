@@ -25,16 +25,19 @@ vi.mock("@/components/ui/parameter-controls", () => ({
   ParameterFieldCard: ({
     label,
     helper,
+    error,
     children,
   }: {
     label: string;
     helper?: string | null;
+    error?: string | null;
     children: React.ReactNode;
   }) => (
     <div>
       <span>{label}</span>
       {helper && <span>{helper}</span>}
       {children}
+      {error && <span>{error}</span>}
     </div>
   ),
   ParameterInput: (props: { input: string; onChange: (value: string | boolean) => void }) => {
@@ -94,6 +97,7 @@ const renderDrawer = (overrides: Partial<DrawerProps> = {}) => {
     onApply: () => undefined,
     isPreview: false,
     validationErrors: [],
+    validationIssues: [],
     vectorIndexes: [],
     embeddingModels: [],
     embeddingModelsLoading: false,
@@ -301,6 +305,35 @@ describe("NodeEditorDrawer", () => {
     });
 
     expect(screen.getByText("An index is required.")).toBeInTheDocument();
+  });
+
+  it("renders a structured chunk-size error beside the chunk-size field", () => {
+    renderDrawer({
+      node: makeNode(
+        "chunker.token",
+        { chunk_size: 1024 },
+        {
+          properties: {
+            chunk_size: { type: "integer", title: "Chunk Size", default: 512 },
+          },
+        },
+      ),
+      validationIssues: [
+        {
+          code: "embedding_input_limit_exceeded",
+          message:
+            "Chunk size 1,024 exceeds sentence-transformers/all-minilm-l6-v2's 512-token input limit.",
+          severity: "error",
+          node_id: "node-1",
+          field: "chunk_size",
+          configured_value: 1024,
+          model: "sentence-transformers/all-minilm-l6-v2",
+          allowed_max: 512,
+        },
+      ],
+    });
+
+    expect(screen.getByText(/Chunk size 1,024 exceeds/)).toBeInTheDocument();
   });
 
   it("preview mode is read-only with an Add to canvas action", () => {

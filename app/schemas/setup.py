@@ -25,7 +25,7 @@ class SetupBootstrapRequest(BaseModel):
     backend: IndexBackend
     index_name: str = Field(min_length=1, max_length=45)
     collection_name: str = Field(min_length=1, max_length=200)
-    chunk_size: int = Field(default=1024, gt=0)
+    chunk_size: int = Field(default=512, gt=0)
     chunk_overlap: int = Field(default=200, ge=0)
 
 

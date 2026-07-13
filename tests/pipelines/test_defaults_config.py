@@ -26,6 +26,7 @@ from app.pipelines.nodes.embedding import EmbedderConfig
 from app.pipelines.nodes.indexing import VectorIndexerConfig
 from app.pipelines.nodes.retrieval import VectorRetrieverConfig
 from app.schemas.enums import IndexBackend
+from app.schemas.setup import SetupBootstrapRequest
 from app.services.app_config import invalidate_app_config_cache
 from app.services.errors import InvalidInputError
 from app.vectorstores.base import VectorStoreCapabilities
@@ -88,6 +89,27 @@ def test_build_default_ingestion_pipeline_uses_overridden_embedding_model(
 
     embedder_node = next(node for node in definition.nodes if node.id == "embed-chunks")
     assert embedder_node.config["model_name"] == "override/embedding-model"
+
+
+def test_default_ingestion_chunk_size_is_compatible_with_all_minilm() -> None:
+    """The shipped scaffold must not recreate issue #71's 1,024-token mismatch."""
+    definition = build_default_ingestion_pipeline(
+        embedding_model="sentence-transformers/all-minilm-l6-v2"
+    )
+    chunker = next(node for node in definition.nodes if node.id == "chunk-document")
+
+    assert chunker.config["chunk_size"] == 512
+
+
+def test_setup_request_default_is_compatible_with_all_minilm() -> None:
+    payload = SetupBootstrapRequest(
+        embedding_model="sentence-transformers/all-minilm-l6-v2",
+        backend=IndexBackend.PGVECTOR,
+        index_name="first-index",
+        collection_name="First collection",
+    )
+
+    assert payload.chunk_size == 512
 
 
 def test_default_pipelines_scaffold_pgvector_by_default(session: Session) -> None:

@@ -119,6 +119,13 @@ class OpenRouterClient:
         """Return available embedding models, caching for a short period."""
         return self._catalog.list_embedding_models(force_refresh=force_refresh)
 
+    def list_embedding_model_metadata(
+        self,
+        force_refresh: bool = False,
+    ) -> list[EmbeddingModelInfo]:
+        """Return embedding model limits without dimension-probe API calls."""
+        return self._catalog.list_embedding_model_metadata(force_refresh=force_refresh)
+
     def get_embedding_dimension(self, model_id: str) -> int:
         """Return embedding dimension for the requested model."""
         return self._catalog.get_embedding_dimension(model_id)

@@ -145,4 +145,16 @@ export interface PipelineValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
+  issues: PipelineValidationIssue[];
+}
+
+export interface PipelineValidationIssue {
+  code?: string | null;
+  message: string;
+  severity: "error" | "warning";
+  node_id?: string | null;
+  field?: string | null;
+  configured_value?: string | number | boolean | null;
+  model?: string | null;
+  allowed_max?: number | null;
 }

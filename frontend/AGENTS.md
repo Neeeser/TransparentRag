@@ -256,6 +256,9 @@ config-provider.tsx`), never a one-off `fetchPublicConfig()` call — the provid
   for hint/error text. The canonical input styling lives in the exported `inputClass`
   constant — the raw class string was once copy-pasted 29 times; if you type
   `rounded-2xl border border-white/10` by hand into a form control, stop.
+- **Pipeline validation issues are field-addressable.** Preserve the backend's
+  `node_id` + `field` metadata through the API mirror and render the message beside
+  that node control; a generic save banner is supplementary, not the only feedback.
 - **Confirmations use `ConfirmDialog`**, including destructive type-to-confirm flows via
   its `confirmText` prop — don't build bespoke nested delete modals.
 - **Wizards use `WizardShell` + `WizardFooter`** — the Back/Next/Cancel cluster is one

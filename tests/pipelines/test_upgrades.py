@@ -81,14 +81,25 @@ def test_upgrade_stored_pipeline_definitions_rewrites_versions_in_place(
     session.add(user)
     session.commit()
     session.refresh(user)
-    service = PipelineService(session)
-    pipeline = service.create_pipeline(
-        user=user,
+    # Insert at the storage boundary: this fixture represents data persisted by
+    # an older release, which the current service correctly refuses to create.
+    pipeline = models.Pipeline(
+        user_id=user.id,
         name="Legacy",
         kind=models.PipelineKind.RETRIEVAL,
-        definition=_legacy_retrieval_definition(),
+    )
+    session.add(pipeline)
+    session.flush()
+    session.add(
+        models.PipelineVersion(
+            pipeline_id=pipeline.id,
+            version=1,
+            definition=_legacy_retrieval_definition().model_dump(mode="json"),
+            created_by=user.id,
+        )
     )
     session.commit()
+    service = PipelineService(session)
 
     upgraded_count = upgrade_stored_pipeline_definitions(session)
     session.commit()

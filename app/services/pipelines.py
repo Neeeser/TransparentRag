@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from uuid import UUID
 
 from sqlmodel import Session
 
+from app.clients.openrouter import get_openrouter_client
 from app.db import models
 from app.db.repositories import (
     CollectionRepository,
@@ -25,9 +27,13 @@ from app.pipelines.diff import DefinitionChange, diff_definitions, material_chan
 from app.pipelines.registry import default_registry
 from app.pipelines.settings import resolve_definition_backend
 from app.pipelines.upgrades import upgrade_definition
+from app.pipelines.validation import PipelineValidationResult, PipelineValidator
 from app.schemas.enums import IndexBackend
+from app.schemas.models import EmbeddingModelInfo
 from app.services.app_config import get_app_config
-from app.services.errors import InvalidInputError, NotFoundError
+from app.services.errors import InvalidInputError, NotFoundError, is_external_provider_error
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,12 +47,77 @@ class DefaultPipelines:
 class PipelineService:
     """Service for pipeline CRUD and version management."""
 
-    def __init__(self, session: Session) -> None:
-        """Initialize the pipeline service."""
+    def __init__(
+        self,
+        session: Session,
+        *,
+        embedding_models: Iterable[EmbeddingModelInfo] | None = None,
+    ) -> None:
+        """Initialize with an optional catalog override used by focused callers/tests."""
         self.session = session
         self._pipelines = PipelineRepository(session)
         self._versions = PipelineVersionRepository(session)
         self._collections = CollectionRepository(session)
+        self._users = UserRepository(session)
+        self._embedding_models = (
+            tuple(embedding_models) if embedding_models is not None else None
+        )
+
+    def validate_definition(
+        self,
+        user: models.User,
+        definition: PipelineDefinition,
+    ) -> PipelineValidationResult:
+        """Validate a definition using the user's authoritative provider catalog."""
+        catalog = self._embedding_models_for_user(user)
+        return PipelineValidator(
+            default_registry(),
+            embedding_models=catalog,
+        ).validate(definition)
+
+    def _embedding_models_for_user(
+        self,
+        user: models.User,
+    ) -> Iterable[EmbeddingModelInfo] | None:
+        """Load cached OpenRouter model metadata, or skip when unavailable.
+
+        A catalog entry with no `context_length` is still returned so the
+        validator can emit its explicit unknown-limit warning. No key or an
+        unavailable provider yields no authoritative catalog and preserves
+        existing offline/service-test behavior.
+        """
+        if self._embedding_models is not None:
+            return self._embedding_models
+        key = (user.openrouter_api_key or "").strip()
+        if not key:
+            return None
+        try:
+            return get_openrouter_client(key).list_embedding_model_metadata()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            if not is_external_provider_error(exc):
+                raise
+            logger.warning("Skipping model-limit validation; OpenRouter catalog failed: %s", exc)
+            return None
+
+    def _validate_before_persisting(
+        self,
+        user: models.User,
+        definition: PipelineDefinition,
+    ) -> None:
+        """Reject invalid definitions with field-addressable issue metadata."""
+        result = self.validate_definition(user, definition)
+        if result.valid:
+            return
+        raise InvalidInputError(
+            {
+                "errors": result.errors,
+                "issues": [
+                    issue.model_dump(exclude_none=True)
+                    for issue in result.issues
+                    if issue.severity == "error"
+                ],
+            }
+        )
 
     def list_pipelines(
         self,
@@ -85,6 +156,7 @@ class PipelineService:
         is_default: bool = False,
     ) -> models.Pipeline:
         """Create a pipeline and its first version."""
+        self._validate_before_persisting(user, definition)
         pipeline = models.Pipeline(
             user_id=user.id,
             name=name,
@@ -123,6 +195,11 @@ class PipelineService:
         revision of what the pipeline does.
         """
         metadata_changed = name is not None or description is not None
+        if definition is not None:
+            owner = self._users.get(pipeline.user_id)
+            if owner is None:
+                raise NotFoundError("Pipeline owner does not exist.")
+            self._validate_before_persisting(owner, definition)
         if name is not None:
             pipeline.name = name
         if description is not None:

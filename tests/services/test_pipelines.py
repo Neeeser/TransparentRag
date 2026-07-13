@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import httpx
 import pytest
 from sqlmodel import Session, select
 
 from app.db import models
 from app.pipelines.defaults import build_default_ingestion_pipeline
 from app.pipelines.definition import PipelineDefinition, PipelineNodePosition
+from app.schemas.models import EmbeddingModelInfo
 from app.services.errors import InvalidInputError, NotFoundError
 from app.services.pipelines import PipelineService
 
@@ -16,7 +18,7 @@ def _revised_ingestion_definition() -> PipelineDefinition:
     """Default ingestion definition with a material config change."""
     definition = build_default_ingestion_pipeline()
     chunker = next(node for node in definition.nodes if node.id == "chunk-document")
-    chunker.config = {**chunker.config, "chunk_size": 512}
+    chunker.config = {**chunker.config, "chunk_size": 256}
     return definition
 
 
@@ -88,6 +90,102 @@ def test_update_pipeline_creates_new_version(session: Session) -> None:
     assert updated is not None
     assert updated.current_version == 2
     assert len(versions) == 2
+
+
+def test_create_pipeline_rejects_embedding_limit_violation_before_persisting(
+    session: Session,
+) -> None:
+    """Every service caller gets the same model-aware persistence guard."""
+    user = _create_user(session)
+    model_id = "sentence-transformers/all-minilm-l6-v2"
+    definition = build_default_ingestion_pipeline(
+        embedding_model=model_id,
+        chunk_size=1024,
+    )
+    service = PipelineService(
+        session,
+        embedding_models=[
+            EmbeddingModelInfo(id=model_id, name="all-MiniLM-L6-v2", context_length=512)
+        ],
+    )
+
+    with pytest.raises(InvalidInputError) as excinfo:
+        service.create_pipeline(
+            user=user,
+            name="Invalid ingestion",
+            kind=models.PipelineKind.INGESTION,
+            definition=definition,
+        )
+
+    assert isinstance(excinfo.value.detail, dict)
+    issues = excinfo.value.detail["issues"]
+    assert isinstance(issues, list)
+    assert issues[0]["field"] == "chunk_size"
+    assert session.exec(select(models.Pipeline)).all() == []
+
+
+def test_update_pipeline_rejects_embedding_limit_violation_before_new_version(
+    session: Session,
+) -> None:
+    user = _create_user(session)
+    service = PipelineService(session)
+    defaults = service.ensure_default_pipelines(user)
+    session.commit()
+    invalid = build_default_ingestion_pipeline(chunk_size=1024)
+    validating_service = PipelineService(
+        session,
+        embedding_models=[
+            EmbeddingModelInfo(
+                id="test/embedding-model",
+                name="Test embedding model",
+                context_length=512,
+            )
+        ],
+    )
+
+    with pytest.raises(InvalidInputError):
+        validating_service.update_pipeline(
+            pipeline=defaults.ingestion,
+            definition=invalid,
+            actor_id=user.id,
+        )
+
+    assert defaults.ingestion.current_version == 1
+    versions = session.exec(
+        select(models.PipelineVersion).where(
+            models.PipelineVersion.pipeline_id == defaults.ingestion.id
+        )
+    ).all()
+    assert len(versions) == 1
+
+
+def test_create_pipeline_remains_available_when_model_catalog_is_unreachable(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A provider outage cannot make offline pipeline management unavailable."""
+    user = _create_user(session)
+    user.openrouter_api_key = "or-key"
+
+    class _UnavailableCatalog:
+        @staticmethod
+        def list_embedding_model_metadata() -> list[EmbeddingModelInfo]:
+            request = httpx.Request("GET", "https://openrouter.ai/api/v1/embeddings/models")
+            raise httpx.ConnectError("provider unavailable", request=request)
+
+    monkeypatch.setattr(
+        "app.services.pipelines.get_openrouter_client",
+        lambda _key: _UnavailableCatalog(),
+    )
+
+    pipeline = PipelineService(session).create_pipeline(
+        user=user,
+        name="Offline-safe pipeline",
+        kind=models.PipelineKind.INGESTION,
+        definition=build_default_ingestion_pipeline(),
+    )
+
+    assert pipeline.name == "Offline-safe pipeline"
 
 
 def test_update_pipeline_updates_metadata_only(session: Session) -> None:

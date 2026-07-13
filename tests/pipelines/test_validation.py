@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.pipelines.defaults import build_default_ingestion_pipeline
 from app.pipelines.definition import (
     PipelineDefinition,
     PipelineEdgeDefinition,
@@ -16,8 +17,9 @@ from app.pipelines.nodes.indexing import IndexerConfig, IndexerNode
 from app.pipelines.nodes.io import RetrievalInputNode
 from app.pipelines.nodes.retrieval import PineconeRetrieverNode, RetrieverConfig
 from app.pipelines.ports import NodePort
-from app.pipelines.registry import NodeRegistry
+from app.pipelines.registry import NodeRegistry, default_registry
 from app.pipelines.validation import PipelineValidator
+from app.schemas.models import EmbeddingModelInfo
 
 
 class _InputNode(PipelineNodeBase):
@@ -490,6 +492,66 @@ def test_pipeline_validator_detects_cycles() -> None:
 
     assert result.valid is False
     assert any("cycle" in error.lower() for error in result.errors)
+
+
+def test_pipeline_validator_rejects_chunk_size_above_embedding_model_limit() -> None:
+    """Regression: 1,024-token chunks exceed all-MiniLM's 512-token input limit."""
+    model_id = "sentence-transformers/all-minilm-l6-v2"
+    definition = build_default_ingestion_pipeline(
+        embedding_model=model_id,
+        chunk_size=1024,
+    )
+
+    result = PipelineValidator(
+        default_registry(),
+        embedding_models=[
+            EmbeddingModelInfo(id=model_id, name="all-MiniLM-L6-v2", context_length=512)
+        ],
+    ).validate(definition)
+
+    issue = next(item for item in result.issues if item.code == "embedding_input_limit_exceeded")
+    assert result.valid is False
+    assert issue.node_id == "chunk-document"
+    assert issue.field == "chunk_size"
+    assert issue.configured_value == 1024
+    assert issue.model == model_id
+    assert issue.allowed_max == 512
+
+
+def test_pipeline_validator_checks_legacy_implicit_chunk_ports() -> None:
+    model_id = "sentence-transformers/all-minilm-l6-v2"
+    definition = build_default_ingestion_pipeline(
+        embedding_model=model_id,
+        chunk_size=1024,
+    )
+    edge = next(item for item in definition.edges if item.target == "embed-chunks")
+    edge.target_port = None
+
+    result = PipelineValidator(
+        default_registry(),
+        embedding_models=[
+            EmbeddingModelInfo(id=model_id, name="all-MiniLM-L6-v2", context_length=512)
+        ],
+    ).validate(definition)
+
+    assert any(issue.code == "embedding_input_limit_exceeded" for issue in result.issues)
+
+
+def test_pipeline_validator_warns_when_embedding_model_limit_is_unknown() -> None:
+    model_id = "provider/new-embedding-model"
+    definition = build_default_ingestion_pipeline(embedding_model=model_id, chunk_size=512)
+
+    result = PipelineValidator(
+        default_registry(),
+        embedding_models=[EmbeddingModelInfo(id=model_id, name="New model")],
+    ).validate(definition)
+
+    issue = next(item for item in result.issues if item.code == "embedding_input_limit_unknown")
+    assert result.valid is True
+    assert issue.severity == "warning"
+    assert issue.node_id == "embed-chunks"
+    assert issue.field == "model_name"
+    assert issue.model == model_id
 
 
 class _ManyJoinNode(PipelineNodeBase):

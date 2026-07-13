@@ -78,7 +78,7 @@ def build_default_ingestion_pipeline(
     embedding_model: str | None = None,
     backend: IndexBackend | None = None,
     index_name: str | None = None,
-    chunk_size: int = 1024,
+    chunk_size: int = 512,
     chunk_overlap: int = 200,
 ) -> PipelineDefinition:
     """Return the default (hybrid) ingestion pipeline definition.

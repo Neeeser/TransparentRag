@@ -11,7 +11,6 @@ if it is still unset.
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
 from uuid import uuid4
 
 from sqlmodel import Session
@@ -163,9 +162,10 @@ class SetupService:
                     is_default=True,
                 )
             else:
-                # An identical definition raises "no changes" -- that is
-                # already the desired end state, so suppress it.
-                with suppress(InvalidInputError):
+                # An identical generated definition is already the desired end
+                # state. Other InvalidInputErrors (including provider limits)
+                # must remain visible to the setup caller.
+                if self._pipelines.get_definition(existing) != definition:
                     self._pipelines.update_pipeline(
                         pipeline=existing,
                         definition=definition,

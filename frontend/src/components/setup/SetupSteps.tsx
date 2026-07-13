@@ -8,6 +8,7 @@ import { SetupNotice } from "@/components/setup/SetupNotice";
 import { SetupStepShell } from "@/components/setup/SetupStepShell";
 import { Button } from "@/components/ui/button";
 import { Field, TextInput } from "@/components/ui/field";
+import { fitChunkingToModelLimit } from "@/lib/embedding-limits";
 import { cn } from "@/lib/utils";
 
 import type { SetupWizardApi } from "@/components/setup/hooks/use-setup-wizard";
@@ -175,12 +176,18 @@ export function StepModel({ wizard }: { wizard: SetupWizardApi }) {
               <button
                 type="button"
                 aria-pressed={selected}
-                onClick={() =>
+                onClick={() => {
+                  const chunking = fitChunkingToModelLimit(
+                    wizard.state.choices.chunkSize,
+                    wizard.state.choices.chunkOverlap,
+                    model.context_length,
+                  );
                   wizard.setChoices({
                     embeddingModel: model.id,
                     embeddingDimension: model.dimension ?? null,
-                  })
-                }
+                    ...chunking,
+                  });
+                }}
                 className={cn(
                   "w-full rounded-2xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
                   selected

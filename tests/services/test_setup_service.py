@@ -16,6 +16,7 @@ from app.db import models
 from app.db.repositories import AppSettingRepository
 from app.schemas.enums import IndexBackend
 from app.schemas.indexes import IndexCreateRequest
+from app.schemas.models import EmbeddingModelInfo
 from app.schemas.setup import SetupBootstrapRequest
 from app.services.app_config import get_app_config, invalidate_app_config_cache
 from app.services.errors import InvalidInputError
@@ -24,7 +25,22 @@ from app.services.setup import SetupService
 
 
 @pytest.fixture(autouse=True)
-def _invalidate_cache() -> Iterator[None]:
+def _provider_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    class _StubOpenRouterClient:
+        @staticmethod
+        def list_embedding_model_metadata() -> list[EmbeddingModelInfo]:
+            return [
+                EmbeddingModelInfo(
+                    id="sentence-transformers/all-minilm-l6-v2",
+                    name="all-MiniLM-L6-v2",
+                    context_length=512,
+                )
+            ]
+
+    monkeypatch.setattr(
+        "app.services.pipelines.get_openrouter_client",
+        lambda _key: _StubOpenRouterClient(),
+    )
     invalidate_app_config_cache()
     yield
     invalidate_app_config_cache()
@@ -148,6 +164,24 @@ def test_bootstrap_writes_wizard_choices_into_pipelines(
         if node["id"] == "chunk-document"
     ]
     assert chunkers[0]["config"]["chunk_size"] == 512
+
+
+def test_bootstrap_rejects_chunk_size_above_embedding_model_limit(
+    pgvector_session: Session,
+) -> None:
+    """The setup path cannot bypass the pipeline persistence guard."""
+    session = pgvector_session
+    user = _create_user(session, openrouter_key="or-key")
+    _create_pgvector_index(session, user)
+
+    with pytest.raises(InvalidInputError) as excinfo:
+        SetupService(session).bootstrap(user, _bootstrap_request(chunk_size=1024))
+
+    assert isinstance(excinfo.value.detail, dict)
+    issues = excinfo.value.detail["issues"]
+    assert isinstance(issues, list)
+    assert issues[0]["field"] == "chunk_size"
+    assert session.exec(select(models.Collection)).all() == []
 
 
 def test_bootstrap_seeds_default_embedding_model_only_when_unset(

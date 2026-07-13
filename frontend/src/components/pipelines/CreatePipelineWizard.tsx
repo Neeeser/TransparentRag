@@ -20,7 +20,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field, Select, TextInput } from "@/components/ui/field";
 import { WizardFooter, WizardShell, type WizardStep } from "@/components/ui/wizard-shell";
-import { createPipeline } from "@/lib/api";
+import { createPipeline, validatePipeline } from "@/lib/api";
+import { fitChunkingToModelLimit } from "@/lib/embedding-limits";
 import { getErrorMessage } from "@/lib/errors";
 import { useAppConfig } from "@/providers/config-provider";
 
@@ -99,11 +100,12 @@ export function CreatePipelineWizard({
   const [stepIndex, setStepIndex] = useState(0);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [chunkSizeError, setChunkSizeError] = useState<string | null>(null);
   const [backend, setBackend] = useState<IndexBackend>(defaultBackend);
   const [name, setName] = useState("");
   const [indexName, setIndexName] = useState("");
   const [embeddingModel, setEmbeddingModel] = useState("");
-  const [chunkSize, setChunkSize] = useState(1024);
+  const [chunkSize, setChunkSize] = useState(512);
   const [chunkOverlap, setChunkOverlap] = useState(200);
   const [showAdvancedChunking, setShowAdvancedChunking] = useState(false);
   const wasOpen = useRef(false);
@@ -112,11 +114,12 @@ export function CreatePipelineWizard({
     if (open && !wasOpen.current) {
       setStepIndex(0);
       setMessage(null);
+      setChunkSizeError(null);
       setBackend(defaultBackend);
       setName("");
       setIndexName("");
       setEmbeddingModel("");
-      setChunkSize(1024);
+      setChunkSize(512);
       setChunkOverlap(200);
       setShowAdvancedChunking(false);
     }
@@ -175,7 +178,18 @@ export function CreatePipelineWizard({
   const handleCreate = async () => {
     setCreating(true);
     setMessage(null);
+    setChunkSizeError(null);
     try {
+      const validation = await validatePipeline(token, definition);
+      if (!validation.valid) {
+        const issue = validation.issues.find(
+          (item) => item.node_id === "chunk-document" && item.field === "chunk_size",
+        );
+        setChunkSizeError(issue?.message ?? null);
+        setMessage(`Validation failed: ${validation.errors.join(" ")}`);
+        if (issue && kind === "ingestion") setStepIndex(2);
+        return;
+      }
       const created = await createPipeline(token, {
         name: name.trim(),
         kind,
@@ -203,6 +217,15 @@ export function CreatePipelineWizard({
       return;
     }
     setIndexName(value);
+  };
+
+  const handleEmbeddingModelSelect = (modelId: string) => {
+    const model = embeddingModels.find((item) => item.id === modelId);
+    const chunking = fitChunkingToModelLimit(chunkSize, chunkOverlap, model?.context_length);
+    setEmbeddingModel(modelId);
+    setChunkSize(chunking.chunkSize);
+    setChunkOverlap(chunking.chunkOverlap);
+    setChunkSizeError(null);
   };
 
   return (
@@ -319,11 +342,13 @@ export function CreatePipelineWizard({
           onChunkChange={(size, overlap) => {
             setChunkSize(size);
             setChunkOverlap(overlap);
+            setChunkSizeError(null);
           }}
+          chunkSizeError={chunkSizeError}
           showAdvancedChunking={showAdvancedChunking}
           onToggleAdvancedChunking={() => setShowAdvancedChunking((prev) => !prev)}
           embeddingModel={embeddingModel}
-          onSelectEmbeddingModel={setEmbeddingModel}
+          onSelectEmbeddingModel={handleEmbeddingModelSelect}
           embeddingModels={embeddingModels}
           embeddingModelsLoading={embeddingModelsLoading}
           embeddingModelsError={embeddingModelsError}

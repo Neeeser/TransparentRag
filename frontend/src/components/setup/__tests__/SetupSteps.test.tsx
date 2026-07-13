@@ -17,7 +17,7 @@ const GOOD_KEY = "sk-or-good";
 
 const models: EmbeddingModelInfo[] = [
   { id: "openai/text-embedding-3-large", name: "Embedding 3 Large", dimension: 3072 },
-  { id: MINILM, name: "all-MiniLM-L6-v2", dimension: 384 },
+  { id: MINILM, name: "all-MiniLM-L6-v2", dimension: 384, context_length: 512 },
 ];
 
 const backends = [
@@ -63,6 +63,8 @@ describe("StepModel", () => {
     expect(wizard.setChoices).toHaveBeenCalledWith({
       embeddingModel: MINILM,
       embeddingDimension: 384,
+      chunkSize: 512,
+      chunkOverlap: 200,
     });
   });
 

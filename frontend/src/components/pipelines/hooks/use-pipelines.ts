@@ -20,6 +20,7 @@ import type {
   Pipeline,
   PipelineDefinition,
   PipelineKind,
+  PipelineValidationIssue,
   PipelineVersion,
 } from "@/lib/types";
 
@@ -38,6 +39,8 @@ export interface UsePipelinesResult {
   loading: boolean;
   saving: boolean;
   validating: boolean;
+  validationIssues: PipelineValidationIssue[];
+  clearValidationIssues: () => void;
   message: string | null;
   setMessage: (message: string | null) => void;
   changeSummary: string;
@@ -69,6 +72,7 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<PipelineValidationIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [changeSummary, setChangeSummary] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null);
@@ -162,6 +166,7 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     setPipelines((prev) => [created, ...prev]);
     setSelectedPipeline(created);
     setChangeSummary("");
+    setValidationIssues([]);
   };
 
   const handleDeletePipeline = (pipeline: Pipeline) => {
@@ -207,9 +212,11 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     if (!authToken || !selectedPipeline) return;
     setValidating(true);
     setMessage(null);
+    setValidationIssues([]);
     try {
       const validation = await validatePipeline(authToken, definition);
       if (!validation.valid) {
+        setValidationIssues(validation.issues);
         setMessage(`Validation failed: ${validation.errors.join(" ")}`);
         return;
       }
@@ -223,6 +230,7 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
       });
       applyUpdatedPipeline(updated);
       setChangeSummary("");
+      setValidationIssues([]);
       setVersionsReloadKey((prev) => prev + 1);
       setMessage(
         warningText
@@ -297,6 +305,8 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     loading,
     saving,
     validating,
+    validationIssues,
+    clearValidationIssues: () => setValidationIssues([]),
     message,
     setMessage,
     changeSummary,

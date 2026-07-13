@@ -134,6 +134,12 @@ export function StepIndex({ wizard }: { wizard: SetupWizardApi }) {
 export function StepLaunch({ wizard }: { wizard: SetupWizardApi }) {
   const { collectionName, chunkSize, chunkOverlap, embeddingModel, indexName, backend } =
     wizard.state.choices;
+  const selectedModel = wizard.models?.find((model) => model.id === embeddingModel);
+  const maximum = selectedModel?.context_length;
+  const chunkSizeError =
+    typeof maximum === "number" && chunkSize > maximum
+      ? `Chunk size ${chunkSize.toLocaleString()} exceeds this model's ${Math.floor(maximum).toLocaleString()}-token input limit.`
+      : null;
   return (
     <SetupStepShell
       stepKey="launch"
@@ -148,7 +154,7 @@ export function StepLaunch({ wizard }: { wizard: SetupWizardApi }) {
           <Button
             size="lg"
             loading={wizard.busy}
-            disabled={!collectionName.trim()}
+            disabled={!collectionName.trim() || Boolean(chunkSizeError)}
             onClick={() => void wizard.finish()}
           >
             Finish setup
@@ -169,7 +175,7 @@ export function StepLaunch({ wizard }: { wizard: SetupWizardApi }) {
         />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Chunk size (tokens)">
+        <Field label="Chunk size (tokens)" error={chunkSizeError}>
           <TextInput
             type="number"
             min={64}

@@ -352,7 +352,7 @@ describe("PipelineBuilder", () => {
     api.fetchEmbeddingModels.mockResolvedValue([]);
     api.listIndexes.mockResolvedValue([]);
     api.listPipelineVersions.mockResolvedValue([makePipelineVersion({ id: "v1" })]);
-    api.validatePipeline.mockResolvedValue({ valid: true, errors: [], warnings: [] });
+    api.validatePipeline.mockResolvedValue({ valid: true, errors: [], warnings: [], issues: [] });
     api.updatePipeline.mockResolvedValue(pipeline);
     api.activatePipelineVersion.mockResolvedValue(pipeline);
 
@@ -410,7 +410,12 @@ describe("PipelineBuilder", () => {
 
   it("handles validation errors and activation", async () => {
     io.validatePipelineConfig.mockReturnValue({ nodeErrors: { "node-1": ["Missing"] } });
-    api.validatePipeline.mockResolvedValueOnce({ valid: false, errors: ["Bad"], warnings: [] });
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: false,
+      errors: ["Bad"],
+      warnings: [],
+      issues: [],
+    });
 
     render(<PipelineBuilder kind="ingestion" />);
 
@@ -450,6 +455,7 @@ describe("PipelineBuilder", () => {
       valid: true,
       errors: [],
       warnings: ["Be careful"],
+      issues: [],
     });
     api.updatePipeline.mockResolvedValueOnce(pipeline);
 
@@ -464,7 +470,12 @@ describe("PipelineBuilder", () => {
       expect(screen.getByTestId("canvas")).toHaveTextContent("Saved as v1. Warnings: Be careful");
     });
 
-    api.validatePipeline.mockResolvedValueOnce({ valid: true, errors: [], warnings: [] });
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: true,
+      errors: [],
+      warnings: [],
+      issues: [],
+    });
     api.updatePipeline.mockRejectedValueOnce("Save failed");
 
     fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));

@@ -221,7 +221,7 @@ export function makeNodeSpec(overrides: Partial<NodeSpec> = {}): NodeSpec {
 export function makeValidation(
   overrides: Partial<PipelineValidationResult> = {},
 ): PipelineValidationResult {
-  return { valid: true, errors: [], warnings: [], ...overrides };
+  return { valid: true, errors: [], warnings: [], issues: [], ...overrides };
 }
 
 export function makeChatSession(overrides: Partial<ChatSession> = {}): ChatSession {

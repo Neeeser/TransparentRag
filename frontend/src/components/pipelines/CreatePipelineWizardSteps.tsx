@@ -43,6 +43,7 @@ type ProcessingStepProps = {
   chunkSize: number;
   chunkOverlap: number;
   onChunkChange: (size: number, overlap: number) => void;
+  chunkSizeError?: string | null;
   showAdvancedChunking: boolean;
   onToggleAdvancedChunking: () => void;
   embeddingModel: string;
@@ -60,6 +61,7 @@ export function WizardProcessingStep({
   chunkSize,
   chunkOverlap,
   onChunkChange,
+  chunkSizeError,
   showAdvancedChunking,
   onToggleAdvancedChunking,
   embeddingModel,
@@ -118,6 +120,11 @@ export function WizardProcessingStep({
               );
             })}
           </div>
+          {chunkSizeError ? (
+            <p className="mt-2 rounded-2xl border border-data-neg/40 bg-data-neg/10 px-3 py-2 text-xs text-data-neg">
+              {chunkSizeError}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={onToggleAdvancedChunking}
@@ -128,7 +135,7 @@ export function WizardProcessingStep({
           </button>
           {showAdvancedChunking ? (
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <Field label="Chunk size (tokens)">
+              <Field label="Chunk size (tokens)" error={chunkSizeError}>
                 <TextInput
                   type="number"
                   min={64}

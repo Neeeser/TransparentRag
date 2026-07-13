@@ -40,6 +40,8 @@ class ModelCatalog:
         self._probe_embedding = probe_embedding
         self._models: list[ModelInfo] = []
         self._models_ts = 0.0
+        self._embedding_model_metadata: list[EmbeddingModelInfo] = []
+        self._embedding_model_metadata_ts = 0.0
         self._embedding_models: list[EmbeddingModelInfo] = []
         self._embedding_models_ts = 0.0
         self._dimensions: dict[str, int] = {}
@@ -67,7 +69,7 @@ class ModelCatalog:
         ):
             return self._embedding_models
         enriched: list[EmbeddingModelInfo] = []
-        for model in self._fetch_embedding_models():
+        for model in self.list_embedding_model_metadata(force_refresh=force_refresh):
             dimension = self._dimensions.get(model.id)
             if dimension is None:
                 try:
@@ -79,6 +81,22 @@ class ModelCatalog:
         self._embedding_models = enriched
         self._embedding_models_ts = now
         return self._embedding_models
+
+    def list_embedding_model_metadata(
+        self,
+        force_refresh: bool = False,
+    ) -> list[EmbeddingModelInfo]:
+        """Return cached provider metadata without probing embedding dimensions."""
+        now = time.time()
+        if (
+            not force_refresh
+            and now - self._embedding_model_metadata_ts < _CACHE_TTL_SECONDS
+            and self._embedding_model_metadata
+        ):
+            return self._embedding_model_metadata
+        self._embedding_model_metadata = self._fetch_embedding_models()
+        self._embedding_model_metadata_ts = now
+        return self._embedding_model_metadata
 
     def get_embedding_dimension(self, model_id: str) -> int:
         """Return the embedding dimension for `model_id` by probing OpenRouter."""

@@ -56,6 +56,8 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     loading,
     saving,
     validating,
+    validationIssues,
+    clearValidationIssues,
     message,
     setMessage,
     changeSummary,
@@ -234,6 +236,18 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
   };
 
   const selectedNodeErrors = selectedNode ? (nodeErrors[selectedNode.id] ?? []) : [];
+  const selectedValidationIssues = selectedNode
+    ? validationIssues.filter((issue) => issue.node_id === selectedNode.id)
+    : [];
+
+  const serverNodeErrors = useMemo(() => {
+    const byNode: Record<string, string[]> = {};
+    validationIssues.forEach((issue) => {
+      if (!issue.node_id || issue.severity !== "error") return;
+      byNode[issue.node_id] = [...(byNode[issue.node_id] ?? []), issue.message];
+    });
+    return byNode;
+  }, [validationIssues]);
 
   const nodesForCanvas = useMemo(() => {
     const decorated = nodes.map((node) => ({
@@ -241,7 +255,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
       data: {
         ...node.data,
         connecting,
-        errors: nodeErrors[node.id],
+        errors: [...(nodeErrors[node.id] ?? []), ...(serverNodeErrors[node.id] ?? [])],
       },
     }));
     if (!dragDrop.dropPreviewPosition) return decorated;
@@ -259,7 +273,14 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     // dispatches rendering by `type`, so the heterogeneous array is safe at runtime even
     // though it can't be expressed without a discriminated Node union across this module.
     return [...decorated, dropPreviewNode as unknown as Node<PipelineNodeData>];
-  }, [nodes, connecting, nodeErrors, dragDrop.dropPreviewLabel, dragDrop.dropPreviewPosition]);
+  }, [
+    nodes,
+    connecting,
+    nodeErrors,
+    serverNodeErrors,
+    dragDrop.dropPreviewLabel,
+    dragDrop.dropPreviewPosition,
+  ]);
 
   const edgesWithValidation = useMemo(
     () =>
@@ -349,10 +370,14 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
       <NodeEditorDrawer
         node={inspectedNode}
         onClose={closeEditor}
-        onApply={applyNodeEdits}
+        onApply={(nodeId, edits) => {
+          clearValidationIssues();
+          applyNodeEdits(nodeId, edits);
+        }}
         isPreview={isPreview}
         onAddToCanvas={previewSpec ? () => handleAddNode(previewSpec) : undefined}
         validationErrors={selectedNodeErrors}
+        validationIssues={selectedValidationIssues}
         vectorIndexes={indexes}
         onOpenIndexManager={handleOpenIndexManager}
         embeddingModels={embeddingModels}

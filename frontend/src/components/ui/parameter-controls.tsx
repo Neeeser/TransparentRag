@@ -12,6 +12,7 @@ type ParameterFieldCardProps = {
   label: string;
   description?: string | null;
   helper?: string | null;
+  error?: string | null;
   overrideActive?: boolean;
   actionLabel?: string;
   actionDisabled?: boolean;
@@ -23,6 +24,7 @@ export function ParameterFieldCard({
   label,
   description,
   helper,
+  error,
   overrideActive,
   actionLabel,
   actionDisabled,
@@ -52,6 +54,7 @@ export function ParameterFieldCard({
         ) : null}
       </div>
       {children}
+      {error ? <p className="text-xs text-data-neg">{error}</p> : null}
     </div>
   );
 }

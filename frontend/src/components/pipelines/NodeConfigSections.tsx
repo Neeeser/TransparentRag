@@ -20,7 +20,12 @@ import { sortIndexesByName } from "./lib/pipeline-utils";
 
 import type { PipelineConfigField } from "./lib/pipeline-config";
 import type { PipelineNodeData } from "./PipelineNode";
-import type { EmbeddingModelInfo, IndexBackend, VectorIndex } from "@/lib/types";
+import type {
+  EmbeddingModelInfo,
+  IndexBackend,
+  PipelineValidationIssue,
+  VectorIndex,
+} from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
 export type NodeConfigSectionsProps = {
@@ -28,6 +33,7 @@ export type NodeConfigSectionsProps = {
   onConfigChange: (config: Record<string, unknown>) => void;
   isPreview: boolean;
   validationErrors: string[];
+  validationIssues: PipelineValidationIssue[];
   vectorIndexes: VectorIndex[];
   onOpenIndexManager?: () => void;
   embeddingModels: EmbeddingModelInfo[];
@@ -52,6 +58,7 @@ export function NodeConfigSections({
   onConfigChange,
   isPreview,
   validationErrors,
+  validationIssues,
   vectorIndexes,
   onOpenIndexManager,
   embeddingModels,
@@ -229,6 +236,9 @@ export function NodeConfigSections({
         <div className="space-y-3">
           {filteredFields.map((field) => {
             const value = getInputValue(field, config);
+            const fieldIssue = validationIssues.find(
+              (issue) => issue.node_id === node.id && issue.field === field.key,
+            );
             const helper =
               field.defaultValue !== undefined
                 ? `Default: ${formatConfigValue(field.defaultValue)}`
@@ -242,12 +252,13 @@ export function NodeConfigSections({
                 label={field.label}
                 description={field.description}
                 helper={helper}
+                error={fieldIssue?.message}
               >
                 <ParameterInput
                   input={field.input}
                   value={value}
                   min={field.min}
-                  max={field.max}
+                  max={fieldIssue?.allowed_max ?? field.max}
                   step={field.step}
                   placeholder={field.placeholder}
                   options={field.options}

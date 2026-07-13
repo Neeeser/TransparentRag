@@ -170,6 +170,10 @@ raw config dict.** `validation_issues_for_node` calls `SomeConfig.model_validate
 `NodeRegistry.create` uses to build the node that actually runs. Peeking at
 `node.config["index_name"]` directly would silently diverge from runtime
 behavior the moment the config model's defaults or validation change.
+**Provider-dependent limits are enforced at the pipeline service persistence
+boundary, not only in the validation route.** Resolve limits from the user's
+cached provider metadata, return field-addressable issues (`node_id` + `field`),
+and leave an unpublished limit saveable with an explicit warning.
 
 **Run lifecycle (run row + trace recorder + executor + context) has one owner:
 `PipelineRunner`** (`pipelines/execution/runner.py`). Ingestion and retrieval both
