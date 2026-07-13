@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Loader, RefreshCcw, Trash2 } from "lucide-react";
+import { Check, Loader, Pencil, RefreshCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { ProviderIcon } from "@/components/connections/ProviderIcon";
 import { ProviderKindBadges } from "@/components/connections/ProviderKindBadges";
 import { Button } from "@/components/ui/button";
 import { validateConnection } from "@/lib/api";
@@ -14,6 +15,7 @@ import type { ProviderConnection } from "@/lib/types";
 interface ConnectionCardProps {
   connection: ProviderConnection;
   authToken: string;
+  onEdit: (connection: ProviderConnection) => void;
   onRemove: (connection: ProviderConnection) => void;
   removing: boolean;
 }
@@ -23,7 +25,13 @@ interface ConnectionCardProps {
  * badges, non-secret config values, and validate/remove actions. Validation
  * state is card-local — probing one connection never touches the others.
  */
-export function ConnectionCard({ connection, authToken, onRemove, removing }: ConnectionCardProps) {
+export function ConnectionCard({
+  connection,
+  authToken,
+  onEdit,
+  onRemove,
+  removing,
+}: ConnectionCardProps) {
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<{ valid: boolean; message: string } | null>(null);
 
@@ -51,12 +59,17 @@ export function ConnectionCard({ connection, authToken, onRemove, removing }: Co
   return (
     <div className="rounded-2xl border border-hairline bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-primary">{connection.label}</p>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-meta">
-            {connection.provider_type}
-          </p>
-          {baseUrl && <p className="mt-1 break-all text-[11px] text-meta">{baseUrl}</p>}
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-hairline bg-canvas-raised text-primary">
+            <ProviderIcon providerType={connection.provider_type} className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-primary">{connection.label}</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-meta">
+              {connection.provider_type}
+            </p>
+            {baseUrl && <p className="mt-1 break-all text-[11px] text-meta">{baseUrl}</p>}
+          </div>
         </div>
         <ProviderKindBadges kinds={connection.kinds} />
       </div>
@@ -71,6 +84,16 @@ export function ConnectionCard({ connection, authToken, onRemove, removing }: Co
         >
           <RefreshCcw className="h-3.5 w-3.5" />
           Validate
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onEdit(connection)}
+          aria-label={`Edit ${connection.label}`}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          Edit
         </Button>
         <Button
           type="button"

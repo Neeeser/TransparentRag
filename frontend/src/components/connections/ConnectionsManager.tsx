@@ -5,6 +5,8 @@ import { useState } from "react";
 
 import { AddConnectionDialog } from "@/components/connections/AddConnectionDialog";
 import { ConnectionCard } from "@/components/connections/ConnectionCard";
+import { EditConnectionDialog } from "@/components/connections/EditConnectionDialog";
+import { ProviderIcon } from "@/components/connections/ProviderIcon";
 import { ProviderKindBadges } from "@/components/connections/ProviderKindBadges";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -38,6 +40,7 @@ export function ConnectionsManager({
   onChanged,
 }: ConnectionsManagerProps) {
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<ProviderConnection | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -75,36 +78,53 @@ export function ConnectionsManager({
       {loading && connections.length === 0 ? (
         <p className="text-sm text-muted">Loading connections…</p>
       ) : (
-        <div className="space-y-2">
-          {connections.map((connection) => (
-            <ConnectionCard
-              key={connection.id}
-              connection={connection}
-              authToken={authToken}
-              onRemove={setPendingRemoval}
-              removing={removingId === connection.id}
-            />
-          ))}
-          {builtins.map((type) => (
-            <div
-              key={type.provider_type}
-              className="rounded-2xl border border-dashed border-hairline bg-surface/60 p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-primary">{type.label}</p>
-                  <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-meta">
-                    Built-in · {type.available ? "available" : "unavailable"}
-                  </p>
+        <div className="@container">
+          <div className="grid gap-3 @2xl:grid-cols-2">
+            {connections.map((connection) => (
+              <ConnectionCard
+                key={connection.id}
+                connection={connection}
+                authToken={authToken}
+                onEdit={setEditing}
+                onRemove={setPendingRemoval}
+                removing={removingId === connection.id}
+              />
+            ))}
+            {builtins.map((type) => (
+              <div
+                key={type.provider_type}
+                className="rounded-2xl border border-dashed border-hairline bg-surface/60 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-hairline bg-canvas-raised text-primary">
+                      <ProviderIcon providerType={type.provider_type} className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-primary">{type.label}</p>
+                      <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-meta">
+                        Built-in · {type.available ? "available" : "unavailable"}
+                      </p>
+                    </div>
+                  </div>
+                  <ProviderKindBadges kinds={type.kinds} />
                 </div>
-                <ProviderKindBadges kinds={type.kinds} />
               </div>
-            </div>
-          ))}
-          {connections.length === 0 && builtins.length === 0 && !loading && (
-            <p className="text-sm text-muted">No providers connected yet.</p>
-          )}
+            ))}
+            {connections.length === 0 && builtins.length === 0 && !loading && (
+              <p className="text-sm text-muted">No providers connected yet.</p>
+            )}
+          </div>
         </div>
+      )}
+      {editing && (
+        <EditConnectionDialog
+          connection={editing}
+          providerType={providerTypes.find((type) => type.provider_type === editing.provider_type)}
+          authToken={authToken}
+          onClose={() => setEditing(null)}
+          onUpdated={() => onChanged()}
+        />
       )}
       <AddConnectionDialog
         open={addOpen}

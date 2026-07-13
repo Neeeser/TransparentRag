@@ -17,6 +17,7 @@ export interface ProviderConfigField {
   kind: ProviderConfigFieldKind;
   required: boolean;
   placeholder?: string | null;
+  description?: string | null;
 }
 
 /** Mirrors `app/schemas/providers.py::ProviderTypeRead` (`GET /api/providers`). */
