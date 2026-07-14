@@ -48,21 +48,33 @@ export function LandingPage() {
         <section className="flex flex-1 flex-col items-center justify-center py-16 text-center">
           {/* Above the flow band. */}
           <div className="flex flex-col items-center gap-6">
-            <h1
-              className="landing-rise text-balance text-4xl font-semibold leading-[1.02] tracking-tight text-primary sm:whitespace-nowrap sm:text-6xl md:text-7xl"
+            <p
+              className="landing-rise flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.4em] text-muted sm:text-xs"
               style={{ animationDelay: "0ms" }}
             >
-              Open-source RAG{" "}
-              <span className="bg-gradient-to-r from-grad-from via-grad-via to-grad-to bg-clip-text text-transparent">
-                workbench
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-cyan opacity-60 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent-cyan" />
               </span>
+              Open-source RAG workbench
+            </p>
+
+            <h1
+              className="landing-rise max-w-4xl text-balance text-5xl font-semibold leading-[1.02] tracking-tight text-primary sm:text-6xl md:text-7xl"
+              style={{ animationDelay: "80ms" }}
+            >
+              Build, run, and{" "}
+              <span className="bg-gradient-to-r from-grad-from via-grad-via to-grad-to bg-clip-text text-transparent">
+                inspect
+              </span>{" "}
+              RAG pipelines.
             </h1>
           </div>
 
-          {/* The clear band the running pipeline flows through. The pipeline is
-              the hero's focal point, anchored to the viewport center — this gap
-              keeps the headline above and the actions below fully clear of it. */}
-          <div className="h-52 w-full sm:h-80 md:h-96" aria-hidden />
+          {/* A modest gap for the flow band — the pipeline is ambient scenery,
+              not an exhibit, so the actions below are allowed to float over
+              its lower edge. */}
+          <div className="h-32 w-full sm:h-44" aria-hidden />
 
           {/* Below the flow band — actions only. The running pipeline says what
               the product does; words don't need to repeat it. */}
