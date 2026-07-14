@@ -265,7 +265,7 @@ describe("CreatePipelineWizard", () => {
 
     await user.type(screen.getByPlaceholderText(/Research library/), "Pipe");
     await user.click(getNextButton());
-    await user.selectOptions(screen.getByRole("combobox"), "alpha");
+    await chooseIndex(user, "alpha");
     await user.click(getNextButton());
     await user.click(screen.getByTestId(EMBEDDING_SELECTOR_TEST_ID));
     await user.click(getNextButton());

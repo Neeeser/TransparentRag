@@ -122,6 +122,7 @@ function DrawerWithIndexManager() {
         vectorIndexes={indexes}
         onOpenIndexManager={() => setManagerOpen(true)}
         embeddingModels={[]}
+        embeddingCatalog={null}
         embeddingModelsLoading={false}
         embeddingModelsError={null}
       />
