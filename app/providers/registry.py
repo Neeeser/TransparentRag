@@ -126,8 +126,17 @@ def cached_embedding_dimension(
     model_id: str,
     loader: Callable[[], int | None],
 ) -> int | None:
-    """Return a dimension keyed by exact connection and model identity."""
-    return _dimension_cache.get((connection_id, model_id), loader).value
+    """Return a dimension keyed by exact connection and model identity.
+
+    An unknown (`None`) dimension is returned but never retained: the policy
+    is indefinite-fresh, so caching it would pin "unknown" until the next
+    connection mutation instead of re-probing on the next lookup.
+    """
+    key = (connection_id, model_id)
+    dimension = _dimension_cache.get(key, loader).value
+    if dimension is None:
+        _dimension_cache.invalidate(key)
+    return dimension
 
 
 def invalidate_embedding_dimensions(connection_id: UUID) -> int:

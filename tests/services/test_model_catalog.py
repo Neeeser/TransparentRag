@@ -254,3 +254,30 @@ def test_embedding_dimensions_are_cached_by_connection_and_model(
     assert second_result.dimension == 3072
     assert cached_first.dimension == 1536
     assert calls == [(first.id, "shared/model"), (second.id, "shared/model")]
+
+
+def test_unknown_embedding_dimension_is_reprobed_next_lookup(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = _user(session)
+    connection = add_connection(
+        session, user, "openrouter", {"api_key": "sk-unknown-dim"}, label="Probe"
+    )
+    results = iter([None, 1536])
+    calls = 0
+
+    def _dimension(self, model_id: str) -> int | None:
+        nonlocal calls
+        calls += 1
+        return next(results)
+
+    monkeypatch.setattr(OpenRouterAdapter, "embedding_dimension", _dimension)
+
+    first = resolve_embedding_dimension(session, user, connection.id, "acme/embed")
+    second = resolve_embedding_dimension(session, user, connection.id, "acme/embed")
+    third = resolve_embedding_dimension(session, user, connection.id, "acme/embed")
+
+    assert first.dimension is None
+    assert second.dimension == 1536
+    assert third.dimension == 1536
+    assert calls == 2
