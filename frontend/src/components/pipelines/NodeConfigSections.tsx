@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { VariablesTree } from "@/components/traces/debugger/VariablesTree";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ParameterFieldCard, ParameterInput } from "@/components/ui/parameter-controls";
+import { modelAvailability } from "@/lib/model-catalog-cache";
 import { useAppConfig } from "@/providers/config-provider";
 
 import { EmbeddingModelSelectorCard } from "./EmbeddingModelSelectorCard";
@@ -21,7 +22,7 @@ import { sortIndexesByName } from "./lib/pipeline-utils";
 
 import type { PipelineConfigField } from "./lib/pipeline-config";
 import type { PipelineNodeData } from "./PipelineNode";
-import type { EmbeddingModelInfo, IndexBackend, VectorIndex } from "@/lib/types";
+import type { CatalogModel, IndexBackend, ModelCatalogResponse, VectorIndex } from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
 export type NodeConfigSectionsProps = {
@@ -31,10 +32,12 @@ export type NodeConfigSectionsProps = {
   validationErrors: string[];
   vectorIndexes: VectorIndex[];
   onOpenIndexManager?: () => void;
-  embeddingModels: EmbeddingModelInfo[];
+  embeddingModels: CatalogModel[];
+  embeddingCatalog: ModelCatalogResponse | null;
   embeddingModelsLoading: boolean;
   embeddingModelsError: string | null;
-  onSelectEmbeddingModel: (modelId: string) => void;
+  onCatalogVisible?: () => void;
+  onSelectEmbeddingModel: (model: CatalogModel) => void;
 };
 
 const BACKEND_OPTIONS: Array<{ value: IndexBackend; label: string; hint: string }> = [
@@ -56,14 +59,20 @@ export function NodeConfigSections({
   vectorIndexes,
   onOpenIndexManager,
   embeddingModels,
+  embeddingCatalog,
   embeddingModelsLoading,
   embeddingModelsError,
+  onCatalogVisible,
   onSelectEmbeddingModel,
 }: NodeConfigSectionsProps) {
   const { config: appConfig } = useAppConfig();
   const nodeType = node.data.nodeType;
   const config = useMemo<Record<string, unknown>>(() => node.data.config ?? {}, [node]);
-  const isEmbedder = nodeType === "embedder.openrouter";
+  const isEmbedder = nodeType === "embedder.text";
+
+  useEffect(() => {
+    if (isEmbedder) onCatalogVisible?.();
+  }, [isEmbedder, onCatalogVisible]);
   const isVectorNode = nodeType.startsWith("indexer.") || nodeType.startsWith("retriever.");
   // BM25 nodes target sparse (lexical) indexes; dense nodes never list them.
   const isBm25Node = nodeType.endsWith(".bm25");
@@ -78,11 +87,14 @@ export function NodeConfigSections({
 
   const fields = node.data.configSchema ? buildPipelineConfigFields(node.data.configSchema) : [];
   const filteredFields = fields.filter((field) => {
-    const embedderHidden = isEmbedder && ["model_name", "dimension"].includes(field.key);
+    const embedderHidden =
+      isEmbedder && ["connection_id", "model_name", "dimension"].includes(field.key);
     const vectorHidden = isVectorNode && ["backend", "index_name", "dimension"].includes(field.key);
     return !(embedderHidden || vectorHidden);
   });
   const selectedEmbeddingModelKey = typeof config.model_name === "string" ? config.model_name : "";
+  const selectedEmbeddingConnectionId =
+    typeof config.connection_id === "string" ? config.connection_id : null;
   const backendIndexes = useMemo(
     () =>
       sortIndexesByName(
@@ -144,6 +156,12 @@ export function NodeConfigSections({
         <EmbeddingModelSelectorCard
           models={embeddingModels}
           selectedModelKey={selectedEmbeddingModelKey}
+          selectedConnectionId={selectedEmbeddingConnectionId}
+          selectedAvailability={modelAvailability(
+            embeddingCatalog,
+            selectedEmbeddingConnectionId,
+            selectedEmbeddingModelKey || null,
+          )}
           modelsLoading={embeddingModelsLoading}
           modelsError={embeddingModelsError}
           onSelectModel={onSelectEmbeddingModel}

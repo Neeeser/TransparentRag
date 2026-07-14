@@ -11,6 +11,7 @@ import {
   WizardReviewStep,
 } from "@/components/pipelines/CreatePipelineWizardSteps";
 import { CREATE_SENTINEL } from "@/components/pipelines/lib/pipeline-kinds";
+import { layoutPipelineNodes } from "@/components/pipelines/lib/pipeline-layout";
 import { buildDefaultDefinition } from "@/components/pipelines/lib/pipeline-scaffold";
 import {
   sortIndexesByName,
@@ -23,12 +24,14 @@ import { Field, TextInput } from "@/components/ui/field";
 import { WizardFooter, WizardShell, type WizardStep } from "@/components/ui/wizard-shell";
 import { createPipeline } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { modelAvailability } from "@/lib/model-catalog-cache";
 import { useAppConfig } from "@/providers/config-provider";
 
 import type {
   BackendInfo,
-  EmbeddingModelInfo,
+  CatalogModel,
   IndexBackend,
+  ModelCatalogResponse,
   NodeSpec,
   Pipeline,
   PipelineKind,
@@ -42,9 +45,11 @@ type CreatePipelineWizardProps = {
   indexes: VectorIndex[];
   backends: BackendInfo[];
   nodeSpecs: NodeSpec[];
-  embeddingModels: EmbeddingModelInfo[];
+  embeddingModels: CatalogModel[];
+  embeddingCatalog: ModelCatalogResponse | null;
   embeddingModelsLoading: boolean;
   embeddingModelsError: string | null;
+  onCatalogVisible?: () => void;
   onClose: () => void;
   onCreated: (pipeline: Pipeline) => void;
   onOpenIndexManager: () => void;
@@ -76,8 +81,10 @@ export function CreatePipelineWizard({
   backends,
   nodeSpecs,
   embeddingModels,
+  embeddingCatalog,
   embeddingModelsLoading,
   embeddingModelsError,
+  onCatalogVisible,
   onClose,
   onCreated,
   onOpenIndexManager,
@@ -100,10 +107,16 @@ export function CreatePipelineWizard({
   const [stepIndex, setStepIndex] = useState(0);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) onCatalogVisible?.();
+  }, [onCatalogVisible, open]);
   const [backend, setBackend] = useState<IndexBackend>(defaultBackend);
   const [name, setName] = useState("");
   const [indexName, setIndexName] = useState("");
   const [embeddingModel, setEmbeddingModel] = useState("");
+  const [embeddingConnectionId, setEmbeddingConnectionId] = useState<string | null>(null);
+  const [embeddingConnectionLabel, setEmbeddingConnectionLabel] = useState<string | null>(null);
   const [chunkSize, setChunkSize] = useState(1024);
   const [chunkOverlap, setChunkOverlap] = useState(200);
   const [showAdvancedChunking, setShowAdvancedChunking] = useState(false);
@@ -117,6 +130,8 @@ export function CreatePipelineWizard({
       setName("");
       setIndexName("");
       setEmbeddingModel("");
+      setEmbeddingConnectionId(null);
+      setEmbeddingConnectionLabel(null);
       setChunkSize(1024);
       setChunkOverlap(200);
       setShowAdvancedChunking(false);
@@ -137,7 +152,15 @@ export function CreatePipelineWizard({
     () => backendIndexes.find((index) => index.name === indexName) ?? null,
     [backendIndexes, indexName],
   );
-  const selectedModel = embeddingModels.find((model) => model.id === embeddingModel) ?? null;
+  const selectedModel =
+    embeddingModels.find(
+      (model) => model.id === embeddingModel && model.connection_id === embeddingConnectionId,
+    ) ?? null;
+  const selectedAvailability = modelAvailability(
+    embeddingCatalog,
+    embeddingConnectionId,
+    embeddingModel || null,
+  );
   const activeChunkPreset =
     CHUNK_PRESETS.find((preset) => preset.size === chunkSize && preset.overlap === chunkOverlap) ??
     null;
@@ -147,6 +170,7 @@ export function CreatePipelineWizard({
       buildDefaultDefinition(kind, backend, {
         indexName: indexName.trim() || undefined,
         indexDimension: selectedIndex?.dimension ?? undefined,
+        embeddingConnectionId: embeddingConnectionId || undefined,
         embeddingModel: embeddingModel || undefined,
         chunkSize,
         chunkOverlap,
@@ -155,25 +179,41 @@ export function CreatePipelineWizard({
         includeBm25: backendInfo?.lexical_available ?? false,
         indexNameMaxLength: backendInfo?.capabilities.index_name_max_length,
       }),
-    [kind, backend, indexName, selectedIndex, embeddingModel, chunkSize, chunkOverlap, backendInfo],
+    [
+      kind,
+      backend,
+      indexName,
+      selectedIndex,
+      embeddingModel,
+      embeddingConnectionId,
+      chunkSize,
+      chunkOverlap,
+      backendInfo,
+    ],
   );
 
-  const preview = useMemo(
-    () => ({
-      nodes: toFlowNodes(definition, nodeSpecs),
-      edges: toFlowEdges(definition, nodeSpecs),
+  const preview = useMemo(() => {
+    // Scaffolds carry no positions; the preview is placed by the same
+    // algorithm the editor and Tidy use.
+    const edges = toFlowEdges(definition, nodeSpecs);
+    return {
+      nodes: layoutPipelineNodes(toFlowNodes(definition, nodeSpecs), edges),
+      edges,
       steps: definition.nodes.map((node) => ({ nodeIds: [node.id] })),
-    }),
-    [definition, nodeSpecs],
-  );
+    };
+  }, [definition, nodeSpecs]);
 
   const canProceed = () => {
     if (stepIndex === 0) return name.trim().length > 0;
     if (stepIndex === 1) return indexName.trim().length > 0;
-    return true;
+    return Boolean(embeddingModel && embeddingConnectionId && selectedAvailability !== "missing");
   };
 
   const handleCreate = async () => {
+    if (!embeddingModel || !embeddingConnectionId || selectedAvailability === "missing") {
+      setMessage("Select an available embedding model before creating the pipeline.");
+      return;
+    }
     setCreating(true);
     setMessage(null);
     try {
@@ -333,7 +373,14 @@ export function CreatePipelineWizard({
           showAdvancedChunking={showAdvancedChunking}
           onToggleAdvancedChunking={() => setShowAdvancedChunking((prev) => !prev)}
           embeddingModel={embeddingModel}
-          onSelectEmbeddingModel={setEmbeddingModel}
+          embeddingConnectionId={embeddingConnectionId}
+          embeddingConnectionLabel={embeddingConnectionLabel}
+          selectedAvailability={selectedAvailability}
+          onSelectEmbeddingModel={(model) => {
+            setEmbeddingModel(model.id);
+            setEmbeddingConnectionId(model.connection_id);
+            setEmbeddingConnectionLabel(model.connection_label);
+          }}
           embeddingModels={embeddingModels}
           embeddingModelsLoading={embeddingModelsLoading}
           embeddingModelsError={embeddingModelsError}
@@ -348,7 +395,14 @@ export function CreatePipelineWizard({
           name={name}
           backend={backend}
           indexName={indexName}
-          selectedModelName={selectedModel?.name ?? null}
+          selectedModelName={
+            selectedModel?.name ??
+            (embeddingModel
+              ? selectedAvailability === "missing"
+                ? `${embeddingModel} (Unavailable)`
+                : embeddingModel
+              : null)
+          }
           chunkPresetLabel={activeChunkPreset?.label ?? null}
           chunkSize={chunkSize}
           chunkOverlap={chunkOverlap}
