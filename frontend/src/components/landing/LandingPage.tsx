@@ -49,7 +49,7 @@ export function LandingPage() {
           {/* Above the flow band. */}
           <div className="flex flex-col items-center gap-6">
             <h1
-              className="landing-rise max-w-4xl text-balance text-5xl font-semibold leading-[1.02] tracking-tight text-primary sm:text-6xl md:text-7xl"
+              className="landing-rise text-balance text-4xl font-semibold leading-[1.02] tracking-tight text-primary sm:whitespace-nowrap sm:text-6xl md:text-7xl"
               style={{ animationDelay: "0ms" }}
             >
               Open-source RAG{" "}
