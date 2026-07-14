@@ -238,6 +238,11 @@ the same PR.
   (`components/ui/field.tsx`) — Field wires `htmlFor`/`id` and `aria-describedby`.
   Canonical input styling is the exported `inputClass` constant; if you type
   `rounded-2xl border border-white/10` by hand into a form control, stop.
+- **Product-facing dropdown selection uses `CustomSelect`**, never a browser-native
+  `<select>` whose popup cannot follow the product theme. The shared primitive owns
+  popup styling, keyboard/typeahead behavior, focus management, and portal
+  positioning. Use a native control only when platform-native behavior is
+  deliberately required, and document that reason next to the control.
 - **Confirmations use `ConfirmDialog`**, including destructive type-to-confirm
   flows via `confirmText` — no bespoke nested delete modals.
 - **Wizards use `WizardShell` + `WizardFooter`** — the Back/Next/Cancel cluster is

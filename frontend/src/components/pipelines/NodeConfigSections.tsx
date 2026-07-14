@@ -3,13 +3,13 @@
 import { useEffect, useMemo } from "react";
 
 import { VariablesTree } from "@/components/traces/debugger/VariablesTree";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { ParameterFieldCard, ParameterInput } from "@/components/ui/parameter-controls";
 import { modelAvailability } from "@/lib/model-catalog-cache";
 import { useAppConfig } from "@/providers/config-provider";
 
 import { EmbeddingModelSelectorCard } from "./EmbeddingModelSelectorCard";
-import { PineconeIcon } from "./icons/PineconeIcon";
-import { PostgresIcon } from "./icons/PostgresIcon";
+import { IndexBackendIcon } from "./icons/IndexBackendIcon";
 import {
   buildPipelineConfigFields,
   coerceFieldValue,
@@ -192,11 +192,7 @@ export function NodeConfigSections({
                       : "border-hairline bg-surface text-body hover:border-strong"
                   }`}
                 >
-                  {option.value === "pgvector" ? (
-                    <PostgresIcon className="h-4 w-4 shrink-0" />
-                  ) : (
-                    <PineconeIcon className="h-4 w-4 shrink-0 text-primary" />
-                  )}
+                  <IndexBackendIcon backend={option.value} />
                   <span>
                     <span className="block font-semibold">{option.label}</span>
                     <span className="block text-[10px] text-meta">{option.hint}</span>
@@ -222,25 +218,37 @@ export function NodeConfigSections({
           actionDisabled={isPreview}
           onAction={onOpenIndexManager}
         >
-          <select
-            className="w-full rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm text-primary outline-none focus:border-accent-violet"
+          <CustomSelect
             value={indexValue}
-            onChange={(event) => handleIndexChange(event.target.value)}
+            onValueChange={handleIndexChange}
             disabled={isPreview}
             aria-label="Vector index"
-          >
-            <option value="">Select an index</option>
-            {indexValue && !selectedIndex ? (
-              <option value={indexValue}>{indexValue} (not created yet)</option>
-            ) : null}
-            {backendIndexes.map((index) => (
-              <option key={index.name} value={index.name}>
-                {index.name}
-                {typeof index.dimension === "number" ? ` · ${index.dimension}d` : ""}
-              </option>
-            ))}
-            <option value={CREATE_SENTINEL}>+ Add new index...</option>
-          </select>
+            placeholder="Select an index"
+            options={[
+              { value: "", label: "Select an index" },
+              ...(indexValue && !selectedIndex
+                ? [
+                    {
+                      value: indexValue,
+                      label: `${indexValue} (not created yet)`,
+                      icon: <IndexBackendIcon backend={nodeBackend} />,
+                    },
+                  ]
+                : []),
+              ...backendIndexes.map((index) => ({
+                value: index.name,
+                label: `${index.name}${
+                  typeof index.dimension === "number" ? ` · ${index.dimension}d` : ""
+                }`,
+                icon: <IndexBackendIcon backend={index.backend} />,
+              })),
+              {
+                value: CREATE_SENTINEL,
+                label: "+ Add new index...",
+                preventFocusRestore: true,
+              },
+            ]}
+          />
         </ParameterFieldCard>
       ) : null}
       {filteredFields.length > 0 ? (
