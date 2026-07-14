@@ -31,12 +31,10 @@ from app.services.errors import InvalidInputError
 from app.vectorstores.base import INDEX_NAME_PATTERN
 from app.vectorstores.registry import CAPABILITIES_BY_BACKEND, lexical_available
 
-# Horizontal spacing between scaffolded nodes; comfortably wider than the
-# editor's rendered node cards so default pipelines never overlap. The BM25
-# branch sits one row below the semantic path.
-NODE_SPACING_X = 340
-NODE_SPACING_Y = 260
-
+# Scaffolds deliberately carry no node positions: layout is owned by the
+# frontend's shared auto-layout (`layoutPipelineNodes`), which lays out any
+# definition whose nodes lack saved positions on first open. Hand-placing
+# coordinates here would duplicate layout knowledge the algorithm owns.
 
 def _default_backend() -> IndexBackend:
     """Return the deployment's configured default index backend."""
@@ -83,19 +81,16 @@ def build_default_ingestion_pipeline(
             id="ingest-input",
             type="ingestion.input",
             name="Ingestion Input",
-            position={"x": 0, "y": 0},
         ),
         PipelineNodeDefinition(
             id="parse-document",
             type="parser.document",
             name="Document Parser",
-            position={"x": NODE_SPACING_X, "y": 0},
         ),
         PipelineNodeDefinition(
             id="chunk-document",
             type="chunker.token",
             name="Token Chunker",
-            position={"x": NODE_SPACING_X * 2, "y": 0},
             config={
                 "chunk_size": chunk_size,
                 "chunk_overlap": chunk_overlap,
@@ -105,8 +100,7 @@ def build_default_ingestion_pipeline(
             id="embed-chunks",
             type="embedder.text",
             name="Embedder",
-            position={"x": NODE_SPACING_X * 3, "y": 0},
-            config={
+config={
                 "connection_id": str(embedding_connection_id),
                 "model_name": embedding_model,
             },
@@ -115,7 +109,6 @@ def build_default_ingestion_pipeline(
             id="index-chunks",
             type=VectorIndexerNode.type,
             name="Semantic Indexer",
-            position={"x": NODE_SPACING_X * 4, "y": 0},
             config={
                 "backend": backend.value,
                 "index_name": index_name,
@@ -128,10 +121,6 @@ def build_default_ingestion_pipeline(
             id="ingest-output",
             type="ingestion.output",
             name="Ingestion Output",
-            position={
-                "x": NODE_SPACING_X * 5,
-                "y": NODE_SPACING_Y / 2 if include_bm25 else 0,
-            },
         ),
     ]
     edges = [
@@ -177,7 +166,6 @@ def build_default_ingestion_pipeline(
                 id="index-bm25",
                 type=Bm25IndexerNode.type,
                 name="BM25 Indexer",
-                position={"x": NODE_SPACING_X * 3, "y": NODE_SPACING_Y},
                 config={
                     "backend": backend.value,
                     "index_name": bm25_sibling_index_name(index_name, backend),
@@ -230,14 +218,12 @@ def build_default_retrieval_pipeline(
             id="query-input",
             type="retrieval.input",
             name="Retrieval Input",
-            position={"x": 0, "y": 0},
         ),
         PipelineNodeDefinition(
             id="embed-query",
             type="embedder.text",
             name="Embedder",
-            position={"x": NODE_SPACING_X, "y": 0},
-            config={
+config={
                 "connection_id": str(embedding_connection_id),
                 "model_name": embedding_model,
             },
@@ -246,7 +232,6 @@ def build_default_retrieval_pipeline(
             id="vector-retriever",
             type=VectorRetrieverNode.type,
             name="Semantic Retriever",
-            position={"x": NODE_SPACING_X * 2, "y": 0},
             config={
                 "backend": backend.value,
                 "index_name": index_name,
@@ -257,7 +242,6 @@ def build_default_retrieval_pipeline(
             id="retrieval-output",
             type="retrieval.output",
             name="Retrieval Output",
-            position={"x": NODE_SPACING_X * (4 if include_bm25 else 3), "y": 0},
         ),
     ]
     edges = [
@@ -283,7 +267,6 @@ def build_default_retrieval_pipeline(
                     id="bm25-retriever",
                     type=Bm25RetrieverNode.type,
                     name="BM25 Retriever",
-                    position={"x": NODE_SPACING_X * 1, "y": NODE_SPACING_Y},
                     config={
                         "backend": backend.value,
                         "index_name": bm25_sibling_index_name(index_name, backend),
@@ -294,7 +277,6 @@ def build_default_retrieval_pipeline(
                     id="fuse-results",
                     type=RRFusionNode.type,
                     name="RRF Fusion",
-                    position={"x": NODE_SPACING_X * 3, "y": NODE_SPACING_Y / 2},
                 ),
             ]
         )

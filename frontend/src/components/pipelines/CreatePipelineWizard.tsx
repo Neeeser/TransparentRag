@@ -11,6 +11,7 @@ import {
   WizardReviewStep,
 } from "@/components/pipelines/CreatePipelineWizardSteps";
 import { CREATE_SENTINEL } from "@/components/pipelines/lib/pipeline-kinds";
+import { layoutPipelineNodes } from "@/components/pipelines/lib/pipeline-layout";
 import { buildDefaultDefinition } from "@/components/pipelines/lib/pipeline-scaffold";
 import {
   sortIndexesByName,
@@ -174,14 +175,16 @@ export function CreatePipelineWizard({
     ],
   );
 
-  const preview = useMemo(
-    () => ({
-      nodes: toFlowNodes(definition, nodeSpecs),
-      edges: toFlowEdges(definition, nodeSpecs),
+  const preview = useMemo(() => {
+    // Scaffolds carry no positions; the preview is placed by the same
+    // algorithm the editor and Tidy use.
+    const edges = toFlowEdges(definition, nodeSpecs);
+    return {
+      nodes: layoutPipelineNodes(toFlowNodes(definition, nodeSpecs), edges),
+      edges,
       steps: definition.nodes.map((node) => ({ nodeIds: [node.id] })),
-    }),
-    [definition, nodeSpecs],
-  );
+    };
+  }, [definition, nodeSpecs]);
 
   const canProceed = () => {
     if (stepIndex === 0) return name.trim().length > 0;
