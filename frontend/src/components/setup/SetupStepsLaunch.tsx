@@ -130,7 +130,7 @@ export function StepLaunch({ wizard }: { wizard: SetupWizardApi }) {
   const chunkSpan = chunkSize + chunkOverlap;
   const chunkSizeWarning =
     typeof maximum === "number" && chunkSpan > Math.max(0, maximum - EMBEDDING_INPUT_MARGIN_TOKENS)
-      ? `Chunk size plus overlap (${chunkSpan.toLocaleString()}) may exceed this model's effective input limit. Chunkers currently count whitespace words, which underestimates model tokens.`
+      ? `Chunk size plus overlap (${chunkSpan.toLocaleString()}) may exceed this model's effective input limit.`
       : null;
   return (
     <SetupStepShell
@@ -167,7 +167,7 @@ export function StepLaunch({ wizard }: { wizard: SetupWizardApi }) {
         />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Chunk size (words)">
+        <Field label="Chunk size (tokens)">
           <TextInput
             type="number"
             min={64}

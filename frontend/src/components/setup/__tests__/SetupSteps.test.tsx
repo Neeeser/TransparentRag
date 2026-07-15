@@ -127,7 +127,13 @@ describe("StepLaunch", () => {
 
     render(<StepLaunch wizard={wizard} />);
 
-    expect(screen.getByText(/whitespace words/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Chunk size plus overlap (500) may exceed this model's effective input limit.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Chunk size (tokens)")).toBeInTheDocument();
+    expect(screen.queryByText(/whitespace words/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /finish setup/i })).toBeEnabled();
   });
 });
