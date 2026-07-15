@@ -33,6 +33,8 @@ const openHistoryLabel = "Open history";
 const saveNodeEditsLabel = "Save node edits";
 const selectNodeLabel = "Select node";
 const deletePipelineLabel = "Delete pipeline";
+const confirmDeleteLabel = "Confirm delete";
+const hfModelId = "owner/model";
 const buildDragEvent = (type: string) =>
   ({
     preventDefault: vi.fn(),
@@ -302,17 +304,38 @@ vi.mock("@/components/pipelines/index-manager/IndexManagerModal", () => ({
 vi.mock("@/components/ui/confirm-dialog", () => ({
   ConfirmDialog: ({
     open,
+    title,
+    confirmLabel,
+    rememberLabel,
+    rememberChecked,
+    onRememberChange,
     onConfirm,
     onCancel,
   }: {
     open: boolean;
+    title: string;
+    confirmLabel?: string;
+    rememberLabel?: string;
+    rememberChecked?: boolean;
+    onRememberChange?: (checked: boolean) => void;
     onConfirm: () => void;
     onCancel: () => void;
   }) =>
     open ? (
       <div>
+        <p>{title}</p>
+        {rememberLabel && onRememberChange ? (
+          <label>
+            <input
+              type="checkbox"
+              checked={rememberChecked}
+              onChange={(event) => onRememberChange(event.target.checked)}
+            />
+            {rememberLabel}
+          </label>
+        ) : null}
         <button type="button" onClick={onConfirm}>
-          Confirm delete
+          {title.toLowerCase().includes("delete") ? confirmDeleteLabel : confirmLabel}
         </button>
         <button type="button" onClick={onCancel}>
           Cancel delete
@@ -372,6 +395,10 @@ describe("PipelineBuilder", () => {
     api.validatePipeline.mockResolvedValue({ valid: true, errors: [], warnings: [], issues: [] });
     api.updatePipeline.mockResolvedValue(pipeline);
     api.activatePipelineVersion.mockResolvedValue(pipeline);
+    api.ensureHuggingFaceTokenizer.mockResolvedValue({
+      model_id: hfModelId,
+      cached: true,
+    });
 
     io.validatePipelineConnection.mockReturnValue({ valid: true });
     io.validatePipelineEdges.mockReturnValue({ edgeErrors: {}, nodeErrors: {} });
@@ -410,8 +437,65 @@ describe("PipelineBuilder", () => {
     await waitFor(() => expect(api.updatePipeline).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: deletePipelineLabel }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
+    fireEvent.click(screen.getByRole("button", { name: confirmDeleteLabel }));
     await waitFor(() => expect(api.deletePipeline).toHaveBeenCalled());
+  });
+
+  it("requires consent before saving an uncached HuggingFace tokenizer", async () => {
+    const tokenizerSpec = makeNodeSpec({
+      type: "tokenizer.huggingface",
+      label: "HuggingFace tokenizer",
+      category: "ingestion",
+      requires_model_id: true,
+      input_ports: [],
+      output_ports: [
+        {
+          key: "tokenizer",
+          label: "Tokenizer",
+          data_type: "tokenizer",
+          required: true,
+          accepts_many: false,
+        },
+      ],
+    });
+    api.fetchPipelines.mockResolvedValueOnce([
+      {
+        ...pipeline,
+        definition: {
+          nodes: [
+            ...pipeline.definition.nodes,
+            {
+              id: "tokenizer",
+              type: "tokenizer.huggingface",
+              name: "Tokenizer",
+              config: { hf_model_id: hfModelId },
+              position: { x: -200, y: 0 },
+            },
+          ],
+          edges: [],
+        },
+      },
+    ]);
+    api.fetchPipelineNodes.mockResolvedValueOnce([...nodeSpecs, tokenizerSpec]);
+    api.ensureHuggingFaceTokenizer
+      .mockRejectedValueOnce(new ApiError(400, "Download consent is required."))
+      .mockResolvedValue({ model_id: hfModelId, cached: true });
+    render(<PipelineBuilder kind="ingestion" />);
+
+    await waitFor(() => expect((lastCanvasProps?.nodes as unknown[] | undefined)?.length).toBe(2));
+    fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
+    fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
+
+    expect(await screen.findByRole("button", { name: "Download tokenizer" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Remember this choice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download tokenizer" }));
+
+    await waitFor(() => expect(api.updatePipeline).toHaveBeenCalled());
+    expect(api.ensureHuggingFaceTokenizer).toHaveBeenLastCalledWith("token", {
+      model_id: hfModelId,
+      consent: true,
+      remember: true,
+    });
   });
 
   it("handles delete errors", async () => {
@@ -421,7 +505,7 @@ describe("PipelineBuilder", () => {
     await waitFor(() => expect(lastCanvasProps).not.toBeNull());
 
     fireEvent.click(screen.getByRole("button", { name: deletePipelineLabel }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
+    fireEvent.click(screen.getByRole("button", { name: confirmDeleteLabel }));
 
     await waitFor(() => {
       expect(screen.getByTestId("canvas")).toHaveTextContent("Unable to delete pipeline.");

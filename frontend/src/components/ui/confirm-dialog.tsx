@@ -16,6 +16,9 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   confirmVariant?: "primary" | "danger";
   confirmText?: string;
+  rememberLabel?: string;
+  rememberChecked?: boolean;
+  onRememberChange?: (checked: boolean) => void;
   loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -29,6 +32,9 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   confirmVariant = "primary",
   confirmText,
+  rememberLabel,
+  rememberChecked = false,
+  onRememberChange,
   loading = false,
   onConfirm,
   onCancel,
@@ -69,6 +75,17 @@ export function ConfirmDialog({
                 onChange={(event) => setTypedText(event.target.value)}
               />
             </Field>
+          ) : null}
+          {rememberLabel && onRememberChange ? (
+            <label className="flex items-center gap-3 text-sm text-body">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-strong bg-transparent accent-[var(--accent-violet)]"
+                checked={rememberChecked}
+                onChange={(event) => onRememberChange(event.target.checked)}
+              />
+              <span>{rememberLabel}</span>
+            </label>
           ) : null}
         </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">

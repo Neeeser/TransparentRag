@@ -16,6 +16,7 @@ import { useIndexes } from "./hooks/use-indexes";
 import { useLayoutPersistence } from "./hooks/use-layout-persistence";
 import { useNodeEditing } from "./hooks/use-node-editing";
 import { usePipelines } from "./hooks/use-pipelines";
+import { useTokenizerConsent } from "./hooks/use-tokenizer-consent";
 import { useUnsavedChangesGuard } from "./hooks/use-unsaved-changes-guard";
 import { diffDefinitions, materialChanges } from "./lib/pipeline-diff";
 import { validatePipelineConfig, validatePipelineEdges } from "./lib/pipeline-io";
@@ -33,6 +34,7 @@ import { PipelineEditorDialogs } from "./PipelineEditorDialogs";
 import { PipelineHeader } from "./PipelineHeader";
 import { PipelineModals } from "./PipelineModals";
 import { PipelineSidebar } from "./PipelineSidebar";
+import { TokenizerConsentDialog } from "./TokenizerConsentDialog";
 
 import type { TypedEdgeType } from "./flow/TypedEdge";
 import type { PipelineModalsHandle } from "./PipelineModals";
@@ -72,6 +74,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     persistLayout,
     handleActivateVersion,
   } = usePipelines({ token, kind });
+  const tokenizerConsent = useTokenizerConsent(token, setMessage, nodeSpecs);
 
   const {
     embeddingModels,
@@ -181,13 +184,13 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
 
   const { edgeErrors, nodeErrors } = useMemo(() => {
     const edgeValidation = validatePipelineEdges(nodes, edges);
-    const configValidation = validatePipelineConfig(nodes);
+    const configValidation = validatePipelineConfig(nodes, undefined, nodeSpecs);
     const mergedNodeErrors: Record<string, string[]> = { ...edgeValidation.nodeErrors };
     Object.entries(configValidation.nodeErrors).forEach(([nodeId, errors]) => {
       mergedNodeErrors[nodeId] = [...(mergedNodeErrors[nodeId] ?? []), ...errors];
     });
     return { edgeErrors: edgeValidation.edgeErrors, nodeErrors: mergedNodeErrors };
-  }, [nodes, edges]);
+  }, [nodes, edges, nodeSpecs]);
 
   const pendingChanges = useMemo(() => {
     if (!selectedPipeline) return [];
@@ -237,8 +240,11 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
       .slice(0, 3)
       .map((change) => change.summary)
       .join("; ");
-    await handleSavePipeline(toPipelineDefinition(nodes, edges), fallbackSummary);
-    setSaveDialogOpen(false);
+    const definition = toPipelineDefinition(nodes, edges);
+    await tokenizerConsent.ensureThen(definition, async () => {
+      await handleSavePipeline(definition, fallbackSummary);
+      setSaveDialogOpen(false);
+    });
   };
 
   const selectedNodeErrors = selectedNode ? (nodeErrors[selectedNode.id] ?? []) : [];
@@ -412,6 +418,14 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         discardOpen={confirmOpen}
         onConfirmDiscard={confirmDiscard}
         onCancelDiscard={cancelDiscard}
+      />
+      <TokenizerConsentDialog
+        modelId={tokenizerConsent.modelId}
+        remember={tokenizerConsent.remember}
+        loading={tokenizerConsent.loading}
+        onRememberChange={tokenizerConsent.setRemember}
+        onConfirm={() => void tokenizerConsent.confirm()}
+        onCancel={tokenizerConsent.cancel}
       />
     </div>
   );

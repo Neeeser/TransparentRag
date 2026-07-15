@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api/client";
 
 import type {
   BackendInfo,
+  HuggingFaceTokenizerDownload,
   IndexBackend,
   IndexCreatePayload,
   NodeSpec,
@@ -12,6 +13,17 @@ import type {
   PipelineVersion,
   VectorIndex,
 } from "@/lib/types";
+
+export async function ensureHuggingFaceTokenizer(
+  token: string,
+  payload: HuggingFaceTokenizerDownload,
+): Promise<{ model_id: string; cached: boolean }> {
+  return apiFetch("/api/tokenizers/huggingface", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
 
 export async function fetchPipelines(token: string, kind?: PipelineKind): Promise<Pipeline[]> {
   const params = kind ? `?kind=${kind}` : "";

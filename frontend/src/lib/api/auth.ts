@@ -72,6 +72,7 @@ export async function updateUserSettings(
   payload: {
     run_settings_order?: RunSettingsSectionKey[];
     remember_session_days?: 30 | 90 | 180;
+    remember_hf_tokenizer_downloads?: boolean;
   },
 ): Promise<User> {
   return apiFetch<User>("/api/auth/me", {

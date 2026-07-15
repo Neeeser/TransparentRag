@@ -40,6 +40,7 @@ class NodeSpec(BaseModel):
     config_schema: dict[str, object] = Field(default_factory=dict)
     default_config: dict[str, object] = Field(default_factory=dict)
     hidden: bool = False
+    requires_model_id: bool = False
 
 
 class PipelineValidationIssue(BaseModel):
@@ -76,6 +77,7 @@ class PipelineNodeBase(Generic[ConfigT]):
     output_ports: Sequence[NodePort] = ()
     config_model: builtins.type[BaseModel] = EmptyConfig
     hidden: bool = False
+    requires_model_id: bool = False
 
     def __init__(self, config: ConfigT) -> None:
         """Initialize the node with its config."""
@@ -130,4 +132,5 @@ class PipelineNodeBase(Generic[ConfigT]):
             config_schema=schema,
             default_config=default_config,
             hidden=cls.hidden,
+            requires_model_id=cls.requires_model_id,
         )

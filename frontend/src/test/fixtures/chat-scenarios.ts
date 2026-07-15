@@ -18,6 +18,7 @@ const openRouterConnectionId = "conn-openrouter-1";
 
 export const baseUser: User = {
   remember_session_days: 30,
+  remember_hf_tokenizer_downloads: false,
   id: baseUserId,
   email: "user@example.com",
   role: "user",
