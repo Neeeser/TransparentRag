@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
-from app.api.routes.utils import to_http_exception
+from app.api.routes.utils import to_http_exception, validation_issue_to_schema
 from app.db import models
 from app.pipelines.definition import PipelineDefinition
 from app.pipelines.registry import default_registry
@@ -22,7 +22,6 @@ from app.schemas.pipelines import (
     PipelineNodesResponse,
     PipelineRead,
     PipelineUpdate,
-    PipelineValidationIssueRead,
     PipelineValidationResponse,
     PipelineVersionRead,
 )
@@ -61,7 +60,9 @@ def _to_pipeline_read(
     what `model_validate` below expects -- that validation is the real gate.
     """
     data = pipeline.model_dump(warnings=False)
-    issues = [] if validation is None else validation.issues
+    issues = [] if validation is None else [
+        validation_issue_to_schema(issue) for issue in validation.issues
+    ]
     return PipelineRead.model_validate(
         {**data, "definition": definition, "validation_issues": issues}
     )
@@ -91,8 +92,7 @@ def validate_pipeline(
         errors=result.errors,
         warnings=result.warnings,
         issues=[
-            PipelineValidationIssueRead.model_validate(issue, from_attributes=True)
-            for issue in result.issues
+            validation_issue_to_schema(issue) for issue in result.issues
         ],
     )
 

@@ -10,6 +10,7 @@ from sqlmodel import Session
 from app.db import models
 from app.db.repositories import CollectionRepository
 from app.schemas.collections import CollectionRead
+from app.schemas.pipelines import PipelineValidationIssueRead
 from app.services.errors import (
     ExternalServiceError,
     NotFoundError,
@@ -35,6 +36,11 @@ def collection_to_schema(collection: models.Collection) -> CollectionRead:
         updated_at=collection.updated_at,
         metadata=collection.extra_metadata,
     )
+
+
+def validation_issue_to_schema(issue: object) -> PipelineValidationIssueRead:
+    """Map an engine validation issue to its schemas-owned wire model."""
+    return PipelineValidationIssueRead.model_validate(issue, from_attributes=True)
 
 
 def get_collection_or_404(
