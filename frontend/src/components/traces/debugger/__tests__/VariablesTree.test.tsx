@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { VariablesTree } from "@/components/traces/debugger/VariablesTree";
@@ -130,5 +130,114 @@ describe("VariablesTree", () => {
       />,
     );
     expect(screen.getByText(MATCH_ITEMS_LABEL)).toBeInTheDocument();
+  });
+
+  it("pins a focused match beyond the preview cap with its full-list rank and score", () => {
+    const topMatches = Array.from({ length: 5 }, (_, index) => ({
+      rank: index + 1,
+      chunk_id: `chunk-${index + 1}`,
+      document_id: "doc-1",
+      score: 1 - index / 10,
+      preview: `Preview ${index + 1}`,
+    }));
+    const items = Array.from({ length: 10 }, (_, index) => ({
+      id: `chunk-${index + 1}`,
+      score: 1 - index / 10,
+    }));
+
+    render(
+      <VariablesTree
+        title="Outputs"
+        tone="violet"
+        summaryItems={[
+          { label: "Matches", value: { count: 10, top_matches: topMatches }, kind: "json" },
+          {
+            label: MATCH_ITEMS_LABEL,
+            value: { kind: "matches", items },
+            kind: "items",
+          },
+        ]}
+        ioRecords={[]}
+        focusedItemId="chunk-9"
+        onFocusItem={() => undefined}
+        emptySummaryLabel="No outputs recorded."
+      />,
+    );
+
+    const preview = within(screen.getByTestId("variable-row-Matches"));
+    expect(preview.getByRole("button", { name: "Focus item chunk-9" })).toHaveAttribute(
+      "data-focused",
+      "true",
+    );
+    expect(preview.getByText("#9")).toBeInTheDocument();
+    expect(preview.getByText("0.200")).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      label: "Reranked order",
+      previewValue: Array.from({ length: 8 }, (_, index) => ({
+        rank: index + 1,
+        chunk_id: `chunk-${index + 1}`,
+        score: 1 - index / 10,
+      })),
+      itemKind: "matches" as const,
+    },
+    {
+      label: "Chunks",
+      previewValue: {
+        count: 10,
+        samples: Array.from({ length: 3 }, (_, index) => ({
+          chunk_id: `chunk-${index + 1}`,
+          order: index,
+          preview: `Chunk ${index + 1}`,
+        })),
+      },
+      itemKind: "chunks" as const,
+    },
+    {
+      label: "Embeddings",
+      previewValue: {
+        count: 10,
+        dimension: 2,
+        samples: Array.from({ length: 2 }, (_, index) => ({
+          chunk_id: `chunk-${index + 1}`,
+          preview: { preview: [0.1, 0.2], total_values: 2 },
+        })),
+      },
+      itemKind: "chunks" as const,
+    },
+  ])("pins a focused item beyond the $label preview cap", ({ label, previewValue, itemKind }) => {
+    render(
+      <VariablesTree
+        title="Outputs"
+        tone="violet"
+        summaryItems={[
+          { label, value: previewValue, kind: "json" },
+          {
+            label: "Full items",
+            value: {
+              kind: itemKind,
+              items: Array.from({ length: 10 }, (_, index) => ({
+                id: `chunk-${index + 1}`,
+                score: itemKind === "matches" ? 1 - index / 10 : undefined,
+              })),
+            },
+            kind: "items",
+          },
+        ]}
+        ioRecords={[]}
+        focusedItemId="chunk-9"
+        onFocusItem={() => undefined}
+        emptySummaryLabel="No outputs recorded."
+      />,
+    );
+
+    const preview = within(screen.getByTestId(`variable-row-${label}`));
+    expect(preview.getByRole("button", { name: "Focus item chunk-9" })).toHaveAttribute(
+      "data-focused",
+      "true",
+    );
+    expect(preview.getByText("#9")).toBeInTheDocument();
   });
 });

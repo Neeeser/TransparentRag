@@ -21,6 +21,8 @@ from app.pipelines.tracing.summaries import (
     summarize_matches,
     summarize_source,
     summarize_text,
+    trace_chunk_items,
+    trace_match_items,
 )
 from app.retrieval.models import DocumentMetadata, QueryRequest
 from app.retrieval.parsers.base import DocumentSource
@@ -127,12 +129,25 @@ class IngestionOutputNode(PipelineNodeBase[IngestionOutputConfig]):
                     value={"count": len(payload.chunks)},
                 )
                 for index, payload in enumerate(payloads, start=1)
+            ]
+            + [
+                NodeTraceValue(
+                    label=f"Indexed items (branch {index})",
+                    value=trace_chunk_items(payload.chunks),
+                    kind="items",
+                )
+                for index, payload in enumerate(payloads, start=1)
             ],
             outputs=[
                 NodeTraceValue(
                     label="Result",
                     value={"count": len(merged.chunks)},
-                )
+                ),
+                NodeTraceValue(
+                    label="Result items",
+                    value=trace_chunk_items(merged.chunks),
+                    kind="items",
+                ),
             ],
         )
 
@@ -251,12 +266,22 @@ class RetrievalOutputNode(PipelineNodeBase[RetrievalOutputConfig]):
                 NodeTraceValue(
                     label="Matches",
                     value=summarize_matches(payload.response.matches),
-                )
+                ),
+                NodeTraceValue(
+                    label="Match items",
+                    value=trace_match_items(payload.response.matches),
+                    kind="items",
+                ),
             ],
             outputs=[
                 NodeTraceValue(
                     label="Result",
                     value=summarize_matches(payload.response.matches),
-                )
+                ),
+                NodeTraceValue(
+                    label="Result items",
+                    value=trace_match_items(payload.response.matches),
+                    kind="items",
+                ),
             ],
         )

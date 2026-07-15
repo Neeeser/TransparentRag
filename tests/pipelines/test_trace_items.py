@@ -26,6 +26,12 @@ from app.pipelines.nodes.indexing import (
     VectorIndexerConfig,
     VectorIndexerNode,
 )
+from app.pipelines.nodes.io import (
+    IngestionOutputConfig,
+    IngestionOutputNode,
+    RetrievalOutputConfig,
+    RetrievalOutputNode,
+)
 from app.pipelines.nodes.retrieval import (
     Bm25RetrieverConfig,
     Bm25RetrieverNode,
@@ -312,6 +318,42 @@ def test_reranker_summary_keeps_complete_before_and_after_orders() -> None:
     ]
     assert _refs(_item_values(summary.outputs)[0]) == [
         (match.chunk.chunk_id, match.score) for match in after_matches
+    ]
+
+
+def test_retrieval_terminal_preserves_complete_match_order_on_both_ports() -> None:
+    matches = _matches([f"doc:{index}" for index in range(12)])
+    payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
+
+    summary = RetrievalOutputNode(RetrievalOutputConfig()).summarize_io(
+        {"results": payload},
+        {"result": payload},
+    )
+
+    expected = [(match.chunk.chunk_id, match.score) for match in matches]
+    assert _refs(_item_values(summary.inputs)[0]) == expected
+    assert _refs(_item_values(summary.outputs)[0]) == expected
+
+
+def test_ingestion_terminal_preserves_each_branch_and_merged_result() -> None:
+    document = Document(document_id="doc", text="source", metadata=DocumentMetadata())
+    lexical_chunks = [_chunks(3)[index] for index in (0, 2)]
+    dense_chunks = _chunks(3)
+    lexical = IndexingPayload(document=document, chunks=lexical_chunks)
+    dense = IndexingPayload(document=document, chunks=dense_chunks)
+    node = IngestionOutputNode(IngestionOutputConfig())
+    outputs = {"result": node._merge({"indexed": [lexical, dense]})}
+
+    summary = node.summarize_io({"indexed": [lexical, dense]}, outputs)
+
+    assert [_refs(value) for value in _item_values(summary.inputs)] == [
+        [("doc:0", None), ("doc:2", None)],
+        [("doc:0", None), ("doc:1", None), ("doc:2", None)],
+    ]
+    assert _refs(_item_values(summary.outputs)[0]) == [
+        ("doc:0", None),
+        ("doc:1", None),
+        ("doc:2", None),
     ]
 
 

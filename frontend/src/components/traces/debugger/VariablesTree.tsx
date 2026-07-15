@@ -4,10 +4,11 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 import { containsChunkId } from "@/components/traces/trace-payload-utils";
-import { TraceValueView } from "@/components/traces/values/TraceValueView";
+import { isItemListTrace } from "@/components/traces/values/shape-guards";
+import { TraceValueView, traceValueItemKind } from "@/components/traces/values/TraceValueView";
 import { cn } from "@/lib/utils";
 
-import type { PipelineNodeIOTrace, PipelineNodeSummaryValue } from "@/lib/types";
+import type { ItemListTrace, PipelineNodeIOTrace, PipelineNodeSummaryValue } from "@/lib/types";
 import type { ReactNode } from "react";
 
 type Tone = "cyan" | "violet";
@@ -77,6 +78,23 @@ type VariablesTreeProps = {
   emptySummaryLabel: string;
 };
 
+/** Pair same-vocabulary preview renderers and full item lists by occurrence. */
+function pairItemLists(summaryItems: PipelineNodeSummaryValue[]): Array<ItemListTrace | undefined> {
+  const lists: Record<ItemListTrace["kind"], ItemListTrace[]> = { chunks: [], matches: [] };
+  for (const item of summaryItems) {
+    if (item.kind === "items" && isItemListTrace(item.value))
+      lists[item.value.kind].push(item.value);
+  }
+  const offsets: Record<ItemListTrace["kind"], number> = { chunks: 0, matches: 0 };
+  return summaryItems.map((item) => {
+    const itemKind = traceValueItemKind(item.value, item.kind ?? "json");
+    if (!itemKind) return undefined;
+    const itemList = lists[itemKind][offsets[itemKind]];
+    offsets[itemKind] += 1;
+    return itemList;
+  });
+}
+
 /**
  * IDE-style variables panel for one side (Inputs or Outputs) of the active
  * node: summary values open by default, each port's raw payload one collapsed
@@ -93,9 +111,10 @@ export function VariablesTree({
 }: VariablesTreeProps) {
   const highlights = (value: unknown) =>
     Boolean(focusedItemId) && containsChunkId(value, focusedItemId ?? "");
-  const visibleSummaryItems = focusedItemId
-    ? summaryItems
-    : summaryItems.filter((item) => item.kind !== "items");
+  const pairedItemLists = pairItemLists(summaryItems);
+  const visibleSummaryItems = summaryItems
+    .map((item, index) => ({ item, itemList: pairedItemLists[index], index }))
+    .filter(({ item }) => focusedItemId || item.kind !== "items");
 
   return (
     <div className="min-w-0 space-y-2">
@@ -106,7 +125,7 @@ export function VariablesTree({
         <p className="text-xs text-muted">{emptySummaryLabel}</p>
       ) : (
         <>
-          {visibleSummaryItems.map((item, index) => (
+          {visibleSummaryItems.map(({ item, itemList, index }) => (
             <VariableRow
               key={`${item.label}-${index}`}
               label={item.label}
@@ -118,6 +137,7 @@ export function VariablesTree({
                 kind={item.kind ?? "json"}
                 focusedItemId={focusedItemId}
                 onFocusItem={onFocusItem}
+                itemList={itemList}
               />
             </VariableRow>
           ))}

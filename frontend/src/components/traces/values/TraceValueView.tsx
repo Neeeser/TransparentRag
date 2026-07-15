@@ -30,6 +30,7 @@ type Renderer = {
   id: string;
   match: (value: unknown, kind: string) => boolean;
   Component: React.FC<TraceValueViewProps>;
+  itemKind?: "chunks" | "matches";
 };
 
 /**
@@ -53,28 +54,62 @@ const RENDERERS: Renderer[] = [
     Component: TextValue,
   },
   { id: "source", match: (value) => isSource(value), Component: SourceValue },
-  { id: "matches", match: (value) => isMatchList(value), Component: MatchListValue },
-  { id: "match-order", match: (value) => isMatchOrderArray(value), Component: MatchOrderValue },
+  {
+    id: "matches",
+    match: (value) => isMatchList(value),
+    Component: MatchListValue,
+    itemKind: "matches",
+  },
+  {
+    id: "match-order",
+    match: (value) => isMatchOrderArray(value),
+    Component: MatchOrderValue,
+    itemKind: "matches",
+  },
   {
     id: "embedding-summary",
     match: (value) => isEmbeddingSummary(value),
     Component: EmbeddingValue,
+    itemKind: "chunks",
   },
   {
     id: "embedding-preview",
     match: (value) => isEmbeddingPreview(value),
     Component: EmbeddingValue,
+    itemKind: "chunks",
   },
-  { id: "chunks", match: (value) => isChunkBatch(value), Component: ChunkListValue },
+  {
+    id: "chunks",
+    match: (value) => isChunkBatch(value),
+    Component: ChunkListValue,
+    itemKind: "chunks",
+  },
   { id: "key-value", match: (value) => isScalarRecord(value), Component: KeyValueView },
   { id: "scalar", match: (value) => isScalar(value), Component: ScalarValue },
 ];
 
+/** Return the item vocabulary a shape-aware renderer can augment from a sibling list. */
+export function traceValueItemKind(value: unknown, kind: string) {
+  return RENDERERS.find((entry) => entry.match(value, kind))?.itemKind;
+}
+
 /** Render a trace summary/payload value using the best-matching view. */
-export function TraceValueView({ value, kind, focusedItemId, onFocusItem }: TraceValueViewProps) {
+export function TraceValueView({
+  value,
+  kind,
+  focusedItemId,
+  onFocusItem,
+  itemList,
+}: TraceValueViewProps) {
   const renderer = RENDERERS.find((entry) => entry.match(value, kind));
   const Component = renderer?.Component ?? JsonValue;
   return (
-    <Component value={value} kind={kind} focusedItemId={focusedItemId} onFocusItem={onFocusItem} />
+    <Component
+      value={value}
+      kind={kind}
+      focusedItemId={focusedItemId}
+      onFocusItem={onFocusItem}
+      itemList={itemList}
+    />
   );
 }
