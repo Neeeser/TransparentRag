@@ -15,6 +15,7 @@ from sqlmodel import Session
 
 from app.db import models
 from app.db.repositories import (
+    ChunkRepository,
     DocumentRepository,
     PipelineRepository,
     PipelineRunRepository,
@@ -24,6 +25,7 @@ from app.db.repositories import (
 from app.pipelines.definition import PipelineDefinition
 from app.schemas.traces import (
     EndToEndTraceResponse,
+    FocusedItemRead,
     PipelineNodeIORead,
     PipelineNodeRunRead,
     PipelineRunRead,
@@ -47,6 +49,7 @@ class TraceService:
         self._pipelines = PipelineRepository(session)
         self._versions = PipelineVersionRepository(session)
         self._documents = DocumentRepository(session)
+        self._chunks = ChunkRepository(session)
         self._queries = QueryRepository(session)
 
     def get_run_trace(self, run_id: UUID, user_id: UUID) -> PipelineTraceResponse:
@@ -90,7 +93,41 @@ class TraceService:
         """
         retrieval = self.get_query_event_trace(query_event_id, user_id)
         origin = self._resolve_origin(chunk_id, user_id) if chunk_id else None
-        return EndToEndTraceResponse(retrieval=retrieval, origin=origin)
+        focused_item = self._resolve_focused_item(chunk_id, user_id) if chunk_id else None
+        return EndToEndTraceResponse(
+            retrieval=retrieval, origin=origin, focused_item=focused_item
+        )
+
+    def _resolve_focused_item(self, chunk_id: str, user_id: UUID) -> FocusedItemRead:
+        """Resolve a focused chunk id to its stored text and document context.
+
+        Always returns a payload: an id that no longer maps to a stored chunk
+        (deleted or re-ingested content, or an unexpected format) comes back
+        with `status="missing"` so the trace UI can say "text unavailable"
+        instead of failing the trace.
+        """
+        missing = FocusedItemRead(id=chunk_id, status="missing")
+        document_id_part, _, index_part = chunk_id.partition(":")
+        try:
+            document_id = UUID(document_id_part)
+            chunk_index = int(index_part)
+        except ValueError:
+            return missing
+        document = self._documents.get_for_user(document_id, user_id)
+        if not document:
+            return missing
+        chunk = self._chunks.get_by_index(document.id, chunk_index)
+        if not chunk:
+            return missing
+        return FocusedItemRead(
+            id=chunk_id,
+            status="resolved",
+            text=chunk.text,
+            document_id=document.id,
+            filename=document.name,
+            chunk_index=chunk.chunk_index,
+            chunk_count=document.num_chunks,
+        )
 
     def _resolve_origin(self, chunk_id: str, user_id: UUID) -> TraceOriginRead | None:
         """Resolve a chunk id back to its document's ingestion trace."""

@@ -83,6 +83,16 @@ class ChunkRepository(Repository):
         """Return a chunk by id if one exists."""
         return self.session.get(models.DocumentChunkRecord, chunk_id)
 
+    def get_by_index(
+        self, document_id: UUID, chunk_index: int
+    ) -> models.DocumentChunkRecord | None:
+        """Return the chunk stored at a position within a document, if any."""
+        statement = select(models.DocumentChunkRecord).where(
+            models.DocumentChunkRecord.document_id == document_id,
+            models.DocumentChunkRecord.chunk_index == chunk_index,
+        )
+        return self.session.exec(statement).first()
+
     def list_for_document(self, document_id: UUID) -> list[models.DocumentChunkRecord]:
         """List chunks belonging to a document."""
         statement = select(models.DocumentChunkRecord).where(

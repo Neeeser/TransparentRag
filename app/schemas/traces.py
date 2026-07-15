@@ -112,12 +112,32 @@ class TraceOriginRead(BaseModel):
     trace: PipelineTraceResponse
 
 
+class FocusedItemRead(BaseModel):
+    """The concrete chunk behind a focused trace item.
+
+    Trace identity lists carry only ids and scores; this is the live lookup
+    that gives the focused result its text and document context. `status` is
+    "missing" when the chunk id no longer resolves (deleted or re-ingested
+    content) -- the journey still renders from the recorded lists.
+    """
+
+    id: str
+    status: Literal["resolved", "missing"]
+    text: str | None = None
+    document_id: UUID | None = None
+    filename: str | None = None
+    chunk_index: int | None = None
+    chunk_count: int | None = None
+
+
 class EndToEndTraceResponse(BaseModel):
     """A retrieval trace joined with the origin ingestion trace.
 
     `origin` is None when the source document (or its ingestion run) can't be
-    resolved -- the retrieval trace still stands on its own.
+    resolved -- the retrieval trace still stands on its own. `focused_item`
+    is populated whenever a chunk id was requested, resolved or not.
     """
 
     retrieval: PipelineTraceResponse
     origin: TraceOriginRead | None = None
+    focused_item: FocusedItemRead | None = None

@@ -458,6 +458,93 @@ def test_end_to_end_trace_degrades_gracefully_without_origin(session: Session) -
     )
 
 
+def test_end_to_end_trace_resolves_focused_item_text(session: Session) -> None:
+    """Tracing a chunk returns its stored text and document context so the
+    focused trace view can show what result is being followed, not just an id."""
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    pipeline = _create_pipeline(session, user)
+    ingestion_run = _create_run(session, user, pipeline, collection)
+    retrieval_run = _create_run(session, user, pipeline, collection)
+    document = _create_document_with_run(session, user, collection, ingestion_run)
+    document.num_chunks = 3
+    session.add(document)
+    session.add(
+        models.DocumentChunkRecord(
+            document_id=document.id,
+            collection_id=collection.id,
+            chunk_index=1,
+            text="Reciprocal rank fusion combines ranked lists.",
+            embedding=[],
+            chunk_metadata={},
+            embedding_model="embed-model",
+        )
+    )
+    session.commit()
+    event = _create_query_event(session, user, collection, retrieval_run)
+
+    response = TraceService(session).get_query_event_end_to_end_trace(
+        event.id, user.id, chunk_id=f"{document.id}:1"
+    )
+
+    focused = response.focused_item
+    assert focused is not None
+    assert focused.status == "resolved"
+    assert focused.text == "Reciprocal rank fusion combines ranked lists."
+    assert focused.document_id == document.id
+    assert focused.filename == "handbook.txt"
+    assert focused.chunk_index == 1
+    assert focused.chunk_count == 3
+
+
+def test_end_to_end_trace_focused_item_missing_cases(session: Session) -> None:
+    """A malformed, deleted, or foreign chunk id yields status="missing" with
+    the id echoed back -- never a failure of the retrieval trace itself."""
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    pipeline = _create_pipeline(session, user)
+    retrieval_run = _create_run(session, user, pipeline, collection)
+    event = _create_query_event(session, user, collection, retrieval_run)
+    service = TraceService(session)
+
+    # No chunk requested: no focused item at all.
+    assert service.get_query_event_end_to_end_trace(event.id, user.id).focused_item is None
+
+    for chunk_id in ("not-a-uuid:0", f"{uuid4()}:0", f"{uuid4()}:not-an-int"):
+        focused = service.get_query_event_end_to_end_trace(
+            event.id, user.id, chunk_id=chunk_id
+        ).focused_item
+        assert focused is not None
+        assert focused.status == "missing"
+        assert focused.id == chunk_id
+        assert focused.text is None
+
+    # A chunk owned by someone else must not leak text through the lookup.
+    other_user = _create_user(session)
+    other_collection = _create_collection(session, other_user)
+    other_pipeline = _create_pipeline(session, other_user)
+    other_run = _create_run(session, other_user, other_pipeline, other_collection)
+    foreign_document = _create_document_with_run(session, other_user, other_collection, other_run)
+    session.add(
+        models.DocumentChunkRecord(
+            document_id=foreign_document.id,
+            collection_id=other_collection.id,
+            chunk_index=0,
+            text="secret",
+            embedding=[],
+            chunk_metadata={},
+            embedding_model="embed-model",
+        )
+    )
+    session.commit()
+    focused = service.get_query_event_end_to_end_trace(
+        event.id, user.id, chunk_id=f"{foreign_document.id}:0"
+    ).focused_item
+    assert focused is not None
+    assert focused.status == "missing"
+    assert focused.text is None
+
+
 def test_end_to_end_trace_route_translates_missing_event(session: Session) -> None:
     user = _create_user(session)
 
