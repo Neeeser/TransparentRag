@@ -4,6 +4,7 @@ import {
   isChunkBatch,
   isEmbeddingPreview,
   isEmbeddingSummary,
+  isItemListTrace,
   isMatchList,
   isMatchOrderArray,
   isScalar,
@@ -14,6 +15,7 @@ import {
 import {
   ChunkListValue,
   EmbeddingValue,
+  ItemListValue,
   JsonValue,
   KeyValueView,
   MatchListValue,
@@ -36,8 +38,15 @@ type Renderer = {
  * a `{ match, Component }` pair added here — nothing else in the trace viewer
  * needs to change. Matching is by value shape (guards) with `kind` as a hint,
  * so a summarizer that emits a known shape gets its pretty view for free.
+ * Item-capable renderers receive the optional focus contract so identity stays
+ * visible without adding node-type conditionals at the debugger level.
  */
 const RENDERERS: Renderer[] = [
+  {
+    id: "items",
+    match: (value, kind) => kind === "items" && isItemListTrace(value),
+    Component: ItemListValue,
+  },
   {
     id: "text",
     match: (value, kind) => (kind === "text" && typeof value === "string") || isTextSummary(value),
@@ -62,8 +71,10 @@ const RENDERERS: Renderer[] = [
 ];
 
 /** Render a trace summary/payload value using the best-matching view. */
-export function TraceValueView({ value, kind, highlightChunkId }: TraceValueViewProps) {
+export function TraceValueView({ value, kind, focusedItemId, onFocusItem }: TraceValueViewProps) {
   const renderer = RENDERERS.find((entry) => entry.match(value, kind));
   const Component = renderer?.Component ?? JsonValue;
-  return <Component value={value} kind={kind} highlightChunkId={highlightChunkId} />;
+  return (
+    <Component value={value} kind={kind} focusedItemId={focusedItemId} onFocusItem={onFocusItem} />
+  );
 }

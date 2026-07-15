@@ -49,7 +49,8 @@ function InspectorStatusLine({
 
 type InspectorPanelProps = {
   step: TraceStep | null;
-  highlightChunkId?: string | null;
+  focusedItemId?: string | null;
+  onFocusItem?: (itemId: string) => void;
 };
 
 /**
@@ -57,7 +58,7 @@ type InspectorPanelProps = {
  * front and center) above its inputs/outputs variables trees. Keyed remounts
  * (by the parent) reset row expansion when the step changes.
  */
-export function InspectorPanel({ step, highlightChunkId }: InspectorPanelProps) {
+export function InspectorPanel({ step, focusedItemId, onFocusItem }: InspectorPanelProps) {
   const run = step?.run ?? null;
   const summary = run?.summary ?? { inputs: [], outputs: [] };
   const errorMessage = run?.status === "failed" ? run.error_message : null;
@@ -76,7 +77,8 @@ export function InspectorPanel({ step, highlightChunkId }: InspectorPanelProps) 
           tone="cyan"
           summaryItems={summary.inputs}
           ioRecords={step?.io.inputs ?? []}
-          highlightChunkId={highlightChunkId}
+          focusedItemId={focusedItemId}
+          onFocusItem={onFocusItem}
           emptySummaryLabel="No inputs recorded."
         />
         <VariablesTree
@@ -84,7 +86,8 @@ export function InspectorPanel({ step, highlightChunkId }: InspectorPanelProps) 
           tone="violet"
           summaryItems={summary.outputs}
           ioRecords={step?.io.outputs ?? []}
-          highlightChunkId={highlightChunkId}
+          focusedItemId={focusedItemId}
+          onFocusItem={onFocusItem}
           emptySummaryLabel="No outputs recorded."
         />
       </div>

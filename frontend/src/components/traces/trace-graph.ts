@@ -128,9 +128,42 @@ const offsetY = (graph: StageGraph, dy: number): StageGraph => ({
   })),
 });
 
-/** The indexer node in an ingestion graph / retriever node in a retrieval graph. */
-const findByPrefix = (nodes: Node<PipelineNodeData>[], typePrefix: string) =>
-  nodes.find((node) => node.data.nodeType.startsWith(typePrefix));
+type IndexTarget = {
+  key: string;
+  indexName: string;
+  backend?: string;
+  indexers: Node<PipelineNodeData>[];
+  retrievers: Node<PipelineNodeData>[];
+};
+
+const nodeIndexTarget = (node: Node<PipelineNodeData>) => {
+  const indexName = (node.data.config.index_name as string | undefined) ?? "index";
+  const backend = node.data.config.backend as string | undefined;
+  return { key: `${backend ?? ""}:${indexName}`, indexName, backend };
+};
+
+/** Pair every compatible ingestion indexer and retrieval branch by index target. */
+const collectIndexTargets = (
+  originNodes: Node<PipelineNodeData>[],
+  retrievalNodes: Node<PipelineNodeData>[],
+): IndexTarget[] => {
+  const targets = new Map<string, IndexTarget>();
+  const add = (node: Node<PipelineNodeData>, side: "indexers" | "retrievers") => {
+    const target = nodeIndexTarget(node);
+    const entry = targets.get(target.key) ?? { ...target, indexers: [], retrievers: [] };
+    entry[side].push(node);
+    targets.set(target.key, entry);
+  };
+  originNodes
+    .filter((node) => node.data.nodeType.startsWith("indexer."))
+    .forEach((node) => add(node, "indexers"));
+  retrievalNodes
+    .filter((node) => node.data.nodeType.startsWith("retriever."))
+    .forEach((node) => add(node, "retrievers"));
+  return [...targets.values()].filter(
+    (target) => target.indexers.length > 0 && target.retrievers.length > 0,
+  );
+};
 
 /**
  * Build the playback graph for a trace. With `origin`, ingestion and retrieval
@@ -174,56 +207,57 @@ export const buildTraceGraph = (
   // The two pipelines stay fully isolated -- no node-to-node wire between
   // them. They meet only at the shared index, drawn as a datastore in the gap
   // that ingestion writes into and retrieval reads from.
-  const indexer = findByPrefix(originStage.nodes, "indexer.");
-  const retriever = findByPrefix(retrievalStage.nodes, "retriever.");
-  if (indexer && retriever) {
-    const indexName =
-      (indexer.data.config.index_name as string | undefined) ??
-      (retriever.data.config.index_name as string | undefined) ??
-      "index";
-    const backend =
-      (indexer.data.config.backend as string | undefined) ??
-      (retriever.data.config.backend as string | undefined);
+  const indexTargets = collectIndexTargets(originStage.nodes, retrievalStage.nodes);
+  indexTargets.forEach((target, targetIndex) => {
+    const storeId =
+      indexTargets.length === 1 ? INDEX_STORE_NODE_ID : `${INDEX_STORE_NODE_ID}:${targetIndex + 1}`;
+    const endpoints = [...target.indexers, ...target.retrievers];
     const storeNode = {
-      id: INDEX_STORE_NODE_ID,
+      id: storeId,
       type: "indexStore",
       position: {
-        // Centered horizontally between the two nodes it links, and vertically
-        // in the cleared gap between the bands.
-        x: (indexer.position.x + retriever.position.x) / 2,
+        x: endpoints.reduce((sum, node) => sum + node.position.x, 0) / endpoints.length,
         y: originBottom + BAND_GAP_Y / 2 - 40,
       },
       draggable: false,
       selectable: false,
-      data: { indexName, backend },
+      data: { indexName: target.indexName, backend: target.backend },
       // The store carries IndexStoreNodeData, not PipelineNodeData; ReactFlow
       // dispatches rendering by `type`, so the heterogeneous array is safe at
       // runtime (same pattern as the editor's drop-preview node).
     } as unknown as Node<PipelineNodeData>;
     nodes.push(storeNode);
-    edges.push(
-      {
-        id: "index::write",
+    target.indexers.forEach((indexer, endpointIndex) => {
+      edges.push({
+        id:
+          indexTargets.length === 1 && target.indexers.length === 1
+            ? "index::write"
+            : `index::write:${targetIndex + 1}:${endpointIndex + 1}`,
         source: indexer.id,
         sourceHandle: indexer.data.outputs[0]?.key,
-        target: INDEX_STORE_NODE_ID,
+        target: storeId,
         targetHandle: "write",
         type: "typed",
         data: { dataType: "indexed_batch", visited: true },
         style: { strokeDasharray: "6 5" },
-      },
-      {
-        id: "index::read",
-        source: INDEX_STORE_NODE_ID,
+      });
+    });
+    target.retrievers.forEach((retriever, endpointIndex) => {
+      edges.push({
+        id:
+          indexTargets.length === 1 && target.retrievers.length === 1
+            ? "index::read"
+            : `index::read:${targetIndex + 1}:${endpointIndex + 1}`,
+        source: storeId,
         sourceHandle: "read",
         target: retriever.id,
         targetHandle: retriever.data.inputs[0]?.key,
         type: "typed",
         data: { dataType: "indexed_batch", visited: true },
         style: { strokeDasharray: "6 5" },
-      },
-    );
-  }
+      });
+    });
+  });
 
   return {
     nodes,

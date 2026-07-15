@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TraceDebugger } from "@/components/traces/debugger/TraceDebugger";
@@ -8,13 +8,16 @@ import { makeNodeRunTrace, makeTraceResponse } from "@/test/fixtures";
 import type { PipelineTraceResponse } from "@/lib/types";
 
 const routerBack = vi.fn();
+const routerReplace = vi.fn();
+const RESULT_JOURNEY_LABEL = "Result journey";
+const CHUNK_ITEMS_LABEL = "Chunk items";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 vi.mock("@/providers/auth-provider", async () =>
   (await import("@/test/mocks")).mockAuth({ token: "test-token" }),
 );
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ back: routerBack, push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ back: routerBack, push: vi.fn(), replace: routerReplace }),
 }));
 
 let lastReactFlowProps: Record<string, unknown> | null = null;
@@ -59,7 +62,22 @@ function makeTwoNodeTrace(overrides: Partial<PipelineTraceResponse> = {}): Pipel
         sequence_index: 0,
         summary: {
           inputs: [{ label: "Source", value: "file.pdf", kind: "text" }],
-          outputs: [],
+          outputs: [
+            {
+              label: "Chunks",
+              value: {
+                count: 1,
+                samples: [{ chunk_id: "chunk-7", order: 7, preview: "focused chunk" }],
+                document_id: "doc-1",
+              },
+              kind: "json",
+            },
+            {
+              label: CHUNK_ITEMS_LABEL,
+              value: { kind: "chunks", items: [{ id: "chunk-7", score: null }] },
+              kind: "items",
+            },
+          ],
         },
       }),
       makeNodeRunTrace({
@@ -69,8 +87,21 @@ function makeTwoNodeTrace(overrides: Partial<PipelineTraceResponse> = {}): Pipel
         node_name: "Chunk",
         sequence_index: 1,
         summary: {
-          inputs: [],
-          outputs: [{ label: "Chunks", value: "42 chunks", kind: "text" }],
+          inputs: [
+            {
+              label: CHUNK_ITEMS_LABEL,
+              value: { kind: "chunks", items: [{ id: "chunk-7", score: null }] },
+              kind: "items",
+            },
+          ],
+          outputs: [
+            { label: "Chunks", value: "42 chunks", kind: "text" },
+            {
+              label: "Embedded items",
+              value: { kind: "chunks", items: [{ id: "chunk-7", score: null }] },
+              kind: "items",
+            },
+          ],
         },
       }),
     ],
@@ -81,6 +112,7 @@ function makeTwoNodeTrace(overrides: Partial<PipelineTraceResponse> = {}): Pipel
 describe("TraceDebugger", () => {
   beforeEach(() => {
     lastReactFlowProps = null;
+    routerReplace.mockReset();
   });
 
   it("shows the error state with a way back when the trace cannot load", async () => {
@@ -103,6 +135,8 @@ describe("TraceDebugger", () => {
     expect(screen.getByRole("region", { name: "Node inspector" })).toBeInTheDocument();
     // Starts on the first step: its summary values render in the inspector.
     expect(screen.getByText("file.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: RESULT_JOURNEY_LABEL })).not.toBeInTheDocument();
+    expect(screen.queryByText(CHUNK_ITEMS_LABEL)).not.toBeInTheDocument();
   });
 
   it("keeps the inspector in lockstep with a rail jump", async () => {
@@ -111,7 +145,8 @@ describe("TraceDebugger", () => {
     render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
     await waitFor(() => expect(screen.getByTestId("reactflow")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: /Chunk/ }));
+    const stepRail = screen.getByRole("navigation", { name: "Trace steps" });
+    fireEvent.click(within(stepRail).getByRole("button", { name: /Chunk/ }));
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
     expect(screen.queryByText("file.pdf")).not.toBeInTheDocument();
   });
@@ -145,7 +180,7 @@ describe("TraceDebugger", () => {
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
   });
 
-  it("shows the traced chunk badge when a chunk is targeted", async () => {
+  it("seeds focus from a chunk deep link and tints its graph path", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTwoNodeTrace(),
       origin: null,
@@ -153,7 +188,40 @@ describe("TraceDebugger", () => {
 
     render(<TraceDebugger source={{ kind: "query", id: "qe-1", chunkId: "chunk-7" }} />);
 
-    await waitFor(() => expect(screen.getByText(/chunk-7/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Clear focused item" })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("region", { name: RESULT_JOURNEY_LABEL })).toBeInTheDocument();
+
+    const nodes = lastReactFlowProps?.nodes as Array<{
+      id: string;
+      data: { itemFocus?: string };
+    }>;
+    const edges = lastReactFlowProps?.edges as Array<{
+      id: string;
+      data: { itemFocus?: string };
+    }>;
+    expect(nodes.find((node) => node.id === "n1")?.data.itemFocus).toBe("traveled");
+    expect(nodes.find((node) => node.id === "n2")?.data.itemFocus).toBe("traveled");
+    expect(edges.find((edge) => edge.id === "e1")?.data.itemFocus).toBe("traveled");
+  });
+
+  it("focuses an inspector item, seeks from its journey, and clears focus", async () => {
+    api.fetchPipelineRunTrace.mockResolvedValueOnce(makeTwoNodeTrace());
+
+    render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
+    await waitFor(() => expect(screen.getByTestId("reactflow")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Focus item chunk-7" }));
+    expect(screen.getByRole("region", { name: RESULT_JOURNEY_LABEL })).toBeInTheDocument();
+    expect(routerReplace).toHaveBeenCalledWith("/traces/runs/run-1?chunk=chunk-7");
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to Chunk" }));
+    expect(screen.getByText("42 chunks")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear focused item" }));
+    expect(screen.queryByRole("region", { name: RESULT_JOURNEY_LABEL })).not.toBeInTheDocument();
+    expect(routerReplace).toHaveBeenLastCalledWith("/traces/runs/run-1");
   });
 
   it("offers a refresh for a still-running trace and refetches on click", async () => {

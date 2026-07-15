@@ -1,12 +1,11 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { TraceValueView } from "@/components/traces/values/TraceValueView";
 
 /** Render a value and return the container for shape assertions. */
-const view = (value: unknown, kind = "json", highlightChunkId?: string) =>
-  render(<TraceValueView value={value} kind={kind} highlightChunkId={highlightChunkId} />)
-    .container;
+const view = (value: unknown, kind = "json", focusedItemId?: string) =>
+  render(<TraceValueView value={value} kind={kind} focusedItemId={focusedItemId} />).container;
 
 describe("TraceValueView registry", () => {
   it("renders text summaries as prose with a length chip", () => {
@@ -62,6 +61,33 @@ describe("TraceValueView registry", () => {
     });
     expect(screen.getByText("5 chunks")).toBeInTheDocument();
     expect(screen.getByText("First chunk text")).toBeInTheDocument();
+  });
+
+  it("pins a focused full-list item with its original rank and score", () => {
+    const onFocusItem = vi.fn();
+    render(
+      <TraceValueView
+        kind="items"
+        value={{
+          kind: "matches",
+          items: Array.from({ length: 10 }, (_, index) => ({
+            id: `c-${index + 1}`,
+            score: 1 - index / 10,
+          })),
+        }}
+        focusedItemId="c-9"
+        onFocusItem={onFocusItem}
+      />,
+    );
+
+    const rows = screen.getAllByRole("button", { name: /Focus item/ });
+    expect(rows[0]).toHaveAccessibleName("Focus item c-9");
+    expect(screen.getByText("#9")).toBeInTheDocument();
+    expect(screen.getByText("0.200")).toBeInTheDocument();
+    expect(rows[0]).toHaveAttribute("data-focused", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Focus item c-4" }));
+    expect(onFocusItem).toHaveBeenCalledWith("c-4");
   });
 
   it("renders a scalar record as labelled fields", () => {

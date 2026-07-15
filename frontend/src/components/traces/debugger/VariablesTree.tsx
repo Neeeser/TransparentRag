@@ -72,7 +72,8 @@ type VariablesTreeProps = {
   tone: Tone;
   summaryItems: PipelineNodeSummaryValue[];
   ioRecords: PipelineNodeIOTrace[];
-  highlightChunkId?: string | null;
+  focusedItemId?: string | null;
+  onFocusItem?: (itemId: string) => void;
   emptySummaryLabel: string;
 };
 
@@ -86,22 +87,26 @@ export function VariablesTree({
   tone,
   summaryItems,
   ioRecords,
-  highlightChunkId,
+  focusedItemId,
+  onFocusItem,
   emptySummaryLabel,
 }: VariablesTreeProps) {
   const highlights = (value: unknown) =>
-    Boolean(highlightChunkId) && containsChunkId(value, highlightChunkId ?? "");
+    Boolean(focusedItemId) && containsChunkId(value, focusedItemId ?? "");
+  const visibleSummaryItems = focusedItemId
+    ? summaryItems
+    : summaryItems.filter((item) => item.kind !== "items");
 
   return (
     <div className="min-w-0 space-y-2">
       <p className={cn("font-mono text-[11px] uppercase tracking-[0.28em]", TONE_TITLE[tone])}>
         {title}
       </p>
-      {summaryItems.length === 0 && ioRecords.length === 0 ? (
+      {visibleSummaryItems.length === 0 && ioRecords.length === 0 ? (
         <p className="text-xs text-muted">{emptySummaryLabel}</p>
       ) : (
         <>
-          {summaryItems.map((item, index) => (
+          {visibleSummaryItems.map((item, index) => (
             <VariableRow
               key={`${item.label}-${index}`}
               label={item.label}
@@ -111,7 +116,8 @@ export function VariablesTree({
               <TraceValueView
                 value={item.value}
                 kind={item.kind ?? "json"}
-                highlightChunkId={highlightChunkId}
+                focusedItemId={focusedItemId}
+                onFocusItem={onFocusItem}
               />
             </VariableRow>
           ))}
@@ -125,7 +131,8 @@ export function VariablesTree({
               <TraceValueView
                 value={record.payload}
                 kind="json"
-                highlightChunkId={highlightChunkId}
+                focusedItemId={focusedItemId}
+                onFocusItem={onFocusItem}
               />
             </VariableRow>
           ))}

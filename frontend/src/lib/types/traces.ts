@@ -43,7 +43,17 @@ export interface PipelineNodeRunTrace {
 export interface PipelineNodeSummaryValue {
   label: string;
   value: unknown;
-  kind?: string;
+  kind?: "json" | "text" | "embedding" | "items";
+}
+
+export interface ItemRef {
+  id: string;
+  score?: number | null;
+}
+
+export interface ItemListTrace {
+  kind: "chunks" | "matches";
+  items: ItemRef[];
 }
 
 export interface PipelineNodeSummary {

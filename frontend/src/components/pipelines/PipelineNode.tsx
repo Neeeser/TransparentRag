@@ -49,6 +49,8 @@ export type PipelineNodeData = {
   config: Record<string, unknown>;
   configSchema?: Record<string, unknown>;
   status?: PipelineRunStatus;
+  /** Trace debugger result focus; absent outside focused trace playback. */
+  itemFocus?: "traveled" | "absent";
   active?: boolean;
   connecting?: ConnectingContext | null;
   errors?: string[];
@@ -178,6 +180,8 @@ export function PipelineNode({ id, data, selected }: NodeProps<Node<PipelineNode
         familyStyles.glow,
         selected && "ring-2 ring-accent-violet/70",
         active && "ring-2 ring-accent-cyan/80",
+        data.itemFocus === "traveled" && "border-accent-cyan/70",
+        data.itemFocus === "absent" && "opacity-30",
         hasErrors && "border-data-neg/60",
         dimWholeNode && "opacity-40",
       )}

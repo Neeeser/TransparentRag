@@ -10,6 +10,7 @@ const INPUTS_TITLE = "Inputs";
 const NO_INPUTS_LABEL = "No primary inputs recorded.";
 const HELLO_VALUE = "hello world";
 const ARIA_EXPANDED = "aria-expanded";
+const MATCH_ITEMS_LABEL = "Match items";
 
 function makeIO(overrides: Partial<PipelineNodeIOTrace> = {}): PipelineNodeIOTrace {
   return {
@@ -88,11 +89,46 @@ describe("VariablesTree", () => {
         tone="cyan"
         summaryItems={[{ label: "Chunk", value: { chunk_id: "chunk-1" }, kind: "json" }]}
         ioRecords={[]}
-        highlightChunkId="chunk-1"
+        focusedItemId="chunk-1"
         emptySummaryLabel={NO_INPUTS_LABEL}
       />,
     );
 
     expect(screen.getByTestId("variable-row-Chunk")).toHaveAttribute("data-highlighted", "true");
+  });
+
+  it("keeps identity-only summaries out of the unfocused run view", () => {
+    const summaryItems = [
+      { label: "Matches", value: "preview", kind: "text" as const },
+      {
+        label: MATCH_ITEMS_LABEL,
+        value: { kind: "matches", items: [{ id: "chunk-1", score: 0.8 }] },
+        kind: "items" as const,
+      },
+    ];
+    const { rerender } = render(
+      <VariablesTree
+        title={INPUTS_TITLE}
+        tone="cyan"
+        summaryItems={summaryItems}
+        ioRecords={[]}
+        emptySummaryLabel={NO_INPUTS_LABEL}
+      />,
+    );
+
+    expect(screen.getByText("preview")).toBeInTheDocument();
+    expect(screen.queryByText(MATCH_ITEMS_LABEL)).not.toBeInTheDocument();
+
+    rerender(
+      <VariablesTree
+        title={INPUTS_TITLE}
+        tone="cyan"
+        summaryItems={summaryItems}
+        ioRecords={[]}
+        focusedItemId="chunk-1"
+        emptySummaryLabel={NO_INPUTS_LABEL}
+      />,
+    );
+    expect(screen.getByText(MATCH_ITEMS_LABEL)).toBeInTheDocument();
   });
 });

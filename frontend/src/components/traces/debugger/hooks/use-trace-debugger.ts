@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { buildTraceGraph } from "@/components/traces/trace-graph";
 import {
@@ -28,6 +28,11 @@ type LoadedTrace = {
   origin: PipelineTraceResponse | null;
 };
 
+type FocusState = {
+  sourceKey: string;
+  itemId: string | null;
+};
+
 export type UseTraceDebuggerResult = {
   graph: TraceGraph | null;
   trace: PipelineTraceResponse | null;
@@ -35,6 +40,9 @@ export type UseTraceDebuggerResult = {
   loading: boolean;
   error: string | null;
   reload: () => void;
+  focusedItemId: string | null;
+  focusItem: (itemId: string) => void;
+  clearFocus: () => void;
   /** Non-blocking: node specs enrich the graph but the trace renders without them. */
   specsNotice: string | null;
 };
@@ -62,10 +70,18 @@ async function loadTrace(token: string, source: TraceSource): Promise<LoadedTrac
  */
 export function useTraceDebugger(source: TraceSource): UseTraceDebuggerResult {
   const { token } = useAuth();
+  const sourceKey = `${source.kind}:${source.id}:${source.chunkId ?? ""}`;
+  const [focusState, setFocusState] = useState<FocusState>({
+    sourceKey,
+    itemId: source.chunkId,
+  });
+  const focusedItemId = focusState.sourceKey === sourceKey ? focusState.itemId : source.chunkId;
+  const traceChunkId = source.kind === "query" ? (source.chunkId ?? focusedItemId) : source.chunkId;
+  const traceSource = { ...source, chunkId: traceChunkId };
 
   const traceQuery = useApiQuery(
-    () => loadTrace(token ?? "", source),
-    [token, source.kind, source.id, source.chunkId],
+    () => loadTrace(token ?? "", traceSource),
+    [token, source.kind, source.id, traceChunkId],
     { enabled: Boolean(token) },
   );
   const specsQuery = useApiQuery(() => fetchPipelineNodes(token ?? ""), [token], {
@@ -86,6 +102,9 @@ export function useTraceDebugger(source: TraceSource): UseTraceDebuggerResult {
     loading: traceQuery.loading || specsQuery.loading,
     error: traceQuery.error,
     reload: traceQuery.reload,
+    focusedItemId,
+    focusItem: (itemId) => setFocusState({ sourceKey, itemId }),
+    clearFocus: () => setFocusState({ sourceKey, itemId: null }),
     specsNotice: specsQuery.error
       ? "Node details are unavailable right now; showing the trace without them."
       : null,
