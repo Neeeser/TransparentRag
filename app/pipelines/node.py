@@ -47,6 +47,12 @@ class PipelineValidationIssue(BaseModel):
 
     message: str
     severity: Literal["error", "warning"] = "error"
+    code: str | None = None
+    node_id: str | None = None
+    field: str | None = None
+    configured_value: str | int | float | bool | None = None
+    model: str | None = None
+    allowed_max: int | None = None
 
 
 class EmptyConfig(BaseModel):

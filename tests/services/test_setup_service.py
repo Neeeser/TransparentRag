@@ -109,13 +109,22 @@ def test_status_complete_when_providers_index_and_collection_exist(
 
 def test_bootstrap_creates_default_pipelines_and_first_collection(
     pgvector_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = pgvector_session
     user = _create_user(session)
     connection = add_openrouter_connection(session, user)
     _create_pgvector_index(session, user)
 
-    collection = SetupService(session).bootstrap(user, _bootstrap_request(connection))
+    monkeypatch.setattr(
+        "app.providers.openrouter.OpenRouterAdapter.embedding_input_limit",
+        lambda _adapter, _model: 512,
+    )
+    result = SetupService(session).bootstrap(user, _bootstrap_request(connection))
+    collection = result.collection
+
+    assert result.warnings
+    assert result.warnings[0].severity == "warning"
 
     with Session(session.get_bind()) as fresh:
         pipelines = fresh.exec(select(models.Pipeline)).all()

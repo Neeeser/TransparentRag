@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PipelineBuilder } from "@/components/pipelines/PipelineBuilder";
 import * as apiModule from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 import {
   makeCollection,
   makeNodeSpec,
@@ -258,6 +259,12 @@ vi.mock("@/components/pipelines/CreatePipelineWizard", () => ({
               created_at: baseTimestamp,
               updated_at: baseTimestamp,
               definition: { nodes: [], edges: [] },
+              validation_issues: [
+                {
+                  message: "Chunking may exceed the model limit.",
+                  severity: "warning",
+                },
+              ],
             })
           }
         >
@@ -362,7 +369,7 @@ describe("PipelineBuilder", () => {
     });
     api.listIndexes.mockResolvedValue([]);
     api.listPipelineVersions.mockResolvedValue([makePipelineVersion({ id: "v1" })]);
-    api.validatePipeline.mockResolvedValue({ valid: true, errors: [], warnings: [] });
+    api.validatePipeline.mockResolvedValue({ valid: true, errors: [], warnings: [], issues: [] });
     api.updatePipeline.mockResolvedValue(pipeline);
     api.activatePipelineVersion.mockResolvedValue(pipeline);
 
@@ -382,6 +389,9 @@ describe("PipelineBuilder", () => {
     fireEvent.click(screen.getByRole("button", { name: "Finish create" }));
 
     expect(screen.getByRole("button", { name: "Select pipeline" })).toBeInTheDocument();
+    expect(screen.getByTestId("canvas")).toHaveTextContent(
+      "Pipeline created with warnings: Chunking may exceed the model limit.",
+    );
   });
 
   it("handles connect, save, and delete logic", async () => {
@@ -420,7 +430,12 @@ describe("PipelineBuilder", () => {
 
   it("handles validation errors and activation", async () => {
     io.validatePipelineConfig.mockReturnValue({ nodeErrors: { "node-1": ["Missing"] } });
-    api.validatePipeline.mockResolvedValueOnce({ valid: false, errors: ["Bad"], warnings: [] });
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: false,
+      errors: ["Bad"],
+      warnings: [],
+      issues: [],
+    });
 
     render(<PipelineBuilder kind="ingestion" />);
 
@@ -460,27 +475,58 @@ describe("PipelineBuilder", () => {
       valid: true,
       errors: [],
       warnings: ["Be careful"],
+      issues: [],
     });
-    api.updatePipeline.mockResolvedValueOnce(pipeline);
+    const returnedIssue = {
+      message: "Chunk size is above the selected model limit.",
+      severity: "warning" as const,
+      node_id: "node-1",
+      field: "chunk_size",
+    };
+    api.updatePipeline.mockResolvedValueOnce({
+      ...pipeline,
+      validation_issues: [returnedIssue],
+    });
 
     render(<PipelineBuilder kind="ingestion" />);
 
     await waitFor(() => expect(lastCanvasProps).not.toBeNull());
+    await waitFor(() =>
+      expect((lastCanvasProps?.nodes as unknown[] | undefined)?.length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getByRole("button", { name: selectNodeLabel }));
 
     fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
     fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
     await waitFor(() => {
       expect(api.updatePipeline).toHaveBeenCalled();
       expect(screen.getByTestId("canvas")).toHaveTextContent("Saved as v1. Warnings: Be careful");
+      expect(lastDrawerProps?.validationIssues).toEqual([returnedIssue]);
     });
 
-    api.validatePipeline.mockResolvedValueOnce({ valid: true, errors: [], warnings: [] });
-    api.updatePipeline.mockRejectedValueOnce("Save failed");
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: true,
+      errors: [],
+      warnings: [],
+      issues: [],
+    });
+    const staleIssue = {
+      message: "Selected model is no longer available.",
+      severity: "error" as const,
+      node_id: "node-1",
+      field: "model_name",
+    };
+    api.updatePipeline.mockRejectedValueOnce(
+      new ApiError(400, staleIssue.message, { errors: [staleIssue.message], issues: [staleIssue] }),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
     fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
     await waitFor(() => {
-      expect(screen.getByTestId("canvas")).toHaveTextContent("Unable to save pipeline.");
+      expect(screen.getByTestId("canvas")).toHaveTextContent(staleIssue.message);
+      expect(
+        (lastCanvasProps?.nodes as Array<{ data: { errors?: string[] } }>)[0]?.data.errors,
+      ).toContain(staleIssue.message);
     });
   });
 

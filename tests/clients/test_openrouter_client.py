@@ -324,6 +324,53 @@ def test_list_embedding_models_caches_and_refreshes(client: OpenRouterClient) ->
     assert client._http.get_calls.count("/embeddings/models") == 2
 
 
+def test_list_embedding_model_metadata_preserves_limits_without_dimension_probes(
+    client: OpenRouterClient,
+) -> None:
+    _StubHttpClient.responses = {
+        "/embeddings/models": [
+            {
+                "data": [
+                    {
+                        "id": "sentence-transformers/all-minilm-l6-v2",
+                        "name": "all-MiniLM-L6-v2",
+                        "context_length": 8192,
+                        "top_provider": {"context_length": 512},
+                    }
+                ]
+            }
+        ],
+    }
+
+    models = client.list_embedding_model_metadata()
+
+    assert models.value[0].context_length == 8192
+    assert models.value[0].max_input_tokens == 512
+    assert client._client.embeddings.calls == []
+
+
+def test_embedding_metadata_never_falls_back_to_top_level_context_length(
+    client: OpenRouterClient,
+) -> None:
+    _StubHttpClient.responses = {
+        "/embeddings/models": [
+            {
+                "data": [
+                    {
+                        "id": "sentence-transformers/all-minilm-l6-v2",
+                        "name": "all-MiniLM-L6-v2",
+                        "context_length": 8192,
+                    }
+                ]
+            }
+        ],
+    }
+
+    models = client.list_embedding_model_metadata()
+
+    assert models.value[0].max_input_tokens is None
+
+
 def test_list_embedding_models_handles_invalid_payload(client: OpenRouterClient) -> None:
     _StubHttpClient.responses = {
         "/embeddings/models": [{"data": {"id": "embed-a"}}],

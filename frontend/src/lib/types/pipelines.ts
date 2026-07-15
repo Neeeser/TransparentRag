@@ -56,6 +56,7 @@ export interface EmbeddingModelInfo {
   name: string;
   description?: string | null;
   context_length?: number | null;
+  max_input_tokens?: number | null;
   pricing?: ModelPricing | null;
   dimension?: number | null;
 }
@@ -100,6 +101,7 @@ export interface Pipeline {
   created_at: string;
   updated_at: string;
   definition: PipelineDefinition;
+  validation_issues?: PipelineValidationIssue[];
 }
 
 /** One structural change a version introduced (`PipelineChangeRead`). */
@@ -145,4 +147,16 @@ export interface PipelineValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
+  issues: PipelineValidationIssue[];
+}
+
+export interface PipelineValidationIssue {
+  code?: string | null;
+  message: string;
+  severity: "error" | "warning";
+  node_id?: string | null;
+  field?: string | null;
+  configured_value?: string | number | boolean | null;
+  model?: string | null;
+  allowed_max?: number | null;
 }

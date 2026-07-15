@@ -222,7 +222,7 @@ export const buildDefaultDefinition = (
       type: "chunker.token",
       name: "Token Chunker",
       config: {
-        chunk_size: options.chunkSize ?? 1024,
+        chunk_size: options.chunkSize ?? 512,
         chunk_overlap: options.chunkOverlap ?? 200,
       },
     },

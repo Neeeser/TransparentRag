@@ -17,6 +17,8 @@ per-field validation errors.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import httpx
 from openai import OpenAIError
 from pinecone.exceptions import PineconeException
@@ -48,10 +50,10 @@ def is_external_provider_error(exc: Exception) -> bool:
 class ServiceError(Exception):
     """Base for domain errors that a route translates into an HTTP response."""
 
-    def __init__(self, detail: str | dict[str, str]) -> None:
+    def __init__(self, detail: str | Mapping[str, object]) -> None:
         """Store the wire detail and a readable message for logging/tests."""
         super().__init__(detail if isinstance(detail, str) else str(detail))
-        self.detail: str | dict[str, str] = detail
+        self.detail: str | Mapping[str, object] = detail
 
 
 class NotFoundError(ServiceError):

@@ -122,7 +122,7 @@ export function WizardProcessingStep({
                   <p className="text-sm font-semibold text-primary">{preset.label}</p>
                   <p className="mt-0.5 text-[11px] leading-4 text-muted">{preset.hint}</p>
                   <p className="mt-1.5 text-[10px] text-meta">
-                    {preset.size} tokens · {preset.overlap} overlap
+                    {preset.size} words · {preset.overlap} overlap
                   </p>
                 </button>
               );
@@ -138,7 +138,7 @@ export function WizardProcessingStep({
           </button>
           {showAdvancedChunking ? (
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <Field label="Chunk size (tokens)">
+              <Field label="Chunk size (words)">
                 <TextInput
                   type="number"
                   min={64}
@@ -146,7 +146,7 @@ export function WizardProcessingStep({
                   onChange={(event) => onChunkChange(Number(event.target.value) || 0, chunkOverlap)}
                 />
               </Field>
-              <Field label="Chunk overlap (tokens)">
+              <Field label="Chunk overlap (words)">
                 <TextInput
                   type="number"
                   min={0}
@@ -264,7 +264,7 @@ export function WizardReviewStep({
               <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Chunking</dt>
               <dd className="mt-0.5 text-primary">
                 {chunkPresetLabel ? `${chunkPresetLabel} · ` : "Custom · "}
-                {chunkSize}/{chunkOverlap} tokens
+                {chunkSize}/{chunkOverlap} words
               </dd>
             </div>
           ) : null}

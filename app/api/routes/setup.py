@@ -6,7 +6,11 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
-from app.api.routes.utils import collection_to_schema, to_http_exception
+from app.api.routes.utils import (
+    collection_to_schema,
+    to_http_exception,
+    validation_issue_to_schema,
+)
 from app.db import models
 from app.schemas.setup import (
     SetupBootstrapRequest,
@@ -40,7 +44,10 @@ def setup_bootstrap(
 ) -> SetupBootstrapResponse:
     """Install the wizard's choices: default pipelines + first collection."""
     try:
-        collection = SetupService(session).bootstrap(current_user, payload)
+        result = SetupService(session).bootstrap(current_user, payload)
     except ServiceError as exc:
         raise to_http_exception(exc) from exc
-    return SetupBootstrapResponse(collection=collection_to_schema(collection))
+    return SetupBootstrapResponse(
+        collection=collection_to_schema(result.collection),
+        warnings=[validation_issue_to_schema(issue) for issue in result.warnings],
+    )

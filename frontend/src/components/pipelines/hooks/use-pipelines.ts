@@ -12,6 +12,7 @@ import {
   updatePipeline,
   validatePipeline,
 } from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 import { getErrorMessage } from "@/lib/errors";
 
 import type {
@@ -20,6 +21,7 @@ import type {
   Pipeline,
   PipelineDefinition,
   PipelineKind,
+  PipelineValidationIssue,
   PipelineVersion,
 } from "@/lib/types";
 
@@ -38,6 +40,8 @@ export interface UsePipelinesResult {
   loading: boolean;
   saving: boolean;
   validating: boolean;
+  validationIssues: PipelineValidationIssue[];
+  clearValidationIssues: () => void;
   message: string | null;
   setMessage: (message: string | null) => void;
   changeSummary: string;
@@ -69,6 +73,7 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<PipelineValidationIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [changeSummary, setChangeSummary] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null);
@@ -162,6 +167,15 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     setPipelines((prev) => [created, ...prev]);
     setSelectedPipeline(created);
     setChangeSummary("");
+    setValidationIssues(created.validation_issues ?? []);
+    const warnings = (created.validation_issues ?? []).filter(
+      (issue) => issue.severity === "warning",
+    );
+    setMessage(
+      warnings.length > 0
+        ? `Pipeline created with warnings: ${warnings.map((issue) => issue.message).join(" ")}`
+        : "Pipeline created.",
+    );
   };
 
   const handleDeletePipeline = (pipeline: Pipeline) => {
@@ -207,9 +221,11 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     if (!authToken || !selectedPipeline) return;
     setValidating(true);
     setMessage(null);
+    setValidationIssues([]);
     try {
       const validation = await validatePipeline(authToken, definition);
       if (!validation.valid) {
+        setValidationIssues(validation.issues);
         setMessage(`Validation failed: ${validation.errors.join(" ")}`);
         return;
       }
@@ -223,6 +239,7 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
       });
       applyUpdatedPipeline(updated);
       setChangeSummary("");
+      setValidationIssues(updated.validation_issues ?? []);
       setVersionsReloadKey((prev) => prev + 1);
       setMessage(
         warningText
@@ -230,6 +247,15 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
           : `Saved as v${updated.current_version}.`,
       );
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        typeof error.rawDetail === "object" &&
+        error.rawDetail !== null &&
+        "issues" in error.rawDetail &&
+        Array.isArray(error.rawDetail.issues)
+      ) {
+        setValidationIssues(error.rawDetail.issues as PipelineValidationIssue[]);
+      }
       setMessage(getErrorMessage(error, "Unable to save pipeline."));
     } finally {
       setSaving(false);
@@ -279,7 +305,15 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
         version.version,
       );
       applyUpdatedPipeline(updated);
-      setMessage(`Activated version ${version.version}.`);
+      setValidationIssues(updated.validation_issues ?? []);
+      const warnings = (updated.validation_issues ?? []).filter(
+        (issue) => issue.severity === "warning",
+      );
+      setMessage(
+        warnings.length > 0
+          ? `Activated version ${version.version} with warnings: ${warnings.map((issue) => issue.message).join(" ")}`
+          : `Activated version ${version.version}.`,
+      );
     } catch (error) {
       setMessage(getErrorMessage(error, "Unable to activate version."));
     } finally {
@@ -297,6 +331,8 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     loading,
     saving,
     validating,
+    validationIssues,
+    clearValidationIssues: () => setValidationIssues([]),
     message,
     setMessage,
     changeSummary,

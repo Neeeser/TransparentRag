@@ -40,7 +40,7 @@ export const initialSetupWizardState = (backend: IndexBackend): SetupWizardState
     backend,
     indexName: "ragworks",
     collectionName: "My first collection",
-    chunkSize: 1024,
+    chunkSize: 512,
     chunkOverlap: 200,
   },
 });

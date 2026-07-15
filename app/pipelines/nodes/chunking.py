@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class FixedChunkerConfig(BaseModel):
     """Configuration for fixed-strategy chunking nodes."""
 
-    chunk_size: int = Field(default=1024, gt=0)
+    chunk_size: int = Field(default=512, gt=0)
     chunk_overlap: int = Field(default=200, ge=0)
 
 

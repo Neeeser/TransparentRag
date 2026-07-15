@@ -30,32 +30,56 @@ vi.mock("@/components/ui/parameter-controls", () => ({
   ParameterFieldCard: ({
     label,
     helper,
+    error,
+    errorId,
+    controlId,
     children,
   }: {
     label: string;
     helper?: string | null;
+    error?: string | null;
+    errorId?: string;
+    controlId?: string;
     children: React.ReactNode;
   }) => (
     <div>
-      <span>{label}</span>
+      <label htmlFor={controlId}>{label}</label>
       {helper && <span>{helper}</span>}
       {children}
+      {error && <span id={errorId}>{error}</span>}
     </div>
   ),
-  ParameterInput: (props: { input: string; onChange: (value: string | boolean) => void }) => {
+  ParameterInput: (props: {
+    input: string;
+    id?: string;
+    ariaInvalid?: boolean;
+    ariaDescribedBy?: string;
+    onChange: (value: string | boolean) => void;
+  }) => {
     parameterInputMock(props);
+    if (props.input !== "integer" && props.input !== "number") {
+      return (
+        <button
+          id={props.id}
+          type="button"
+          aria-describedby={props.ariaDescribedBy}
+          onClick={() => props.onChange(props.input === "boolean" ? true : "text")}
+        >
+          {`trigger-${props.input}`}
+        </button>
+      );
+    }
     return (
-      <button
-        type="button"
+      <input
+        id={props.id}
+        type="number"
+        aria-invalid={props.ariaInvalid || undefined}
+        aria-describedby={props.ariaDescribedBy}
         onClick={() => {
           if (props.input === "number") props.onChange("1.2");
-          else if (props.input === "integer") props.onChange("3");
-          else if (props.input === "boolean") props.onChange(true);
-          else props.onChange("text");
+          else props.onChange("3");
         }}
-      >
-        {`trigger-${props.input}`}
-      </button>
+      />
     );
   },
 }));
@@ -99,6 +123,7 @@ const renderDrawer = (overrides: Partial<DrawerProps> = {}) => {
     onApply: () => undefined,
     isPreview: false,
     validationErrors: [],
+    validationIssues: [],
     vectorIndexes: [],
     embeddingModels: [],
     embeddingCatalog: null,
@@ -393,6 +418,38 @@ describe("NodeEditorDrawer", () => {
     });
 
     expect(screen.getByText("An index is required.")).toBeInTheDocument();
+  });
+
+  it("renders a structured chunk-size error beside the chunk-size field", () => {
+    renderDrawer({
+      node: makeNode(
+        "chunker.token",
+        { chunk_size: 1024 },
+        {
+          properties: {
+            chunk_size: { type: "integer", title: "Chunk Size", default: 512 },
+          },
+        },
+      ),
+      validationIssues: [
+        {
+          code: "embedding_input_limit_exceeded",
+          message:
+            "Chunk size 1,024 exceeds sentence-transformers/all-minilm-l6-v2's 512-token input limit.",
+          severity: "error",
+          node_id: "node-1",
+          field: "chunk_size",
+          configured_value: 1024,
+          model: "sentence-transformers/all-minilm-l6-v2",
+          allowed_max: 512,
+        },
+      ],
+    });
+
+    const message = screen.getByText(/Chunk size 1,024 exceeds/);
+    const input = screen.getByRole("spinbutton", { name: "Chunk Size" });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", message.id);
   });
 
   it("preview mode is read-only with an Add to canvas action", () => {

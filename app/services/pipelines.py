@@ -25,10 +25,17 @@ from app.pipelines.diff import DefinitionChange, diff_definitions, material_chan
 from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
 from app.pipelines.registry import default_registry
 from app.pipelines.settings import resolve_definition_backend
-from app.pipelines.upgrades import upgrade_definition
+from app.pipelines.validation import PipelineValidationResult
 from app.schemas.enums import IndexBackend
 from app.services.app_config import get_app_config
 from app.services.errors import InvalidInputError, NotFoundError
+from app.services.pipeline_upgrades import (
+    upgrade_stored_pipeline_definitions as upgrade_stored_pipeline_definitions,
+)
+from app.services.pipeline_validation import (
+    EmbeddingInputLimitResolver,
+    validate_pipeline_definition,
+)
 
 
 @dataclass
@@ -41,13 +48,52 @@ class DefaultPipelines:
 
 class PipelineService:
     """Service for pipeline CRUD and version management."""
-
-    def __init__(self, session: Session) -> None:
-        """Initialize the pipeline service."""
+    def __init__(
+        self,
+        session: Session,
+        *,
+        embedding_input_limit: EmbeddingInputLimitResolver | None = None,
+    ) -> None:
+        """Initialize with an optional provider-limit override for focused tests."""
         self.session = session
         self._pipelines = PipelineRepository(session)
         self._versions = PipelineVersionRepository(session)
         self._collections = CollectionRepository(session)
+        self._users = UserRepository(session)
+        self._embedding_input_limit = embedding_input_limit
+
+    def validate_definition(
+        self,
+        user: models.User,
+        definition: PipelineDefinition,
+    ) -> PipelineValidationResult:
+        """Validate a definition using its selected provider connections."""
+        return validate_pipeline_definition(
+            self.session,
+            user,
+            definition,
+            embedding_input_limit=self._embedding_input_limit,
+        )
+
+    def _validate_before_persisting(
+        self,
+        user: models.User,
+        definition: PipelineDefinition,
+    ) -> None:
+        """Reject invalid definitions with field-addressable issue metadata."""
+        result = self.validate_definition(user, definition)
+        if result.valid:
+            return
+        raise InvalidInputError(
+            {
+                "errors": result.errors,
+                "issues": [
+                    issue.model_dump(exclude_none=True)
+                    for issue in result.issues
+                    if issue.severity == "error"
+                ],
+            }
+        )
 
     def list_pipelines(
         self,
@@ -86,6 +132,7 @@ class PipelineService:
         is_default: bool = False,
     ) -> models.Pipeline:
         """Create a pipeline and its first version."""
+        self._validate_before_persisting(user, definition)
         pipeline = models.Pipeline(
             user_id=user.id,
             name=name,
@@ -124,6 +171,11 @@ class PipelineService:
         revision of what the pipeline does.
         """
         metadata_changed = name is not None or description is not None
+        if definition is not None:
+            owner = self._users.get(pipeline.user_id)
+            if owner is None:
+                raise NotFoundError("Pipeline owner does not exist.")
+            self._validate_before_persisting(owner, definition)
         if name is not None:
             pipeline.name = name
         if description is not None:
@@ -325,26 +377,3 @@ def backfill_default_pipelines(session: Session) -> None:
             continue
         for collection in collection_repo.list_for_user(user.id):
             service.ensure_collection_pipelines(collection, defaults)
-
-
-def upgrade_stored_pipeline_definitions(session: Session) -> int:
-    """Rewrite stored pipeline versions to the current node vocabulary.
-
-    Applies `app.pipelines.upgrades.upgrade_definition` to every stored
-    version in place (legacy backend-pinned indexer/retriever types become the
-    unified `*.vector` nodes; removed `chat.settings` nodes are dropped).
-    In-place because this is a mechanical vocabulary migration, not a user
-    edit -- version history and pinned trace definitions stay aligned.
-    Idempotent; returns the number of versions rewritten.
-    """
-    versions = PipelineVersionRepository(session)
-    upgraded_count = 0
-    for version in versions.list_all():
-        definition = PipelineDefinition.model_validate(version.definition)
-        upgraded = upgrade_definition(definition)
-        if upgraded is None:
-            continue
-        version.definition = upgraded.model_dump(mode="json")
-        session.add(version)
-        upgraded_count += 1
-    return upgraded_count

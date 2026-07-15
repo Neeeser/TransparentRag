@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from sqlmodel import Session, select
 
@@ -24,7 +25,7 @@ def _revised_ingestion_definition() -> PipelineDefinition:
         embedding_connection_id=EMBED_CONNECTION_ID, embedding_model="test-embed"
     )
     chunker = next(node for node in definition.nodes if node.id == "chunk-document")
-    chunker.config = {**chunker.config, "chunk_size": 512}
+    chunker.config = {**chunker.config, "chunk_size": 256}
     return definition
 
 
@@ -127,6 +128,111 @@ def test_update_pipeline_creates_new_version(session: Session) -> None:
     assert updated is not None
     assert updated.current_version == 2
     assert len(versions) == 2
+
+
+def test_create_pipeline_persists_embedding_limit_warning(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Approximate word counts warn without blocking persistence."""
+    user = _create_user(session)
+    model_id = "sentence-transformers/all-minilm-l6-v2"
+    definition = build_default_ingestion_pipeline(
+        embedding_connection_id=EMBED_CONNECTION_ID,
+        embedding_model=model_id,
+        chunk_size=1024,
+    )
+    service = PipelineService(
+        session,
+        embedding_input_limit=lambda _connection_id, _model: 512,
+    )
+
+    validation_results = []
+    original_validate_definition = service.validate_definition
+
+    def capture_validation(*args: object, **kwargs: object):
+        result = original_validate_definition(*args, **kwargs)
+        validation_results.append(result)
+        return result
+
+    monkeypatch.setattr(service, "validate_definition", capture_validation)
+    pipeline = service.create_pipeline(
+        user=user,
+        name="Warning ingestion",
+        kind=models.PipelineKind.INGESTION,
+        definition=definition,
+    )
+
+    assert validation_results[0].valid
+    assert validation_results[0].issues[0].severity == "warning"
+    assert validation_results[0].issues[0].field == "chunk_size"
+    assert pipeline.name == "Warning ingestion"
+
+
+def test_update_pipeline_persists_embedding_limit_warning_as_new_version(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = _create_user(session)
+    service = PipelineService(session)
+    defaults = service.ensure_default_pipelines(user)
+    session.commit()
+    warning_definition = build_default_ingestion_pipeline(
+        embedding_connection_id=EMBED_CONNECTION_ID,
+        embedding_model="test/embedding-model",
+        chunk_size=1024,
+    )
+    validating_service = PipelineService(
+        session,
+        embedding_input_limit=lambda _connection_id, _model: 512,
+    )
+
+    validation_results = []
+    original_validate_definition = validating_service.validate_definition
+
+    def capture_validation(*args: object, **kwargs: object):
+        result = original_validate_definition(*args, **kwargs)
+        validation_results.append(result)
+        return result
+
+    monkeypatch.setattr(validating_service, "validate_definition", capture_validation)
+    validating_service.update_pipeline(
+        pipeline=defaults.ingestion,
+        definition=warning_definition,
+        actor_id=user.id,
+    )
+
+    assert validation_results[0].valid
+    assert validation_results[0].issues[0].severity == "warning"
+    assert defaults.ingestion.current_version == 2
+    versions = session.exec(
+        select(models.PipelineVersion).where(
+            models.PipelineVersion.pipeline_id == defaults.ingestion.id
+        )
+    ).all()
+    assert len(versions) == 2
+
+
+def test_create_pipeline_remains_available_when_model_catalog_is_unreachable(
+    session: Session,
+) -> None:
+    """A provider outage cannot make offline pipeline management unavailable."""
+    user = _create_user(session)
+    def unavailable_limit(_connection_id: UUID, _model: str) -> None:
+        request = httpx.Request("GET", "https://openrouter.ai/api/v1/embeddings/models")
+        raise httpx.ConnectError("provider unavailable", request=request)
+
+    pipeline = PipelineService(
+        session, embedding_input_limit=unavailable_limit
+    ).create_pipeline(
+        user=user,
+        name="Offline-safe pipeline",
+        kind=models.PipelineKind.INGESTION,
+        definition=build_default_ingestion_pipeline(
+            embedding_connection_id=EMBED_CONNECTION_ID,
+            embedding_model="test-embed",
+        ),
+    )
+
+    assert pipeline.name == "Offline-safe pipeline"
 
 
 def test_update_pipeline_updates_metadata_only(session: Session) -> None:

@@ -12,6 +12,7 @@ engine (`app/pipelines/`) must never be a source of wire types itself.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -60,6 +61,7 @@ class PipelineRead(DateTimeConfigMixin, BaseModel):
     created_at: datetime
     updated_at: datetime
     definition: PipelineDefinition
+    validation_issues: list[PipelineValidationIssueRead] = Field(default_factory=list)
 
 
 class PipelineChangeRead(BaseModel):
@@ -121,12 +123,26 @@ class PipelineNodesResponse(BaseModel):
     nodes: list[NodeSpecRead]
 
 
+class PipelineValidationIssueRead(BaseModel):
+    """Field-addressable pipeline validation issue returned to the editor."""
+
+    code: str | None = None
+    message: str
+    severity: Literal["error", "warning"]
+    node_id: str | None = None
+    field: str | None = None
+    configured_value: str | int | float | bool | None = None
+    model: str | None = None
+    allowed_max: int | None = None
+
+
 class PipelineValidationResponse(BaseModel):
     """Response payload for pipeline validation."""
 
     valid: bool
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    issues: list[PipelineValidationIssueRead] = Field(default_factory=list)
 
 
 class PipelineActivateRequest(BaseModel):
