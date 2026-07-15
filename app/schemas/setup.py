@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.schemas.collections import CollectionRead
 from app.schemas.enums import IndexBackend
+from app.schemas.pipelines import PipelineValidationIssueRead
 
 
 class SetupStatusRead(BaseModel):
@@ -38,3 +39,4 @@ class SetupBootstrapResponse(BaseModel):
     """The first collection the wizard created, ready for uploads."""
 
     collection: CollectionRead
+    warnings: list[PipelineValidationIssueRead] = Field(default_factory=list)

@@ -25,11 +25,13 @@ from app.pipelines.diff import DefinitionChange, diff_definitions, material_chan
 from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
 from app.pipelines.registry import default_registry
 from app.pipelines.settings import resolve_definition_backend
-from app.pipelines.upgrades import upgrade_definition
 from app.pipelines.validation import PipelineValidationResult
 from app.schemas.enums import IndexBackend
 from app.services.app_config import get_app_config
 from app.services.errors import InvalidInputError, NotFoundError
+from app.services.pipeline_upgrades import (
+    upgrade_stored_pipeline_definitions as upgrade_stored_pipeline_definitions,
+)
 from app.services.pipeline_validation import (
     EmbeddingInputLimitResolver,
     validate_pipeline_definition,
@@ -375,26 +377,3 @@ def backfill_default_pipelines(session: Session) -> None:
             continue
         for collection in collection_repo.list_for_user(user.id):
             service.ensure_collection_pipelines(collection, defaults)
-
-
-def upgrade_stored_pipeline_definitions(session: Session) -> int:
-    """Rewrite stored pipeline versions to the current node vocabulary.
-
-    Applies `app.pipelines.upgrades.upgrade_definition` to every stored
-    version in place (legacy backend-pinned indexer/retriever types become the
-    unified `*.vector` nodes; removed `chat.settings` nodes are dropped).
-    In-place because this is a mechanical vocabulary migration, not a user
-    edit -- version history and pinned trace definitions stay aligned.
-    Idempotent; returns the number of versions rewritten.
-    """
-    versions = PipelineVersionRepository(session)
-    upgraded_count = 0
-    for version in versions.list_all():
-        definition = PipelineDefinition.model_validate(version.definition)
-        upgraded = upgrade_definition(definition)
-        if upgraded is None:
-            continue
-        version.definition = upgraded.model_dump(mode="json")
-        session.add(version)
-        upgraded_count += 1
-    return upgraded_count

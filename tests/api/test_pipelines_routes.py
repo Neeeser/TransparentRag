@@ -296,6 +296,7 @@ def test_activate_pipeline_version_updates_current(session: Session) -> None:
     response = pipelines_routes.activate_pipeline_version(
         pipelines_routes.PipelineActivateRequest(version=pipeline.current_version),
         pipeline=pipeline,
+        current_user=user,
         session=session,
     )
 
@@ -310,6 +311,7 @@ def test_activate_pipeline_version_unknown_version(session: Session) -> None:
         pipelines_routes.activate_pipeline_version(
             pipelines_routes.PipelineActivateRequest(version=999),
             pipeline=pipeline,
+            current_user=user,
             session=session,
         )
 
@@ -332,3 +334,5 @@ def test_create_pipeline_creates_record(session: Session) -> None:
     )
 
     assert created.name == "New Pipeline"
+    assert created.validation_issues
+    assert created.validation_issues[0].severity == "warning"

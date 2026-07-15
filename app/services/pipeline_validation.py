@@ -52,3 +52,14 @@ def validate_pipeline_definition(
         default_registry(),
         embedding_input_limit=resolve_limit,
     ).validate(definition)
+
+
+def log_pipeline_validation_warnings(
+    result: PipelineValidationResult,
+    *,
+    context: str,
+) -> None:
+    """Surface advisory findings without interrupting a lifecycle operation."""
+    for issue in result.issues:
+        if issue.severity == "warning":
+            logger.warning("Pipeline validation warning during %s: %s", context, issue.message)

@@ -61,6 +61,7 @@ class PipelineRead(DateTimeConfigMixin, BaseModel):
     created_at: datetime
     updated_at: datetime
     definition: PipelineDefinition
+    validation_issues: list[PipelineValidationIssueRead] = Field(default_factory=list)
 
 
 class PipelineChangeRead(BaseModel):

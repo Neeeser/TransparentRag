@@ -12,6 +12,7 @@ inside the scaffolded pipeline definitions.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from uuid import uuid4
 
 from sqlmodel import Session
@@ -24,6 +25,7 @@ from app.pipelines.defaults import (
     build_default_retrieval_pipeline,
 )
 from app.pipelines.definition import PipelineDefinition
+from app.pipelines.node import PipelineValidationIssue
 from app.providers.registry import build_adapter, get_provider, resolve_connection
 from app.schemas.enums import IndexBackend, ProviderKind
 from app.schemas.setup import SetupBootstrapRequest, SetupStatusRead
@@ -40,6 +42,14 @@ from app.vectorstores.base import VectorIndexDescription
 from app.vectorstores.registry import get_vector_store
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SetupBootstrapResult:
+    """The created collection and non-blocking pipeline findings."""
+
+    collection: models.Collection
+    warnings: list[PipelineValidationIssue]
 
 
 class SetupService:
@@ -80,12 +90,12 @@ class SetupService:
                 coverage[kind] = True
         return coverage
 
-    def bootstrap(self, user: models.User, payload: SetupBootstrapRequest) -> models.Collection:
+    def bootstrap(self, user: models.User, payload: SetupBootstrapRequest) -> SetupBootstrapResult:
         """Install default pipelines and the first collection in one commit."""
         connection = resolve_connection(self.session, user, payload.embedding_connection_id)
         get_provider(connection, ProviderKind.EMBEDDING)
         self._validate_index(user, payload)
-        defaults = self._install_default_pipelines(user, payload)
+        defaults, warnings = self._install_default_pipelines(user, payload)
         collection = models.Collection(
             id=uuid4(),
             user_id=user.id,
@@ -99,7 +109,7 @@ class SetupService:
         self.session.commit()
         self.session.refresh(collection)
         record(CollectionCreated(user_id=user.id, collection_id=collection.id))
-        return collection
+        return SetupBootstrapResult(collection=collection, warnings=warnings)
 
     def _has_index(self, user: models.User) -> bool:
         """True when any reachable backend holds at least one index.
@@ -144,7 +154,10 @@ class SetupService:
 
     def _install_default_pipelines(
         self, user: models.User, payload: SetupBootstrapRequest
-    ) -> dict[models.PipelineKind, models.Pipeline]:
+    ) -> tuple[
+        dict[models.PipelineKind, models.Pipeline],
+        list[PipelineValidationIssue],
+    ]:
         """Create (or refresh) the default pipelines from the wizard's choices."""
         definitions: dict[models.PipelineKind, PipelineDefinition] = {
             models.PipelineKind.INGESTION: build_default_ingestion_pipeline(
@@ -162,6 +175,12 @@ class SetupService:
                 index_name=payload.index_name,
             ),
         }
+        warnings = [
+            issue
+            for definition in definitions.values()
+            for issue in self._pipelines.validate_definition(user, definition).issues
+            if issue.severity == "warning"
+        ]
         installed: dict[models.PipelineKind, models.Pipeline] = {}
         for kind, definition in definitions.items():
             existing = next(
@@ -195,4 +214,4 @@ class SetupService:
                         actor_id=user.id,
                     )
                 installed[kind] = existing
-        return installed
+        return installed, warnings

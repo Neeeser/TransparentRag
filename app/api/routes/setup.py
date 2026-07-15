@@ -40,7 +40,10 @@ def setup_bootstrap(
 ) -> SetupBootstrapResponse:
     """Install the wizard's choices: default pipelines + first collection."""
     try:
-        collection = SetupService(session).bootstrap(current_user, payload)
+        result = SetupService(session).bootstrap(current_user, payload)
     except ServiceError as exc:
         raise to_http_exception(exc) from exc
-    return SetupBootstrapResponse(collection=collection_to_schema(collection))
+    return SetupBootstrapResponse(
+        collection=collection_to_schema(result.collection),
+        warnings=result.warnings,
+    )
