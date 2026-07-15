@@ -477,17 +477,31 @@ describe("PipelineBuilder", () => {
       warnings: ["Be careful"],
       issues: [],
     });
-    api.updatePipeline.mockResolvedValueOnce(pipeline);
+    const returnedIssue = {
+      message: "Chunk size is above the selected model limit.",
+      severity: "warning" as const,
+      node_id: "node-1",
+      field: "chunk_size",
+    };
+    api.updatePipeline.mockResolvedValueOnce({
+      ...pipeline,
+      validation_issues: [returnedIssue],
+    });
 
     render(<PipelineBuilder kind="ingestion" />);
 
     await waitFor(() => expect(lastCanvasProps).not.toBeNull());
+    await waitFor(() =>
+      expect((lastCanvasProps?.nodes as unknown[] | undefined)?.length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getByRole("button", { name: selectNodeLabel }));
 
     fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
     fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
     await waitFor(() => {
       expect(api.updatePipeline).toHaveBeenCalled();
       expect(screen.getByTestId("canvas")).toHaveTextContent("Saved as v1. Warnings: Be careful");
+      expect(lastDrawerProps?.validationIssues).toEqual([returnedIssue]);
     });
 
     api.validatePipeline.mockResolvedValueOnce({

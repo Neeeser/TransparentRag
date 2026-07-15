@@ -239,7 +239,7 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
       });
       applyUpdatedPipeline(updated);
       setChangeSummary("");
-      setValidationIssues([]);
+      setValidationIssues(updated.validation_issues ?? []);
       setVersionsReloadKey((prev) => prev + 1);
       setMessage(
         warningText

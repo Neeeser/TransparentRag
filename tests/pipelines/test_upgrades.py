@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+
+import pytest
 from sqlmodel import Session
 
 from app.db import models
@@ -10,7 +13,9 @@ from app.pipelines.definition import (
     PipelineEdgeDefinition,
     PipelineNodeDefinition,
 )
+from app.pipelines.node import PipelineValidationIssue
 from app.pipelines.upgrades import upgrade_definition
+from app.pipelines.validation import PipelineValidationResult
 from app.services.pipelines import PipelineService, upgrade_stored_pipeline_definitions
 
 
@@ -75,7 +80,7 @@ def test_upgrade_definition_returns_none_when_already_current() -> None:
 
 
 def test_upgrade_stored_pipeline_definitions_rewrites_versions_in_place(
-    session: Session,
+    session: Session, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user = models.User(email="upgrade@example.com", hashed_password="x")
     session.add(user)
@@ -101,7 +106,18 @@ def test_upgrade_stored_pipeline_definitions_rewrites_versions_in_place(
     session.commit()
     service = PipelineService(session)
 
-    upgraded_count = upgrade_stored_pipeline_definitions(session)
+    warning = "Embedding model has an advisory input-limit warning."
+    monkeypatch.setattr(
+        "app.services.pipeline_upgrades.validate_pipeline_definition",
+        lambda *_args, **_kwargs: PipelineValidationResult(
+            valid=True,
+            warnings=[warning],
+            issues=[PipelineValidationIssue(message=warning, severity="warning")],
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.pipeline_validation"):
+        upgraded_count = upgrade_stored_pipeline_definitions(session)
     session.commit()
 
     assert upgraded_count == 1
@@ -110,5 +126,6 @@ def test_upgrade_stored_pipeline_definitions_rewrites_versions_in_place(
     assert any(node.type == "retriever.vector" for node in stored.nodes)
     # Same version row, rewritten in place -- no new revision minted.
     assert pipeline.current_version == 1
+    assert warning in caplog.text
     # Idempotent on the second run.
     assert upgrade_stored_pipeline_definitions(session) == 0

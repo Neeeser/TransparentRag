@@ -131,7 +131,7 @@ def test_update_pipeline_creates_new_version(session: Session) -> None:
 
 
 def test_create_pipeline_persists_embedding_limit_warning(
-    session: Session,
+    session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Approximate word counts warn without blocking persistence."""
     user = _create_user(session)
@@ -146,7 +146,15 @@ def test_create_pipeline_persists_embedding_limit_warning(
         embedding_input_limit=lambda _connection_id, _model: 512,
     )
 
-    validation = service.validate_definition(user, definition)
+    validation_results = []
+    original_validate_definition = service.validate_definition
+
+    def capture_validation(*args: object, **kwargs: object):
+        result = original_validate_definition(*args, **kwargs)
+        validation_results.append(result)
+        return result
+
+    monkeypatch.setattr(service, "validate_definition", capture_validation)
     pipeline = service.create_pipeline(
         user=user,
         name="Warning ingestion",
@@ -154,14 +162,14 @@ def test_create_pipeline_persists_embedding_limit_warning(
         definition=definition,
     )
 
-    assert validation.valid
-    assert validation.issues[0].severity == "warning"
-    assert validation.issues[0].field == "chunk_size"
+    assert validation_results[0].valid
+    assert validation_results[0].issues[0].severity == "warning"
+    assert validation_results[0].issues[0].field == "chunk_size"
     assert pipeline.name == "Warning ingestion"
 
 
 def test_update_pipeline_persists_embedding_limit_warning_as_new_version(
-    session: Session,
+    session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user = _create_user(session)
     service = PipelineService(session)
@@ -177,15 +185,23 @@ def test_update_pipeline_persists_embedding_limit_warning_as_new_version(
         embedding_input_limit=lambda _connection_id, _model: 512,
     )
 
-    result = validating_service.validate_definition(user, warning_definition)
+    validation_results = []
+    original_validate_definition = validating_service.validate_definition
+
+    def capture_validation(*args: object, **kwargs: object):
+        result = original_validate_definition(*args, **kwargs)
+        validation_results.append(result)
+        return result
+
+    monkeypatch.setattr(validating_service, "validate_definition", capture_validation)
     validating_service.update_pipeline(
         pipeline=defaults.ingestion,
         definition=warning_definition,
         actor_id=user.id,
     )
 
-    assert result.valid
-    assert result.issues[0].severity == "warning"
+    assert validation_results[0].valid
+    assert validation_results[0].issues[0].severity == "warning"
     assert defaults.ingestion.current_version == 2
     versions = session.exec(
         select(models.PipelineVersion).where(
