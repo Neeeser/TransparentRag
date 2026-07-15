@@ -532,7 +532,7 @@ def test_embedder_guard_handles_missing_connection_and_zero_effective_limit(
 
 
 def test_embedder_node_splits_oversized_chunks_before_provider_call() -> None:
-    """Provider inputs stay within the effective limit and ids remain contiguous."""
+    """Provider-only splits fold back into the original stable chunk identities."""
     from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
     from app.pipelines.payloads import EmbeddingPayload
     from app.retrieval.tokenizers.resources import build_token_counter
@@ -596,22 +596,27 @@ def test_embedder_node_splits_oversized_chunks_before_provider_call() -> None:
     embedded = result["embedded"]
     assert isinstance(embedded, EmbeddingPayload)
 
-    assert embedded_texts == [chunk.text for chunk in embedded.chunks]
+    assert len(embedded_texts) > len(embedded.chunks)
+    assert embedded_texts[-1] == "tail"
     wordpiece = build_token_counter(TokenizerSpec(kind="wordpiece"), context.storage.base_path)
     assert all(wordpiece.count(text) <= 40 for text in embedded_texts)
     assert set(oversized.split()).issubset(
         {token for text in embedded_texts for token in text.split()}
     )
-    assert [chunk.order for chunk in embedded.chunks] == list(range(len(embedded.chunks)))
-    assert [chunk.chunk_id for chunk in embedded.chunks] == [
-        f"doc:{order}" for order in range(len(embedded.chunks))
+    assert [(chunk.chunk_id, chunk.order) for chunk in embedded.chunks] == [
+        ("doc:7", 7),
+        ("doc:8", 8),
     ]
-    assert [chunk.metadata.data for chunk in embedded.chunks] == [
-        {"page": 3}
-    ] * (len(embedded.chunks) - 1) + [{"page": 4}]
+    assert [chunk.metadata.data for chunk in embedded.chunks] == [{"page": 3}, {"page": 4}]
+    summary = node.summarize_io({"chunks": payload}, result)
+    input_items = next(value.value for value in summary.inputs if value.kind == "items")
+    output_items = next(value.value for value in summary.outputs if value.kind == "items")
+    assert [item.id for item in input_items.items] == ["doc:7", "doc:8"]
+    assert [item.id for item in output_items.items] == ["doc:7", "doc:8"]
+    split_part_count = len(embedded_texts) - 1
     assert warning_trace.warnings == [
         f"Document doc chunk 0 contained {wordpiece.count(oversized)} tokens, exceeding the "
-        f"40-token embedding limit, and was split into {len(embedded.chunks) - 1} parts using "
+        f"40-token embedding limit, and was split into {split_part_count} parts using "
         "the wordpiece counter."
     ]
 
