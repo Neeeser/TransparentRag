@@ -180,17 +180,30 @@ describe("TraceDebugger", () => {
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
   });
 
-  it("seeds focus from a chunk deep link and tints its graph path", async () => {
+  it("seeds focus from a chunk deep link, shows the chunk text, and tints its graph path", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTwoNodeTrace(),
       origin: null,
+      focused_item: {
+        id: "chunk-7",
+        status: "resolved",
+        text: "The focused chunk text.",
+        document_id: "doc-1",
+        filename: "paper.pdf",
+        chunk_index: 7,
+        chunk_count: 42,
+      },
     });
 
     render(<TraceDebugger source={{ kind: "query", id: "qe-1", chunkId: "chunk-7" }} />);
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Clear focused item" })).toBeInTheDocument(),
+      expect(screen.getByRole("region", { name: "Focused result" })).toBeInTheDocument(),
     );
+    // The focused result leads with its text, document, and 1-based position.
+    expect(screen.getByText("The focused chunk text.")).toBeInTheDocument();
+    expect(screen.getByText("paper.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Chunk 8 of 42")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: RESULT_JOURNEY_LABEL })).toBeInTheDocument();
 
     const nodes = lastReactFlowProps?.nodes as Array<{
@@ -213,13 +226,16 @@ describe("TraceDebugger", () => {
     await waitFor(() => expect(screen.getByTestId("reactflow")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Focus item chunk-7" }));
-    expect(screen.getByRole("region", { name: RESULT_JOURNEY_LABEL })).toBeInTheDocument();
+    const timeline = screen.getByRole("region", { name: RESULT_JOURNEY_LABEL });
+    expect(timeline).toBeInTheDocument();
     expect(routerReplace).toHaveBeenCalledWith("/traces/runs/run-1?chunk=chunk-7");
 
-    fireEvent.click(screen.getByRole("button", { name: "Go to Chunk" }));
+    // Selecting a journey card seeks playback; the active card expands into
+    // the node's recorded detail.
+    fireEvent.click(within(timeline).getByRole("button", { name: "Journey step Chunk" }));
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear focused item" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exit focused trace" }));
     expect(screen.queryByRole("region", { name: RESULT_JOURNEY_LABEL })).not.toBeInTheDocument();
     expect(routerReplace).toHaveBeenLastCalledWith("/traces/runs/run-1");
   });
