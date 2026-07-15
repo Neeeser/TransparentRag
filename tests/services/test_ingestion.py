@@ -28,6 +28,7 @@ from app.services.ingestion import IngestionService
 from app.services.pipeline_resolution import resolve_ingestion_pipeline
 from app.services.pipelines import PipelineService
 from app.vectorstores.pgvector import PgvectorStore
+from app.vectorstores.registry import VectorStoreProvider
 from tests.utils.providers import TEST_EMBED_CONNECTION_ID, install_default_pipelines
 
 
@@ -197,7 +198,7 @@ def test_oversized_chunk_is_split_with_ready_document_and_persisted_warnings(
     session.commit()
 
     collection = _create_collection(session, user)
-    original_tokens = [f"token-{index}" for index in range(80)]
+    original_tokens = [f"token-{index}" for index in range(160)]
     _file_node, document = _upload_pending_document(
         session,
         user,
@@ -246,13 +247,35 @@ def test_oversized_chunk_is_split_with_ready_document_and_persisted_warnings(
             "ragworks",
             namespace,
             embedding=[0.1, 0.2, 0.3],
-            top_k=50,
+            top_k=100,
         )
         assert {match.chunk.chunk_id for match in indexed.matches} == {
             f"{document_id}:{order}" for order in range(len(chunks))
         }
 
-        store.delete_document_vectors("ragworks", namespace, str(document_id))
+        sparse = store.lexical_query(
+            "ragworks-bm25",
+            namespace,
+            text=" ".join(original_tokens),
+            top_k=100,
+        )
+        assert {
+            match.chunk.chunk_id: match.chunk.text for match in sparse.matches
+        } == {
+            f"{document_id}:{chunk.chunk_index}": chunk.text for chunk in chunks
+        }
+
+        fresh_collection = fresh_session.get(models.Collection, fresh_document.collection_id)
+        assert fresh_collection is not None
+        resolved = resolve_ingestion_pipeline(fresh_session, user, fresh_collection)
+        IngestionService._purge_previous_vectors(
+            VectorStoreProvider(
+                user=user,
+                session=fresh_session,
+            ),
+            resolved,
+            fresh_document,
+        )
         fresh_session.commit()
         assert (
             store.query(
@@ -260,6 +283,12 @@ def test_oversized_chunk_is_split_with_ready_document_and_persisted_warnings(
                 namespace,
                 embedding=[0.1, 0.2, 0.3],
                 top_k=50,
+            ).matches
+            == []
+        )
+        assert (
+            store.lexical_query(
+                "ragworks-bm25", namespace, text="token-1", top_k=50
             ).matches
             == []
         )

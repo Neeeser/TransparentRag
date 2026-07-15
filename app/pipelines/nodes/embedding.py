@@ -189,6 +189,15 @@ class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
         if self.config.connection_id is None:  # guarded by run(), kept for type narrowing
             return payload.chunks
         published_limit = self._embedding_input_limit(context)
+        return self.guard_chunks_for_embedding(payload, published_limit, context)
+
+    @staticmethod
+    def guard_chunks_for_embedding(
+        payload: ChunkPayload,
+        published_limit: int | None,
+        context: PipelineRunContext,
+    ) -> list[DocumentChunk]:
+        """Split a chunk payload once before it fans out to index planes."""
         if published_limit is None:
             return payload.chunks
         limit = effective_embedding_input_limit(published_limit)
