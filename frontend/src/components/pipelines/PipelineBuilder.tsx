@@ -242,8 +242,8 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
       .join("; ");
     const definition = toPipelineDefinition(nodes, edges);
     await tokenizerConsent.ensureThen(definition, async () => {
-      await handleSavePipeline(definition, fallbackSummary);
-      setSaveDialogOpen(false);
+      const saved = await handleSavePipeline(definition, fallbackSummary);
+      if (saved) setSaveDialogOpen(false);
     });
   };
 
@@ -409,6 +409,8 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         onChangeSummary={setChangeSummary}
         onSave={() => void handleSave()}
         saving={saving || validating}
+        validationMessage={message?.startsWith("Validation failed:") ? message : null}
+        validationIssues={validationIssues}
         historyOpen={historyOpen}
         onCloseHistory={() => setHistoryOpen(false)}
         versions={versions}

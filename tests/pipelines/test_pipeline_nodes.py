@@ -535,6 +535,7 @@ def test_embedder_node_splits_oversized_chunks_before_provider_call() -> None:
     """Provider inputs stay within the effective limit and ids remain contiguous."""
     from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
     from app.pipelines.payloads import EmbeddingPayload
+    from app.retrieval.tokenizers.resources import build_token_counter
 
     embedded_texts: list[str] = []
 
@@ -596,7 +597,8 @@ def test_embedder_node_splits_oversized_chunks_before_provider_call() -> None:
     assert isinstance(embedded, EmbeddingPayload)
 
     assert embedded_texts == [chunk.text for chunk in embedded.chunks]
-    assert all(len(text.split()) <= 40 for text in embedded_texts)
+    wordpiece = build_token_counter(TokenizerSpec(kind="wordpiece"), context.storage.base_path)
+    assert all(wordpiece.count(text) <= 40 for text in embedded_texts)
     assert set(oversized.split()).issubset(
         {token for text in embedded_texts for token in text.split()}
     )
@@ -605,14 +607,12 @@ def test_embedder_node_splits_oversized_chunks_before_provider_call() -> None:
         f"doc:{order}" for order in range(len(embedded.chunks))
     ]
     assert [chunk.metadata.data for chunk in embedded.chunks] == [
-        {"page": 3},
-        {"page": 3},
-        {"page": 3},
-        {"page": 4},
-    ]
+        {"page": 3}
+    ] * (len(embedded.chunks) - 1) + [{"page": 4}]
     assert warning_trace.warnings == [
-        "Document doc chunk 0 contained 50 tokens, exceeding the 40-token embedding "
-        "limit, and was split into 3 parts."
+        f"Document doc chunk 0 contained {wordpiece.count(oversized)} tokens, exceeding the "
+        f"40-token embedding limit, and was split into {len(embedded.chunks) - 1} parts using "
+        "the wordpiece counter."
     ]
 
 

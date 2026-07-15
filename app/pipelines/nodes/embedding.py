@@ -25,6 +25,7 @@ from app.pipelines.payloads import (
     EmbeddingPayload,
     QueryEmbeddingPayload,
     RetrievalRequestPayload,
+    TokenizerSpec,
 )
 from app.pipelines.ports import NodePort
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
@@ -204,7 +205,14 @@ class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
         if limit <= 0:
             return payload.chunks
 
-        counter = build_token_counter(payload.tokenizer, context.storage.base_path)
+        # A whitespace tokenizer is useful for legacy chunking, but it is not
+        # an estimate of model tokens. The runtime guard must use a real model
+        # tokenizer whenever the wired tokenizer cannot enforce the provider's
+        # limit, otherwise providers may still silently truncate the parts.
+        tokenizer = payload.tokenizer
+        if tokenizer.kind == "whitespace":
+            tokenizer = TokenizerSpec(kind="wordpiece")
+        counter = build_token_counter(tokenizer, context.storage.base_path)
         guarded: list[DocumentChunk] = []
         for original_index, chunk in enumerate(payload.chunks):
             token_count = counter.count(chunk.text)
@@ -221,7 +229,7 @@ class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
                 warning = (
                     f"Document {payload.document.document_id} chunk {original_index} contained "
                     f"{token_count} tokens, exceeding the {limit}-token embedding limit, and "
-                    f"was split into {len(parts)} parts."
+                    f"was split into {len(parts)} parts using the {tokenizer.kind} counter."
                 )
                 if context.trace is not None:
                     context.trace.record_warning(warning)
