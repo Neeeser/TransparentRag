@@ -12,7 +12,6 @@ that rewrote stored definitions — see `app/services/provider_migration.py`.)
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -40,7 +39,7 @@ from app.pipelines.tracing.summaries import (
 )
 from app.providers.base import effective_embedding_input_limit
 from app.retrieval.embedders.base import Embedder
-from app.retrieval.models import DocumentChunk, EmbeddingVector
+from app.retrieval.models import DocumentChunk
 from app.retrieval.tokenizers.resources import build_token_counter
 from app.services.errors import (
     InvalidInputError,
@@ -166,16 +165,13 @@ class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
         """Embed a chunk batch and return it as an EmbeddingPayload."""
         payload = ChunkPayload.model_validate(chunks_input)
         document = payload.document
-        provider_chunks = self._guard_embedding_inputs(payload, context)
-        embeddings = embedder.embed_documents(provider_chunks)
-        if len(embeddings) != len(provider_chunks):
+        chunks = self._guard_embedding_inputs(payload, context)
+        embeddings = embedder.embed_documents(chunks)
+        if len(embeddings) != len(chunks):
             raise ValueError("Embedder returned mismatched embeddings.")
-        embeddings_by_id: dict[str, list[EmbeddingVector]] = {}
-        for chunk, embedding in zip(provider_chunks, embeddings, strict=True):
-            embeddings_by_id.setdefault(chunk.chunk_id, []).append(embedding)
         enriched_chunks = [
-            chunk.with_embedding(self._mean_embeddings(embeddings_by_id[chunk.chunk_id]))
-            for chunk in payload.chunks
+            chunk.with_embedding(embedding)
+            for chunk, embedding in zip(chunks, embeddings, strict=True)
         ]
         usage = TokenUsage.model_validate(embedder.usage or {})
         return {
@@ -185,15 +181,6 @@ class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
                 usage=usage,
             )
         }
-
-    @staticmethod
-    def _mean_embeddings(embeddings: Sequence[EmbeddingVector]) -> EmbeddingVector:
-        """Collapse provider-only split parts without changing pipeline identity."""
-        dimensions = {len(embedding) for embedding in embeddings}
-        if len(dimensions) != 1:
-            raise ValueError("Embedder returned inconsistent embedding dimensions.")
-        count = len(embeddings)
-        return [sum(values) / count for values in zip(*embeddings, strict=True)]
 
     def _guard_embedding_inputs(
         self,
@@ -248,11 +235,15 @@ class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
                 if context.trace is not None:
                     context.trace.record_warning(warning)
             for text in parts:
-                # Split parts exist only at the provider boundary. They keep
-                # the original id so their vectors can be folded back into one
-                # pipeline item before tracing or indexing observes them.
+                order = len(guarded)
                 guarded.append(
-                    chunk.model_copy(update={"text": text, "embedding": None}, deep=True)
+                    DocumentChunk(
+                        document_id=chunk.document_id,
+                        chunk_id=f"{chunk.document_id}:{order}",
+                        text=text,
+                        order=order,
+                        metadata=chunk.metadata.model_copy(deep=True),
+                    )
                 )
         return guarded
 

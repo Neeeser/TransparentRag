@@ -102,9 +102,11 @@ colocate a single file with its consumer.
   attaches a full ordered `ItemListTrace` for each relevant input/output port,
   including stable ids and scores, alongside its unchanged human-readable preview.
   Never truncate these identity lists or store derived effects: consumers need the
-  complete lists to explain filtering, branches, merges, and reordering. Provider-
-  only subchunks fold back into their original pipeline item before tracing or
-  indexing; re-keying split parts can make one result impersonate another chunk.
+  complete lists to explain filtering, branches, merges, and reordering. A node's
+  item list reflects the chunks that node actually emits: the embedding guard
+  (`nodes/embedding.py`) may split an oversized chunk into several re-keyed,
+  independently-indexed chunks, so its output list legitimately differs from the
+  chunker's — the journey shows that split honestly rather than hiding it.
 - **Config resolution is registry-driven — hardcoding a node type-id string outside
   the node class that owns it is a lockstep bug.** `pipelines/settings.py` reads
   type ids off node *classes* and walks the registry for interchangeable variants

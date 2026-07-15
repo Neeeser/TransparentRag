@@ -4,19 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from sqlmodel import Session
-
-from app.core.config import get_settings
-from app.db import models
 from app.db.models import ChunkStrategy
-from app.pipelines.definition import (
-    PipelineDefinition,
-    PipelineEdgeDefinition,
-    PipelineNodeDefinition,
-)
-from app.pipelines.execution.context import PipelineRunContext
-from app.pipelines.execution.executor import PipelineExecutor
-from app.pipelines.node import PipelineNodeBase
 from app.pipelines.nodes.chunking import ChunkerConfig, ChunkerNode
 from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
 from app.pipelines.nodes.fusion import RRFusionConfig, RRFusionNode
@@ -48,10 +36,7 @@ from app.pipelines.payloads import (
     QueryEmbeddingPayload,
     RetrievalPayload,
     RetrievalRequestPayload,
-    TokenizerSpec,
 )
-from app.pipelines.ports import NodePort
-from app.pipelines.registry import NodeRegistry
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
 from app.retrieval.models import (
     Document,
@@ -62,8 +47,6 @@ from app.retrieval.models import (
     ScoredChunk,
 )
 from app.schemas.enums import IndexBackend
-from app.utils.file_storage import FileStorage
-from tests.pipelines.conftest import StubProviderResolver, StubVectorStoreProvider
 
 
 def _chunks(count: int) -> list[DocumentChunk]:
@@ -135,121 +118,6 @@ def test_linear_ingestion_preserves_every_chunk_id_through_each_node() -> None:
     for summary in summaries[1:]:
         assert _refs(_item_values(summary.inputs)[0]) == expected
         assert _refs(_item_values(summary.outputs)[0]) == expected
-
-
-def test_hybrid_fanout_keeps_provider_splits_inside_the_embedder() -> None:
-    document = Document(document_id="doc", text="source", metadata=DocumentMetadata())
-    oversized = " ".join(f"token-{index}" for index in range(50))
-    chunks = [
-        DocumentChunk(
-            document_id="doc",
-            chunk_id="doc:7",
-            text=oversized,
-            order=7,
-            metadata=DocumentMetadata(),
-        ),
-        DocumentChunk(
-            document_id="doc",
-            chunk_id="doc:8",
-            text="tail",
-            order=8,
-            metadata=DocumentMetadata(),
-        ),
-    ]
-    payload = ChunkPayload(
-        document=document,
-        chunks=chunks,
-        tokenizer=TokenizerSpec(kind="whitespace"),
-    )
-
-    class _SourceNode(PipelineNodeBase):
-        type = "test.trace_source"
-        label = "Source"
-        category = "test"
-        description = "Emit the test chunk batch."
-        example = "Source -> Chunks."
-        input_ports = ()
-        output_ports = (NodePort(key="chunks", label="Chunks", data_type="chunk_batch"),)
-
-        def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
-            return {"chunks": payload}
-
-        def summarize_io(self, inputs: dict[str, object], outputs: dict[str, object]) -> None:
-            return None
-
-    class _LexicalNode(PipelineNodeBase):
-        type = "test.trace_lexical"
-        label = "Lexical"
-        category = "test"
-        description = "Observe the lexical fan-out input."
-        example = "Chunks -> Chunks."
-        input_ports = (NodePort(key="chunks", label="Chunks", data_type="chunk_batch"),)
-        output_ports = (NodePort(key="chunks", label="Chunks", data_type="chunk_batch"),)
-
-        def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
-            return {"chunks": ChunkPayload.model_validate(inputs["chunks"])}
-
-        def summarize_io(self, inputs: dict[str, object], outputs: dict[str, object]) -> None:
-            return None
-
-    class _RecordingEmbedder:
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            self.usage: dict[str, int] = {}
-
-        def embed_documents(self, provider_chunks: list[DocumentChunk]) -> list[list[float]]:
-            return [[0.1, 0.2] for _ in provider_chunks]
-
-        def embed_query(self, _query: str) -> list[float]:
-            return [0.1, 0.2]
-
-    connection_id = uuid4()
-    definition = PipelineDefinition(
-        nodes=[
-            PipelineNodeDefinition(id="source", type=_SourceNode.type, name="Source"),
-            PipelineNodeDefinition(
-                id="embed",
-                type=EmbedderNode.type,
-                name="Embedder",
-                config={"connection_id": str(connection_id), "model_name": "embed"},
-            ),
-            PipelineNodeDefinition(id="lexical", type=_LexicalNode.type, name="Lexical"),
-        ],
-        edges=[
-            PipelineEdgeDefinition(
-                id="dense", source="source", target="embed", source_port="chunks", target_port="chunks"
-            ),
-            PipelineEdgeDefinition(
-                id="lexical",
-                source="source",
-                target="lexical",
-                source_port="chunks",
-                target_port="chunks",
-            ),
-        ],
-    )
-    user = models.User(email="trace@test.local", hashed_password="hashed")
-    collection = models.Collection(user_id=user.id, name="Trace", description="")
-    context = PipelineRunContext(
-        session=Session(),
-        user=user,
-        collection=collection,
-        document=None,
-        query=None,
-        top_k=None,
-        providers=StubProviderResolver(_RecordingEmbedder, embedding_input_limit=56),
-        vector_stores=StubVectorStoreProvider(),
-        storage=FileStorage(),
-        settings=get_settings(),
-    )
-
-    result = PipelineExecutor(NodeRegistry([_SourceNode, EmbedderNode, _LexicalNode])).execute(
-        definition, context
-    )
-    lexical = ChunkPayload.model_validate(result.outputs_by_node["lexical"]["chunks"])
-    embedded = EmbeddingPayload.model_validate(result.outputs_by_node["embed"]["embedded"])
-
-    assert [chunk.chunk_id for chunk in lexical.chunks] == ["doc:7", "doc:8"]
-    assert [chunk.chunk_id for chunk in embedded.chunks] == ["doc:7", "doc:8"]
 
 
 def test_retrievers_keep_full_filtered_match_order_and_scores() -> None:
