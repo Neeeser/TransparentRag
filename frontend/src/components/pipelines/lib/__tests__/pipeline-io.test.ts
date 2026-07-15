@@ -359,11 +359,18 @@ describe("pipeline-io", () => {
       buildNode({ nodeType: "tokenizer.huggingface", config: { hf_model_id: "" } }, "tokenizer"),
     ];
 
-    expect(validatePipelineConfig(nodes).nodeErrors.tokenizer[0]).toContain("model id is required");
+    const nodeSpecs = [{ type: "tokenizer.huggingface", requires_model_id: true }];
+    expect(validatePipelineConfig(nodes, undefined, nodeSpecs).nodeErrors.tokenizer[0]).toContain(
+      "model id is required",
+    );
     expect(
-      validatePipelineConfig(nodes, {
-        tokenizer: { hf_model_id: "owner/model" },
-      }).nodeErrors,
+      validatePipelineConfig(
+        nodes,
+        {
+          tokenizer: { hf_model_id: "owner/model" },
+        },
+        nodeSpecs,
+      ).nodeErrors,
     ).toEqual({});
   });
 });

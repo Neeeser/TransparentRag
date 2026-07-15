@@ -1,4 +1,5 @@
 import type { PipelineNodeData } from "../PipelineNode";
+import type { NodeSpec } from "@/lib/types";
 import type { Connection, Edge, Node } from "@xyflow/react";
 
 type PortCompatibilityMap = Record<string, Set<string>>;
@@ -154,12 +155,16 @@ const resolveIndexName = (config: Record<string, unknown>) => {
 export const validatePipelineConfig = (
   nodes: Node<PipelineNodeData>[],
   configOverrides?: Record<string, Record<string, unknown>>,
+  nodeSpecs: Pick<NodeSpec, "type" | "requires_model_id">[] = [],
 ) => {
   const nodeErrors: Record<string, string[]> = {};
+  const modelIdNodeTypes = new Set(
+    nodeSpecs.filter((spec) => spec.requires_model_id).map((spec) => spec.type),
+  );
   nodes.forEach((node) => {
     const { nodeType } = node.data;
     const config = resolveNodeConfig(node, configOverrides);
-    if (nodeType === "tokenizer.huggingface") {
+    if (modelIdNodeTypes.has(nodeType)) {
       const modelId = config.hf_model_id;
       if (typeof modelId !== "string" || !modelId.trim()) {
         nodeErrors[node.id] = ["A HuggingFace model id is required."];

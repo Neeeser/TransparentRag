@@ -6,17 +6,23 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 from sqlmodel import Session
+from tokenizers import Tokenizer
+from tokenizers.models import WordPiece
+from tokenizers.normalizers import BertNormalizer
+from tokenizers.pre_tokenizers import BertPreTokenizer
 
 from app.core.config import get_settings
 from app.db import models
 from app.pipelines.definition import PipelineDefinition, PipelineNodeDefinition
 from app.pipelines.execution.context import PipelineRunContext
-from app.pipelines.nodes.chunking import TokenChunkerNode
+from app.pipelines.nodes.chunking import FixedChunkerConfig, TokenChunkerNode
 from app.pipelines.nodes.tokenizers import HuggingFaceTokenizerConfig
-from app.pipelines.payloads import TokenizerSpec
+from app.pipelines.payloads import ParsedDocumentPayload, TokenizerSpec
 from app.pipelines.ports import NodePort
 from app.pipelines.registry import build_default_registry
 from app.pipelines.validation import PipelineValidator
+from app.retrieval.models import Document, DocumentMetadata
+from app.retrieval.tokenizers import TokenizerJsonCounter
 from app.schemas.pipelines import NodePortRead
 from app.utils.file_storage import FileStorage
 from tests.pipelines.conftest import StubProviderResolver, StubVectorStoreProvider
@@ -235,3 +241,38 @@ def test_chunker_defaults_to_wordpiece_when_tokenizer_port_is_empty(monkeypatch)
 
     assert TokenChunkerNode.resolve_tokenizer({}) == TokenizerSpec(kind="wordpiece")
     assert captured == []
+
+
+def test_chunker_node_uses_wordpiece_counter_when_tokenizer_port_is_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tokenizer = Tokenizer(
+        WordPiece(vocab={"[UNK]": 0, "play": 1, "##ing": 2}, unk_token="[UNK]")
+    )
+    tokenizer.normalizer = BertNormalizer(lowercase=True)
+    tokenizer.pre_tokenizer = BertPreTokenizer()
+    tokenizer_path = tmp_path / "tokenizer.json"
+    tokenizer.save(str(tokenizer_path))
+    counter = TokenizerJsonCounter.from_file(tokenizer_path)
+    resolved: list[TokenizerSpec] = []
+
+    def resolve(spec: TokenizerSpec, _storage_path: Path) -> TokenizerJsonCounter:
+        resolved.append(spec)
+        return counter
+
+    monkeypatch.setattr("app.pipelines.nodes.chunking.build_token_counter", resolve)
+    node = TokenChunkerNode(FixedChunkerConfig(chunk_size=512, chunk_overlap=0))
+    document = Document(
+        document_id="doc-1",
+        text=" ".join(["playing"] * 512),
+        metadata=DocumentMetadata(),
+    )
+
+    result = node.run(
+        {"document": ParsedDocumentPayload(document=document).model_dump()},
+        _context(tmp_path),
+    )
+
+    chunks = result["chunks"].chunks
+    assert resolved == [TokenizerSpec(kind="wordpiece")]
+    assert len(chunks) > 1

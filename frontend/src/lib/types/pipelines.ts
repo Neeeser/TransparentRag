@@ -153,6 +153,7 @@ export interface NodeSpec {
   config_schema: Record<string, unknown>;
   default_config: Record<string, unknown>;
   hidden: boolean;
+  requires_model_id?: boolean;
 }
 
 export interface PipelineValidationResult {

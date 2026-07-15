@@ -107,6 +107,7 @@ class HuggingFaceTokenizerNode(BaseTokenizerNode[HuggingFaceTokenizerConfig]):
     example = "No input -> TokenizerSpec(kind='huggingface', hf_model_id='owner/model')."
     config_model = HuggingFaceTokenizerConfig
     tokenizer_kind = "huggingface"
+    requires_model_id = True
 
     @classmethod
     def validation_issues_for_node(

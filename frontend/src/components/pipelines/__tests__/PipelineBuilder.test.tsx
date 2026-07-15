@@ -446,6 +446,7 @@ describe("PipelineBuilder", () => {
       type: "tokenizer.huggingface",
       label: "HuggingFace tokenizer",
       category: "ingestion",
+      requires_model_id: true,
       input_ports: [],
       output_ports: [
         {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -94,6 +95,24 @@ def test_resource_factory_resolves_whitespace_and_cached_huggingface(
 
     assert whitespace.count("hello world") == 2
     assert huggingface.count("playing") == 2
+
+
+def test_resource_factory_reuses_counters_and_reloads_changed_huggingface_file(
+    tmp_path: Path,
+) -> None:
+    model_id = "owner/model"
+    path = cached_tokenizer_path(tmp_path, model_id)
+    path.parent.mkdir(parents=True)
+    _wordpiece_tokenizer(path)
+    spec = TokenizerSpec(kind="huggingface", hf_model_id=model_id)
+
+    first = build_token_counter(spec, tmp_path)
+    assert build_token_counter(spec, tmp_path) is first
+
+    _wordpiece_tokenizer(path)
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    assert build_token_counter(spec, tmp_path) is not first
 
 
 def test_resource_factory_reports_an_uncached_huggingface_tokenizer(tmp_path: Path) -> None:
