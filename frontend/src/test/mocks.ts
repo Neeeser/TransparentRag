@@ -149,6 +149,10 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     deletePipeline: vi.fn(async () => undefined),
     listPipelineVersions: vi.fn(async () => []),
     activatePipelineVersion: vi.fn(async () => makePipeline()),
+    ensureHuggingFaceTokenizer: vi.fn(async (_token: string, payload: { model_id: string }) => ({
+      model_id: payload.model_id,
+      cached: true,
+    })),
     // chat
     listChatSessions: vi.fn(async () => []),
     getChatHistory: vi.fn(async () => []),

@@ -353,6 +353,19 @@ describe("pipeline-io", () => {
     const overrides = { retriever: { index_name: "index-a" } };
     expect(validatePipelineConfig(nodes, overrides).nodeErrors.retriever).toBeUndefined();
   });
+
+  it("validates the HuggingFace tokenizer model id", () => {
+    const nodes = [
+      buildNode({ nodeType: "tokenizer.huggingface", config: { hf_model_id: "" } }, "tokenizer"),
+    ];
+
+    expect(validatePipelineConfig(nodes).nodeErrors.tokenizer[0]).toContain("model id is required");
+    expect(
+      validatePipelineConfig(nodes, {
+        tokenizer: { hf_model_id: "owner/model" },
+      }).nodeErrors,
+    ).toEqual({});
+  });
 });
 
 describe("port fan-in", () => {

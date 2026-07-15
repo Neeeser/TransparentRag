@@ -7,6 +7,7 @@ const PORT_COMPATIBILITY: PortCompatibilityMap = {
   document_source: new Set(["document_source"]),
   document: new Set(["document"]),
   chunk_batch: new Set(["chunk_batch"]),
+  tokenizer: new Set(["tokenizer"]),
   embedded_batch: new Set(["embedded_batch"]),
   indexed_batch: new Set(["indexed_batch"]),
   query_request: new Set(["query_request"]),
@@ -157,10 +158,17 @@ export const validatePipelineConfig = (
   const nodeErrors: Record<string, string[]> = {};
   nodes.forEach((node) => {
     const { nodeType } = node.data;
+    const config = resolveNodeConfig(node, configOverrides);
+    if (nodeType === "tokenizer.huggingface") {
+      const modelId = config.hf_model_id;
+      if (typeof modelId !== "string" || !modelId.trim()) {
+        nodeErrors[node.id] = ["A HuggingFace model id is required."];
+      }
+      return;
+    }
     if (!nodeType.startsWith("indexer.") && !nodeType.startsWith("retriever.")) {
       return;
     }
-    const config = resolveNodeConfig(node, configOverrides);
     if (!resolveIndexName(config)) {
       nodeErrors[node.id] = ["An index is required. Select an index or create a new one."];
     }

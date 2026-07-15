@@ -21,11 +21,19 @@
             "ui": {}
           },
           {
+            "id": "tokenize-document",
+            "type": "tokenizer.wordpiece",
+            "name": "BERT WordPiece",
+            "config": {},
+            "position": null,
+            "ui": {}
+          },
+          {
             "id": "chunk-document",
             "type": "chunker.token",
             "name": "Token Chunker",
             "config": {
-              "chunk_size": 1024,
+              "chunk_size": 512,
               "chunk_overlap": 200
             },
             "position": null,
@@ -93,6 +101,14 @@
             "target": "chunk-document",
             "source_port": "document",
             "target_port": "document",
+            "ui": {}
+          },
+          {
+            "id": "edge-tokenizer-chunker",
+            "source": "tokenize-document",
+            "target": "chunk-document",
+            "source_port": "tokenizer",
+            "target_port": "tokenizer",
             "ui": {}
           },
           {
@@ -344,6 +360,13 @@
           "data_type": "document",
           "required": true,
           "accepts_many": false
+        },
+        {
+          "key": "tokenizer",
+          "label": "Tokenizer",
+          "data_type": "tokenizer",
+          "required": false,
+          "accepts_many": false
         }
       ],
       "output_ports": [
@@ -359,7 +382,7 @@
         "description": "Configuration for fixed-strategy chunking nodes.",
         "properties": {
           "chunk_size": {
-            "default": 1024,
+            "default": 512,
             "exclusiveMinimum": 0,
             "title": "Chunk Size",
             "type": "integer"
@@ -375,9 +398,34 @@
         "type": "object"
       },
       "default_config": {
-        "chunk_size": 1024,
+        "chunk_size": 512,
         "chunk_overlap": 200
       },
+      "hidden": false
+    },
+    {
+      "type": "tokenizer.wordpiece",
+      "label": "BERT WordPiece",
+      "category": "ingestion",
+      "description": "Counts BERT WordPiece tokens used by MiniLM, bge, e5, and gte models.",
+      "example": "No input -> TokenizerSpec(kind='wordpiece').",
+      "input_ports": [],
+      "output_ports": [
+        {
+          "key": "tokenizer",
+          "label": "Tokenizer",
+          "data_type": "tokenizer",
+          "required": true,
+          "accepts_many": false
+        }
+      ],
+      "config_schema": {
+        "description": "Empty configuration payload for nodes with no options.",
+        "properties": {},
+        "title": "EmptyConfig",
+        "type": "object"
+      },
+      "default_config": {},
       "hidden": false
     },
     {

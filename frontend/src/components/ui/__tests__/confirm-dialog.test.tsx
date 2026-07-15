@@ -55,4 +55,24 @@ describe("ConfirmDialog", () => {
     await user.keyboard("{Escape}");
     expect(onCancel).toHaveBeenCalled();
   });
+
+  it("renders a controlled remember option", async () => {
+    const user = userEvent.setup();
+    const onRememberChange = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        title="Download tokenizer"
+        rememberLabel="Remember this choice"
+        rememberChecked={false}
+        onRememberChange={onRememberChange}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: "Remember this choice" }));
+
+    expect(onRememberChange).toHaveBeenCalledWith(true);
+  });
 });

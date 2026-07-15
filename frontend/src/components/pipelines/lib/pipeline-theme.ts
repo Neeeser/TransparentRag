@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 
 export type NodeFamily =
   | "chunker"
+  | "tokenizer"
   | "embedder"
   | "indexer"
   | "parser"
@@ -17,6 +18,7 @@ export type NodeFamily =
 
 const NODE_FAMILY_LABELS: Record<NodeFamily, string> = {
   chunker: "Chunkers",
+  tokenizer: "Tokenizers",
   embedder: "Embedders",
   indexer: "Indexers",
   parser: "Parsers",
@@ -37,6 +39,7 @@ const NODE_FAMILY_ORDER: NodeFamily[] = [
   "parser",
   "router",
   "chunker",
+  "tokenizer",
   "embedder",
   "indexer",
   "retriever",
@@ -58,6 +61,7 @@ const GLOW = "shadow-elevation-2";
 // as literals so Tailwind's JIT still sees them.
 const NEUTRAL_BG = "bg-stage-neutral";
 const EMBED_BG = "bg-stage-embed";
+const CHUNK_BG = "bg-stage-chunk";
 
 // Container "kind" and utility families share these; declared once so the
 // stage-token classes aren't duplicated across entries.
@@ -80,6 +84,12 @@ const RERANK_STYLE: FamilyStyle = {
   glow: GLOW,
   badge: "text-stage-rerank",
 };
+const CHUNK_STYLE: FamilyStyle = {
+  accent: CHUNK_BG,
+  border: "border-stage-chunk/40",
+  glow: GLOW,
+  badge: "text-stage-chunk",
+};
 
 /**
  * Family styling is expressed in stage tokens (see globals.css), so pipeline
@@ -89,12 +99,8 @@ const RERANK_STYLE: FamilyStyle = {
  * "kind" families (ingestion/retrieval) and utility use neutral/router tokens.
  */
 const NODE_FAMILY_STYLES: Record<NodeFamily, FamilyStyle> = {
-  chunker: {
-    accent: "bg-stage-chunk",
-    border: "border-stage-chunk/40",
-    glow: GLOW,
-    badge: "text-stage-chunk",
-  },
+  chunker: CHUNK_STYLE,
+  tokenizer: CHUNK_STYLE,
   embedder: {
     accent: EMBED_BG,
     border: "border-stage-embed/40",
@@ -140,7 +146,8 @@ const NODE_FAMILY_STYLES: Record<NodeFamily, FamilyStyle> = {
 const PORT_TYPE_STYLES: Record<string, { bg: string; ring: string }> = {
   document_source: { bg: "bg-stage-parse", ring: "border-stage-parse/60" },
   document: { bg: "bg-stage-retrieve", ring: "border-stage-retrieve/60" },
-  chunk_batch: { bg: "bg-stage-chunk", ring: "border-stage-chunk/60" },
+  chunk_batch: { bg: CHUNK_BG, ring: "border-stage-chunk/60" },
+  tokenizer: { bg: CHUNK_BG, ring: "border-stage-chunk/60" },
   embedded_batch: { bg: EMBED_BG, ring: "border-stage-embed/60" },
   indexed_batch: { bg: "bg-stage-index", ring: "border-stage-index/60" },
   query_request: { bg: "bg-stage-router", ring: "border-stage-router/60" },
@@ -159,6 +166,7 @@ const PORT_TYPE_VAR: Record<string, string> = {
   document_source: "var(--port-document-source)",
   document: "var(--port-document)",
   chunk_batch: "var(--port-chunk-batch)",
+  tokenizer: "var(--port-chunk-batch)",
   embedded_batch: "var(--port-embedded-batch)",
   indexed_batch: "var(--port-indexed-batch)",
   query_request: "var(--port-query-request)",
@@ -170,6 +178,7 @@ const PORT_TYPE_LABELS: Record<string, string> = {
   document_source: "Source file",
   document: "Parsed document",
   chunk_batch: "Chunks",
+  tokenizer: "Tokenizer",
   embedded_batch: "Embedded chunks",
   indexed_batch: "Indexed chunks",
   query_request: "Query",
@@ -188,6 +197,7 @@ const ROUTER_VAR = "var(--stage-router)";
 
 const NODE_FAMILY_VAR: Record<NodeFamily, string> = {
   chunker: "var(--stage-chunk)",
+  tokenizer: "var(--stage-chunk)",
   embedder: "var(--stage-embed)",
   indexer: "var(--stage-index)",
   parser: "var(--stage-parse)",
@@ -215,6 +225,7 @@ export const getPortTypeLabel = (dataType?: string) =>
 export const resolveNodeFamily = (nodeType: string): NodeFamily => {
   const prefix = nodeType.split(".")[0];
   if (prefix === "chunker") return "chunker";
+  if (prefix === "tokenizer") return "tokenizer";
   if (prefix === "embedder") return "embedder";
   if (prefix === "indexer") return "indexer";
   if (prefix === "parser") return "parser";
