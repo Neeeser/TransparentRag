@@ -139,6 +139,7 @@ class DocumentTraceResponse(BaseModel):
 
     trace: PipelineTraceResponse
     focused_item: FocusedItemRead | None = None
+    context_items: list[FocusedItemRead] = Field(default_factory=list)
 
 
 class EndToEndTraceResponse(BaseModel):
@@ -152,3 +153,4 @@ class EndToEndTraceResponse(BaseModel):
     retrieval: PipelineTraceResponse
     origin: TraceOriginRead | None = None
     focused_item: FocusedItemRead | None = None
+    context_items: list[FocusedItemRead] = Field(default_factory=list)

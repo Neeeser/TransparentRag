@@ -31,6 +31,7 @@ describe("useTraceDebugger", () => {
   it("loads the end-to-end trace when a chunk is targeted", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTraceResponse(),
+      context_items: [],
       origin: {
         document_id: "doc-1",
         document_name: "doc.pdf",
@@ -66,6 +67,17 @@ describe("useTraceDebugger", () => {
         chunk_index: 7,
         chunk_count: 30,
       },
+      context_items: [
+        {
+          id: "doc-1:6",
+          status: "resolved",
+          text: "The preceding chunk.",
+          document_id: "doc-1",
+          filename: "doc.pdf",
+          chunk_index: 6,
+          chunk_count: 30,
+        },
+      ],
     });
 
     const { result } = renderHook(() =>
@@ -75,6 +87,7 @@ describe("useTraceDebugger", () => {
     await waitFor(() => expect(result.current.graph).not.toBeNull());
     expect(api.fetchDocumentFocusedTrace).toHaveBeenCalledWith(TEST_TOKEN, "doc-1", "doc-1:7");
     expect(result.current.focusedItem?.text).toBe("The ingested chunk text.");
+    expect(result.current.contextItems.map((item) => item.id)).toEqual(["doc-1:6"]);
     expect(result.current.focusedItemId).toBe("doc-1:7");
   });
 
@@ -96,6 +109,7 @@ describe("useTraceDebugger", () => {
   it("loads the ingestion origin when a query result is focused in the inspector", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTraceResponse(),
+      context_items: [],
       origin: {
         document_id: "doc-1",
         document_name: "doc.pdf",
@@ -141,6 +155,7 @@ describe("useTraceDebugger", () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTraceResponse(),
       origin: null,
+      context_items: [],
     });
 
     const { result } = renderHook(() =>

@@ -401,6 +401,40 @@ def _create_query_event(
     return event
 
 
+def _add_item_trace(
+    session: Session,
+    run: models.PipelineRun,
+    item_ids: list[str],
+    *,
+    node_id: str = "ranker",
+) -> None:
+    """Attach one complete item list to a run for focused-context tests."""
+    session.add(
+        models.PipelineNodeRun(
+            run_id=run.id,
+            node_id=node_id,
+            node_type="retriever.vector",
+            node_name="Retriever",
+            sequence_index=0,
+            status=models.PipelineRunStatus.COMPLETED,
+            summary={
+                "inputs": [],
+                "outputs": [
+                    {
+                        "label": "Match items",
+                        "kind": "items",
+                        "value": {
+                            "kind": "matches",
+                            "items": [{"id": item_id, "score": 1.0} for item_id in item_ids],
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    session.commit()
+
+
 def test_end_to_end_trace_joins_retrieval_with_chunk_origin(session: Session) -> None:
     """Tracing a retrieved chunk returns the retrieval run AND the ingestion
     run of the document the chunk came from (chunk ids are `{document_id}:{i}`)."""
@@ -495,6 +529,86 @@ def test_end_to_end_trace_resolves_focused_item_text(session: Session) -> None:
     assert focused.filename == "handbook.txt"
     assert focused.chunk_index == 1
     assert focused.chunk_count == 3
+
+
+def test_end_to_end_trace_resolves_deduplicated_neighbor_context(session: Session) -> None:
+    """Focused traces resolve the focused chunk and its ±2 recorded-list
+    neighbors in one user-scoped batch without leaking foreign chunk text."""
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    pipeline = _create_pipeline(session, user)
+    ingestion_run = _create_run(session, user, pipeline, collection)
+    retrieval_run = _create_run(session, user, pipeline, collection)
+    document = _create_document_with_run(session, user, collection, ingestion_run)
+    document.num_chunks = 7
+    chunks = [
+        models.DocumentChunkRecord(
+            document_id=document.id,
+            collection_id=collection.id,
+            chunk_index=index,
+            text=f"Chunk {index}",
+            embedding=[],
+            chunk_metadata={},
+            embedding_model="embed-model",
+        )
+        for index in range(7)
+    ]
+    session.add_all(chunks)
+
+    other_user = _create_user(session)
+    other_collection = _create_collection(session, other_user)
+    other_pipeline = _create_pipeline(session, other_user)
+    other_run = _create_run(session, other_user, other_pipeline, other_collection)
+    foreign_document = _create_document_with_run(session, other_user, other_collection, other_run)
+    foreign_chunk = models.DocumentChunkRecord(
+        document_id=foreign_document.id,
+        collection_id=other_collection.id,
+        chunk_index=0,
+        text="Foreign text",
+        embedding=[],
+        chunk_metadata={},
+        embedding_model="embed-model",
+    )
+    session.add(foreign_chunk)
+    session.commit()
+
+    ids = [f"{document.id}:{index}" for index in range(7)]
+    foreign_id = f"{foreign_document.id}:0"
+    _add_item_trace(session, retrieval_run, ids[1:6], node_id="semantic")
+    _add_item_trace(
+        session,
+        retrieval_run,
+        [ids[0], foreign_id, ids[3], ids[6]],
+        node_id="fusion",
+    )
+    event = _create_query_event(session, user, collection, retrieval_run)
+
+    response = TraceService(session).get_query_event_end_to_end_trace(
+        event.id, user.id, chunk_id=ids[3]
+    )
+
+    assert response.focused_item is not None
+    assert response.focused_item.text == "Chunk 3"
+    assert [item.id for item in response.context_items] == [
+        ids[1],
+        ids[2],
+        ids[3],
+        ids[4],
+        ids[5],
+        ids[0],
+        foreign_id,
+        ids[6],
+    ]
+    assert [item.text for item in response.context_items[:-3]] == [
+        "Chunk 1",
+        "Chunk 2",
+        "Chunk 3",
+        "Chunk 4",
+        "Chunk 5",
+    ]
+    foreign = next(item for item in response.context_items if item.id == foreign_id)
+    assert foreign.status == "missing"
+    assert foreign.text is None
 
 
 def test_end_to_end_trace_focused_item_missing_cases(session: Session) -> None:

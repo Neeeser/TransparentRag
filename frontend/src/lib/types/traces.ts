@@ -103,6 +103,7 @@ export interface TraceFocusedItem {
 export interface DocumentTrace {
   trace: PipelineTraceResponse;
   focused_item?: TraceFocusedItem | null;
+  context_items: TraceFocusedItem[];
 }
 
 /** `EndToEndTraceResponse` — retrieval trace joined with chunk origin. */
@@ -110,4 +111,5 @@ export interface EndToEndTrace {
   retrieval: PipelineTraceResponse;
   origin?: TraceOrigin | null;
   focused_item?: TraceFocusedItem | null;
+  context_items: TraceFocusedItem[];
 }

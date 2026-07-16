@@ -184,6 +184,7 @@ describe("TraceDebugger", () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTwoNodeTrace(),
       origin: null,
+      context_items: [],
       focused_item: {
         id: "chunk-7",
         status: "resolved",
@@ -245,6 +246,7 @@ describe("TraceDebugger", () => {
     trace.run = { ...trace.run, kind: "ingestion" };
     api.fetchDocumentFocusedTrace.mockResolvedValueOnce({
       trace,
+      context_items: [],
       focused_item: {
         id: "chunk-7",
         status: "resolved",

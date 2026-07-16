@@ -28,6 +28,7 @@ type LoadedTrace = {
   trace: PipelineTraceResponse;
   origin: PipelineTraceResponse | null;
   focusedItem: TraceFocusedItem | null;
+  contextItems: TraceFocusedItem[];
 };
 
 type FocusState = {
@@ -45,6 +46,8 @@ export type UseTraceDebuggerResult = {
   focusedItemId: string | null;
   /** Live-resolved chunk behind the focused id — text and document context. */
   focusedItem: TraceFocusedItem | null;
+  /** Live-resolved neighbors around focus in every recorded item list. */
+  contextItems: TraceFocusedItem[];
   focusItem: (itemId: string) => void;
   clearFocus: () => void;
   /** Non-blocking: node specs enrich the graph but the trace renders without them. */
@@ -61,18 +64,39 @@ async function loadTrace(token: string, source: TraceSource): Promise<LoadedTrac
         trace: payload.retrieval,
         origin: payload.origin?.trace ?? null,
         focusedItem: payload.focused_item ?? null,
+        contextItems: payload.context_items,
       };
     }
-    return { trace: await fetchQueryEventTrace(token, source.id), origin: null, focusedItem: null };
+    return {
+      trace: await fetchQueryEventTrace(token, source.id),
+      origin: null,
+      focusedItem: null,
+      contextItems: [],
+    };
   }
   if (source.kind === "document") {
     if (source.chunkId) {
       const payload = await fetchDocumentFocusedTrace(token, source.id, source.chunkId);
-      return { trace: payload.trace, origin: null, focusedItem: payload.focused_item ?? null };
+      return {
+        trace: payload.trace,
+        origin: null,
+        focusedItem: payload.focused_item ?? null,
+        contextItems: payload.context_items,
+      };
     }
-    return { trace: await fetchDocumentTrace(token, source.id), origin: null, focusedItem: null };
+    return {
+      trace: await fetchDocumentTrace(token, source.id),
+      origin: null,
+      focusedItem: null,
+      contextItems: [],
+    };
   }
-  return { trace: await fetchPipelineRunTrace(token, source.id), origin: null, focusedItem: null };
+  return {
+    trace: await fetchPipelineRunTrace(token, source.id),
+    origin: null,
+    focusedItem: null,
+    contextItems: [],
+  };
 }
 
 /**
@@ -116,6 +140,7 @@ export function useTraceDebugger(source: TraceSource): UseTraceDebuggerResult {
     reload: traceQuery.reload,
     focusedItemId,
     focusedItem: focusedItemId ? (traceQuery.data?.focusedItem ?? null) : null,
+    contextItems: focusedItemId ? (traceQuery.data?.contextItems ?? []) : [],
     focusItem: (itemId) => setFocusState({ sourceKey, itemId }),
     clearFocus: () => setFocusState({ sourceKey, itemId: null }),
     specsNotice: specsQuery.error
