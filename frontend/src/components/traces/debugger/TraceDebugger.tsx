@@ -2,7 +2,7 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
 import { ArtifactDrawer } from "@/components/traces/debugger/ArtifactDrawer";
@@ -14,7 +14,6 @@ import { useTraceStepper } from "@/components/traces/debugger/hooks/use-trace-st
 import { NodeEvidencePanel } from "@/components/traces/debugger/NodeEvidencePanel";
 import { RankPath } from "@/components/traces/debugger/RankPath";
 import { TraceHeader } from "@/components/traces/debugger/TraceHeader";
-import { traceNodeTypes } from "@/components/traces/IndexStoreNode";
 import { buildExecutionSections, traceQueryText } from "@/components/traces/lib/execution";
 import { buildJourneyFocus } from "@/components/traces/lib/journey";
 import { Button } from "@/components/ui/button";
@@ -24,12 +23,15 @@ import { cn } from "@/lib/utils";
 import type { TypedEdgeData } from "@/components/pipelines/flow/TypedEdge";
 import type { PipelineNodeData } from "@/components/pipelines/PipelineNode";
 import type { TraceSource } from "@/components/traces/debugger/hooks/use-trace-debugger";
-import type { TraceGraph } from "@/components/traces/trace-graph";
+import type { TraceGraph, TraceStage } from "@/components/traces/trace-graph";
 import type { PipelineTraceResponse, TraceFocusedItem } from "@/lib/types";
 
 type TraceDebuggerProps = {
   source: TraceSource;
 };
+
+const ACTIVE_TOGGLE_CLASS = "bg-surface-strong text-primary";
+const INACTIVE_TOGGLE_CLASS = "text-muted";
 
 const tracePath = (source: TraceSource): string => {
   if (source.kind === "query") return `/traces/queries/${source.id}`;
@@ -146,6 +148,10 @@ function LoadedTraceDebugger({
   const focused = Boolean(focusedItemId);
   const { selectedNodeId, selectedStep, selectNode } = useExecutionSelection(graph, focused);
   const [showFocusedPath, setShowFocusedPath] = useState(focused);
+  const [graphStage, setGraphStage] = useState<TraceStage>(
+    activeStep?.stage ?? graph.steps[0]?.stage ?? "retrieval",
+  );
+  const followedPlaybackIndex = useRef(playback.activeIndex);
   const [artifactItem, setArtifactItem] = useState<TraceFocusedItem | null>(null);
   const [artifactMode, setArtifactMode] = useState<"reader" | "context">("reader");
   const openArtifact = (item: TraceFocusedItem) => {
@@ -161,6 +167,23 @@ function LoadedTraceDebugger({
     setArtifactItem(null);
     onClearFocus();
   };
+  const selectTraceNode = useCallback(
+    (nodeId: string) => {
+      const stage = graph.steps.find((step) => step.nodeIds.includes(nodeId))?.stage;
+      if (stage) setGraphStage(stage);
+      selectNode(nodeId);
+    },
+    [graph.steps, selectNode],
+  );
+  const followPlaybackStage = useCallback(
+    (index: number) => {
+      if (index === followedPlaybackIndex.current) return;
+      followedPlaybackIndex.current = index;
+      const stage = graph.steps[index]?.stage;
+      if (stage) setGraphStage(stage);
+    },
+    [graph.steps],
+  );
   const sections = useMemo(
     () => buildExecutionSections(graph, focusedItemId),
     [graph, focusedItemId],
@@ -200,6 +223,9 @@ function LoadedTraceDebugger({
     [contextItems, focusedItem],
   );
   const displayGraph = useMemo(() => {
+    const stageNodeIds = new Set(
+      graph.steps.filter((step) => step.stage === graphStage).flatMap((step) => step.nodeIds),
+    );
     const focus = buildJourneyFocus(graph, showFocusedPath ? itemEffects : []);
     const focusedStores = new Set(
       graph.edges.flatMap((edge) =>
@@ -210,28 +236,32 @@ function LoadedTraceDebugger({
     );
     return {
       ...graph,
-      nodes: graph.nodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          active: node.id === selectedNodeId,
-          itemFocus: nodeItemFocus(
-            node.id,
-            focus.traveledNodeIds,
-            focus.absentNodeIds,
-            focusedStores,
-          ),
-        },
-      })),
-      edges: graph.edges.map((edge) => ({
-        ...edge,
-        data: {
-          ...edge.data,
-          itemFocus: edgeItemFocus(edge.id, focus.traveledEdgeIds, focus.absentEdgeIds),
-        },
-      })),
+      nodes: graph.nodes
+        .filter((node) => stageNodeIds.has(node.id))
+        .map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            active: node.id === selectedNodeId,
+            itemFocus: nodeItemFocus(
+              node.id,
+              focus.traveledNodeIds,
+              focus.absentNodeIds,
+              focusedStores,
+            ),
+          },
+        })),
+      edges: graph.edges
+        .filter((edge) => stageNodeIds.has(edge.source) && stageNodeIds.has(edge.target))
+        .map((edge) => ({
+          ...edge,
+          data: {
+            ...edge.data,
+            itemFocus: edgeItemFocus(edge.id, focus.traveledEdgeIds, focus.absentEdgeIds),
+          },
+        })),
     };
-  }, [graph, itemEffects, selectedNodeId, showFocusedPath]);
+  }, [graph, graphStage, itemEffects, selectedNodeId, showFocusedPath]);
   const selectedNode = useMemo(
     () => graph.nodes.find((node) => node.id === selectedNodeId) ?? null,
     [graph.nodes, selectedNodeId],
@@ -277,34 +307,62 @@ function LoadedTraceDebugger({
         />
       ) : null}
       {focused ? (
-        <RankPath steps={rankPath} selectedNodeId={selectedNodeId} onSelectNode={selectNode} />
+        <RankPath steps={rankPath} selectedNodeId={selectedNodeId} onSelectNode={selectTraceNode} />
       ) : null}
       <section
         aria-label="Trace graph"
         className="relative h-[clamp(180px,28vh,280px)] shrink-0 border-b border-hairline bg-canvas"
       >
-        <div className="absolute left-3 top-3 z-10 flex items-center gap-1 rounded-full border border-hairline bg-canvas-raised/90 p-1 shadow-elevation-1">
-          <button
-            type="button"
-            onClick={() => setShowFocusedPath(true)}
-            disabled={!focused}
-            className={cn(
-              "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition disabled:cursor-not-allowed disabled:opacity-40",
-              showFocusedPath && focused ? "bg-surface-strong text-primary" : "text-muted",
-            )}
-          >
-            Focused path
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowFocusedPath(false)}
-            className={cn(
-              "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition",
-              !showFocusedPath ? "bg-surface-strong text-primary" : "text-muted",
-            )}
-          >
-            Full graph
-          </button>
+        <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
+          {graph.combined ? (
+            <div
+              role="tablist"
+              aria-label="Trace stage"
+              className="flex items-center gap-1 rounded-full border border-hairline bg-canvas-raised/90 p-1 shadow-elevation-1"
+            >
+              {(["origin", "retrieval"] as const).map((stage) => {
+                const label = stage === "origin" ? "Ingestion" : "Retrieval";
+                return (
+                  <button
+                    key={stage}
+                    type="button"
+                    role="tab"
+                    aria-selected={graphStage === stage}
+                    onClick={() => setGraphStage(stage)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet",
+                      graphStage === stage ? ACTIVE_TOGGLE_CLASS : INACTIVE_TOGGLE_CLASS,
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <div className="flex items-center gap-1 rounded-full border border-hairline bg-canvas-raised/90 p-1 shadow-elevation-1">
+            <button
+              type="button"
+              onClick={() => setShowFocusedPath(true)}
+              disabled={!focused}
+              className={cn(
+                "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition disabled:cursor-not-allowed disabled:opacity-40",
+                showFocusedPath && focused ? ACTIVE_TOGGLE_CLASS : INACTIVE_TOGGLE_CLASS,
+              )}
+            >
+              Focused path
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFocusedPath(false)}
+              className={cn(
+                "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition",
+                !showFocusedPath ? ACTIVE_TOGGLE_CLASS : INACTIVE_TOGGLE_CLASS,
+              )}
+            >
+              Full graph
+            </button>
+          </div>
         </div>
         <div className="h-full min-h-0 min-w-0">
           <FlowPlayer
@@ -312,11 +370,12 @@ function LoadedTraceDebugger({
             edges={displayGraph.edges}
             steps={graph.steps}
             playback={playback}
-            nodeTypes={graph.combined ? traceNodeTypes : undefined}
             fitViewPadding={0.18}
             minZoom={0.1}
             compact
-            onNodeSelect={selectNode}
+            interactive
+            onActiveStepChange={followPlaybackStage}
+            onNodeSelect={selectTraceNode}
           />
         </div>
       </section>
@@ -326,7 +385,7 @@ function LoadedTraceDebugger({
             sections={sections}
             selectedNodeId={selectedNodeId}
             playbackNodeId={activeStep?.nodeId ?? null}
-            onSelectNode={selectNode}
+            onSelectNode={selectTraceNode}
           />
         </div>
         <div className="min-h-[280px] min-w-0 flex-1 lg:min-h-0">
@@ -349,7 +408,6 @@ function LoadedTraceDebugger({
         contextItems={contextItems}
         query={query}
         initialMode={artifactMode}
-        onNavigate={openArtifact}
         onClose={() => setArtifactItem(null)}
       />
     </div>

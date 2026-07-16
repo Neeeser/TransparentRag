@@ -123,12 +123,12 @@ export function ResultList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label={`Focus trace on ${title}`}
+                  aria-label={`Trace result ${title}`}
                   onClick={() => onFocusItem(item.id)}
                   className="absolute right-1.5 top-1.5 h-7 gap-1 px-2 text-[10px]"
                 >
                   <LocateFixed className="h-3 w-3" aria-hidden />
-                  Focus
+                  Trace result
                 </Button>
               ) : null}
               {selected && context && onOpenArtifact ? (

@@ -16,7 +16,7 @@ const runQueryLabel = "Run query";
 const viewTraceLabel = "Trace query";
 const queryInputLabel = "Search query";
 const firstQuery = "first question";
-const focusResultLabel = "Focus result";
+const traceResultLabel = "Trace result";
 const previousResultText = "Previous result";
 
 async function runQuery(text = "Find") {
@@ -74,10 +74,10 @@ describe("CollectionSearch", () => {
     fireEvent.click(screen.getByText(viewTraceLabel));
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1");
 
-    fireEvent.click(screen.getAllByRole("button", { name: focusResultLabel })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: traceResultLabel })[0]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-1");
     // Chunks without a chunk_id fall back to their row id.
-    fireEvent.click(screen.getAllByRole("button", { name: focusResultLabel })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: traceResultLabel })[1]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-3");
   });
 
@@ -176,7 +176,7 @@ describe("CollectionSearch", () => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
     expect(screen.queryByText(viewTraceLabel)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: focusResultLabel }));
+    fireEvent.click(screen.getByRole("button", { name: traceResultLabel }));
     expect(getMockRouter().push).not.toHaveBeenCalled();
   });
 });

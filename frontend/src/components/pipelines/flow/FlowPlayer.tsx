@@ -37,6 +37,8 @@ type FlowPlayerProps = {
   className?: string;
   /** Compact hides the step scrubber (landing-page style ambient playback). */
   compact?: boolean;
+  /** Allow the user to pan and zoom a compact graph viewport. */
+  interactive?: boolean;
   /**
    * Ambient mode: an always-looping, non-interactive backdrop. Hides all
    * controls, disables clicks/pans, and restarts playback at the end. Used
@@ -105,6 +107,7 @@ export function FlowPlayer({
   onActiveStepChange,
   className,
   compact = false,
+  interactive = false,
   ambient = false,
   loop,
   onRunComplete,
@@ -222,9 +225,9 @@ export function FlowPlayer({
             nodesDraggable={false}
             nodesConnectable={false}
             elementsSelectable={false}
-            zoomOnScroll={false}
-            panOnDrag={!compact && !ambient}
-            preventScrolling={false}
+            zoomOnScroll={interactive && !ambient}
+            panOnDrag={(interactive || !compact) && !ambient}
+            preventScrolling={interactive && !ambient}
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={18} size={1} color={dotColor} />

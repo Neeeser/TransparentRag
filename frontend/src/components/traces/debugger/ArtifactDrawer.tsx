@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
+import { Columns3, FileText, X } from "lucide-react";
 import { useId, useState } from "react";
 
 import { HighlightedTraceText } from "@/components/traces/debugger/HighlightedTraceText";
@@ -73,7 +73,6 @@ type ArtifactDrawerProps = {
   contextItems?: TraceFocusedItem[];
   query?: string | null;
   initialMode?: "reader" | "context";
-  onNavigate?: (item: TraceFocusedItem) => void;
   onClose: () => void;
 };
 
@@ -99,85 +98,15 @@ const adjacentChunks = (
   };
 };
 
-type AdjacentControlsProps = {
-  previous: TraceFocusedItem | null;
-  next: TraceFocusedItem | null;
-  onNavigate?: (item: TraceFocusedItem) => void;
-  onCompare: (itemId: string) => void;
-};
-
-function AdjacentControls({ previous, next, onNavigate, onCompare }: AdjacentControlsProps) {
-  if (!previous && !next) return null;
-  return (
-    <div className="shrink-0 border-b border-hairline py-2">
-      <nav aria-label="Adjacent chunks" className="flex items-center justify-between gap-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!previous}
-          onClick={() => previous && onNavigate?.(previous)}
-          aria-label="Previous chunk"
-          className="gap-1.5"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-          Previous chunk
-        </Button>
-        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-meta">
-          Source order
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!next}
-          onClick={() => next && onNavigate?.(next)}
-          aria-label="Next chunk"
-          className="gap-1.5"
-        >
-          Next chunk
-          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-        </Button>
-      </nav>
-      <div className="mt-1 flex flex-wrap justify-center gap-2">
-        {previous ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => onCompare(previous.id)}
-            aria-label="Compare with previous chunk"
-          >
-            Compare previous
-          </Button>
-        ) : null}
-        {next ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => onCompare(next.id)}
-            aria-label="Compare with next chunk"
-          >
-            Compare next
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 /** Dedicated reader for focused trace artifacts; new media add renderer entries. */
 export function ArtifactDrawer({
   item,
   contextItems = [],
   query,
   initialMode = "reader",
-  onNavigate,
   onClose,
 }: ArtifactDrawerProps) {
   const titleId = useId();
-  const [comparisonId, setComparisonId] = useState<string | null>(null);
   const [contextMode, setContextMode] = useState(initialMode === "context");
   if (!item) return null;
 
@@ -186,15 +115,6 @@ export function ArtifactDrawer({
   const renderer = RENDERERS.find((entry) => entry.matches(item));
   const Renderer = renderer?.Component;
   const { previous, next } = adjacentChunks(item, contextItems);
-  const comparisonItem =
-    contextItems.find(
-      (candidate) => candidate.id === comparisonId && candidate.document_id === item.document_id,
-    ) ?? null;
-  const comparisonPair = comparisonItem
-    ? [item, comparisonItem].sort(
-        (left, right) => (left.chunk_index ?? 0) - (right.chunk_index ?? 0),
-      )
-    : [];
   const contextWindow = [previous, item, next].filter(
     (candidate): candidate is TraceFocusedItem => candidate !== null,
   );
@@ -231,12 +151,21 @@ export function ArtifactDrawer({
             <X className="h-4 w-4" aria-hidden />
           </Button>
         </header>
-        <AdjacentControls
-          previous={previous}
-          next={next}
-          onNavigate={onNavigate}
-          onCompare={setComparisonId}
-        />
+        {!contextMode && (previous || next) ? (
+          <div className="flex shrink-0 justify-end border-b border-hairline py-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setContextMode(true)}
+              aria-label="Show source context"
+              className="gap-1.5"
+            >
+              <Columns3 className="h-3.5 w-3.5" aria-hidden />
+              Show source context
+            </Button>
+          </div>
+        ) : null}
         <div className="flex min-h-0 flex-1 flex-col pt-4">
           {contextMode ? (
             <section aria-label="Source context" className="flex min-h-0 flex-1 flex-col">
@@ -264,36 +193,6 @@ export function ArtifactDrawer({
                     item={contextItem}
                     query={query}
                     focused={contextItem.id === item.id}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : comparisonItem ? (
-            <section aria-label="Boundary comparison" className="flex min-h-0 flex-1 flex-col">
-              <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-stage-chunk">
-                    Boundary comparison
-                  </p>
-                  <p className="mt-1 text-xs text-muted">Adjacent source chunks</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setComparisonId(null)}
-                  aria-label="Close comparison"
-                >
-                  Close comparison
-                </Button>
-              </div>
-              <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-2">
-                {comparisonPair.map((comparison) => (
-                  <ComparisonArtifact
-                    key={comparison.id}
-                    item={comparison}
-                    query={query}
-                    focused={comparison.id === item.id}
                   />
                 ))}
               </div>

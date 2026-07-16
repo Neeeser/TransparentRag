@@ -19,6 +19,8 @@ const OPEN_FOCUSED_CHUNK_LABEL = "Open focused chunk";
 const FOCUSED_DRAWER_TITLE = "paper.pdf · Chunk 8 of 42";
 const COMPARE_CONTEXT_LABEL = "Compare focused context";
 const RRF_FUSION_LABEL = "RRF Fusion";
+const CHUNKER_NODE_TYPE = "chunker.token";
+const ARIA_SELECTED = "aria-selected";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 vi.mock("@/providers/auth-provider", async () =>
@@ -52,7 +54,7 @@ function makeTwoNodeTrace(overrides: Partial<PipelineTraceResponse> = {}): Pipel
         { id: "n1", type: "parser.text", name: "Parse", config: {}, position: { x: 0, y: 0 } },
         {
           id: "n2",
-          type: "chunker.token",
+          type: CHUNKER_NODE_TYPE,
           name: "Chunk",
           config: {},
           position: { x: 100, y: 0 },
@@ -91,7 +93,7 @@ function makeTwoNodeTrace(overrides: Partial<PipelineTraceResponse> = {}): Pipel
       makeNodeRunTrace({
         id: "nr2",
         node_id: "n2",
-        node_type: "chunker.token",
+        node_type: CHUNKER_NODE_TYPE,
         node_name: "Chunk",
         sequence_index: 1,
         summary: {
@@ -217,6 +219,56 @@ function makeRankingTrace(): PipelineTraceResponse {
   });
 }
 
+function makeOriginIndexTrace(): PipelineTraceResponse {
+  return makeTraceResponse({
+    run: { ...makeTraceResponse().run, kind: "ingestion" },
+    definition: {
+      nodes: [
+        {
+          id: "chunker",
+          type: CHUNKER_NODE_TYPE,
+          name: "Token Chunker",
+          config: {},
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: "indexer",
+          type: "indexer.semantic",
+          name: "Semantic Indexer",
+          config: { index_name: "documents" },
+          position: { x: 100, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: "ingestion-edge",
+          source: "chunker",
+          target: "indexer",
+          source_port: "out",
+          target_port: "in",
+        },
+      ],
+      viewport: {},
+    },
+    node_runs: [
+      makeNodeRunTrace({
+        id: "chunker-run",
+        node_id: "chunker",
+        node_type: CHUNKER_NODE_TYPE,
+        node_name: "Token Chunker",
+        sequence_index: 0,
+      }),
+      makeNodeRunTrace({
+        id: "indexer-run",
+        node_id: "indexer",
+        node_type: "indexer.semantic",
+        node_name: "Semantic Indexer",
+        sequence_index: 1,
+      }),
+    ],
+  });
+}
+
 describe("TraceDebugger", () => {
   beforeEach(() => {
     lastReactFlowProps = null;
@@ -239,6 +291,9 @@ describe("TraceDebugger", () => {
     render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
 
     await waitFor(() => expect(screen.getByTestId("reactflow")).toBeInTheDocument());
+    expect(lastReactFlowProps?.zoomOnScroll).toBe(true);
+    expect(lastReactFlowProps?.panOnDrag).toBe(true);
+    expect(lastReactFlowProps?.preventScrolling).toBe(true);
     expect(screen.getByRole("region", { name: "Trace graph" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Node evidence" })).toBeInTheDocument();
@@ -248,6 +303,61 @@ describe("TraceDebugger", () => {
     fireEvent.click(screen.getByRole("button", { name: "Input Source" }));
     expect(screen.getByText("file.pdf")).toBeInTheDocument();
     expect(screen.queryByText(CHUNK_ITEMS_LABEL)).not.toBeInTheDocument();
+  });
+
+  it("separates a combined trace into ingestion and retrieval graph stages", async () => {
+    api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
+      retrieval: makeRankingTrace(),
+      origin: { document_id: "doc-1", trace: makeOriginIndexTrace() },
+      context_items: [],
+      focused_item: {
+        id: "chunk-7",
+        status: "resolved",
+        text: FOCUSED_CHUNK_TEXT,
+        document_id: "doc-1",
+        filename: "paper.pdf",
+        chunk_index: 7,
+        chunk_count: 9,
+      },
+    });
+
+    render(<TraceDebugger source={{ kind: "query", id: "qe-1", chunkId: "chunk-7" }} />);
+
+    const stages = await screen.findByRole("tablist", { name: "Trace stage" });
+    expect(within(stages).getByRole("tab", { name: "Retrieval" })).toHaveAttribute(
+      ARIA_SELECTED,
+      "true",
+    );
+    expect(
+      (lastReactFlowProps?.nodes as Array<{ id: string }>).every((node) =>
+        node.id.startsWith("retrieval::"),
+      ),
+    ).toBe(true);
+
+    fireEvent.click(within(stages).getByRole("tab", { name: "Ingestion" }));
+    expect(within(stages).getByRole("tab", { name: "Ingestion" })).toHaveAttribute(
+      ARIA_SELECTED,
+      "true",
+    );
+    expect(
+      (lastReactFlowProps?.nodes as Array<{ id: string }>).every((node) =>
+        node.id.startsWith("origin::"),
+      ),
+    ).toBe(true);
+    expect(
+      (lastReactFlowProps?.nodes as Array<{ id: string }>).some((node) =>
+        node.id.startsWith("index::store"),
+      ),
+    ).toBe(false);
+
+    const execution = screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL });
+    fireEvent.click(
+      within(execution).getByRole("button", { name: "Execution step Semantic Retriever" }),
+    );
+    expect(within(stages).getByRole("tab", { name: "Retrieval" })).toHaveAttribute(
+      ARIA_SELECTED,
+      "true",
+    );
   });
 
   it("changes node evidence from the execution order", async () => {
@@ -361,7 +471,7 @@ describe("TraceDebugger", () => {
     expect(edges.find((edge) => edge.id === "e1")?.data.itemFocus).toBe("traveled");
   });
 
-  it("moves between and compares adjacent chunks inside the artifact drawer", async () => {
+  it("keeps adjacent context anchored to the traced chunk", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTwoNodeTrace(),
       origin: null,
@@ -411,16 +521,16 @@ describe("TraceDebugger", () => {
       expect(screen.getByRole("region", { name: FOCUSED_RESULT_LABEL })).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: OPEN_FOCUSED_CHUNK_LABEL }));
-    fireEvent.click(screen.getByRole("button", { name: "Compare with previous chunk" }));
-    const comparison = screen.getByRole("region", { name: "Boundary comparison" });
-    expect(within(comparison).getByText("Previous sentence fragment")).toBeInTheDocument();
-    expect(within(comparison).getByText(FOCUSED_CHUNK_TEXT)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Close comparison" }));
-    fireEvent.click(screen.getByRole("button", { name: "Next chunk" }));
-    expect(screen.getByRole("dialog", { name: "paper.pdf · Chunk 9 of 9" })).toBeInTheDocument();
-    expect(screen.getByText("Next sentence fragment")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Previous chunk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show source context" }));
+    const context = screen.getByRole("region", { name: "Source context" });
+    expect(within(context).getByText("Previous sentence fragment")).toBeInTheDocument();
+    expect(within(context).getByText(FOCUSED_CHUNK_TEXT)).toBeInTheDocument();
+    expect(within(context).getByText("Next sentence fragment")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "paper.pdf · Chunk 8 of 9" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next chunk" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Compare with previous chunk" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens previous, focused, and next context directly with query terms highlighted", async () => {

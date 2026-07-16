@@ -224,7 +224,7 @@ export function RankingResultList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label={`Focus trace on ${title}`}
+                  aria-label={`Trace result ${title}`}
                   onClick={() => {
                     setInspectedId(result.id);
                     onFocusItem(result.id);
@@ -232,7 +232,7 @@ export function RankingResultList({
                   className="absolute right-2 top-2 h-7 gap-1 px-2 text-[10px]"
                 >
                   <LocateFixed className="h-3 w-3" aria-hidden />
-                  Focus
+                  Trace result
                 </Button>
               ) : null}
               {selected ? (

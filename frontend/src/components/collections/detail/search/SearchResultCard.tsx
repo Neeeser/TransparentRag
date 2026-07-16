@@ -91,7 +91,7 @@ export function SearchResultCard({ chunk, rank, topScore, onTrace }: SearchResul
         ))}
         <span className="ml-auto">
           <Button variant="ghost" size="sm" onClick={onTrace}>
-            Focus result
+            Trace result
           </Button>
         </span>
       </div>
