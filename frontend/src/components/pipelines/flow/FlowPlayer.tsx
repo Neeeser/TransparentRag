@@ -66,6 +66,8 @@ type FlowPlayerProps = {
   minZoom?: number;
   /** Extra node types merged over the pipeline defaults (e.g. the trace index store). */
   nodeTypes?: NodeTypes;
+  /** Select a node for surrounding detail without changing playback. */
+  onNodeSelect?: (nodeId: string) => void;
   /**
    * Camera-follow mode: pan/zoom to center this node whenever it changes
    * (the trace debugger's focused walkthrough). Overrides the fit-once-and-
@@ -109,6 +111,7 @@ export function FlowPlayer({
   anchorNodeId,
   minZoom = 0.2,
   nodeTypes,
+  onNodeSelect,
   centerNodeId,
   playback: externalPlayback,
 }: FlowPlayerProps) {
@@ -205,6 +208,10 @@ export function FlowPlayer({
               ambient
                 ? undefined
                 : (_event, node) => {
+                    if (onNodeSelect) {
+                      onNodeSelect(node.id);
+                      return;
+                    }
                     const index = stepIndexByNodeId.get(node.id);
                     if (index !== undefined) playback.seek(index);
                   }
