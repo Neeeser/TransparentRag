@@ -111,13 +111,15 @@ The app runs two ways, and a change isn't done until it works in both:
   uvicorn with reload, the Next.js dev server, `NEXT_PUBLIC_API_BASE_URL` pointing
   the frontend straight at the backend, `DEBUG=true`. **The dev database is the
   Dockerized ParadeDB from `docker-compose.dev.yml` — always use it (it's the
-  default whenever a Docker daemon is up).** It provides `pgvector` + `pg_search`
+  default whenever a local Docker daemon is up).** It provides `pgvector` + `pg_search`
   so hybrid/BM25 search matches the release image; the native-Postgres fallback
   (Docker down) silently loses BM25, so "works natively" is not proof a
   search-touching change is correct. Never point dev/tests at a bare Postgres to
   "make it run" when Docker is available. The resolution lives in the `Makefile`
-  (Docker → native → external, an exported `DATABASE_URL`/`TEST_DATABASE_URL`
-  always wins and is left unmanaged) + `scripts/ensure_postgres.py`; the shipped
+  (Docker → native → external, each exported `DATABASE_URL` or
+  `TEST_DATABASE_URL` controls only its respective app or test target and is
+  left unmanaged) + `scripts/ensure_postgres.py`; the dev database is loopback-
+  only, and remote Docker contexts must use an explicit external URL; the shipped
   `docker-compose.yml` (release artifact) stays separate and untouched.
 - **Docker**: `docker-compose.yml` — the primary target, because Docker is the
   release format. Same-origin `/api/*` through the runtime middleware proxy, no

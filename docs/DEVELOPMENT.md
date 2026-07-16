@@ -21,7 +21,8 @@ Postgres (`pgvector` + `pg_search`) on host port `54329` — so hybrid/BM25 sear
 works exactly as it does in the shipped image, while the backend and frontend
 still run natively for hot reload. The container hosts both the dev database
 (`ragworks`) and the test database (`ragworks_test`), and data persists in a
-named volume across restarts.
+named volume across restarts. Its port is bound only to `127.0.0.1`, not the
+network.
 
 Without Docker they fall back to a **native** Postgres started via `pg_ctl`
 (set `POSTGRES_DATA_DIR` or `POSTGRES_START_COMMAND` if it can't find one). Only
@@ -31,7 +32,11 @@ still works. Prefer the Docker path so you exercise the same search stack the
 release ships and the BM25 test suite runs.
 
 Set `DATABASE_URL` (or `TEST_DATABASE_URL`) to point at your own Postgres — an
-explicit value is always respected and left unmanaged.
+explicit value is always respected and left unmanaged. The values are
+independent: `DATABASE_URL` controls the app run targets and `TEST_DATABASE_URL`
+controls the test targets. Docker mode requires a local Docker daemon; with a
+remote Docker context, set the appropriate URL explicitly so it is treated as
+external instead.
 
 ## Setup
 

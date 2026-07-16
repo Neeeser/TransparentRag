@@ -277,7 +277,7 @@ frontend form code — only a new `ConfigFieldKind` would.
   pg_search follows the same pattern (`app/db/pg_search_support.py`, clear
   `InvalidInputError` at sparse-index creation). **Run the suite against the
   Dockerized ParadeDB DB — `make test`/`make coverage` start it for you when
-  Docker is up (`docker-compose.dev.yml`, port 54329), which is the only way to
+  Docker is up (`docker-compose.dev.yml`, loopback-only port 54329), which is the only way to
   get `pg_search` (it has no Homebrew build).** On a native Postgres the BM25
   path is untested — `pg_search_session` tests skip with a named reason — so a
   green run without Docker is not proof a sparse/hybrid change works; verify it

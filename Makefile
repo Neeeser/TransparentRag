@@ -21,26 +21,34 @@ DEBUG ?= true
 # we fall back to a native Postgres with BM25 disabled (dense-only). An
 # explicitly provided DATABASE_URL / TEST_DATABASE_URL (CI service container, a
 # contributor pointing at their own server) always wins and is left unmanaged.
-# Only computed for DB-touching goals so `make help`/`make lint` skip the probe.
-DB_GOALS := run server postgres test test-verbose coverage coverage-report verify
+# The application and test URLs resolve independently: a server override never
+# turns the test URL into an empty value, or vice versa. Only computed for
+# DB-touching goals so `make help`/`make lint` skip the probe.
+DB_GOALS := run server postgres postgres-test test test-verbose coverage coverage-report verify
 ifneq ($(filter $(DB_GOALS),$(MAKECMDGOALS)),)
-  _DB_URL_ORIGIN := $(origin DATABASE_URL)$(origin TEST_DATABASE_URL)
-  ifneq ($(findstring environment,$(_DB_URL_ORIGIN)),)
-    DB_MODE := external
-  else ifneq ($(findstring command,$(_DB_URL_ORIGIN)),)
-    DB_MODE := external
-  else ifeq ($(shell docker info >/dev/null 2>&1 && echo yes),yes)
-    DB_MODE := docker
+  _DATABASE_URL_ORIGIN := $(origin DATABASE_URL)
+  _TEST_DATABASE_URL_ORIGIN := $(origin TEST_DATABASE_URL)
+  _DOCKER_AVAILABLE := $(shell docker info >/dev/null 2>&1 && echo yes)
+
+  ifneq ($(filter environment command,$(_DATABASE_URL_ORIGIN)),)
+    SERVER_DB_MODE := external
+  else ifeq ($(_DOCKER_AVAILABLE),yes)
+    SERVER_DB_MODE := docker
     DATABASE_URL := postgresql+psycopg://ragworks:ragworks@localhost:54329/ragworks
+  else
+    SERVER_DB_MODE := native
+    DATABASE_URL := postgresql+psycopg://localhost:5432/ragworks
+  endif
+
+  ifneq ($(filter environment command,$(_TEST_DATABASE_URL_ORIGIN)),)
+    TEST_DB_MODE := external
+  else ifeq ($(_DOCKER_AVAILABLE),yes)
+    TEST_DB_MODE := docker
     TEST_DATABASE_URL := postgresql+psycopg://ragworks:ragworks@localhost:54329/ragworks_test
   else
-    DB_MODE := native
-    DATABASE_URL := postgresql+psycopg://localhost:5432/ragworks
+    TEST_DB_MODE := native
     TEST_DATABASE_URL := postgresql+psycopg://localhost:5432/ragworks_test
   endif
-  # The DB-readiness step waits on the run URL, falling back to whichever URL is
-  # externally provided (CI sets only TEST_DATABASE_URL).
-  DB_WAIT_URL := $(or $(DATABASE_URL),$(TEST_DATABASE_URL))
 endif
 
 help:
@@ -80,7 +88,10 @@ env-frontend:
 	$(NPM) --prefix frontend install
 
 postgres: env-backend
-	DB_MODE="$(DB_MODE)" DATABASE_URL="$(DB_WAIT_URL)" $(UV) run python scripts/ensure_postgres.py
+	DB_MODE="$(SERVER_DB_MODE)" DATABASE_URL="$(DATABASE_URL)" $(UV) run python scripts/ensure_postgres.py
+
+postgres-test: env-backend
+	DB_MODE="$(TEST_DB_MODE)" DATABASE_URL="$(TEST_DATABASE_URL)" $(UV) run python scripts/ensure_postgres.py
 
 server: postgres
 	DEBUG="$(DEBUG)" DATABASE_URL="$(DATABASE_URL)" $(UV) run uvicorn app.api.main:app --reload --host $(API_HOST) --port $(API_PORT)
@@ -91,19 +102,19 @@ frontend: env-frontend
 run:
 	$(MAKE) -j2 server frontend
 
-test: postgres
+test: postgres-test
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(UV) run pytest
 
-test-verbose: postgres
+test-verbose: postgres-test
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(UV) run pytest -vv --durations=0
 
 test-frontend: env-frontend
 	$(NPM) --prefix frontend run test:run
 
-coverage: postgres
+coverage: postgres-test
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(UV) run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html --cov-report=xml
 
-coverage-report: postgres
+coverage-report: postgres-test
 	-TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(UV) run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html --cov-report=xml
 
 coverage-open:

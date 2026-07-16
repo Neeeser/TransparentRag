@@ -15,8 +15,9 @@ Makefile, defaulting to ``native`` for a bare invocation):
   contributor pointing ``DATABASE_URL`` at their own server). Wait for it to
   answer and manage nothing.
 
-Whatever the mode, if the target URL already answers, this is a no-op — a warm
-container or an already-running server is left alone.
+Native and external modes are no-ops when the target URL already answers.
+Docker mode always reconciles its Compose service, so another listener cannot
+silently replace the ParadeDB database used for development.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import socket
 import subprocess
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy.engine.url import make_url
 
@@ -67,6 +69,23 @@ def tcp_reachable(host: str, port: int, timeout: float = 1.0) -> bool:
         return False
 
 
+def docker_is_local() -> bool:
+    """Return whether Docker commands target a daemon on this machine."""
+    endpoint = os.getenv("DOCKER_HOST")
+    if endpoint is None:
+        result = subprocess.run(
+            ["docker", "context", "inspect", "--format", "{{ .Endpoints.docker.Host }}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        endpoint = result.stdout.strip() if result.returncode == 0 else ""
+    parsed = urlparse(endpoint)
+    if parsed.scheme in {"unix", "npipe"}:
+        return True
+    return parsed.scheme == "tcp" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+
+
 def wait_reachable(host: str, port: int, attempts: int = 30, delay: float = 1.0) -> bool:
     """Poll host:port until it accepts a connection or attempts run out."""
     for _ in range(attempts):
@@ -83,10 +102,10 @@ def plan_action(mode: str, reachable: bool) -> str:
     the mode-selection contract can be tested without touching Docker or a
     Postgres install.
     """
-    if reachable:
-        return "noop"
     if mode == "docker":
         return "docker"
+    if reachable:
+        return "noop"
     if mode == "external":
         return "wait"
     return "native"
@@ -129,12 +148,14 @@ def _start_native() -> None:
 def ensure_postgres() -> None:
     """Ensure the configured Postgres is ready, per DB_MODE."""
     host, port = parse_host_port(_database_url())
-    action = plan_action(_mode(), tcp_reachable(host, port))
+    mode = _mode()
 
-    if action == "noop":
-        return
-
-    if action == "docker":
+    if mode == "docker":
+        if not docker_is_local():
+            raise SystemExit(
+                "Docker mode requires a local Docker daemon. Set DB_MODE=external "
+                "with an addressable DATABASE_URL when using a remote Docker context."
+            )
         _compose_up()
         if not wait_reachable(host, port):
             raise SystemExit(f"ParadeDB dev database did not become ready on {host}:{port}.")
@@ -142,6 +163,11 @@ def ensure_postgres() -> None:
             f"→ ParadeDB dev database ready on {host}:{port} "
             "(pgvector + pg_search / BM25 enabled)."
         )
+        return
+
+    action = plan_action(mode, tcp_reachable(host, port))
+
+    if action == "noop":
         return
 
     if action == "native":

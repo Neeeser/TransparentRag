@@ -18,7 +18,7 @@ services:
       POSTGRES_PASSWORD: ragworks
       POSTGRES_DB: ragworks
     ports:
-      - "54329:5432"
+      - "127.0.0.1:54329:5432"
     volumes:
       - ragworks-dev-pgdata:/var/lib/postgresql/data
     healthcheck:
