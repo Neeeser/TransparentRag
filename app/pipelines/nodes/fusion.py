@@ -19,7 +19,15 @@ from app.pipelines.node import PipelineNodeBase
 from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.ports import NodePort
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
-from app.pipelines.tracing.summaries import combine_usage, summarize_match_order, trace_match_items
+from app.pipelines.tracing.summaries import (
+    RankingEvidence,
+    RankingResultEvidence,
+    RankingSourceEvidence,
+    combine_usage,
+    summarize_match_order,
+    summarize_matches,
+    trace_match_items,
+)
 from app.retrieval.models import RetrievalResponse, ScoredChunk
 
 
@@ -87,6 +95,10 @@ class BaseFusionNode(PipelineNodeBase[FusionConfig]):
             ],
             outputs=[
                 NodeTraceValue(
+                    label="Matches",
+                    value=summarize_matches(output_payload.response.matches, limit=10),
+                ),
+                NodeTraceValue(
                     label="Fused order",
                     value=summarize_match_order(output_payload.response.matches),
                 ),
@@ -95,6 +107,28 @@ class BaseFusionNode(PipelineNodeBase[FusionConfig]):
                     value=trace_match_items(output_payload.response.matches),
                     kind="items",
                 ),
+                NodeTraceValue(
+                    label="Ranking evidence",
+                    value=self._ranking_evidence(
+                        [list(payload.response.matches) for payload in payloads],
+                        list(output_payload.response.matches),
+                    ),
+                    kind="ranking",
+                ),
+            ],
+        )
+
+    def _ranking_evidence(
+        self,
+        _branches: list[list[ScoredChunk]],
+        fused: list[ScoredChunk],
+    ) -> RankingEvidence:
+        """Describe output ranking facts; subclasses add method-specific sources."""
+        return RankingEvidence(
+            method=self.type,
+            results=[
+                RankingResultEvidence(id=match.chunk.chunk_id, rank=rank, score=match.score)
+                for rank, match in enumerate(fused, start=1)
             ],
         )
 
@@ -169,3 +203,44 @@ class RRFusionNode(BaseFusionNode):
             ScoredChunk(chunk=first_seen[chunk_id].chunk, score=score)
             for chunk_id, score in ordered[:limit]
         ]
+
+    def _ranking_evidence(
+        self,
+        branches: list[list[ScoredChunk]],
+        fused: list[ScoredChunk],
+    ) -> RankingEvidence:
+        """Record every branch rank and its reciprocal-rank contribution."""
+        branch_items = [
+            {
+                match.chunk.chunk_id: (rank, match.score)
+                for rank, match in enumerate(matches, start=1)
+            }
+            for matches in branches
+        ]
+        results: list[RankingResultEvidence] = []
+        for rank, match in enumerate(fused, start=1):
+            sources = [
+                RankingSourceEvidence(
+                    source_index=index,
+                    rank=source_rank,
+                    score=source_score,
+                    contribution=1.0 / (self.config.k + source_rank),
+                )
+                for index, items in enumerate(branch_items)
+                if (source := items.get(match.chunk.chunk_id)) is not None
+                for source_rank, source_score in [source]
+            ]
+            results.append(
+                RankingResultEvidence(
+                    id=match.chunk.chunk_id,
+                    rank=rank,
+                    score=match.score,
+                    sources=sources,
+                )
+            )
+        return RankingEvidence(
+            method="reciprocal_rank_fusion",
+            score_label="RRF score",
+            formula=f"1 / ({self.config.k} + rank)",
+            results=results,
+        )

@@ -12,4 +12,5 @@ export type NodeExplanationProps = {
   itemEffect: JourneyStep | null;
   inputSources: string[];
   onFocusItem?: (itemId: string) => void;
+  onOpenArtifact?: (item: TraceFocusedItem) => void;
 };

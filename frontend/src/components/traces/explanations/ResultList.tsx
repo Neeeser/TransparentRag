@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, FileText } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { formatTracePreview } from "@/components/traces/explanations/summary-data";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ type ResultListProps = {
   contextItems: TraceFocusedItem[];
   previews?: ReadonlyMap<string, string>;
   onFocusItem?: (itemId: string) => void;
+  onOpenArtifact?: (item: TraceFocusedItem) => void;
   compact?: boolean;
 };
 
@@ -33,6 +35,7 @@ export function ResultList({
   contextItems,
   previews = new Map(),
   onFocusItem,
+  onOpenArtifact,
   compact = false,
 }: ResultListProps) {
   const initialInspected =
@@ -47,6 +50,7 @@ export function ResultList({
   );
   const inspected = inspectedItemId ? contextById.get(inspectedItemId) : null;
   const inspectedPreview = inspectedItemId ? previews.get(inspectedItemId) : null;
+  const inspectedRank = items.findIndex((item) => item.id === inspectedItemId) + 1;
 
   useEffect(() => {
     focusedRef.current?.scrollIntoView?.({ block: "center", behavior: "auto" });
@@ -96,8 +100,11 @@ export function ResultList({
                   <span className="w-7 shrink-0 font-mono text-[10px] text-muted">
                     #{index + 1}
                   </span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-body">
-                    {item.id}
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-primary">
+                    {context?.filename ?? `Result ${index + 1}`}
+                    {context?.chunk_index !== null && context?.chunk_index !== undefined
+                      ? ` · Chunk ${context.chunk_index + 1}`
+                      : ""}
                   </span>
                   {typeof item.score === "number" ? (
                     <span className="shrink-0 font-mono text-[10px] text-accent-cyan">
@@ -107,7 +114,7 @@ export function ResultList({
                 </span>
                 {preview ? (
                   <span className="mt-1 block line-clamp-2 pl-9 text-xs leading-relaxed text-body">
-                    {preview}
+                    {formatTracePreview(preview)}
                   </span>
                 ) : null}
               </button>
@@ -119,28 +126,40 @@ export function ResultList({
         <div className="mt-3 rounded-lg border border-hairline bg-canvas p-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="min-w-0 truncate text-xs font-medium text-primary">
-              {inspected?.filename ?? inspectedItemId}
+              {inspected?.filename ?? `Result ${inspectedRank}`}
             </span>
             {inspected?.chunk_index !== null && inspected?.chunk_index !== undefined ? (
               <span className="font-mono text-[10px] text-meta">
                 chunk {inspected.chunk_index + 1}
               </span>
             ) : null}
-            {onFocusItem && inspectedItemId !== focusedItemId ? (
+          </div>
+          <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-xs leading-relaxed text-body">
+            {inspected?.text
+              ? formatTracePreview(inspected.text)
+              : inspectedPreview
+                ? formatTracePreview(inspectedPreview)
+                : "Chunk text was not included in this trace."}
+          </p>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            {inspected && onOpenArtifact ? (
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => onFocusItem(inspectedItemId)}
-                className="ml-auto gap-1.5"
+                onClick={() => onOpenArtifact(inspected)}
+                className="gap-1.5"
               >
+                <FileText className="h-3.5 w-3.5" aria-hidden />
+                Open chunk
+              </Button>
+            ) : null}
+            {onFocusItem && inspectedItemId !== focusedItemId ? (
+              <Button size="sm" onClick={() => onFocusItem(inspectedItemId)} className="gap-1.5">
                 Trace this result
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden />
               </Button>
             ) : null}
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-body">
-            {inspected?.text ?? inspectedPreview ?? "Chunk text was not included in this trace."}
-          </p>
         </div>
       ) : null}
     </section>

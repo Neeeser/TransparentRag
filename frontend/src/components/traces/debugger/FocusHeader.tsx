@@ -1,10 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useState } from "react";
+import { PanelRightOpen, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 import type { TraceFocusedItem } from "@/lib/types";
 
@@ -13,6 +11,7 @@ type FocusHeaderProps = {
   focusedItem: TraceFocusedItem | null;
   /** True when the trace covers only the ingestion run (Files-page entry). */
   ingestionOnly?: boolean;
+  onOpenArtifact: () => void;
   onClearFocus: () => void;
 };
 
@@ -24,18 +23,16 @@ const chunkOrdinal = (item: TraceFocusedItem): string | null => {
 };
 
 /**
- * The focused result's identity card: what text is being traced, which
- * document it lives in, and where it sits among the document's chunks. The
- * raw vector id stays visible as monospace metadata — it's how the item
- * appears in node payloads — but never presented as a rank.
+ * Compact identity for the focused result. Content lives in the artifact
+ * drawer so long chunks and future media do not distort the debugger layout.
  */
 export function FocusHeader({
   focusedItemId,
   focusedItem,
   ingestionOnly = false,
+  onOpenArtifact,
   onClearFocus,
 }: FocusHeaderProps) {
-  const [expanded, setExpanded] = useState(false);
   const resolved = focusedItem?.status === "resolved";
   const ordinal = focusedItem ? chunkOrdinal(focusedItem) : null;
 
@@ -46,7 +43,7 @@ export function FocusHeader({
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-accent-cyan">
-          Tracing result
+          Focused chunk
         </p>
         {resolved && focusedItem?.filename ? (
           <span className="text-xs font-medium text-primary">{focusedItem.filename}</span>
@@ -55,7 +52,19 @@ export function FocusHeader({
         <span className="max-w-[260px] truncate font-mono text-[10px] text-meta">
           {focusedItemId}
         </span>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-1.5">
+          {resolved && focusedItem?.text ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onOpenArtifact}
+              className="gap-1.5"
+              aria-label="Open focused chunk"
+            >
+              <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />
+              Open chunk
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="sm"
@@ -68,23 +77,12 @@ export function FocusHeader({
           </Button>
         </span>
       </div>
-      {resolved && focusedItem?.text ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((prev) => !prev)}
-          aria-expanded={expanded}
-          className="mt-1.5 block w-full rounded-xl border border-hairline bg-canvas px-3 py-2 text-left text-sm leading-relaxed text-body transition hover:border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        >
-          <span className={cn("whitespace-pre-wrap", !expanded && "line-clamp-2")}>
-            {focusedItem.text}
-          </span>
-        </button>
-      ) : (
+      {!resolved || !focusedItem?.text ? (
         <p className="mt-2 text-xs text-muted">
           Chunk text unavailable — the stored chunk behind this id no longer exists (deleted or
           re-ingested content). The recorded execution data still applies.
         </p>
-      )}
+      ) : null}
       {ingestionOnly ? (
         <p className="mt-2 text-xs text-muted">
           This trace covers ingestion only — how the chunk was created and indexed. To follow it

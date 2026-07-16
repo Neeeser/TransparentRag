@@ -77,6 +77,12 @@ def _item_values(values: list[NodeTraceValue]) -> list[object]:
     return item_values
 
 
+def _ranking_value(values: list[NodeTraceValue]) -> object:
+    ranking_values = [value.value for value in values if value.kind == "ranking"]
+    assert len(ranking_values) == 1, "node summary did not emit one ranking value"
+    return ranking_values[0]
+
+
 def _refs(value: object) -> list[tuple[str, float | None]]:
     kind = getattr(value, "kind", None)
     assert kind in {"chunks", "matches"}
@@ -164,6 +170,31 @@ def test_rrf_summary_preserves_each_branch_and_complete_fused_order() -> None:
     ]
     assert _refs(_item_values(summary.outputs)[0]) == [
         (match.chunk.chunk_id, match.score) for match in fused_matches
+    ]
+
+
+def test_rrf_summary_records_per_source_rank_contributions() -> None:
+    branch_one = RetrievalPayload(
+        response=RetrievalResponse(matches=_matches(["doc:0", "doc:1", "doc:2"]))
+    )
+    branch_two = RetrievalPayload(
+        response=RetrievalResponse(matches=_matches(["doc:1", "doc:3"]))
+    )
+    fused = RetrievalPayload(response=RetrievalResponse(matches=_matches(["doc:1", "doc:0"])))
+
+    summary = RRFusionNode(RRFusionConfig(k=60)).summarize_io(
+        {"results": [branch_one, branch_two]},
+        {"results": fused},
+    )
+
+    ranking = _ranking_value(summary.outputs)
+    assert ranking.method == "reciprocal_rank_fusion"
+    assert ranking.score_label == "RRF score"
+    assert ranking.formula == "1 / (60 + rank)"
+    focused = next(result for result in ranking.results if result.id == "doc:1")
+    assert [(source.source_index, source.rank, source.score, source.contribution) for source in focused.sources] == [
+        (0, 2, branch_one.response.matches[1].score, 1 / 62),
+        (1, 1, branch_two.response.matches[0].score, 1 / 61),
     ]
 
 

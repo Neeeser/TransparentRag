@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
+import { ArtifactDrawer } from "@/components/traces/debugger/ArtifactDrawer";
 import { ExecutionLedger } from "@/components/traces/debugger/ExecutionLedger";
 import { FocusHeader } from "@/components/traces/debugger/FocusHeader";
 import { useExecutionSelection } from "@/components/traces/debugger/hooks/use-execution-selection";
@@ -144,12 +145,14 @@ function LoadedTraceDebugger({
   const focused = Boolean(focusedItemId);
   const { selectedNodeId, selectedStep, selectNode } = useExecutionSelection(graph, focused);
   const [showFocusedPath, setShowFocusedPath] = useState(focused);
+  const [artifactItem, setArtifactItem] = useState<TraceFocusedItem | null>(null);
   const focusResult = (itemId: string) => {
     setShowFocusedPath(true);
     onFocusItem(itemId);
   };
   const clearResult = () => {
     setShowFocusedPath(false);
+    setArtifactItem(null);
     onClearFocus();
   };
   const sections = useMemo(
@@ -224,6 +227,7 @@ function LoadedTraceDebugger({
           focusedItemId={focusedItemId}
           focusedItem={focusedItem}
           ingestionOnly={trace.run.kind === "ingestion" && !graph.combined}
+          onOpenArtifact={() => focusedItem && setArtifactItem(focusedItem)}
           onClearFocus={clearResult}
         />
       ) : null}
@@ -287,9 +291,11 @@ function LoadedTraceDebugger({
             itemEffect={selectedEffect}
             inputSources={inputSources}
             onFocusItem={focusResult}
+            onOpenArtifact={setArtifactItem}
           />
         </div>
       </div>
+      <ArtifactDrawer item={artifactItem} onClose={() => setArtifactItem(null)} />
     </div>
   );
 }

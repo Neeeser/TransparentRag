@@ -11,6 +11,8 @@ const routerBack = vi.fn();
 const routerReplace = vi.fn();
 const EXECUTION_ORDER_LABEL = "Execution order";
 const CHUNK_ITEMS_LABEL = "Chunk items";
+const FOCUSED_CHUNK_TEXT = "The focused chunk text.";
+const INGESTED_CHUNK_TEXT = "The ingested chunk body.";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 vi.mock("@/providers/auth-provider", async () =>
@@ -135,6 +137,9 @@ describe("TraceDebugger", () => {
     expect(screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Node evidence" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Node data" }));
+    expect(screen.getByText("focused chunk")).toBeInTheDocument();
+    expect(screen.queryByText("file.pdf")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Input Source" }));
     expect(screen.getByText("file.pdf")).toBeInTheDocument();
     expect(screen.queryByText(CHUNK_ITEMS_LABEL)).not.toBeInTheDocument();
   });
@@ -184,7 +189,7 @@ describe("TraceDebugger", () => {
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
   });
 
-  it("seeds focus from a chunk deep link, shows the chunk text, and tints its graph path", async () => {
+  it("seeds focus from a chunk deep link and opens its content in the artifact drawer", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTwoNodeTrace(),
       origin: null,
@@ -192,7 +197,7 @@ describe("TraceDebugger", () => {
       focused_item: {
         id: "chunk-7",
         status: "resolved",
-        text: "The focused chunk text.",
+        text: FOCUSED_CHUNK_TEXT,
         document_id: "doc-1",
         filename: "paper.pdf",
         chunk_index: 7,
@@ -205,10 +210,16 @@ describe("TraceDebugger", () => {
     await waitFor(() =>
       expect(screen.getByRole("region", { name: "Focused result" })).toBeInTheDocument(),
     );
-    // The focused result leads with its text, document, and 1-based position.
-    expect(screen.getByText("The focused chunk text.")).toBeInTheDocument();
+    expect(screen.queryByText(FOCUSED_CHUNK_TEXT)).not.toBeInTheDocument();
     expect(screen.getByText("paper.pdf")).toBeInTheDocument();
     expect(screen.getByText("Chunk 8 of 42")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open focused chunk" }));
+    const drawer = screen.getByRole("dialog", { name: "paper.pdf · Chunk 8 of 42" });
+    expect(within(drawer).getByText(FOCUSED_CHUNK_TEXT)).toBeInTheDocument();
+    fireEvent.click(within(drawer).getByRole("button", { name: "Close artifact" }));
+    expect(
+      screen.queryByRole("dialog", { name: "paper.pdf · Chunk 8 of 42" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL })).toBeInTheDocument();
     expect(lastReactFlowProps?.centerNodeId).toBeUndefined();
 
@@ -251,7 +262,7 @@ describe("TraceDebugger", () => {
     expect(routerReplace).toHaveBeenLastCalledWith("/traces/runs/run-1");
   });
 
-  it("labels a Files-page chunk trace as ingestion-only and shows its text", async () => {
+  it("labels a Files-page chunk trace as ingestion-only and opens its artifact", async () => {
     const trace = makeTwoNodeTrace();
     trace.run = { ...trace.run, kind: "ingestion" };
     api.fetchDocumentFocusedTrace.mockResolvedValueOnce({
@@ -260,7 +271,7 @@ describe("TraceDebugger", () => {
       focused_item: {
         id: "chunk-7",
         status: "resolved",
-        text: "The ingested chunk body.",
+        text: INGESTED_CHUNK_TEXT,
         document_id: "doc-1",
         filename: "doc.pdf",
         chunk_index: 7,
@@ -270,9 +281,12 @@ describe("TraceDebugger", () => {
 
     render(<TraceDebugger source={{ kind: "document", id: "doc-1", chunkId: "chunk-7" }} />);
 
-    await waitFor(() => expect(screen.getByText("The ingested chunk body.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Focused chunk")).toBeInTheDocument());
+    expect(screen.queryByText(INGESTED_CHUNK_TEXT)).not.toBeInTheDocument();
     expect(screen.getByText(/covers ingestion only/)).toBeInTheDocument();
     expect(screen.queryByText(/Chunk text unavailable/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open focused chunk" }));
+    expect(screen.getByText(INGESTED_CHUNK_TEXT)).toBeInTheDocument();
   });
 
   it("offers a refresh for a still-running trace and refetches on click", async () => {

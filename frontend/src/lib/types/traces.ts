@@ -43,7 +43,7 @@ export interface PipelineNodeRunTrace {
 export interface PipelineNodeSummaryValue {
   label: string;
   value: unknown;
-  kind?: "json" | "text" | "embedding" | "items";
+  kind?: "json" | "text" | "embedding" | "items" | "ranking";
 }
 
 export interface ItemRef {
@@ -54,6 +54,29 @@ export interface ItemRef {
 export interface ItemListTrace {
   kind: "chunks" | "matches";
   items: ItemRef[];
+}
+
+export interface RankingSourceEvidence {
+  source_index: number;
+  rank?: number | null;
+  score?: number | null;
+  score_label?: string | null;
+  weight?: number | null;
+  contribution?: number | null;
+}
+
+export interface RankingResultEvidence {
+  id: string;
+  rank: number;
+  score?: number | null;
+  sources: RankingSourceEvidence[];
+}
+
+export interface RankingEvidence {
+  method: string;
+  score_label?: string | null;
+  formula?: string | null;
+  results: RankingResultEvidence[];
 }
 
 export interface PipelineNodeSummary {

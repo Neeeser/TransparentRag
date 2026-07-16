@@ -1,4 +1,4 @@
-import type { ItemListTrace } from "@/lib/types";
+import type { ItemListTrace, RankingEvidence } from "@/lib/types";
 
 /**
  * Structural guards for the trace summary/payload value shapes the backend
@@ -83,6 +83,19 @@ export const isItemListTrace = (value: unknown): value is ItemListTrace =>
       isRecord(item) &&
       typeof item.id === "string" &&
       (item.score === undefined || item.score === null || typeof item.score === "number"),
+  );
+
+/** Method-neutral ranking evidence emitted by ranking and fusion nodes. */
+export const isRankingEvidence = (value: unknown): value is RankingEvidence =>
+  isRecord(value) &&
+  typeof value.method === "string" &&
+  Array.isArray(value.results) &&
+  value.results.every(
+    (result) =>
+      isRecord(result) &&
+      typeof result.id === "string" &&
+      typeof result.rank === "number" &&
+      Array.isArray(result.sources),
   );
 
 /** A small flat object whose values are all scalars (e.g. `{ enabled, model }`). */

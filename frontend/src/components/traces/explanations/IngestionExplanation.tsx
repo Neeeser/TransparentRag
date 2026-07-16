@@ -101,6 +101,7 @@ export function ChunkerExplanation(props: NodeExplanationProps) {
         focusedItemId={props.focusedItemId}
         contextItems={props.contextItems}
         onFocusItem={props.onFocusItem}
+        onOpenArtifact={props.onOpenArtifact}
       />
     </div>
   );

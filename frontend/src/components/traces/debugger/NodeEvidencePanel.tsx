@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { formatDuration } from "@/components/traces/debugger/format";
-import { VariablesTree } from "@/components/traces/debugger/VariablesTree";
+import { PortInspector } from "@/components/traces/debugger/PortInspector";
 import { NodeExplanation } from "@/components/traces/explanations/NodeExplanation";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +30,7 @@ type NodeEvidencePanelProps = {
   itemEffect: JourneyStep | null;
   inputSources: string[];
   onFocusItem?: (itemId: string) => void;
+  onOpenArtifact?: (item: TraceFocusedItem) => void;
 };
 
 const JsonBlock = ({ value }: { value: unknown }) => (
@@ -47,6 +48,7 @@ export function NodeEvidencePanel({
   itemEffect,
   inputSources,
   onFocusItem,
+  onOpenArtifact,
 }: NodeEvidencePanelProps) {
   const [tab, setTab] = useState<EvidenceTab>("explanation");
   const run = step?.run ?? null;
@@ -119,30 +121,17 @@ export function NodeEvidencePanel({
             itemEffect={itemEffect}
             inputSources={inputSources}
             onFocusItem={onFocusItem}
+            onOpenArtifact={onOpenArtifact}
           />
         ) : null}
 
         {tab === "data" ? (
-          <div className="grid gap-5 xl:grid-cols-2">
-            <VariablesTree
-              title="Inputs"
-              tone="cyan"
-              summaryItems={summary.inputs}
-              ioRecords={step?.io.inputs ?? []}
-              focusedItemId={focusedItemId}
-              onFocusItem={onFocusItem}
-              emptySummaryLabel="No inputs recorded."
-            />
-            <VariablesTree
-              title="Outputs"
-              tone="violet"
-              summaryItems={summary.outputs}
-              ioRecords={step?.io.outputs ?? []}
-              focusedItemId={focusedItemId}
-              onFocusItem={onFocusItem}
-              emptySummaryLabel="No outputs recorded."
-            />
-          </div>
+          <PortInspector
+            inputs={summary.inputs}
+            outputs={summary.outputs}
+            focusedItemId={focusedItemId}
+            onFocusItem={onFocusItem}
+          />
         ) : null}
 
         {tab === "configuration" ? <JsonBlock value={node?.data.config ?? {}} /> : null}

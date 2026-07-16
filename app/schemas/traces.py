@@ -41,7 +41,7 @@ class PipelineNodeSummaryValueRead(BaseModel):
 
     label: str
     value: Any
-    kind: Literal["json", "text", "embedding", "items"] = "json"
+    kind: Literal["json", "text", "embedding", "items", "ranking"] = "json"
 
 
 class PipelineNodeSummaryRead(BaseModel):

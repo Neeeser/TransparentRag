@@ -3,6 +3,7 @@ import {
   isEmbeddingSummary,
   isItemListTrace,
   isMatchList,
+  isRankingEvidence,
   isSource,
   isTextSummary,
 } from "@/components/traces/values/shape-guards";
@@ -15,7 +16,7 @@ import type {
   SourceShape,
   TextSummaryShape,
 } from "@/components/traces/values/shape-guards";
-import type { ItemListTrace, PipelineNodeSummaryValue } from "@/lib/types";
+import type { ItemListTrace, PipelineNodeSummaryValue, RankingEvidence } from "@/lib/types";
 
 export type LocatedItemList = { label: string; list: ItemListTrace };
 
@@ -43,6 +44,11 @@ export const textSummary = (step: TraceStep, side: "inputs" | "outputs"): TextSu
 export const matchSummary = (step: TraceStep, side: "inputs" | "outputs"): MatchListShape | null =>
   findShape(values(step, side), isMatchList);
 
+export const rankingSummary = (
+  step: TraceStep,
+  side: "inputs" | "outputs",
+): RankingEvidence | null => findShape(values(step, side), isRankingEvidence);
+
 export const embeddingSummary = (
   step: TraceStep,
   side: "inputs" | "outputs",
@@ -58,3 +64,16 @@ export const summaryValue = (step: TraceStep, label: string): unknown => {
 
 export const previewTextById = (summary: MatchListShape | null): Map<string, string> =>
   new Map(summary?.top_matches.map((match) => [match.chunk_id, match.preview]) ?? []);
+
+/** Flatten common Markdown syntax so compact result previews read as prose. */
+export const formatTracePreview = (value: string): string =>
+  value
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/(^|\s)#{1,6}\s+/g, "$1")
+    .replace(/\*\*/g, "")
+    .replace(/~~/g, "")
+    .replace(/`/g, "")
+    .replace(/\s+/g, " ")
+    .trim();

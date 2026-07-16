@@ -1,9 +1,11 @@
+import { RankingResultList } from "@/components/traces/explanations/RankingResultList";
 import { ResultList } from "@/components/traces/explanations/ResultList";
 import {
   embeddingSummary,
   itemLists,
   matchSummary,
   previewTextById,
+  rankingSummary,
   summaryValue,
   textSummary,
 } from "@/components/traces/explanations/summary-data";
@@ -80,6 +82,7 @@ const upstreamScoreLabel = (source: string | undefined): string | null => {
 };
 
 export function RetrieverExplanation(props: NodeExplanationProps) {
+  if (rankingSummary(props.step, "outputs")) return <GenericRankingExplanation {...props} />;
   const matches = itemLists(props.step, "outputs")[0]?.list;
   if (!matches) return null;
   const scoreLabel = retrieverScoreLabel(props.node.data.nodeType);
@@ -97,6 +100,7 @@ export function RetrieverExplanation(props: NodeExplanationProps) {
         contextItems={props.contextItems}
         previews={previewTextById(matchSummary(props.step, "outputs"))}
         onFocusItem={props.onFocusItem}
+        onOpenArtifact={props.onOpenArtifact}
       />
     </div>
   );
@@ -105,8 +109,29 @@ export function RetrieverExplanation(props: NodeExplanationProps) {
 export function FusionExplanation(props: NodeExplanationProps) {
   const branches = itemLists(props.step, "inputs");
   const fused = itemLists(props.step, "outputs")[0]?.list;
+  const ranking = rankingSummary(props.step, "outputs");
   const k = props.node.data.config.k;
   if (!fused) return null;
+  if (ranking) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm leading-relaxed text-body">
+          Combined branch ranks without comparing their raw scores.
+        </p>
+        <RankingResultList
+          title="Fused ranking"
+          evidence={ranking}
+          focusedItemId={props.focusedItemId}
+          contextItems={props.contextItems}
+          previews={previewTextById(matchSummary(props.step, "outputs"))}
+          sourceLabels={props.inputSources}
+          sourceScoreLabels={props.inputSources.map(upstreamScoreLabel)}
+          onFocusItem={props.onFocusItem}
+          onOpenArtifact={props.onOpenArtifact}
+        />
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline gap-2">
@@ -130,6 +155,7 @@ export function FusionExplanation(props: NodeExplanationProps) {
               focusedItemId={props.focusedItemId}
               contextItems={props.contextItems}
               onFocusItem={props.onFocusItem}
+              onOpenArtifact={props.onOpenArtifact}
               compact
             />
           );
@@ -143,6 +169,30 @@ export function FusionExplanation(props: NodeExplanationProps) {
         focusedItemId={props.focusedItemId}
         contextItems={props.contextItems}
         onFocusItem={props.onFocusItem}
+        onOpenArtifact={props.onOpenArtifact}
+      />
+    </div>
+  );
+}
+
+export function GenericRankingExplanation(props: NodeExplanationProps) {
+  const ranking = rankingSummary(props.step, "outputs");
+  if (!ranking) return null;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm leading-relaxed text-body">
+        Produced an ordered result set with recorded source evidence.
+      </p>
+      <RankingResultList
+        title={`${props.node.data.label} ranking`}
+        evidence={ranking}
+        focusedItemId={props.focusedItemId}
+        contextItems={props.contextItems}
+        previews={previewTextById(matchSummary(props.step, "outputs"))}
+        sourceLabels={props.inputSources}
+        sourceScoreLabels={props.inputSources.map(upstreamScoreLabel)}
+        onFocusItem={props.onFocusItem}
+        onOpenArtifact={props.onOpenArtifact}
       />
     </div>
   );
@@ -166,12 +216,14 @@ export function RetrievalOutputExplanation(props: NodeExplanationProps) {
         contextItems={props.contextItems}
         previews={previewTextById(matchSummary(props.step, "outputs"))}
         onFocusItem={props.onFocusItem}
+        onOpenArtifact={props.onOpenArtifact}
       />
     </div>
   );
 }
 
 export function RerankerExplanation(props: NodeExplanationProps) {
+  if (rankingSummary(props.step, "outputs")) return <GenericRankingExplanation {...props} />;
   const before = itemLists(props.step, "inputs")[0]?.list;
   const after = itemLists(props.step, "outputs")[0]?.list;
   if (!before || !after) return null;
@@ -185,6 +237,7 @@ export function RerankerExplanation(props: NodeExplanationProps) {
         focusedItemId={props.focusedItemId}
         contextItems={props.contextItems}
         onFocusItem={props.onFocusItem}
+        onOpenArtifact={props.onOpenArtifact}
         compact
       />
       <ResultList
@@ -195,6 +248,7 @@ export function RerankerExplanation(props: NodeExplanationProps) {
         focusedItemId={props.focusedItemId}
         contextItems={props.contextItems}
         onFocusItem={props.onFocusItem}
+        onOpenArtifact={props.onOpenArtifact}
         compact
       />
     </div>

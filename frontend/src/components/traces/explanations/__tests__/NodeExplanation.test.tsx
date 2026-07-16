@@ -9,6 +9,8 @@ import type { TraceStep } from "@/components/traces/trace-graph";
 import type { PipelineNodeSummary, TraceFocusedItem } from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
+const FOCUSED_TEXT = "Focused text";
+
 const makeStep = (nodeType: string, summary: PipelineNodeSummary): TraceStep => ({
   nodeId: "node",
   nodeIds: ["node"],
@@ -157,14 +159,9 @@ describe("NodeExplanation", () => {
     const ranking = screen.getByRole("list", { name: "BM25 ranking" });
     expect(
       within(ranking)
-        .getAllByRole("listitem")
-        .map((item) => item.textContent),
-    ).toEqual([
-      expect.stringContaining("doc:0"),
-      expect.stringContaining("doc:1"),
-      expect.stringContaining("doc:2"),
-      expect.stringContaining("doc:3"),
-    ]);
+        .getAllByRole("button", { name: /Inspect result/ })
+        .map((item) => item.getAttribute("aria-label")),
+    ).toEqual(ids.map((id) => `Inspect result ${id}`));
 
     fireEvent.click(screen.getByRole("button", { name: "Inspect result doc:1" }));
     expect(onFocusItem).not.toHaveBeenCalled();
@@ -172,7 +169,7 @@ describe("NodeExplanation", () => {
     expect(onFocusItem).toHaveBeenCalledWith("doc:1");
   });
 
-  it("shows fusion branches beside the fused result order", () => {
+  it("expands a fused result into proportional source contributions", () => {
     const summary: PipelineNodeSummary = {
       inputs: [
         {
@@ -188,9 +185,44 @@ describe("NodeExplanation", () => {
       ],
       outputs: [
         {
+          label: "Matches",
+          value: {
+            count: 1,
+            top_matches: [
+              {
+                rank: 1,
+                chunk_id: "doc:2",
+                document_id: "doc",
+                score: 0.032,
+                preview: "## Focused **text** for pg_search ranking",
+              },
+            ],
+          },
+        },
+        {
           label: "Fused items",
           kind: "items",
           value: { kind: "matches", items: [{ id: "doc:2", score: 0.032 }] },
+        },
+        {
+          label: "Ranking evidence",
+          kind: "ranking",
+          value: {
+            method: "reciprocal_rank_fusion",
+            score_label: "RRF score",
+            formula: "1 / (60 + rank)",
+            results: [
+              {
+                id: "doc:2",
+                rank: 1,
+                score: 0.032,
+                sources: [
+                  { source_index: 0, rank: 3, score: 0.7, contribution: 0.01587 },
+                  { source_index: 1, rank: 7, score: 12.4, contribution: 0.01493 },
+                ],
+              },
+            ],
+          },
         },
       ],
     };
@@ -200,18 +232,25 @@ describe("NodeExplanation", () => {
         step={makeStep("fusion.rrf", summary)}
         node={makeNode("fusion.rrf", { k: 60 })}
         focusedItemId="doc:2"
-        contextItems={[contextItem(2, "Focused text")]}
+        contextItems={[]}
         itemEffect={null}
         inputSources={["Semantic Retriever", "BM25 Retriever"]}
       />,
     );
 
-    expect(screen.getByText("Semantic Retriever")).toBeInTheDocument();
-    expect(screen.getByText("BM25 Retriever")).toBeInTheDocument();
-    expect(screen.getByText("Vector similarity")).toBeInTheDocument();
-    expect(screen.getByText("BM25 score")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Inspect result doc:2" }));
+    expect(screen.getByText("Focused text for pg_search ranking")).toBeInTheDocument();
+    expect(screen.getByText("Vector similarity · 0.7000")).toBeInTheDocument();
+    expect(screen.getByText("BM25 score · 12.400")).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: "Semantic Retriever contribution" }),
+    ).toHaveAttribute("aria-valuenow", "52");
+    expect(
+      screen.getByRole("progressbar", { name: "BM25 Retriever contribution" }),
+    ).toHaveAttribute("aria-valuenow", "48");
     expect(screen.getByText("Fused ranking")).toBeInTheDocument();
     expect(screen.getByText(/1 \/ \(60 \+ rank\)/)).toBeInTheDocument();
+    expect(screen.queryByText("Native score")).not.toBeInTheDocument();
   });
 
   it("preserves the upstream score method at retrieval output", () => {
@@ -231,7 +270,7 @@ describe("NodeExplanation", () => {
         step={makeStep("retrieval.output", summary)}
         node={makeNode("retrieval.output")}
         focusedItemId="doc:2"
-        contextItems={[contextItem(2, "Focused text")]}
+        contextItems={[contextItem(2, FOCUSED_TEXT)]}
         itemEffect={null}
         inputSources={["RRF Fusion"]}
       />,

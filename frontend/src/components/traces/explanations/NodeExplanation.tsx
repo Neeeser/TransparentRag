@@ -8,6 +8,7 @@ import {
 } from "@/components/traces/explanations/IngestionExplanation";
 import {
   FusionExplanation,
+  GenericRankingExplanation,
   QueryEmbedderExplanation,
   RerankerExplanation,
   RetrievalInputExplanation,
@@ -40,6 +41,11 @@ const RENDERERS: ExplanationRenderer[] = [
   { matches: (type) => type.startsWith("fusion."), Component: FusionExplanation },
   { matches: (type) => type.startsWith("reranker."), Component: RerankerExplanation },
   { matches: (type) => type === "retrieval.output", Component: RetrievalOutputExplanation },
+  {
+    matches: (_type, props) =>
+      props.step.run?.summary.outputs.some((value) => value.kind === "ranking") ?? false,
+    Component: GenericRankingExplanation,
+  },
 ];
 
 /** Renderer registry for node-specific debugging explanations. */
