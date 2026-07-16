@@ -9,34 +9,26 @@ project *is*, see the [README](../README.md). For binding engineering rules, see
 
 - Python 3.11+ and [uv](https://docs.astral.sh/uv/)
 - Node 22 (pinned in `.nvmrc`)
-- Docker (recommended) — `make run`/`make test` start a Dockerized ParadeDB
-  database automatically (see [The dev database](#the-dev-database) below)
+- Docker — `make run`/`make test` start a Dockerized ParadeDB database
+  automatically (see [The dev database](#the-dev-database) below)
 
 ## The dev database
 
 `make run` and `make test` start the Postgres they need in the background
-before running the app. The **recommended path is Docker**: when a Docker
-daemon is reachable they bring up `docker-compose.dev.yml` — a ParadeDB
+before running the app: they bring up `docker-compose.dev.yml` — a ParadeDB
 Postgres (`pgvector` + `pg_search`) on host port `54329` — so hybrid/BM25 search
 works exactly as it does in the shipped image, while the backend and frontend
 still run natively for hot reload. The container hosts both the dev database
 (`ragworks`) and the test database (`ragworks_test`), and data persists in a
 named volume across restarts. Its port is bound only to `127.0.0.1`, not the
-network.
-
-Without Docker they fall back to a **native** Postgres started via `pg_ctl`
-(set `POSTGRES_DATA_DIR` or `POSTGRES_START_COMMAND` if it can't find one). Only
-`pgvector` is available there — `pg_search` has no Homebrew build, so BM25 and
-hybrid retrieval degrade to dense-only with a startup warning; dense search
-still works. Prefer the Docker path so you exercise the same search stack the
-release ships and the BM25 test suite runs.
+network. Docker must be running — if it isn't, startup stops with a message
+pointing you at the fix.
 
 Set `DATABASE_URL` (or `TEST_DATABASE_URL`) to point at your own Postgres — an
 explicit value is always respected and left unmanaged. The values are
 independent: `DATABASE_URL` controls the app run targets and `TEST_DATABASE_URL`
-controls the test targets. Docker mode requires a local Docker daemon; with a
-remote Docker context, set the appropriate URL explicitly so it is treated as
-external instead.
+controls the test targets. With a remote Docker context, set the appropriate URL
+explicitly so it is treated as external instead.
 
 ## Setup
 

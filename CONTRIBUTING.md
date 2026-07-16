@@ -18,9 +18,8 @@ make run        # backend + frontend together
 ```
 
 Requirements: Python 3.11+, Node 22 (see `frontend/.nvmrc`), a local Docker daemon
-(recommended — `make run`/`make test` start a Dockerized ParadeDB database for
-you so BM25/hybrid search and its tests run; without Docker they fall back to a
-native Postgres with BM25 disabled), and (for the live features)
+(required — `make run`/`make test` start a Dockerized ParadeDB database for you so
+BM25/hybrid search and its tests run), and (for the live features)
 OpenRouter/Pinecone API keys. See
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#the-dev-database) for details.
 

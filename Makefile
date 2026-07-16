@@ -16,38 +16,31 @@ NEXT_PUBLIC_API_BASE_URL ?= http://$(API_HOST):$(API_PORT)
 # Dev opts into debug mode; the app default is production-safe (DEBUG=false).
 DEBUG ?= true
 
-# Dev database resolution — recommended path is a Dockerized ParadeDB
-# (pgvector + pg_search, so hybrid/BM25 search works); without a Docker daemon
-# we fall back to a native Postgres with BM25 disabled (dense-only). An
+# Dev database resolution — the standard path is a Dockerized ParadeDB
+# (pgvector + pg_search, so hybrid/BM25 search works). Docker is required for
+# local dev; ensure_postgres.py fails loudly when its daemon is unreachable. An
 # explicitly provided DATABASE_URL / TEST_DATABASE_URL (CI service container, a
 # contributor pointing at their own server) always wins and is left unmanaged.
 # The application and test URLs resolve independently: a server override never
 # turns the test URL into an empty value, or vice versa. Only computed for
-# DB-touching goals so `make help`/`make lint` skip the probe.
+# DB-touching goals so `make help`/`make lint` skip it.
 DB_GOALS := run server postgres postgres-test test test-verbose coverage coverage-report verify
 ifneq ($(filter $(DB_GOALS),$(MAKECMDGOALS)),)
   _DATABASE_URL_ORIGIN := $(origin DATABASE_URL)
   _TEST_DATABASE_URL_ORIGIN := $(origin TEST_DATABASE_URL)
-  _DOCKER_AVAILABLE := $(shell docker info >/dev/null 2>&1 && echo yes)
 
   ifneq ($(filter environment command,$(_DATABASE_URL_ORIGIN)),)
     SERVER_DB_MODE := external
-  else ifeq ($(_DOCKER_AVAILABLE),yes)
+  else
     SERVER_DB_MODE := docker
     DATABASE_URL := postgresql+psycopg://ragworks:ragworks@localhost:54329/ragworks
-  else
-    SERVER_DB_MODE := native
-    DATABASE_URL := postgresql+psycopg://localhost:5432/ragworks
   endif
 
   ifneq ($(filter environment command,$(_TEST_DATABASE_URL_ORIGIN)),)
     TEST_DB_MODE := external
-  else ifeq ($(_DOCKER_AVAILABLE),yes)
+  else
     TEST_DB_MODE := docker
     TEST_DATABASE_URL := postgresql+psycopg://ragworks:ragworks@localhost:54329/ragworks_test
-  else
-    TEST_DB_MODE := native
-    TEST_DATABASE_URL := postgresql+psycopg://localhost:5432/ragworks_test
   endif
 endif
 
