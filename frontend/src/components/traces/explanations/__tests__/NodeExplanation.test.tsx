@@ -196,7 +196,7 @@ describe("NodeExplanation", () => {
     expect(screen.getAllByText("Chunk 1")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Open chunk" }));
     expect(onOpenArtifact).toHaveBeenCalledWith(firstContext);
-    fireEvent.click(screen.getByRole("button", { name: "Trace this result" }));
+    fireEvent.click(screen.getByRole("button", { name: "Focus trace on guide.md · Chunk 2" }));
     expect(onFocusItem).toHaveBeenCalledWith("doc:1");
   });
 

@@ -99,7 +99,8 @@ export function ExecutionLedger({
                             <span className="truncate">{journeySentence(entry.itemEffect)}</span>
                             {entry.itemEffect.rank !== null ? (
                               <span className="ml-auto shrink-0 font-mono text-[10px] text-accent-cyan">
-                                #{entry.itemEffect.rank}
+                                {entry.itemEffect.role === "chunks" ? "Chunk" : "Rank"}{" "}
+                                {entry.itemEffect.rank}
                               </span>
                             ) : null}
                           </span>

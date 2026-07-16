@@ -9,6 +9,7 @@ import type { TraceFocusedItem } from "@/lib/types";
 type FocusHeaderProps = {
   focusedItemId: string;
   focusedItem: TraceFocusedItem | null;
+  query?: string | null;
   /** True when the trace covers only the ingestion run (Files-page entry). */
   ingestionOnly?: boolean;
   onOpenArtifact: () => void;
@@ -29,6 +30,7 @@ const chunkOrdinal = (item: TraceFocusedItem): string | null => {
 export function FocusHeader({
   focusedItemId,
   focusedItem,
+  query,
   ingestionOnly = false,
   onOpenArtifact,
   onClearFocus,
@@ -77,6 +79,16 @@ export function FocusHeader({
           </Button>
         </span>
       </div>
+      {query ? (
+        <div className="mt-1.5 flex min-w-0 items-baseline gap-2 border-t border-hairline pt-1.5">
+          <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.22em] text-meta">
+            Query
+          </span>
+          <p className="truncate text-xs text-body" title={query}>
+            {query}
+          </p>
+        </div>
+      ) : null}
       {!resolved || !focusedItem?.text ? (
         <p className="mt-2 text-xs text-muted">
           Chunk text unavailable — the stored chunk behind this id no longer exists (deleted or

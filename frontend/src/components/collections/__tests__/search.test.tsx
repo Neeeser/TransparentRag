@@ -13,9 +13,11 @@ vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 const api = vi.mocked(apiModule);
 
 const runQueryLabel = "Run query";
-const viewTraceLabel = "View retrieval trace";
+const viewTraceLabel = "Trace query";
 const queryInputLabel = "Search query";
 const firstQuery = "first question";
+const focusResultLabel = "Focus result";
+const previousResultText = "Previous result";
 
 async function runQuery(text = "Find") {
   fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: text } });
@@ -61,6 +63,7 @@ describe("CollectionSearch", () => {
     });
     // The source document name comes from chunk metadata.
     expect(screen.getByText("guide.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Final score 0.700")).toBeInTheDocument();
 
     // Expand/collapse the full chunk text.
     const expand = screen.getAllByRole("button", { name: /Chunk text/ })[0];
@@ -71,10 +74,10 @@ describe("CollectionSearch", () => {
     fireEvent.click(screen.getByText(viewTraceLabel));
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1");
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Trace" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: focusResultLabel })[0]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-1");
     // Chunks without a chunk_id fall back to their row id.
-    fireEvent.click(screen.getAllByRole("button", { name: "Trace" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: focusResultLabel })[1]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-3");
   });
 
@@ -121,6 +124,32 @@ describe("CollectionSearch", () => {
     });
   });
 
+  it("announces a running query without clearing the previous results", async () => {
+    api.runCollectionQuery.mockResolvedValueOnce(
+      makeQueryResult({ chunks: [{ id: "old", score: 0.8, text: previousResultText }] }),
+    );
+    render(<CollectionSearch collectionId="col-1" token="token" />);
+    await runQuery("first query");
+    await waitFor(() => expect(screen.getByText(previousResultText)).toBeInTheDocument());
+
+    let finishQuery: ((value: ReturnType<typeof makeQueryResult>) => void) | undefined;
+    api.runCollectionQuery.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishQuery = resolve;
+      }),
+    );
+    fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: "next query" } });
+    fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Running query…");
+    expect(screen.getByText(previousResultText)).toBeInTheDocument();
+
+    await act(async () => {
+      finishQuery?.(makeQueryResult({ chunks: [] }));
+    });
+    expect(screen.queryByText("Running query…")).not.toBeInTheDocument();
+  });
+
   it("surfaces query failures, with a fallback for non-error rejections", async () => {
     api.runCollectionQuery.mockRejectedValueOnce(new Error("Backend exploded"));
     render(<CollectionSearch collectionId="col-1" token="token" />);
@@ -147,7 +176,7 @@ describe("CollectionSearch", () => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
     expect(screen.queryByText(viewTraceLabel)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Trace" }));
+    fireEvent.click(screen.getByRole("button", { name: focusResultLabel }));
     expect(getMockRouter().push).not.toHaveBeenCalled();
   });
 });

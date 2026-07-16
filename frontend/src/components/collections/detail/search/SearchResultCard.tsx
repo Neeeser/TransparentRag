@@ -45,12 +45,14 @@ export function SearchResultCard({ chunk, rank, topScore, onTrace }: SearchResul
   return (
     <article className="rounded-2xl border border-hairline bg-surface p-4 transition hover:border-strong">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-meta">#{rank}</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-meta">
+          Rank {rank}
+        </span>
         <FileText className="h-4 w-4 shrink-0 text-muted" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-primary">
           {documentLabel(chunk)}
         </span>
-        <span className="font-mono text-[11px] text-muted">{score.toFixed(3)}</span>
+        <span className="font-mono text-[11px] text-muted">Final score {score.toFixed(3)}</span>
         <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-strong">
           <div
             className="h-full rounded-full bg-gradient-to-r from-grad-from to-grad-to"
@@ -89,7 +91,7 @@ export function SearchResultCard({ chunk, rank, topScore, onTrace }: SearchResul
         ))}
         <span className="ml-auto">
           <Button variant="ghost" size="sm" onClick={onTrace}>
-            Trace
+            Focus result
           </Button>
         </span>
       </div>

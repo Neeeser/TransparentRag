@@ -14,7 +14,7 @@ import { useTraceStepper } from "@/components/traces/debugger/hooks/use-trace-st
 import { NodeEvidencePanel } from "@/components/traces/debugger/NodeEvidencePanel";
 import { TraceHeader } from "@/components/traces/debugger/TraceHeader";
 import { traceNodeTypes } from "@/components/traces/IndexStoreNode";
-import { buildExecutionSections } from "@/components/traces/lib/execution";
+import { buildExecutionSections, traceQueryText } from "@/components/traces/lib/execution";
 import { buildJourneyFocus } from "@/components/traces/lib/journey";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
@@ -159,6 +159,7 @@ function LoadedTraceDebugger({
     () => buildExecutionSections(graph, focusedItemId),
     [graph, focusedItemId],
   );
+  const query = useMemo(() => traceQueryText(graph), [graph]);
   const itemEffects = useMemo(
     () => sections.flatMap((section) => section.entries.flatMap((entry) => entry.itemEffect ?? [])),
     [sections],
@@ -226,6 +227,7 @@ function LoadedTraceDebugger({
         <FocusHeader
           focusedItemId={focusedItemId}
           focusedItem={focusedItem}
+          query={query}
           ingestionOnly={trace.run.kind === "ingestion" && !graph.combined}
           onOpenArtifact={() => focusedItem && setArtifactItem(focusedItem)}
           onClearFocus={clearResult}
@@ -295,7 +297,13 @@ function LoadedTraceDebugger({
           />
         </div>
       </div>
-      <ArtifactDrawer item={artifactItem} onClose={() => setArtifactItem(null)} />
+      <ArtifactDrawer
+        key={artifactItem?.id ?? "closed"}
+        item={artifactItem}
+        contextItems={contextItems}
+        onNavigate={setArtifactItem}
+        onClose={() => setArtifactItem(null)}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, FileText } from "lucide-react";
+import { ArrowRight, FileText, LocateFixed } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatTracePreview } from "@/components/traces/explanations/summary-data";
@@ -151,6 +151,7 @@ export function RankingResultList({
           const context = contextById.get(result.id);
           const preview = context?.text ?? previews.get(result.id);
           const selected = result.id === inspectedId;
+          const title = resultTitle(context, result.rank);
           const shares = contributionShares(result.sources);
           const signed = result.sources.some((source) => (source.contribution ?? 0) < 0);
           return (
@@ -159,7 +160,7 @@ export function RankingResultList({
               ref={result.id === focusedItemId ? focusedRef : undefined}
               aria-current={result.id === focusedItemId ? "true" : undefined}
               className={cn(
-                "overflow-hidden rounded-xl border bg-canvas",
+                "relative overflow-hidden rounded-xl border bg-canvas",
                 result.id === focusedItemId
                   ? "border-accent-cyan/60"
                   : selected
@@ -182,8 +183,8 @@ export function RankingResultList({
                 </span>
                 <span className="min-w-0 px-3 py-3">
                   <span className="flex items-baseline gap-2">
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-primary">
-                      {resultTitle(context, result.rank)}
+                    <span className="min-w-0 flex-1 truncate pr-16 text-xs font-medium text-primary">
+                      {title}
                     </span>
                     {result.score !== null && result.score !== undefined ? (
                       <span className="font-mono text-[10px] text-accent-cyan">
@@ -215,6 +216,18 @@ export function RankingResultList({
                   ) : null}
                 </span>
               </button>
+              {onFocusItem && result.id !== focusedItemId ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Focus trace on ${title}`}
+                  onClick={() => onFocusItem(result.id)}
+                  className="absolute right-2 top-2 h-7 gap-1 px-2 text-[10px]"
+                >
+                  <LocateFixed className="h-3 w-3" aria-hidden />
+                  Focus
+                </Button>
+              ) : null}
               {selected ? (
                 <div className="border-t border-hairline bg-surface/50 px-3 py-3 sm:pl-[4.25rem]">
                   <div className="space-y-3">
@@ -242,12 +255,6 @@ export function RankingResultList({
                       >
                         <FileText className="h-3.5 w-3.5" aria-hidden />
                         Open chunk
-                      </Button>
-                    ) : null}
-                    {onFocusItem && result.id !== focusedItemId ? (
-                      <Button size="sm" onClick={() => onFocusItem(result.id)} className="gap-1.5">
-                        Trace this result
-                        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                       </Button>
                     ) : null}
                   </div>

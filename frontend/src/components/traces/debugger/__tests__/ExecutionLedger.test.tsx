@@ -6,11 +6,20 @@ import { buildExecutionSections } from "@/components/traces/lib/execution";
 import { makeNodeRunTrace } from "@/test/fixtures";
 
 import type { TraceGraph, TraceStep } from "@/components/traces/trace-graph";
+import type { PipelineNodeSummaryValue } from "@/lib/types";
 
-const step = (nodeId: string, nodeName: string): TraceStep => ({
+const step = (
+  nodeId: string,
+  nodeName: string,
+  outputs: PipelineNodeSummaryValue[] = [],
+): TraceStep => ({
   nodeId,
   nodeIds: [nodeId],
-  run: makeNodeRunTrace({ node_id: nodeId, node_name: nodeName }),
+  run: makeNodeRunTrace({
+    node_id: nodeId,
+    node_name: nodeName,
+    summary: { inputs: [], outputs },
+  }),
   io: { inputs: [], outputs: [] },
   stage: "retrieval",
   stageLabel: "Retrieval",
@@ -44,5 +53,40 @@ describe("ExecutionLedger", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Execution step RRF fusion" }));
     expect(onSelectNode).toHaveBeenCalledWith("rank");
+  });
+
+  it("labels a retrieval position as a rank instead of an ambiguous number", () => {
+    const graph: TraceGraph = {
+      nodes: [],
+      edges: [],
+      steps: [
+        step("rank", "Semantic retriever", [
+          {
+            label: "Match items",
+            kind: "items",
+            value: {
+              kind: "matches",
+              items: [
+                { id: "other", score: 0.8 },
+                { id: "focused", score: 0.7 },
+              ],
+            },
+          },
+        ]),
+      ],
+      combined: false,
+    };
+
+    render(
+      <ExecutionLedger
+        sections={buildExecutionSections(graph, "focused")}
+        selectedNodeId="rank"
+        playbackNodeId={null}
+        onSelectNode={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Rank 2")).toBeInTheDocument();
+    expect(screen.queryByText("#2")).not.toBeInTheDocument();
   });
 });
