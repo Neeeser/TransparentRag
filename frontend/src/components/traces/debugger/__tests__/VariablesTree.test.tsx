@@ -11,6 +11,7 @@ const NO_INPUTS_LABEL = "No primary inputs recorded.";
 const HELLO_VALUE = "hello world";
 const ARIA_EXPANDED = "aria-expanded";
 const MATCH_ITEMS_LABEL = "Match items";
+const FOCUSED_RESULT_BUTTON = "Trace this result chunk-9";
 
 function makeIO(overrides: Partial<PipelineNodeIOTrace> = {}): PipelineNodeIOTrace {
   return {
@@ -132,7 +133,7 @@ describe("VariablesTree", () => {
     expect(screen.getByText(MATCH_ITEMS_LABEL)).toBeInTheDocument();
   });
 
-  it("pins a focused match beyond the preview cap with its full-list rank and score", () => {
+  it("keeps a focused match in the complete list at its real rank", () => {
     const topMatches = Array.from({ length: 5 }, (_, index) => ({
       rank: index + 1,
       chunk_id: `chunk-${index + 1}`,
@@ -165,12 +166,13 @@ describe("VariablesTree", () => {
     );
 
     const preview = within(screen.getByTestId("variable-row-Matches"));
-    expect(preview.getByRole("button", { name: "Focus item chunk-9" })).toHaveAttribute(
-      "data-focused",
-      "true",
-    );
-    expect(preview.getByText("#9")).toBeInTheDocument();
-    expect(preview.getByText("0.200")).toBeInTheDocument();
+    expect(preview.queryByRole("button", { name: FOCUSED_RESULT_BUTTON })).toBeNull();
+    const complete = within(screen.getByTestId(`variable-row-${MATCH_ITEMS_LABEL}`));
+    const rows = complete.getAllByRole("button", { name: /Trace this result/ });
+    expect(rows[0]).toHaveAccessibleName("Trace this result chunk-1");
+    expect(rows[8]).toHaveAttribute("data-focused", "true");
+    expect(complete.getByText("#9")).toBeInTheDocument();
+    expect(complete.getByText("0.200")).toBeInTheDocument();
   });
 
   it.each([
@@ -207,37 +209,42 @@ describe("VariablesTree", () => {
       },
       itemKind: "chunks" as const,
     },
-  ])("pins a focused item beyond the $label preview cap", ({ label, previewValue, itemKind }) => {
-    render(
-      <VariablesTree
-        title="Outputs"
-        tone="violet"
-        summaryItems={[
-          { label, value: previewValue, kind: "json" },
-          {
-            label: "Full items",
-            value: {
-              kind: itemKind,
-              items: Array.from({ length: 10 }, (_, index) => ({
-                id: `chunk-${index + 1}`,
-                score: itemKind === "matches" ? 1 - index / 10 : undefined,
-              })),
+  ])(
+    "does not pull a focused item above the $label preview",
+    ({ label, previewValue, itemKind }) => {
+      render(
+        <VariablesTree
+          title="Outputs"
+          tone="violet"
+          summaryItems={[
+            { label, value: previewValue, kind: "json" },
+            {
+              label: "Full items",
+              value: {
+                kind: itemKind,
+                items: Array.from({ length: 10 }, (_, index) => ({
+                  id: `chunk-${index + 1}`,
+                  score: itemKind === "matches" ? 1 - index / 10 : undefined,
+                })),
+              },
+              kind: "items",
             },
-            kind: "items",
-          },
-        ]}
-        ioRecords={[]}
-        focusedItemId="chunk-9"
-        onFocusItem={() => undefined}
-        emptySummaryLabel="No outputs recorded."
-      />,
-    );
+          ]}
+          ioRecords={[]}
+          focusedItemId="chunk-9"
+          onFocusItem={() => undefined}
+          emptySummaryLabel="No outputs recorded."
+        />,
+      );
 
-    const preview = within(screen.getByTestId(`variable-row-${label}`));
-    expect(preview.getByRole("button", { name: "Focus item chunk-9" })).toHaveAttribute(
-      "data-focused",
-      "true",
-    );
-    expect(preview.getByText("#9")).toBeInTheDocument();
-  });
+      const preview = within(screen.getByTestId(`variable-row-${label}`));
+      expect(preview.queryByRole("button", { name: FOCUSED_RESULT_BUTTON })).toBeNull();
+      const complete = within(screen.getByTestId("variable-row-Full items"));
+      expect(complete.getByRole("button", { name: FOCUSED_RESULT_BUTTON })).toHaveAttribute(
+        "data-focused",
+        "true",
+      );
+      expect(complete.getByText("#9")).toBeInTheDocument();
+    },
+  );
 });

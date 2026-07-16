@@ -1,13 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { buildPreviewPayload } from "@/components/traces/trace-payload-utils";
-import {
-  focusedItemOutsidePreview,
-  PinnedFocusedItemRow,
-  TraceItemRow,
-} from "@/components/traces/values/TraceItemRow";
+import { TraceItemRow } from "@/components/traces/values/TraceItemRow";
 import { cn, prettyJson, truncate } from "@/lib/utils";
 
 import type {
@@ -26,7 +22,6 @@ export type TraceValueViewProps = {
   kind: string;
   focusedItemId?: string | null;
   onFocusItem?: (itemId: string) => void;
-  itemList?: ItemListTrace;
 };
 
 const chipClass =
@@ -98,18 +93,8 @@ export function SourceValue({ value }: TraceValueViewProps) {
 }
 
 /** A batch of chunks: a count (+ document) header and per-chunk preview cards. */
-export function ChunkListValue({
-  value,
-  focusedItemId,
-  onFocusItem,
-  itemList,
-}: TraceValueViewProps) {
+export function ChunkListValue({ value, focusedItemId, onFocusItem }: TraceValueViewProps) {
   const batch = value as ChunkBatchShape;
-  const pinned = focusedItemOutsidePreview(
-    itemList,
-    focusedItemId,
-    batch.samples.map((sample) => sample.chunk_id),
-  );
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
@@ -117,7 +102,6 @@ export function ChunkListValue({
         {batch.document_id ? <Chip>doc {truncate(batch.document_id, 12)}</Chip> : null}
       </div>
       <ScrollBox>
-        <PinnedFocusedItemRow item={pinned} onFocusItem={onFocusItem} />
         {batch.samples.map((sample) => {
           const active = focusedItemId ? sample.chunk_id === focusedItemId : false;
           return (
@@ -165,12 +149,7 @@ function VectorSparkline({ values }: { values: number[] }) {
 }
 
 /** Embedding vectors: dimension/count chips + a sparkline + numeric preview. */
-export function EmbeddingValue({
-  value,
-  focusedItemId,
-  onFocusItem,
-  itemList,
-}: TraceValueViewProps) {
+export function EmbeddingValue({ value, focusedItemId, onFocusItem }: TraceValueViewProps) {
   const asPreview = value as Partial<EmbeddingPreviewShape>;
   const asSummary = value as Partial<EmbeddingSummaryShape>;
   const previews: Array<{ id: string | null; preview: EmbeddingPreviewShape }> = Array.isArray(
@@ -189,19 +168,12 @@ export function EmbeddingValue({
     asSummary.dimension ??
     (typeof asPreview.total_values === "number" ? asPreview.total_values : undefined) ??
     previews[0]?.preview.total_values;
-  const pinned = focusedItemOutsidePreview(
-    itemList,
-    focusedItemId,
-    previews.slice(0, 2).map((sample) => sample.id),
-  );
-
   return (
     <div className="space-y-2.5">
       <div className="flex flex-wrap gap-2">
         {typeof dimension === "number" && dimension > 0 ? <Chip>{dimension}-dim</Chip> : null}
         {typeof asSummary.count === "number" ? <Chip>{asSummary.count} vectors</Chip> : null}
       </div>
-      <PinnedFocusedItemRow item={pinned} onFocusItem={onFocusItem} />
       {previews.length ? (
         <div className="space-y-2">
           {previews.slice(0, 2).map((sample, index) => (
@@ -229,24 +201,13 @@ export function EmbeddingValue({
 }
 
 /** Retrieval matches: ranked rows with score bars and previews. */
-export function MatchListValue({
-  value,
-  focusedItemId,
-  onFocusItem,
-  itemList,
-}: TraceValueViewProps) {
+export function MatchListValue({ value, focusedItemId, onFocusItem }: TraceValueViewProps) {
   const list = value as MatchListShape;
   const maxScore = Math.max(...list.top_matches.map((match) => match.score), 1e-9);
-  const pinned = focusedItemOutsidePreview(
-    itemList,
-    focusedItemId,
-    list.top_matches.map((match) => match.chunk_id),
-  );
   return (
     <div className="space-y-2">
       <Chip>{list.count} matches</Chip>
       <ScrollBox>
-        <PinnedFocusedItemRow item={pinned} onFocusItem={onFocusItem} />
         {list.top_matches.map((match) => {
           const active = focusedItemId ? match.chunk_id === focusedItemId : false;
           return (
@@ -284,21 +245,10 @@ export function MatchListValue({
 }
 
 /** Reranker before/after ordering: compact rank·score chips. */
-export function MatchOrderValue({
-  value,
-  focusedItemId,
-  onFocusItem,
-  itemList,
-}: TraceValueViewProps) {
+export function MatchOrderValue({ value, focusedItemId, onFocusItem }: TraceValueViewProps) {
   const entries = value as MatchOrderEntryShape[];
-  const pinned = focusedItemOutsidePreview(
-    itemList,
-    focusedItemId,
-    entries.map((entry) => entry.chunk_id),
-  );
   return (
     <div className="flex flex-wrap gap-1.5">
-      <PinnedFocusedItemRow item={pinned} onFocusItem={onFocusItem} />
       {entries.map((entry) => (
         <TraceItemRow
           key={`${entry.rank}-${entry.chunk_id}`}
@@ -315,14 +265,15 @@ export function MatchOrderValue({
   );
 }
 
-/** Complete ordered item ids and scores, with the focused row pinned first. */
+/** Complete ordered item ids and scores, centered on the focused row when present. */
 export function ItemListValue({ value, focusedItemId, onFocusItem }: TraceValueViewProps) {
   const trace = value as ItemListTrace;
   const ranked = trace.items.map((item, index) => ({ item, rank: index + 1 }));
-  const focused = ranked.find((entry) => entry.item.id === focusedItemId);
-  const ordered = focused
-    ? [focused, ...ranked.filter((entry) => entry.item.id !== focused.item.id)]
-    : ranked;
+  const focusedRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    focusedRef.current?.scrollIntoView?.({ block: "center", behavior: "auto" });
+  }, [focusedItemId]);
 
   return (
     <div className="space-y-2">
@@ -330,24 +281,25 @@ export function ItemListValue({ value, focusedItemId, onFocusItem }: TraceValueV
         {trace.items.length} {trace.kind}
       </Chip>
       <ScrollBox>
-        {ordered.map(({ item, rank }) => (
-          <TraceItemRow
-            key={item.id}
-            itemId={item.id}
-            focused={item.id === focusedItemId}
-            onFocusItem={onFocusItem}
-            className="flex w-full items-center gap-2 rounded-xl border border-hairline bg-canvas px-2.5 py-2 text-left"
-          >
-            <span className="w-8 shrink-0 font-mono text-[10px] text-muted">#{rank}</span>
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-body">
-              {item.id}
-            </span>
-            {typeof item.score === "number" ? (
-              <span className="shrink-0 font-mono text-[10px] text-accent-cyan">
-                {item.score.toFixed(3)}
+        {ranked.map(({ item, rank }) => (
+          <div key={item.id} ref={item.id === focusedItemId ? focusedRef : undefined}>
+            <TraceItemRow
+              itemId={item.id}
+              focused={item.id === focusedItemId}
+              onFocusItem={onFocusItem}
+              className="flex w-full items-center gap-2 rounded-xl border border-hairline bg-canvas px-2.5 py-2 text-left"
+            >
+              <span className="w-8 shrink-0 font-mono text-[10px] text-muted">#{rank}</span>
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-body">
+                {item.id}
               </span>
-            ) : null}
-          </TraceItemRow>
+              {typeof item.score === "number" ? (
+                <span className="shrink-0 font-mono text-[10px] text-accent-cyan">
+                  {item.score.toFixed(3)}
+                </span>
+              ) : null}
+            </TraceItemRow>
+          </div>
         ))}
       </ScrollBox>
     </div>

@@ -61,8 +61,3 @@ const matchSentence = (step: JourneyStep): string => {
 /** The step's one-line effect sentence, keyed on (list kind, effect). */
 export const journeySentence = (step: JourneyStep): string =>
   step.role === "chunks" ? chunkSentence(step) : matchSentence(step);
-
-/** Copy for a stage whose nodes attached no item identity lists. */
-export const UNRECORDED_SECTION_MESSAGE =
-  "No result identity was recorded for this run — it predates result tracing. " +
-  "Re-run the query to trace results through it.";

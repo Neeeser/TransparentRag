@@ -42,7 +42,7 @@ export function FocusHeader({
   return (
     <section
       aria-label="Focused result"
-      className="shrink-0 border-b border-hairline bg-surface px-4 py-3"
+      className="shrink-0 border-b border-hairline bg-surface px-4 py-2"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-accent-cyan">
@@ -73,16 +73,16 @@ export function FocusHeader({
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
           aria-expanded={expanded}
-          className="mt-2 block w-full rounded-xl border border-hairline bg-canvas px-3 py-2 text-left text-sm leading-relaxed text-body transition hover:border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          className="mt-1.5 block w-full rounded-xl border border-hairline bg-canvas px-3 py-2 text-left text-sm leading-relaxed text-body transition hover:border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         >
-          <span className={cn("whitespace-pre-wrap", !expanded && "line-clamp-3")}>
+          <span className={cn("whitespace-pre-wrap", !expanded && "line-clamp-2")}>
             {focusedItem.text}
           </span>
         </button>
       ) : (
         <p className="mt-2 text-xs text-muted">
           Chunk text unavailable — the stored chunk behind this id no longer exists (deleted or
-          re-ingested content). The recorded journey below still applies.
+          re-ingested content). The recorded execution data still applies.
         </p>
       )}
       {ingestionOnly ? (

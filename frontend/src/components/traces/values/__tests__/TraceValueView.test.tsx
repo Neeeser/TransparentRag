@@ -63,7 +63,7 @@ describe("TraceValueView registry", () => {
     expect(screen.getByText("First chunk text")).toBeInTheDocument();
   });
 
-  it("pins a focused full-list item with its original rank and score", () => {
+  it("keeps a focused full-list item at its original rank", () => {
     const onFocusItem = vi.fn();
     render(
       <TraceValueView
@@ -80,13 +80,14 @@ describe("TraceValueView registry", () => {
       />,
     );
 
-    const rows = screen.getAllByRole("button", { name: /Focus item/ });
-    expect(rows[0]).toHaveAccessibleName("Focus item c-9");
+    const rows = screen.getAllByRole("button", { name: /Trace this result/ });
+    expect(rows[0]).toHaveAccessibleName("Trace this result c-1");
+    expect(rows[8]).toHaveAccessibleName("Trace this result c-9");
     expect(screen.getByText("#9")).toBeInTheDocument();
     expect(screen.getByText("0.200")).toBeInTheDocument();
-    expect(rows[0]).toHaveAttribute("data-focused", "true");
+    expect(rows[8]).toHaveAttribute("data-focused", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Focus item c-4" }));
+    fireEvent.click(screen.getByRole("button", { name: "Trace this result c-4" }));
     expect(onFocusItem).toHaveBeenCalledWith("c-4");
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { initialExecutionNodeId } from "@/components/traces/lib/execution";
 
@@ -18,13 +18,20 @@ export function useExecutionSelection(
   focused: boolean,
 ): UseExecutionSelectionResult {
   const initialNodeId = useMemo(() => initialExecutionNodeId(graph, focused), [graph, focused]);
-  const [selectedNodeId, setSelectedNodeId] = useState(initialNodeId);
-
-  useEffect(() => setSelectedNodeId(initialNodeId), [initialNodeId]);
+  const [selection, setSelection] = useState(() => ({
+    initialNodeId,
+    selectedNodeId: initialNodeId,
+  }));
+  const selectedNodeId =
+    selection.initialNodeId === initialNodeId ? selection.selectedNodeId : initialNodeId;
+  const selectNode = useCallback(
+    (nodeId: string) => setSelection({ initialNodeId, selectedNodeId: nodeId }),
+    [initialNodeId],
+  );
 
   return {
     selectedNodeId,
     selectedStep: graph.steps.find((step) => step.nodeId === selectedNodeId) ?? null,
-    selectNode: setSelectedNodeId,
+    selectNode,
   };
 }

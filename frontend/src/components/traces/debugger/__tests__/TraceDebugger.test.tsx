@@ -9,7 +9,7 @@ import type { PipelineTraceResponse } from "@/lib/types";
 
 const routerBack = vi.fn();
 const routerReplace = vi.fn();
-const RESULT_JOURNEY_LABEL = "Result journey";
+const EXECUTION_ORDER_LABEL = "Execution order";
 const CHUNK_ITEMS_LABEL = "Chunk items";
 
 vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
@@ -125,33 +125,34 @@ describe("TraceDebugger", () => {
     expect(routerBack).toHaveBeenCalled();
   });
 
-  it("renders the rail, graph, and inspector once the trace loads", async () => {
+  it("renders the compact graph, execution order, and node evidence once the trace loads", async () => {
     api.fetchPipelineRunTrace.mockResolvedValueOnce(makeTwoNodeTrace());
 
     render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
 
     await waitFor(() => expect(screen.getByTestId("reactflow")).toBeInTheDocument());
-    expect(screen.getByRole("navigation", { name: "Trace steps" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Node inspector" })).toBeInTheDocument();
-    // Starts on the first step: its summary values render in the inspector.
+    expect(screen.getByRole("region", { name: "Trace graph" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Node evidence" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Node data" }));
     expect(screen.getByText("file.pdf")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: RESULT_JOURNEY_LABEL })).not.toBeInTheDocument();
     expect(screen.queryByText(CHUNK_ITEMS_LABEL)).not.toBeInTheDocument();
   });
 
-  it("keeps the inspector in lockstep with a rail jump", async () => {
+  it("changes node evidence from the execution order", async () => {
     api.fetchPipelineRunTrace.mockResolvedValueOnce(makeTwoNodeTrace());
 
     render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
     await waitFor(() => expect(screen.getByTestId("reactflow")).toBeInTheDocument());
 
-    const stepRail = screen.getByRole("navigation", { name: "Trace steps" });
-    fireEvent.click(within(stepRail).getByRole("button", { name: /Chunk/ }));
+    const stepRail = screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL });
+    fireEvent.click(within(stepRail).getByRole("button", { name: "Execution step Chunk" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Node data" }));
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
     expect(screen.queryByText("file.pdf")).not.toBeInTheDocument();
   });
 
-  it("keeps the inspector in lockstep with a graph node click", async () => {
+  it("selects graph evidence without changing focused trace state", async () => {
     api.fetchPipelineRunTrace.mockResolvedValueOnce(makeTwoNodeTrace());
 
     render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
@@ -162,7 +163,9 @@ describe("TraceDebugger", () => {
         id: "n2",
       });
     });
+    fireEvent.click(screen.getByRole("tab", { name: "Node data" }));
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
+    expect(routerReplace).not.toHaveBeenCalled();
   });
 
   it("opens a failed run on its first failed node", async () => {
@@ -177,6 +180,7 @@ describe("TraceDebugger", () => {
     render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
 
     await waitFor(() => expect(screen.getByText("Embedding blew up")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Node data" }));
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
   });
 
@@ -205,7 +209,8 @@ describe("TraceDebugger", () => {
     expect(screen.getByText("The focused chunk text.")).toBeInTheDocument();
     expect(screen.getByText("paper.pdf")).toBeInTheDocument();
     expect(screen.getByText("Chunk 8 of 42")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: RESULT_JOURNEY_LABEL })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL })).toBeInTheDocument();
+    expect(lastReactFlowProps?.centerNodeId).toBeUndefined();
 
     const nodes = lastReactFlowProps?.nodes as Array<{
       id: string;
@@ -220,24 +225,29 @@ describe("TraceDebugger", () => {
     expect(edges.find((edge) => edge.id === "e1")?.data.itemFocus).toBe("traveled");
   });
 
-  it("focuses an inspector item, seeks from its journey, and clears focus", async () => {
+  it("traces an explicit result without replacing node evidence selection", async () => {
     api.fetchPipelineRunTrace.mockResolvedValueOnce(makeTwoNodeTrace());
 
     render(<TraceDebugger source={{ kind: "run", id: "run-1", chunkId: null }} />);
     await waitFor(() => expect(screen.getByTestId("reactflow")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "Focus item chunk-7" }));
-    const timeline = screen.getByRole("region", { name: RESULT_JOURNEY_LABEL });
-    expect(timeline).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Node data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Trace this result chunk-7" }));
+    const timeline = screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL });
     expect(routerReplace).toHaveBeenCalledWith("/traces/runs/run-1?chunk=chunk-7");
+    expect(
+      (lastReactFlowProps?.nodes as Array<{ id: string; data: { itemFocus?: string } }>).find(
+        (node) => node.id === "n1",
+      )?.data.itemFocus,
+    ).toBe("traveled");
 
-    // Selecting a journey card seeks playback; the active card expands into
-    // the node's recorded detail.
-    fireEvent.click(within(timeline).getByRole("button", { name: "Journey step Chunk" }));
+    fireEvent.click(within(timeline).getByRole("button", { name: "Execution step Chunk" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Node data" }));
     expect(screen.getByText("42 chunks")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Exit focused trace" }));
-    expect(screen.queryByRole("region", { name: RESULT_JOURNEY_LABEL })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Focused result" })).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: EXECUTION_ORDER_LABEL })).toBeInTheDocument();
     expect(routerReplace).toHaveBeenLastCalledWith("/traces/runs/run-1");
   });
 

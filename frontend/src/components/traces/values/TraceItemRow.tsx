@@ -1,13 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import type { ItemListTrace } from "@/lib/types";
 import type { ReactNode } from "react";
-
-export type FocusedTraceItem = {
-  id: string;
-  rank: number;
-  score?: number | null;
-};
 
 type TraceItemRowProps = {
   itemId: string;
@@ -41,52 +34,12 @@ export function TraceItemRow({
   return (
     <button
       type="button"
-      aria-label={`Focus item ${itemId}`}
+      aria-label={`Trace this result ${itemId}`}
       data-focused={focused || undefined}
       onClick={() => onFocusItem(itemId)}
       className={classes}
     >
       {children}
     </button>
-  );
-}
-
-/** Locate a focused item only when the truncated preview omitted it. */
-export function focusedItemOutsidePreview(
-  itemList: ItemListTrace | undefined,
-  focusedItemId: string | null | undefined,
-  previewIds: Array<string | null>,
-): FocusedTraceItem | null {
-  if (!itemList || !focusedItemId || previewIds.includes(focusedItemId)) return null;
-  const index = itemList.items.findIndex((item) => item.id === focusedItemId);
-  if (index < 0) return null;
-  const item = itemList.items[index];
-  return { id: item.id, rank: index + 1, score: item.score };
-}
-
-/** Compact node-local rank/score row pinned above a truncated preview. */
-export function PinnedFocusedItemRow({
-  item,
-  onFocusItem,
-}: {
-  item: FocusedTraceItem | null;
-  onFocusItem?: (itemId: string) => void;
-}) {
-  if (!item) return null;
-  return (
-    <TraceItemRow
-      itemId={item.id}
-      focused
-      onFocusItem={onFocusItem}
-      className="flex w-full items-center gap-2 rounded-xl border border-hairline bg-canvas px-2.5 py-2 text-left"
-    >
-      <span className="w-8 shrink-0 font-mono text-[10px] text-muted">#{item.rank}</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-body">{item.id}</span>
-      {typeof item.score === "number" ? (
-        <span className="shrink-0 font-mono text-[10px] text-accent-cyan">
-          {item.score.toFixed(3)}
-        </span>
-      ) : null}
-    </TraceItemRow>
   );
 }

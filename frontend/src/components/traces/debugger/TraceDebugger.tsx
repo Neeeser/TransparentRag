@@ -2,20 +2,22 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { FlowPlayer } from "@/components/pipelines/flow/FlowPlayer";
+import { ExecutionLedger } from "@/components/traces/debugger/ExecutionLedger";
 import { FocusHeader } from "@/components/traces/debugger/FocusHeader";
+import { useExecutionSelection } from "@/components/traces/debugger/hooks/use-execution-selection";
 import { useTraceDebugger } from "@/components/traces/debugger/hooks/use-trace-debugger";
 import { useTraceStepper } from "@/components/traces/debugger/hooks/use-trace-stepper";
-import { InspectorPanel } from "@/components/traces/debugger/InspectorPanel";
-import { JourneyTimeline } from "@/components/traces/debugger/JourneyTimeline";
-import { StepRail } from "@/components/traces/debugger/StepRail";
+import { NodeEvidencePanel } from "@/components/traces/debugger/NodeEvidencePanel";
 import { TraceHeader } from "@/components/traces/debugger/TraceHeader";
 import { traceNodeTypes } from "@/components/traces/IndexStoreNode";
-import { buildJourneyFocus, buildJourneySections } from "@/components/traces/lib/journey";
+import { buildExecutionSections } from "@/components/traces/lib/execution";
+import { buildJourneyFocus } from "@/components/traces/lib/journey";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
+import { cn } from "@/lib/utils";
 
 import type { TypedEdgeData } from "@/components/pipelines/flow/TypedEdge";
 import type { PipelineNodeData } from "@/components/pipelines/PipelineNode";
@@ -33,13 +35,7 @@ const tracePath = (source: TraceSource): string => {
   return `/traces/runs/${source.id}`;
 };
 
-/**
- * Full-page pipeline debugger with two modes on one page. Run-level (no
- * focused item): step rail, flow graph, and node inspector around one shared
- * playback state. Focused (`?chunk=`): the result's journey timeline drives
- * the page, the camera follows the active node, and the inspector detail
- * lives inside the active journey card.
- */
+/** Full-page debugger with a compact graph, execution ledger, and evidence pane. */
 export function TraceDebugger({ source }: TraceDebuggerProps) {
   const router = useRouter();
   const {
@@ -50,6 +46,7 @@ export function TraceDebugger({ source }: TraceDebuggerProps) {
     specsNotice,
     focusedItemId,
     focusedItem,
+    contextItems,
     focusItem,
     clearFocus,
   } = useTraceDebugger(source);
@@ -89,6 +86,7 @@ export function TraceDebugger({ source }: TraceDebuggerProps) {
       trace={trace}
       focusedItemId={focusedItemId}
       focusedItem={focusedItem}
+      contextItems={contextItems}
       specsNotice={specsNotice}
       onFocusItem={selectItem}
       onClearFocus={clearItem}
@@ -102,6 +100,7 @@ type LoadedTraceDebuggerProps = {
   trace: PipelineTraceResponse;
   focusedItemId: string | null;
   focusedItem: TraceFocusedItem | null;
+  contextItems: TraceFocusedItem[];
   specsNotice: string | null;
   onFocusItem: (itemId: string) => void;
   onClearFocus: () => void;
@@ -135,20 +134,34 @@ function LoadedTraceDebugger({
   trace,
   focusedItemId,
   focusedItem,
+  contextItems,
   specsNotice,
   onFocusItem,
   onClearFocus,
   onRefresh,
 }: LoadedTraceDebuggerProps) {
   const { playback, activeStep } = useTraceStepper(graph);
+  const focused = Boolean(focusedItemId);
+  const { selectedNodeId, selectedStep, selectNode } = useExecutionSelection(graph, focused);
+  const [showFocusedPath, setShowFocusedPath] = useState(focused);
+  const focusResult = (itemId: string) => {
+    setShowFocusedPath(true);
+    onFocusItem(itemId);
+  };
+  const clearResult = () => {
+    setShowFocusedPath(false);
+    onClearFocus();
+  };
   const sections = useMemo(
-    () => buildJourneySections(graph, focusedItemId),
+    () => buildExecutionSections(graph, focusedItemId),
     [graph, focusedItemId],
   );
-  const journey = useMemo(() => sections.flatMap((section) => section.steps), [sections]);
+  const itemEffects = useMemo(
+    () => sections.flatMap((section) => section.entries.flatMap((entry) => entry.itemEffect ?? [])),
+    [sections],
+  );
   const displayGraph = useMemo(() => {
-    if (!focusedItemId) return graph;
-    const focus = buildJourneyFocus(graph, journey);
+    const focus = buildJourneyFocus(graph, showFocusedPath ? itemEffects : []);
     const focusedStores = new Set(
       graph.edges.flatMap((edge) =>
         focus.traveledEdgeIds.has(edge.id)
@@ -162,6 +175,7 @@ function LoadedTraceDebugger({
         ...node,
         data: {
           ...node.data,
+          active: node.id === selectedNodeId,
           itemFocus: nodeItemFocus(
             node.id,
             focus.traveledNodeIds,
@@ -178,36 +192,24 @@ function LoadedTraceDebugger({
         },
       })),
     };
-  }, [focusedItemId, graph, journey]);
-
-  const traceStepsByNodeId = useMemo(
-    () => new Map(graph.steps.map((step) => [step.nodeId, step])),
-    [graph.steps],
+  }, [graph, itemEffects, selectedNodeId, showFocusedPath]);
+  const selectedNode = useMemo(
+    () => graph.nodes.find((node) => node.id === selectedNodeId) ?? null,
+    [graph.nodes, selectedNodeId],
   );
-  // The journey cards' positions inside the shared playback order, so the
-  // timeline's ◀ ▶ hop between item-carrying nodes instead of every node.
-  const journeyStepIndices = useMemo(
+  const selectedEffect = useMemo(
     () =>
-      journey
-        .map((card) => graph.steps.findIndex((step) => step.nodeId === card.nodeId))
-        .filter((index) => index >= 0),
-    [journey, graph.steps],
+      sections
+        .flatMap((section) => section.entries)
+        .find((entry) => entry.nodeId === selectedNodeId)?.itemEffect ?? null,
+    [sections, selectedNodeId],
   );
-
-  const selectJourneyNode = (nodeId: string) => {
-    const index = graph.steps.findIndex((step) => step.nodeId === nodeId);
-    if (index >= 0) playback.seek(index);
-  };
-  const stepJourneyForward = () => {
-    const next = journeyStepIndices.find((index) => index > playback.activeIndex);
-    if (next !== undefined) playback.seek(next);
-  };
-  const stepJourneyBack = () => {
-    const prev = [...journeyStepIndices].reverse().find((index) => index < playback.activeIndex);
-    if (prev !== undefined) playback.seek(prev);
-  };
-
-  const focused = Boolean(focusedItemId);
+  const inputSources = useMemo(() => {
+    const labelsById = new Map(graph.nodes.map((node) => [node.id, node.data.label]));
+    return graph.edges
+      .filter((edge) => edge.target === selectedNodeId)
+      .map((edge) => labelsById.get(edge.source) ?? edge.source);
+  }, [graph.edges, graph.nodes, selectedNodeId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-hairline bg-canvas-raised">
@@ -222,37 +224,37 @@ function LoadedTraceDebugger({
           focusedItemId={focusedItemId}
           focusedItem={focusedItem}
           ingestionOnly={trace.run.kind === "ingestion" && !graph.combined}
-          onClearFocus={onClearFocus}
+          onClearFocus={clearResult}
         />
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div
-          className={
-            focused
-              ? "order-2 min-h-0 shrink-0 border-t border-hairline md:order-1 md:w-[26rem] md:border-r md:border-t-0"
-              : "order-2 min-h-0 shrink-0 border-t border-hairline md:order-1 md:w-64 md:border-r md:border-t-0"
-          }
-        >
-          {focused && focusedItemId ? (
-            <JourneyTimeline
-              sections={sections}
-              traceStepsByNodeId={traceStepsByNodeId}
-              activeNodeId={activeStep?.nodeId ?? null}
-              focusedItemId={focusedItemId}
-              onSelectNode={selectJourneyNode}
-              onFocusItem={onFocusItem}
-              onStepBack={stepJourneyBack}
-              onStepForward={stepJourneyForward}
-            />
-          ) : (
-            <StepRail
-              steps={graph.steps}
-              activeIndex={playback.activeIndex}
-              onSelect={playback.seek}
-            />
-          )}
+      <section
+        aria-label="Trace graph"
+        className="relative h-[clamp(180px,28vh,280px)] shrink-0 border-b border-hairline bg-canvas"
+      >
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-1 rounded-full border border-hairline bg-canvas-raised/90 p-1 shadow-elevation-1">
+          <button
+            type="button"
+            onClick={() => setShowFocusedPath(true)}
+            disabled={!focused}
+            className={cn(
+              "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition disabled:cursor-not-allowed disabled:opacity-40",
+              showFocusedPath && focused ? "bg-surface-strong text-primary" : "text-muted",
+            )}
+          >
+            Focused path
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFocusedPath(false)}
+            className={cn(
+              "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition",
+              !showFocusedPath ? "bg-surface-strong text-primary" : "text-muted",
+            )}
+          >
+            Full graph
+          </button>
         </div>
-        <div className="order-1 min-h-0 min-w-0 flex-1 md:order-2">
+        <div className="h-full min-h-0 min-w-0">
           <FlowPlayer
             nodes={displayGraph.nodes}
             edges={displayGraph.edges}
@@ -260,20 +262,34 @@ function LoadedTraceDebugger({
             playback={playback}
             nodeTypes={graph.combined ? traceNodeTypes : undefined}
             fitViewPadding={0.18}
-            centerNodeId={focused ? (activeStep?.nodeId ?? null) : undefined}
+            minZoom={0.1}
+            compact
+            onNodeSelect={selectNode}
+          />
+        </div>
+      </section>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="max-h-[260px] min-h-[180px] shrink-0 border-b border-hairline lg:max-h-none lg:min-h-0 lg:w-[22rem] lg:border-b-0">
+          <ExecutionLedger
+            sections={sections}
+            selectedNodeId={selectedNodeId}
+            playbackNodeId={activeStep?.nodeId ?? null}
+            onSelectNode={selectNode}
+          />
+        </div>
+        <div className="min-h-[280px] min-w-0 flex-1 lg:min-h-0">
+          <NodeEvidencePanel
+            key={selectedNodeId}
+            step={selectedStep}
+            node={selectedNode}
+            focusedItemId={focusedItemId}
+            contextItems={contextItems}
+            itemEffect={selectedEffect}
+            inputSources={inputSources}
+            onFocusItem={focusResult}
           />
         </div>
       </div>
-      {!focused ? (
-        <div className="h-[38%] min-h-[220px] shrink-0 border-t border-hairline">
-          <InspectorPanel
-            key={playback.activeIndex}
-            step={activeStep}
-            focusedItemId={focusedItemId}
-            onFocusItem={onFocusItem}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }
