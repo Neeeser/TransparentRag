@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from app.pipelines.tracing.recorder import NodeTraceValue, serialize_payload
 from app.pipelines.tracing.summaries import (
+    ItemListTrace,
+    ItemRef,
     TokenUsage,
     preview_text,
     summarize_chunks,
@@ -175,6 +177,21 @@ def test_match_order_summary_matches_old_bare_list_shape() -> None:
     ]
 
 
+def test_item_list_trace_serializes_complete_id_and_score_shape() -> None:
+    summary = ItemListTrace(
+        kind="matches",
+        items=[ItemRef(id="doc:0", score=0.9), ItemRef(id="doc:1")],
+    )
+
+    assert _serialized_value(summary) == {
+        "kind": "matches",
+        "items": [
+            {"id": "doc:0", "score": 0.9},
+            {"id": "doc:1", "score": None},
+        ],
+    }
+
+
 def test_token_usage_matches_old_dict_shape() -> None:
     assert _serialized_value(TokenUsage(prompt_tokens=3, total_tokens=5)) == {
         "prompt_tokens": 3,
@@ -198,4 +215,5 @@ def test_node_trace_value_kind_accepts_only_known_literals() -> None:
     """`kind` narrowed from `str` to a closed Literal; valid values still work."""
     assert NodeTraceValue(label="x", value=1, kind="text").kind == "text"
     assert NodeTraceValue(label="x", value=1, kind="embedding").kind == "embedding"
+    assert NodeTraceValue(label="x", value={"kind": "chunks", "items": []}, kind="items").kind == "items"
     assert NodeTraceValue(label="x", value=1).kind == "json"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveNodeDimensions } from "@/components/pipelines/lib/pipeline-layout";
 import { buildTraceGraph } from "@/components/traces/trace-graph";
 import { makeNodeRunTrace, makeNodeSpec, makeTraceResponse } from "@/test/fixtures";
 
@@ -7,12 +8,18 @@ import type { PipelineTraceResponse } from "@/lib/types";
 
 const INDEXER_TYPE = "indexer.vector";
 const RETRIEVER_TYPE = "retriever.vector";
+const BM25_INDEXER_TYPE = "indexer.bm25";
+const BM25_RETRIEVER_TYPE = "retriever.bm25";
 const INGEST_RUN = "ingest-run";
 const STORE_ID = "index::store";
+const LEXICAL_INDEX_ID = "lexical-index";
+const LEXICAL_RETRIEVER_ID = "lexical-retrieve";
 
 const nodeSpecs = [
   makeNodeSpec({ type: INDEXER_TYPE, category: "ingestion" }),
   makeNodeSpec({ type: RETRIEVER_TYPE, category: "retrieval" }),
+  makeNodeSpec({ type: BM25_INDEXER_TYPE, category: "ingestion" }),
+  makeNodeSpec({ type: BM25_RETRIEVER_TYPE, category: "retrieval" }),
 ];
 
 const ingestionTrace = (): PipelineTraceResponse =>
@@ -99,6 +106,18 @@ describe("buildTraceGraph", () => {
     expect(graph.steps.some((step) => step.nodeId === STORE_ID)).toBe(false);
   });
 
+  it("gives the index store explicit dimensions so geometry never estimates it", () => {
+    const graph = buildTraceGraph(retrievalTrace(), ingestionTrace(), nodeSpecs);
+    const store = graph.nodes.find((node) => node.id === STORE_ID);
+
+    // estimateNodeHeight reads PipelineNodeData ports the store doesn't have;
+    // resolveNodeDimensions must short-circuit on these instead of crashing.
+    expect(store?.width).toBeGreaterThan(0);
+    expect(store?.height).toBeGreaterThan(0);
+    expect(() => resolveNodeDimensions(store!)).not.toThrow();
+    expect(resolveNodeDimensions(store!)).toEqual({ width: store?.width, height: store?.height });
+  });
+
   it("stacks the retrieval band below the ingestion band", () => {
     const graph = buildTraceGraph(retrievalTrace(), ingestionTrace(), nodeSpecs);
     const originMaxY = Math.max(
@@ -108,6 +127,55 @@ describe("buildTraceGraph", () => {
       ...graph.nodes.filter((n) => n.id.startsWith("retrieval::")).map((n) => n.position.y),
     );
     expect(retrievalMinY).toBeGreaterThan(originMaxY);
+  });
+
+  it("models every hybrid index handoff for branch-specific result tinting", () => {
+    const origin = ingestionTrace();
+    origin.definition.nodes[1].config = { backend: "pgvector", index_name: "dense" };
+    origin.definition.nodes.push({
+      id: LEXICAL_INDEX_ID,
+      type: BM25_INDEXER_TYPE,
+      name: "Lexical indexer",
+      config: { backend: "pgvector", index_name: "lexical" },
+    });
+    origin.definition.edges.push({
+      id: "lexical-write",
+      source: "parse",
+      target: LEXICAL_INDEX_ID,
+    });
+    origin.node_runs.push(
+      makeNodeRunTrace({
+        id: "r5",
+        run_id: INGEST_RUN,
+        node_id: LEXICAL_INDEX_ID,
+        sequence_index: 2,
+      }),
+    );
+
+    const retrieval = retrievalTrace();
+    retrieval.definition.nodes[0].config = { backend: "pgvector", index_name: "dense" };
+    retrieval.definition.nodes.push({
+      id: LEXICAL_RETRIEVER_ID,
+      type: BM25_RETRIEVER_TYPE,
+      name: "Lexical retriever",
+      config: { backend: "pgvector", index_name: "lexical" },
+    });
+    retrieval.definition.edges.push({
+      id: "lexical-result",
+      source: LEXICAL_RETRIEVER_ID,
+      target: "out",
+    });
+    retrieval.node_runs.push(
+      makeNodeRunTrace({ id: "r6", node_id: LEXICAL_RETRIEVER_ID, sequence_index: 2 }),
+    );
+
+    const graph = buildTraceGraph(retrieval, origin, nodeSpecs);
+    const stores = graph.nodes.filter((node) => node.type === "indexStore");
+    const lexicalWrite = graph.edges.find((edge) => edge.source === "origin::lexical-index");
+    const lexicalRead = graph.edges.find((edge) => edge.target === "retrieval::lexical-retrieve");
+
+    expect(stores).toHaveLength(2);
+    expect(lexicalWrite?.target).toBe(lexicalRead?.source);
   });
 
   it("resolves each step's run and stage label", () => {

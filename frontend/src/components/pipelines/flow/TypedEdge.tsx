@@ -21,6 +21,8 @@ export type TypedEdgeData = {
   travelMs?: number;
   /** Playback edges already crossed stay softly lit. */
   visited?: boolean;
+  /** Focused trace journey treatment; absent outside result focus mode. */
+  itemFocus?: "traveled" | "absent";
   /** Editor validation error on this connection. */
   error?: boolean;
 };
@@ -68,12 +70,19 @@ const buildDotPath = (path: string, coordinates: EdgeCoordinates) => {
 };
 
 const resolveEdgeAppearance = (data: TypedEdgeData | undefined, selected: boolean | undefined) => {
-  const color = data?.error ? "var(--data-neg)" : getPortTypeColorVar(data?.dataType);
-  const emphasized = Boolean(data?.active || data?.error || selected);
+  const color = data?.error
+    ? "var(--data-neg)"
+    : data?.itemFocus === "traveled"
+      ? "var(--accent-cyan)"
+      : getPortTypeColorVar(data?.dataType);
+  const emphasized = Boolean(
+    data?.active || data?.error || data?.itemFocus === "traveled" || selected,
+  );
   return {
     color,
     emphasized,
     lit: emphasized || Boolean(data?.visited),
+    dimmed: data?.itemFocus === "absent",
     travelMs: data?.travelMs ?? 700,
   };
 };
@@ -108,7 +117,7 @@ export function TypedEdge({
   const path = resolveEdgePath(route, coordinates);
   // Theme-aware color via CSS var; applied through `style` (var() is invalid in
   // SVG presentation attributes like fill=/stroke=, valid only in inline style).
-  const { color, emphasized, lit, travelMs } = resolveEdgeAppearance(data, selected);
+  const { color, emphasized, lit, dimmed, travelMs } = resolveEdgeAppearance(data, selected);
 
   return (
     <>
@@ -118,7 +127,7 @@ export function TypedEdge({
         style={{
           stroke: color,
           strokeWidth: emphasized ? 2.5 : 1.5,
-          opacity: lit ? 0.95 : 0.45,
+          opacity: dimmed ? 0.15 : lit ? 0.95 : 0.45,
           transition: "stroke-width 150ms ease, opacity 200ms ease",
         }}
       />

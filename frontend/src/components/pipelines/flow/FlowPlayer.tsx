@@ -15,6 +15,7 @@ import { PipelineEdgeRoutingProvider } from "./PipelineEdgeRoutingProvider";
 import { pipelineEdgeTypes } from "./TypedEdge";
 import { useFlowDotColor } from "./use-flow-dot-color";
 import { useFlowPlayback } from "./use-flow-playback";
+import { ViewportNodeFocus } from "./ViewportNodeFocus";
 import { ViewportVerticalAnchor } from "./ViewportVerticalAnchor";
 
 import type { FlowStep } from "../lib/pipeline-playback";
@@ -65,6 +66,14 @@ type FlowPlayerProps = {
   minZoom?: number;
   /** Extra node types merged over the pipeline defaults (e.g. the trace index store). */
   nodeTypes?: NodeTypes;
+  /** Select a node for surrounding detail without changing playback. */
+  onNodeSelect?: (nodeId: string) => void;
+  /**
+   * Camera-follow mode: pan/zoom to center this node whenever it changes
+   * (the trace debugger's focused walkthrough). Overrides the fit-once-and-
+   * stay-put default, so pass it only on surfaces that step node by node.
+   */
+  centerNodeId?: string | null;
   /**
    * Externally owned playback state. When provided, the player renders and
    * controls this instead of creating its own — so a surrounding surface (the
@@ -102,6 +111,8 @@ export function FlowPlayer({
   anchorNodeId,
   minZoom = 0.2,
   nodeTypes,
+  onNodeSelect,
+  centerNodeId,
   playback: externalPlayback,
 }: FlowPlayerProps) {
   // Always created so hook order is stable; inert (autoPlay off, no timers
@@ -197,6 +208,10 @@ export function FlowPlayer({
               ambient
                 ? undefined
                 : (_event, node) => {
+                    if (onNodeSelect) {
+                      onNodeSelect(node.id);
+                      return;
+                    }
                     const index = stepIndexByNodeId.get(node.id);
                     if (index !== undefined) playback.seek(index);
                   }
@@ -214,6 +229,7 @@ export function FlowPlayer({
           >
             <Background gap={18} size={1} color={dotColor} />
             {anchorNodeId ? <ViewportVerticalAnchor nodeId={anchorNodeId} /> : null}
+            {centerNodeId !== undefined ? <ViewportNodeFocus nodeId={centerNodeId} /> : null}
           </ReactFlow>
         </PipelineEdgeRoutingProvider>
       </ActiveFlowNodesContext.Provider>

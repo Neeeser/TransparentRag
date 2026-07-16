@@ -21,9 +21,12 @@ from app.pipelines.tracing.summaries import (
     summarize_matches,
     summarize_source,
     summarize_text,
+    trace_chunk_items,
+    trace_match_items,
 )
 from app.retrieval.models import DocumentMetadata, QueryRequest
 from app.retrieval.parsers.base import DocumentSource
+from app.services.files import FileSystemService
 
 
 class IngestionInputConfig(BaseModel):
@@ -52,11 +55,18 @@ class IngestionInputNode(PipelineNodeBase[IngestionInputConfig]):
             raise ValueError("Ingestion context is missing a document record.")
         if not context.document.source_path:
             raise ValueError("Document source path is not set for ingestion.")
+        display_path = context.document.name
+        if context.document.file_id:
+            file_service = FileSystemService(context.session)
+            file_node = file_service.nodes.get(context.document.file_id)
+            if file_node:
+                display_path = file_service.read_node(file_node).path
         metadata = DocumentMetadata(
             data={
                 "collection_id": str(context.collection.id),
                 "document_id": str(context.document.id),
                 "filename": context.document.name,
+                "path": display_path,
             }
         )
         source = DocumentSource(
@@ -127,12 +137,25 @@ class IngestionOutputNode(PipelineNodeBase[IngestionOutputConfig]):
                     value={"count": len(payload.chunks)},
                 )
                 for index, payload in enumerate(payloads, start=1)
+            ]
+            + [
+                NodeTraceValue(
+                    label=f"Indexed items (branch {index})",
+                    value=trace_chunk_items(payload.chunks),
+                    kind="items",
+                )
+                for index, payload in enumerate(payloads, start=1)
             ],
             outputs=[
                 NodeTraceValue(
                     label="Result",
                     value={"count": len(merged.chunks)},
-                )
+                ),
+                NodeTraceValue(
+                    label="Result items",
+                    value=trace_chunk_items(merged.chunks),
+                    kind="items",
+                ),
             ],
         )
 
@@ -251,12 +274,22 @@ class RetrievalOutputNode(PipelineNodeBase[RetrievalOutputConfig]):
                 NodeTraceValue(
                     label="Matches",
                     value=summarize_matches(payload.response.matches),
-                )
+                ),
+                NodeTraceValue(
+                    label="Match items",
+                    value=trace_match_items(payload.response.matches),
+                    kind="items",
+                ),
             ],
             outputs=[
                 NodeTraceValue(
                     label="Result",
                     value=summarize_matches(payload.response.matches),
-                )
+                ),
+                NodeTraceValue(
+                    label="Result items",
+                    value=trace_match_items(payload.response.matches),
+                    kind="items",
+                ),
             ],
         )

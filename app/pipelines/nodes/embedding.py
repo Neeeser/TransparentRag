@@ -35,6 +35,7 @@ from app.pipelines.tracing.summaries import (
     summarize_embeddings,
     summarize_query_embedding,
     summarize_text,
+    trace_chunk_items,
 )
 from app.providers.base import effective_embedding_input_limit
 from app.retrieval.embedders.base import Embedder
@@ -304,14 +305,22 @@ class EmbedderNode(PipelineNodeBase[EmbedderConfig]):
                 NodeTraceValue(
                     label="Chunk text",
                     value=summarize_chunks(input_payload.chunks),
-                )
+                ),
+                NodeTraceValue(
+                    label="Chunk items", value=trace_chunk_items(input_payload.chunks), kind="items"
+                ),
             ],
             outputs=[
                 NodeTraceValue(
                     label="Embeddings",
                     value=summarize_embeddings(output_payload.chunks),
                     kind="embedding",
-                )
+                ),
+                NodeTraceValue(
+                    label="Embedded items",
+                    value=trace_chunk_items(output_payload.chunks),
+                    kind="items",
+                ),
             ],
         )
 

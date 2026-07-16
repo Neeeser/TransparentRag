@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { useFlowNodeActive } from "../active-nodes-context";
 import { FlowPlayer } from "../FlowPlayer";
@@ -43,7 +43,7 @@ function SpyNode({ id, data }: NodeProps<Node<PipelineNodeData>>) {
   return <div data-testid={`spy-${id}`}>{active ? `${id}-active` : `${id}-idle`}</div>;
 }
 
-const renderPlayer = () => {
+const renderPlayer = (onNodeSelect?: (nodeId: string) => void) => {
   seenData.clear();
   return render(
     <FlowPlayer
@@ -52,6 +52,7 @@ const renderPlayer = () => {
       steps={steps}
       fitViewPadding={0.2}
       nodeTypes={{ pipelineNode: SpyNode }}
+      onNodeSelect={onNodeSelect}
     />,
   );
 };
@@ -84,5 +85,16 @@ describe("FlowPlayer node identity across steps", () => {
     // flash). One data reference per node across both steps pins that.
     expect([...(seenData.get("first") ?? [])]).toHaveLength(1);
     expect([...(seenData.get("second") ?? [])]).toHaveLength(1);
+  });
+
+  it("can select graph evidence without moving playback", async () => {
+    const onNodeSelect = vi.fn();
+    renderPlayer(onNodeSelect);
+
+    fireEvent.click(await screen.findByTestId(SPY_SECOND));
+
+    expect(onNodeSelect).toHaveBeenCalledWith("second");
+    expect(screen.getByTestId(SPY_FIRST)).toHaveTextContent("first-active");
+    expect(screen.getByTestId(SPY_SECOND)).toHaveTextContent("second-idle");
   });
 });

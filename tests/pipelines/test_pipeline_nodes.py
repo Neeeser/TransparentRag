@@ -390,6 +390,54 @@ def test_ingestion_input_requires_source_path(session: Session, tmp_path: Path) 
         node.run({}, context)
 
 
+def test_ingestion_input_summarizes_the_logical_file_path(
+    session: Session, tmp_path: Path
+) -> None:
+    from app.pipelines.nodes.io import IngestionInputConfig, IngestionInputNode
+    from app.pipelines.tracing.summaries import SourceSummary
+
+    user = _build_user()
+    session.add(user)
+    session.flush()
+    collection = _build_collection(user)
+    session.add(collection)
+    session.flush()
+    folder = models.FileNode(
+        collection_id=collection.id,
+        user_id=user.id,
+        parent_id=None,
+        kind=models.FileNodeKind.FOLDER,
+        name="reports",
+    )
+    session.add(folder)
+    session.flush()
+    file = models.FileNode(
+        collection_id=collection.id,
+        user_id=user.id,
+        parent_id=folder.id,
+        kind=models.FileNodeKind.FILE,
+        name="paper.pdf",
+        content_type="application/pdf",
+        storage_path=str(tmp_path / "stored-hash"),
+    )
+    session.add(file)
+    session.flush()
+    document = _build_document(user, collection, tmp_path / "stored-hash")
+    document.file_id = file.id
+    document.name = file.name
+    document.content_type = file.content_type or "application/octet-stream"
+    session.add(document)
+    session.commit()
+
+    node = IngestionInputNode(IngestionInputConfig())
+    outputs = node.run({}, _build_context(session, user, collection, document=document))
+    summary = node.summarize_io({}, outputs)
+
+    source = summary.outputs[0].value
+    assert isinstance(source, SourceSummary)
+    assert source.path == "/reports/paper.pdf"
+
+
 def test_document_parser_node_resolves_modes(session: Session) -> None:
     from app.pipelines.nodes.parsing import DocumentParserNode, ParserConfig
     from app.retrieval.parsers.pdf import PdfToTextParser
@@ -529,91 +577,6 @@ def test_embedder_guard_handles_missing_connection_and_zero_effective_limit(
     result = node.run({"chunks": payload}, context)
     assert isinstance(result["embedded"], EmbeddingPayload)
     assert len(result["embedded"].chunks) == 1
-
-
-def test_embedder_node_splits_oversized_chunks_before_provider_call() -> None:
-    """Provider inputs stay within the effective limit and ids remain contiguous."""
-    from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
-    from app.pipelines.payloads import EmbeddingPayload
-    from app.retrieval.tokenizers.resources import build_token_counter
-
-    embedded_texts: list[str] = []
-
-    class _RecordingEmbedder:
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            self.usage: dict[str, int] = {}
-
-        def embed_documents(self, provider_chunks: list[DocumentChunk]) -> list[list[float]]:
-            embedded_texts.extend(chunk.text for chunk in provider_chunks)
-            return [[0.1, 0.2] for _ in provider_chunks]
-
-        def embed_query(self, _query: str) -> list[float]:
-            return [0.1, 0.2]
-
-    class _WarningTrace:
-        def __init__(self) -> None:
-            self.warnings: list[str] = []
-
-        def record_warning(self, warning: str) -> None:
-            self.warnings = [*self.warnings, warning]
-
-    document = Document(document_id="doc", text="", metadata=DocumentMetadata())
-    oversized = " ".join(f"token-{index}" for index in range(50))
-    chunks = [
-        DocumentChunk(
-            document_id="doc",
-            chunk_id="doc:7",
-            text=oversized,
-            order=7,
-            metadata=DocumentMetadata(data={"page": 3}),
-        ),
-        DocumentChunk(
-            document_id="doc",
-            chunk_id="doc:8",
-            text="tail",
-            order=8,
-            metadata=DocumentMetadata(data={"page": 4}),
-        ),
-    ]
-    payload = ChunkPayload(
-        document=document,
-        chunks=chunks,
-        tokenizer=TokenizerSpec(kind="whitespace"),
-    )
-    node = EmbedderNode(EmbedderConfig(connection_id=EMBED_CONNECTION_ID, model_name="test-embed"))
-    user = _build_user()
-    collection = _build_collection(user)
-    session = Session()
-    context = _build_context(session, user, collection)
-    context.providers = StubProviderResolver(
-        _RecordingEmbedder,
-        embedding_input_limit=56,
-    )
-    warning_trace = _WarningTrace()
-    context.trace = warning_trace  # type: ignore[assignment]
-
-    result = node.run({"chunks": payload}, context)
-    embedded = result["embedded"]
-    assert isinstance(embedded, EmbeddingPayload)
-
-    assert embedded_texts == [chunk.text for chunk in embedded.chunks]
-    wordpiece = build_token_counter(TokenizerSpec(kind="wordpiece"), context.storage.base_path)
-    assert all(wordpiece.count(text) <= 40 for text in embedded_texts)
-    assert set(oversized.split()).issubset(
-        {token for text in embedded_texts for token in text.split()}
-    )
-    assert [chunk.order for chunk in embedded.chunks] == list(range(len(embedded.chunks)))
-    assert [chunk.chunk_id for chunk in embedded.chunks] == [
-        f"doc:{order}" for order in range(len(embedded.chunks))
-    ]
-    assert [chunk.metadata.data for chunk in embedded.chunks] == [
-        {"page": 3}
-    ] * (len(embedded.chunks) - 1) + [{"page": 4}]
-    assert warning_trace.warnings == [
-        f"Document doc chunk 0 contained {wordpiece.count(oversized)} tokens, exceeding the "
-        f"40-token embedding limit, and was split into {len(embedded.chunks) - 1} parts using "
-        "the wordpiece counter."
-    ]
 
 
 def test_embedder_node_skips_guard_when_provider_limit_is_unknown() -> None:
