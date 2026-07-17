@@ -24,7 +24,12 @@ from app.pipelines.nodes.retrieval import VectorRetrieverConfig, VectorRetriever
 from app.pipelines.payloads import RetrievalPayload, RetrievalRequestPayload
 from app.pipelines.registry import build_default_registry
 from app.pipelines.resolution import build_environment, resolve_definition
-from app.pipelines.variables import PipelineInputArgument, VariableType
+from app.pipelines.variables import (
+    PipelineInputArgument,
+    PipelineVariable,
+    VariableSource,
+    VariableType,
+)
 from app.retrieval.models import (
     DocumentChunk,
     DocumentMetadata,
@@ -86,6 +91,21 @@ def _context(
     )
 
 
+def _input_variable(argument: PipelineInputArgument) -> PipelineVariable:
+    """Project the argument shape back onto an input-source variable."""
+    return PipelineVariable(
+        name=argument.name,
+        type=argument.type,
+        source=VariableSource.INPUT,
+        description=argument.description,
+        value=None if argument.required else argument.default,
+        minimum=argument.minimum,
+        maximum=argument.maximum,
+        choices=list(argument.choices),
+        expose_to_llm=argument.expose_to_llm,
+    )
+
+
 def _input_definition(arguments: list[PipelineInputArgument]) -> PipelineDefinition:
     return PipelineDefinition(
         nodes=[
@@ -93,9 +113,10 @@ def _input_definition(arguments: list[PipelineInputArgument]) -> PipelineDefinit
                 id="input",
                 type=RetrievalInputNode.type,
                 name="Input",
-                config={"arguments": [argument.model_dump() for argument in arguments]},
+                config={"arguments": [argument.name for argument in arguments]},
             )
-        ]
+        ],
+        variables=[_input_variable(argument) for argument in arguments],
     )
 
 
@@ -241,6 +262,35 @@ class TestLimitNode:
         result = RetrievalPayload.model_validate(outputs["results"])
         assert len(result.response.matches) == 1
 
+    def test_unset_top_n_falls_back_to_requested_top_k(self, session: Session) -> None:
+        matches = [_chunk(order) for order in range(5)]
+        payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
+        node = LimitNode(LimitConfig())
+        outputs = node.run({"results": payload}, _context(session, top_k=2))
+        result = RetrievalPayload.model_validate(outputs["results"])
+        assert len(result.response.matches) == 2
+        summary = node.summarize_io({"results": payload}, outputs)
+        kept = next(value.value for value in summary.outputs if value.label == "Kept")
+        assert kept == {"top_n": 2, "kept": 2, "dropped": 3}
+
+    def test_zero_requested_top_k_keeps_nothing(self, session: Session) -> None:
+        """A falsy requested top_k is honored, not treated as 'unset'."""
+        payload = RetrievalPayload(
+            response=RetrievalResponse(matches=[_chunk(0), _chunk(1)])
+        )
+        node = LimitNode(LimitConfig())
+        outputs = node.run({"results": payload}, _context(session, top_k=0))
+        result = RetrievalPayload.model_validate(outputs["results"])
+        assert result.response.matches == []
+
+    def test_no_config_and_no_request_keeps_everything(self, session: Session) -> None:
+        matches = [_chunk(order) for order in range(3)]
+        payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
+        node = LimitNode(LimitConfig())
+        outputs = node.run({"results": payload}, _context(session, top_k=None))
+        result = RetrievalPayload.model_validate(outputs["results"])
+        assert len(result.response.matches) == 3
+
     def test_trace_shows_full_input_and_kept_counts(self, session: Session) -> None:
         matches = [_chunk(order) for order in range(4)]
         payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
@@ -304,11 +354,7 @@ def test_end_to_end_over_retrieve_and_clamp(session: Session) -> None:
                 id="input",
                 type="retrieval.input",
                 name="Input",
-                config={
-                    "arguments": [
-                        {"name": "top_k", "type": "integer", "default": 5, "minimum": 1}
-                    ]
-                },
+                config={"arguments": ["top_k"]},
             ),
             PipelineNodeDefinition(
                 id="embed",
@@ -348,6 +394,13 @@ def test_end_to_end_over_retrieve_and_clamp(session: Session) -> None:
              "source_port": "results", "target_port": "results"},
             {"id": "e4", "source": "limit", "target": "output",
              "source_port": "results", "target_port": "results"},
+        ],
+        variables=[
+            _input_variable(
+                PipelineInputArgument(
+                    name="top_k", type=VariableType.INTEGER, default=5, minimum=1
+                )
+            )
         ],
     )
     store = StubVectorStore(query_matches=[_chunk(order) for order in range(8)])

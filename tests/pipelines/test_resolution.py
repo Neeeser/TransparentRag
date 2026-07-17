@@ -20,10 +20,26 @@ from app.pipelines.resolution import (
 from app.pipelines.variables import (
     PipelineInputArgument,
     PipelineVariable,
+    VariableSource,
     VariableType,
 )
 
 CONNECTION_ID = UUID("6f9619ff-8b86-4d01-b42d-00cf4fc964ff")
+
+
+def _input_variable(argument: PipelineInputArgument) -> PipelineVariable:
+    """Project the argument shape back onto an input-source variable."""
+    return PipelineVariable(
+        name=argument.name,
+        type=argument.type,
+        source=VariableSource.INPUT,
+        description=argument.description,
+        value=None if argument.required else argument.default,
+        minimum=argument.minimum,
+        maximum=argument.maximum,
+        choices=list(argument.choices),
+        expose_to_llm=argument.expose_to_llm,
+    )
 
 
 def _definition(
@@ -32,16 +48,19 @@ def _definition(
     variables: list[PipelineVariable] | None = None,
     nodes: list[PipelineNodeDefinition] | None = None,
 ) -> PipelineDefinition:
-    """Build a definition with a retrieval input node declaring `arguments`."""
+    """Build a definition whose input node accepts `arguments` as input variables."""
     input_node = PipelineNodeDefinition(
         id="input",
         type=RetrievalInputNode.type,
         name="Input",
-        config={"arguments": [argument.model_dump() for argument in (arguments or [])]},
+        config={"arguments": [argument.name for argument in (arguments or [])]},
     )
     return PipelineDefinition(
         nodes=[input_node, *(nodes or [])],
-        variables=variables or [],
+        variables=[
+            *(_input_variable(argument) for argument in (arguments or [])),
+            *(variables or []),
+        ],
     )
 
 
@@ -247,18 +266,18 @@ class TestResolveDefinition:
 
     def test_expression_config_resolves_to_literal(self) -> None:
         node = PipelineNodeDefinition(
-            id="fusion",
-            type="fusion.rrf",
-            name="Fusion",
-            config={"k": 60, "top_k": {"$expr": "top_k * 2"}},
+            id="limit",
+            type="limit.top_n",
+            name="Top-N",
+            config={"top_n": {"$expr": "top_k * 2"}},
         )
         definition = _definition(arguments=[_top_k_argument()], nodes=[node])
         env = build_environment(definition, query="q", supplied={"top_k": 6})
         resolved = resolve_definition(definition, env)
-        fusion = resolved.node_map()["fusion"]
-        assert fusion.config == {"k": 60, "top_k": 12}
+        limit = resolved.node_map()["limit"]
+        assert limit.config == {"top_n": 12}
         # The original definition is untouched.
-        assert definition.node_map()["fusion"].config["top_k"] == {"$expr": "top_k * 2"}
+        assert definition.node_map()["limit"].config["top_n"] == {"$expr": "top_k * 2"}
 
     def test_model_member_resolves_to_string(self) -> None:
         node = PipelineNodeDefinition(

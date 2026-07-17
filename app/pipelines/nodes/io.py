@@ -25,7 +25,7 @@ from app.pipelines.tracing.summaries import (
     trace_chunk_items,
     trace_match_items,
 )
-from app.pipelines.variables import PipelineInputArgument, PipelineOutputField
+from app.pipelines.variables import PipelineOutputField
 from app.retrieval.models import DocumentMetadata, QueryRequest
 from app.retrieval.parsers.base import DocumentSource
 from app.services.files import FileSystemService
@@ -195,13 +195,15 @@ class IngestionOutputNode(PipelineNodeBase[IngestionOutputConfig]):
 class RetrievalInputConfig(BaseModel):
     """Configuration for retrieval input nodes.
 
-    `arguments` declares the caller-supplied inputs this pipeline accepts —
-    the search page renders a control per entry and the chat tool schema
-    publishes the `expose_to_llm` ones. The built-in `query` argument is
-    implicit and always present.
+    `arguments` lists the names of input-source variables (declared on
+    `PipelineDefinition.variables`) this pipeline accepts from callers — the
+    search page renders a control per accepted variable and the chat tool
+    schema publishes the `expose_to_llm` ones. The built-in `query` argument
+    is implicit and always present. Definition/bounds/default live on the
+    variable, never here.
     """
 
-    arguments: list[PipelineInputArgument] = Field(default_factory=list)
+    arguments: list[str] = Field(default_factory=list)
 
 
 class RetrievalInputNode(PipelineNodeBase[RetrievalInputConfig]):

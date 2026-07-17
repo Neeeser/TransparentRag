@@ -265,8 +265,9 @@ def _declare_pipeline_variables(
     outputs: list[dict[str, str]] | None = None,
     retriever_top_k_expression: str | None = None,
 ) -> None:
-    """Rewrite the user's default retrieval pipeline with declared arguments."""
+    """Rewrite the user's default retrieval pipeline with declared input variables."""
     from app.pipelines.definition import PipelineDefinition
+    from app.pipelines.variables import PipelineVariable, VariableSource
 
     pipeline = session.exec(
         select(models.Pipeline).where(
@@ -277,9 +278,24 @@ def _declare_pipeline_variables(
     service = PipelineService(session)
     version = service.get_current_version(pipeline)
     definition = PipelineDefinition.model_validate(version.definition)
+    definition.variables = [
+        PipelineVariable.model_validate(
+            {
+                "source": VariableSource.INPUT,
+                "value": argument.get("default"),
+                **{
+                    key: value
+                    for key, value in argument.items()
+                    if key not in ("default", "required")
+                },
+            }
+        )
+        for argument in arguments
+    ]
+    names = [str(argument["name"]) for argument in arguments]
     for node in definition.nodes:
         if node.type == "retrieval.input":
-            node.config = {**node.config, "arguments": arguments}
+            node.config = {**node.config, "arguments": names}
         if outputs is not None and node.type == "retrieval.output":
             node.config = {**node.config, "outputs": outputs}
         if retriever_top_k_expression is not None and node.type == "retriever.vector":

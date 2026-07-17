@@ -1,9 +1,12 @@
-"""Limit node: truncate an ordered result stream to its top N matches.
+"""Top-N node: truncate an ordered result stream to its top N matches.
 
-The clamp for over-retrieval pipelines: retrievers fetch extra candidates
-(e.g. `top_k * 2`), fusion/reranking reorders them, and this node cuts the
-final list back down (e.g. to `top_k`). The trace keeps the complete input
-item list next to the truncated output so the cut is visible, never hidden.
+The single cut point in the ranking stage: retrievers may over-fetch (e.g.
+`top_k * 2`), fusion/reranking reorders the candidates, and this node cuts
+the final list. Fusion never truncates, so the cut is always an explicit,
+traced step — the trace keeps the complete input item list next to the
+truncated output so the cut is visible, never hidden. The node is optional:
+a pipeline without one simply returns everything its last ranking node
+emitted.
 """
 
 from __future__ import annotations
@@ -25,10 +28,13 @@ from app.pipelines.tracing.summaries import (
 class LimitConfig(BaseModel):
     """Configuration for result-limiting nodes."""
 
-    top_n: int = Field(
-        default=10,
+    top_n: int | None = Field(
+        default=None,
         gt=0,
-        description="Keep only the first N matches of the ordered input.",
+        description=(
+            "Keep only the first N matches of the ordered input. "
+            "Unset: the run's requested top_k."
+        ),
     )
 
 
@@ -36,18 +42,35 @@ class LimitNode(PipelineNodeBase[LimitConfig]):
     """Keep the top N matches of an ordered retrieval result stream."""
 
     type = "limit.top_n"
-    label = "Limit"
+    label = "Top-N"
     category = "retrieval"
-    description = "Truncate ordered results to the top N matches."
+    description = "Cut ordered results to the top N matches (default: the requested top_k)."
     example = "RetrievalPayload(a, b, c), top_n=2 -> RetrievalPayload(a, b)."
     input_ports = (NodePort(key="results", label="Results", data_type="retrieval_results"),)
     output_ports = (NodePort(key="results", label="Results", data_type="retrieval_results"),)
     config_model = LimitConfig
 
+    def __init__(self, config: LimitConfig) -> None:
+        """Track the run's effective depth so the trace can report it."""
+        super().__init__(config)
+        self._effective_top_n: int | None = config.top_n
+
+    def _resolve_top_n(self, context: PipelineRunContext) -> int | None:
+        """Return the effective cut depth: explicit config, else requested top_k."""
+        if self.config.top_n is not None:
+            return self.config.top_n
+        if context.top_k is not None:
+            # A requested top_k of 0 means zero results, never "no cut".
+            return max(context.top_k, 0)
+        return None
+
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
-        """Truncate the ordered match list to the configured depth."""
+        """Truncate the ordered match list to the effective depth."""
         payload = RetrievalPayload.model_validate(inputs.get("results"))
-        matches = list(payload.response.matches)[: self.config.top_n]
+        self._effective_top_n = self._resolve_top_n(context)
+        matches = list(payload.response.matches)
+        if self._effective_top_n is not None:
+            matches = matches[: self._effective_top_n]
         response = payload.response.model_copy(update={"matches": matches})
         return {"results": payload.model_copy(update={"response": response})}
 
@@ -79,7 +102,7 @@ class LimitNode(PipelineNodeBase[LimitConfig]):
                 NodeTraceValue(
                     label="Kept",
                     value={
-                        "top_n": self.config.top_n,
+                        "top_n": self._effective_top_n,
                         "kept": len(output_payload.response.matches),
                         "dropped": len(input_payload.response.matches)
                         - len(output_payload.response.matches),

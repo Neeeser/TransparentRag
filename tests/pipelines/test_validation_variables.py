@@ -10,8 +10,24 @@ from app.pipelines.validation_variables import collect_variable_issues
 from app.pipelines.variables import (
     PipelineInputArgument,
     PipelineVariable,
+    VariableSource,
     VariableType,
 )
+
+
+def _input_variable(argument: PipelineInputArgument) -> PipelineVariable:
+    """Project the argument shape back onto an input-source variable."""
+    return PipelineVariable(
+        name=argument.name,
+        type=argument.type,
+        source=VariableSource.INPUT,
+        description=argument.description,
+        value=None if argument.required else argument.default,
+        minimum=argument.minimum,
+        maximum=argument.maximum,
+        choices=list(argument.choices),
+        expose_to_llm=argument.expose_to_llm,
+    )
 
 
 def _definition(
@@ -24,9 +40,15 @@ def _definition(
         id="input",
         type=RetrievalInputNode.type,
         name="Input",
-        config={"arguments": [argument.model_dump() for argument in (arguments or [])]},
+        config={"arguments": [argument.name for argument in (arguments or [])]},
     )
-    return PipelineDefinition(nodes=[input_node, *(nodes or [])], variables=variables or [])
+    return PipelineDefinition(
+        nodes=[input_node, *(nodes or [])],
+        variables=[
+            *(_input_variable(argument) for argument in (arguments or [])),
+            *(variables or []),
+        ],
+    )
 
 
 def _issues(definition: PipelineDefinition) -> list[str]:
@@ -81,23 +103,79 @@ class TestDeclarations:
         )
         assert any("Duplicate" in message for message in _issues(definition))
 
-    def test_variable_needs_exactly_one_source(self) -> None:
+    def test_constant_variable_needs_a_value(self) -> None:
         definition = _definition(
             variables=[PipelineVariable(name="both", type=VariableType.INTEGER)]
         )
+        assert any("needs a value" in message for message in _issues(definition))
+
+    def test_constant_variable_with_expression_flagged(self) -> None:
+        definition = _definition(
+            variables=[
+                PipelineVariable(
+                    name="both",
+                    type=VariableType.INTEGER,
+                    source=VariableSource.VALUE,
+                    value=1,
+                    expression="2",
+                )
+            ]
+        )
         assert any("exactly one" in message for message in _issues(definition))
 
-    def test_model_argument_rejected(self) -> None:
+    def test_model_input_variable_rejected(self) -> None:
         definition = _definition(
             arguments=[PipelineInputArgument(name="emb", type=VariableType.MODEL)]
         )
         assert any("cannot be caller-supplied" in message for message in _issues(definition))
 
-    def test_optional_argument_without_default_flagged(self) -> None:
+    def test_input_default_violating_bounds_flagged(self) -> None:
         definition = _definition(
-            arguments=[PipelineInputArgument(name="boost", type=VariableType.NUMBER)]
+            arguments=[
+                PipelineInputArgument(
+                    name="top_k", type=VariableType.INTEGER, default=50, minimum=1, maximum=10
+                )
+            ]
         )
-        assert any("must declare a default" in message for message in _issues(definition))
+        assert any("default must be at most 10" in message for message in _issues(definition))
+
+    def test_input_without_default_is_required_and_clean(self) -> None:
+        definition = _definition(
+            arguments=[
+                PipelineInputArgument(name="mode", type=VariableType.STRING, required=True)
+            ]
+        )
+        assert _issues(definition) == []
+
+    def test_accepted_name_without_input_variable_flagged(self) -> None:
+        node = PipelineNodeDefinition(
+            id="input",
+            type=RetrievalInputNode.type,
+            name="Input",
+            config={"arguments": ["ghost"]},
+        )
+        issues = collect_variable_issues(
+            PipelineDefinition(nodes=[node]), default_registry()
+        )
+        assert any(
+            issue.code == "arguments_invalid" and "ghost" in issue.message for issue in issues
+        )
+
+    def test_unaccepted_input_variable_warns(self) -> None:
+        definition = _definition(
+            variables=[
+                PipelineVariable(
+                    name="hidden",
+                    type=VariableType.INTEGER,
+                    source=VariableSource.INPUT,
+                    value=5,
+                )
+            ]
+        )
+        issues = collect_variable_issues(definition, default_registry())
+        warning = [issue for issue in issues if issue.code == "argument_unaccepted"]
+        assert warning
+        assert warning[0].severity == "warning"
 
     def test_inverted_bounds_flagged(self) -> None:
         definition = _definition(
@@ -115,10 +193,10 @@ class TestExpressions:
 
     def test_syntax_error_is_field_addressable(self) -> None:
         node = PipelineNodeDefinition(
-            id="fusion",
-            type="fusion.rrf",
-            name="Fusion",
-            config={"top_k": {"$expr": "top_k *"}},
+            id="limit",
+            type="limit.top_n",
+            name="Top-N",
+            config={"top_n": {"$expr": "top_k *"}},
         )
         definition = _definition(
             arguments=[
@@ -129,33 +207,33 @@ class TestExpressions:
         issues = collect_variable_issues(definition, default_registry())
         syntax = [issue for issue in issues if issue.code == "expression_invalid"]
         assert syntax
-        assert syntax[0].node_id == "fusion"
-        assert syntax[0].field == "top_k"
+        assert syntax[0].node_id == "limit"
+        assert syntax[0].field == "top_n"
 
     def test_type_mismatch_against_field_schema(self) -> None:
         node = PipelineNodeDefinition(
-            id="fusion",
-            type="fusion.rrf",
-            name="Fusion",
-            config={"top_k": {"$expr": "'ten'"}},
+            id="limit",
+            type="limit.top_n",
+            name="Top-N",
+            config={"top_n": {"$expr": "'ten'"}},
         )
         assert "expression_type" in _codes(_definition(nodes=[node]))
 
-    def test_integer_expression_satisfies_number_field(self) -> None:
+    def test_integer_expression_satisfies_integer_field(self) -> None:
         node = PipelineNodeDefinition(
-            id="fusion",
-            type="fusion.rrf",
-            name="Fusion",
-            config={"top_k": {"$expr": "2 + 3"}},
+            id="limit",
+            type="limit.top_n",
+            name="Top-N",
+            config={"top_n": {"$expr": "2 + 3"}},
         )
         assert "expression_type" not in _codes(_definition(nodes=[node]))
 
     def test_unknown_variable_reference_flagged(self) -> None:
         node = PipelineNodeDefinition(
-            id="fusion",
-            type="fusion.rrf",
-            name="Fusion",
-            config={"top_k": {"$expr": "missing * 2"}},
+            id="limit",
+            type="limit.top_n",
+            name="Top-N",
+            config={"top_n": {"$expr": "missing * 2"}},
         )
         assert "expression_invalid" in _codes(_definition(nodes=[node]))
 

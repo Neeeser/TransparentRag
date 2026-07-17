@@ -256,7 +256,8 @@ def test_rrf_fusion_accumulates_rank_scores_across_branches(session: Session) ->
     assert result.response.matches[0].score == 1 / 62 + 1 / 61
 
 
-def test_rrf_fusion_caps_at_requested_top_k(session: Session) -> None:
+def test_rrf_fusion_never_cuts(session: Session) -> None:
+    """Fusion emits every fused candidate; cutting is the Top-N node's job."""
     node = RRFusionNode(RRFusionConfig())
     context = _context(session, StubVectorStore(), query="q", top_k=2)
     branches = [_retrieval_payload("a", "b", "c"), _retrieval_payload("d")]
@@ -264,7 +265,7 @@ def test_rrf_fusion_caps_at_requested_top_k(session: Session) -> None:
     outputs = node.run({"results": branches}, context)
 
     result = RetrievalPayload.model_validate(outputs["results"])
-    assert len(result.response.matches) == 2
+    assert len(result.response.matches) == 4
 
 
 def test_rrf_fusion_sums_usage_across_branches(session: Session) -> None:
@@ -312,18 +313,16 @@ def test_ingestion_output_merges_branches_preferring_embedded_chunks(
     assert result.usage.prompt_tokens == 11
 
 
-def test_rrf_fusion_honors_zero_top_k_instead_of_returning_everything(
-    session: Session,
-) -> None:
-    """A falsy context top_k is honored, not treated as 'unset'."""
-    node = RRFusionNode(RRFusionConfig())
-    context = _context(session, StubVectorStore(), query="q", top_k=0)
-    branches = [_retrieval_payload("a", "b", "c"), _retrieval_payload("d")]
+def test_rrf_fusion_config_rejects_removed_top_k_silently(session: Session) -> None:
+    """A legacy `top_k` config key is ignored (extra keys don't parse), never a cut."""
+    node = RRFusionNode(RRFusionConfig.model_validate({"k": 60, "top_k": 1}))
+    context = _context(session, StubVectorStore(), query="q", top_k=1)
+    branches = [_retrieval_payload("a", "b"), _retrieval_payload("c")]
 
     outputs = node.run({"results": branches}, context)
 
     result = RetrievalPayload.model_validate(outputs["results"])
-    assert result.response.matches == []
+    assert len(result.response.matches) == 3
 
 
 def test_ingestion_output_merge_is_not_fooled_by_unembedded_first_chunk(

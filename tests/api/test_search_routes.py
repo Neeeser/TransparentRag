@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 
 from app.db import models
 from app.pipelines.definition import PipelineDefinition
+from app.pipelines.variables import PipelineVariable, VariableSource, VariableType
 from app.services.pipelines import PipelineService
 
 
@@ -32,21 +33,20 @@ def _declare_top_k_argument(session: Session, user: models.User) -> None:
     definition = PipelineDefinition.model_validate(
         service.get_current_version(pipeline).definition
     )
+    definition.variables = [
+        PipelineVariable(
+            name="top_k",
+            type=VariableType.INTEGER,
+            source=VariableSource.INPUT,
+            value=5,
+            minimum=1,
+            maximum=10,
+            expose_to_llm=True,
+        )
+    ]
     for node in definition.nodes:
         if node.type == "retrieval.input":
-            node.config = {
-                **node.config,
-                "arguments": [
-                    {
-                        "name": "top_k",
-                        "type": "integer",
-                        "default": 5,
-                        "minimum": 1,
-                        "maximum": 10,
-                        "expose_to_llm": True,
-                    }
-                ],
-            }
+            node.config = {**node.config, "arguments": ["top_k"]}
     service.update_pipeline(
         pipeline=pipeline, definition=definition, change_summary="Declare top_k."
     )

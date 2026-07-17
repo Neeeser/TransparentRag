@@ -45,8 +45,10 @@ from app.pipelines.variables import (
     PipelineInputArgument,
     PipelineVariable,
     VariableEnvironment,
+    VariableSource,
     VariableType,
     VariableValueError,
+    as_input_argument,
     coerce_literal,
     expression_source,
 )
@@ -61,14 +63,24 @@ class VariableResolutionError(ValueError):
         self.messages = messages
 
 
-def declared_arguments(definition: PipelineDefinition) -> list[PipelineInputArgument]:
-    """Return the input arguments declared on the definition's retrieval.input nodes.
+def input_variables(definition: PipelineDefinition) -> dict[str, PipelineVariable]:
+    """Return the definition's input-source variables by name (first wins)."""
+    variables: dict[str, PipelineVariable] = {}
+    for variable in definition.variables:
+        if variable.source is VariableSource.INPUT and variable.name not in variables:
+            variables[variable.name] = variable
+    return variables
+
+
+def accepted_argument_names(definition: PipelineDefinition) -> list[str]:
+    """Return the variable names the retrieval.input node(s) accept, deduplicated.
 
     Reads config through the node's config model (never the raw dict). A
-    config that does not parse contributes no arguments — the validator
-    reports the malformed declaration separately.
+    config that does not parse contributes no names — the validator reports
+    the malformed declaration separately.
     """
-    arguments: list[PipelineInputArgument] = []
+    names: list[str] = []
+    seen: set[str] = set()
     for node in definition.nodes:
         if node.type != RetrievalInputNode.type:
             continue
@@ -76,8 +88,27 @@ def declared_arguments(definition: PipelineDefinition) -> list[PipelineInputArgu
             config = RetrievalInputConfig.model_validate(node.config or {})
         except ValidationError:
             continue
-        arguments.extend(config.arguments)
-    return arguments
+        for name in config.arguments:
+            if name not in seen:
+                seen.add(name)
+                names.append(name)
+    return names
+
+
+def declared_arguments(definition: PipelineDefinition) -> list[PipelineInputArgument]:
+    """Return the caller-facing arguments this pipeline accepts.
+
+    Derived, never stored: the input-source variables whose names the
+    `retrieval.input` node(s) list, projected onto the argument shape the
+    search API and chat tool schema render from. A name with no matching
+    input variable contributes nothing — the validator reports it.
+    """
+    variables = input_variables(definition)
+    return [
+        as_input_argument(variables[name])
+        for name in accepted_argument_names(definition)
+        if name in variables
+    ]
 
 
 def build_environment(
@@ -103,22 +134,29 @@ def build_environment(
     tainted: set[str] = {QUERY_VARIABLE}
 
     remaining = dict(supplied or {})
-    for argument in declared_arguments(definition):
-        if argument.name in types:
-            # Duplicate declarations are a validation issue; the first wins here.
-            remaining.pop(argument.name, None)
+    accepted = set(accepted_argument_names(definition))
+    for name, variable in input_variables(definition).items():
+        if name in types:
+            # Reserved-name collisions are a validation issue; the built-in wins here.
+            remaining.pop(name, None)
             continue
-        value = _argument_value(
-            argument,
-            remaining,
-            legacy_top_k=legacy_top_k,
-            static_defaults=static_defaults,
-            errors=errors,
-        )
-        types[argument.name] = EXPR_TYPES[argument.type]
-        tainted.add(argument.name)
+        argument = as_input_argument(variable)
+        if name in accepted:
+            value = _argument_value(
+                argument,
+                remaining,
+                legacy_top_k=legacy_top_k,
+                static_defaults=static_defaults,
+                errors=errors,
+            )
+        else:
+            # Declared input but not accepted by the input node: callers can
+            # never supply it (validation warns), so its default stands in.
+            value = _static_placeholder(argument)
+        types[name] = EXPR_TYPES[argument.type]
+        tainted.add(name)
         if value is not None:
-            values[argument.name] = value
+            values[name] = value
     for name in remaining:
         errors.append(f"Unknown argument '{name}'.")
 
@@ -275,6 +313,8 @@ def _add_panel_variables(
     """Validate constants and evaluate derived variables in dependency order."""
     declared: dict[str, PipelineVariable] = {}
     for variable in variables:
+        if variable.source is VariableSource.INPUT:
+            continue  # input variables entered the environment first
         if variable.name in types or variable.name in declared:
             continue  # duplicates are a validation issue; the first wins here
         declared[variable.name] = variable

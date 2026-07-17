@@ -1,9 +1,9 @@
-"""Validation of variable and argument declarations.
+"""Validation of variable declarations.
 
 The per-declaration half of variable validation: identifier rules, the shared
-argument/variable namespace, and each declaration's own semantics (exactly one
-value source, enum choices, optional-needs-default, bounds sanity). Expression
-and environment checks live in `validation_variables.py`, which composes these.
+variable namespace, and each declaration's own semantics per source (value
+presence, enum choices, input defaults, bounds sanity). Expression and
+environment checks live in `validation_variables.py`, which composes these.
 """
 
 from __future__ import annotations
@@ -11,9 +11,11 @@ from __future__ import annotations
 from app.pipelines.node import PipelineValidationIssue
 from app.pipelines.variables import (
     RESERVED_VARIABLE_NAMES,
-    PipelineInputArgument,
     PipelineVariable,
+    VariableSource,
     VariableType,
+    VariableValueError,
+    coerce_literal,
     valid_variable_name,
 )
 
@@ -45,55 +47,81 @@ def declaration_issue(message: str) -> PipelineValidationIssue:
     return PipelineValidationIssue(code="variable_invalid", message=message)
 
 
-def argument_issues(argument: PipelineInputArgument) -> list[PipelineValidationIssue]:
-    """Semantic checks for one input argument declaration."""
-    issues: list[PipelineValidationIssue] = []
-    if argument.type is VariableType.MODEL:
-        issues.append(
-            declaration_issue(
-                f"Argument '{argument.name}': model-typed values cannot be "
-                "caller-supplied; declare a model variable instead."
-            )
-        )
-        return issues
-    if argument.type is VariableType.ENUM and not argument.choices:
-        issues.append(
-            declaration_issue(f"Argument '{argument.name}': enum arguments need choices.")
-        )
-    if not argument.required and argument.default is None:
-        issues.append(
-            declaration_issue(
-                f"Argument '{argument.name}': optional arguments must declare a default."
-            )
-        )
-    issues.extend(bounds_issues(argument.name, argument.minimum, argument.maximum))
-    return issues
-
-
 def variabledeclaration_issues(
     variable: PipelineVariable,
 ) -> list[PipelineValidationIssue]:
-    """Semantic checks for one panel variable declaration."""
+    """Semantic checks for one variable declaration, per its source."""
+    if variable.source is VariableSource.INPUT:
+        return _input_variable_issues(variable)
     issues: list[PipelineValidationIssue] = []
-    has_value = variable.value is not None
-    has_expression = variable.expression is not None
-    if has_value == has_expression:
+    if variable.source is VariableSource.EXPRESSION:
+        if variable.expression is None:
+            issues.append(
+                declaration_issue(f"Variable '{variable.name}' needs an expression.")
+            )
+        if variable.type is VariableType.MODEL:
+            issues.append(
+                declaration_issue(
+                    f"Variable '{variable.name}': model variables hold a picked model, "
+                    "not an expression."
+                )
+            )
+    elif variable.value is None:
+        issues.append(declaration_issue(f"Variable '{variable.name}' needs a value."))
+    elif variable.expression is not None:
         issues.append(
             declaration_issue(
                 f"Variable '{variable.name}' needs exactly one of a value or an expression."
-            )
-        )
-    if variable.type is VariableType.MODEL and has_expression:
-        issues.append(
-            declaration_issue(
-                f"Variable '{variable.name}': model variables hold a picked model, "
-                "not an expression."
             )
         )
     if variable.type is VariableType.ENUM and not variable.choices:
         issues.append(
             declaration_issue(f"Variable '{variable.name}': enum variables need choices.")
         )
+    issues.extend(bounds_issues(variable.name, variable.minimum, variable.maximum))
+    return issues
+
+
+def _input_variable_issues(variable: PipelineVariable) -> list[PipelineValidationIssue]:
+    """Semantic checks for an input-source variable declaration.
+
+    `value` is the default; `None` means required — there is no
+    optional-without-default state to flag. A default that violates the
+    declaration's own constraints is caught here because input variables never
+    flow through the environment build's constant check.
+    """
+    issues: list[PipelineValidationIssue] = []
+    if variable.type is VariableType.MODEL:
+        issues.append(
+            declaration_issue(
+                f"Variable '{variable.name}': model-typed values cannot be "
+                "caller-supplied; declare a model variable instead."
+            )
+        )
+        return issues
+    if variable.expression is not None:
+        issues.append(
+            declaration_issue(
+                f"Variable '{variable.name}': input variables take caller values, "
+                "not expressions."
+            )
+        )
+    enum_missing_choices = variable.type is VariableType.ENUM and not variable.choices
+    if enum_missing_choices:
+        issues.append(
+            declaration_issue(f"Variable '{variable.name}': enum variables need choices.")
+        )
+    if variable.value is not None and not enum_missing_choices:
+        try:
+            coerce_literal(
+                variable.type,
+                variable.value,
+                minimum=variable.minimum,
+                maximum=variable.maximum,
+                choices=variable.choices,
+            )
+        except VariableValueError as error:
+            issues.append(declaration_issue(f"Variable '{variable.name}': default {error}."))
     issues.extend(bounds_issues(variable.name, variable.minimum, variable.maximum))
     return issues
 

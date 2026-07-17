@@ -23,8 +23,10 @@ from app.pipelines.nodes.indexing import (
     VectorIndexerNode,
     default_index_name,
 )
+from app.pipelines.nodes.limiting import LimitNode
 from app.pipelines.nodes.retrieval import Bm25RetrieverNode, VectorRetrieverNode
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
+from app.pipelines.variables import PipelineVariable, VariableSource, VariableType
 from app.schemas.enums import IndexBackend
 from app.services.app_config import get_app_config
 from app.services.errors import InvalidInputError
@@ -35,6 +37,19 @@ from app.vectorstores.registry import CAPABILITIES_BY_BACKEND, lexical_available
 # frontend's shared auto-layout (`layoutPipelineNodes`), which lays out any
 # definition whose nodes lack saved positions on first open. Hand-placing
 # coordinates here would duplicate layout knowledge the algorithm owns.
+
+# The historical tool contract as an input variable: definitions own the
+# declaration; the retrieval.input node just accepts it by name.
+DEFAULT_TOP_K_VARIABLE = PipelineVariable(
+    name="top_k",
+    type=VariableType.INTEGER,
+    source=VariableSource.INPUT,
+    description="How many chunks to retrieve.",
+    value=5,
+    minimum=1,
+    maximum=10,
+    expose_to_llm=True,
+)
 
 def _default_backend() -> IndexBackend:
     """Return the deployment's configured default index backend."""
@@ -247,23 +262,11 @@ def build_default_retrieval_pipeline(
             id="query-input",
             type="retrieval.input",
             name="Retrieval Input",
-            # Declares the historical tool contract explicitly (query is
-            # built in): callers and the chat tool schema see the same
-            # top_k the hardcoded schema used to advertise, and pipeline
+            # Accepts the `top_k` input variable declared on the definition
+            # (query is built in): callers and the chat tool schema see the
+            # same top_k the hardcoded schema used to advertise, and pipeline
             # authors can retune or hide it per pipeline.
-            config={
-                "arguments": [
-                    {
-                        "name": "top_k",
-                        "type": "integer",
-                        "description": "How many chunks to retrieve.",
-                        "default": 5,
-                        "minimum": 1,
-                        "maximum": 10,
-                        "expose_to_llm": True,
-                    }
-                ]
-            },
+            config={"arguments": ["top_k"]},
         ),
         PipelineNodeDefinition(
             id="embed-query",
@@ -324,6 +327,13 @@ config={
                     type=RRFusionNode.type,
                     name="RRF Fusion",
                 ),
+                # Fusion never cuts; the Top-N node is the explicit cut back
+                # to the requested top_k (its unset-config default).
+                PipelineNodeDefinition(
+                    id="limit-results",
+                    type=LimitNode.type,
+                    name="Top-N",
+                ),
             ]
         )
         edges.extend(
@@ -350,8 +360,15 @@ config={
                     target_port="results",
                 ),
                 PipelineEdgeDefinition(
-                    id="edge-fusion-output",
+                    id="edge-fusion-limit",
                     source="fuse-results",
+                    target="limit-results",
+                    source_port="results",
+                    target_port="results",
+                ),
+                PipelineEdgeDefinition(
+                    id="edge-limit-output",
+                    source="limit-results",
                     target="retrieval-output",
                     source_port="results",
                     target_port="results",
@@ -368,4 +385,9 @@ config={
                 target_port="results",
             )
         )
-    return PipelineDefinition(nodes=nodes, edges=edges, viewport={})
+    return PipelineDefinition(
+        nodes=nodes,
+        edges=edges,
+        viewport={},
+        variables=[DEFAULT_TOP_K_VARIABLE.model_copy(deep=True)],
+    )

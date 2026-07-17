@@ -2,11 +2,14 @@
 
 Three declaration shapes power pipeline variables:
 
-- `PipelineVariable` — a panel variable on `PipelineDefinition.variables`:
-  either a constant (`value`) or derived from an expression over other
-  variables and input arguments (`expression`).
-- `PipelineInputArgument` — a caller-supplied argument declared on the
-  `retrieval.input` node's config; the search API and the chat tool schema
+- `PipelineVariable` — a variable on `PipelineDefinition.variables`, the
+  single owner of every declaration: a constant (`source="value"`), derived
+  from an expression over other variables (`source="expression"`), or
+  caller-supplied (`source="input"` — `value` is the default, `None` meaning
+  the caller must supply it).
+- `PipelineInputArgument` — the *derived* caller-facing argument shape: built
+  from the input-source variables a `retrieval.input` node accepts (its
+  config lists variable names). The search API and the chat tool schema
   render from these.
 - `PipelineOutputField` — a named expression on the `retrieval.output` node's
   config, evaluated at run end and returned beside the results.
@@ -27,7 +30,7 @@ import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, JsonValue, ValidationError
+from pydantic import BaseModel, Field, JsonValue, ValidationError, model_validator
 
 from app.pipelines.expressions import ExprType, ExprValue, ModelValue
 from app.pipelines.expressions.functions import BUILTINS
@@ -76,26 +79,54 @@ EXPR_TYPES: dict[VariableType, ExprType] = {
 }
 
 
+class VariableSource(StrEnum):
+    """Where a pipeline variable's value comes from."""
+
+    VALUE = "value"
+    EXPRESSION = "expression"
+    INPUT = "input"
+
+
 class PipelineVariable(BaseModel):
-    """A pipeline-level variable: constant `value` or derived `expression`."""
+    """A pipeline-level variable declaration.
+
+    `source` selects the value's origin: a constant (`value`), a derived
+    `expression`, or caller `input`. For input variables `value` is the
+    default — `None` means the caller must supply one — and `expose_to_llm`
+    publishes it in the chat tool schema. Definitions saved before `source`
+    existed omit it; the normalizer infers expression-vs-value so they parse
+    unchanged.
+    """
 
     name: str = Field(max_length=64)
     type: VariableType
+    source: VariableSource | None = None
     description: str = ""
     value: VariableValue | None = None
     expression: str | None = None
     minimum: float | None = None
     maximum: float | None = None
     choices: list[str] = Field(default_factory=list)
+    expose_to_llm: bool = False
+
+    @model_validator(mode="after")
+    def _default_source(self) -> PipelineVariable:
+        """Infer the source for pre-`source` payloads (normalization, never rejection)."""
+        if self.source is None:
+            self.source = (
+                VariableSource.EXPRESSION if self.expression is not None else VariableSource.VALUE
+            )
+        return self
 
 
 class PipelineInputArgument(BaseModel):
-    """A caller-supplied retrieval argument declared on `retrieval.input`.
+    """The derived caller-facing shape of an input-source variable.
 
-    `required` arguments must be supplied by the caller; optional arguments
-    must declare a `default` (enforced by validation) so expressions always
-    have a value. `expose_to_llm` publishes the argument in the chat tool
-    schema; the `model` type is panel-only and never valid here.
+    Built by `resolution.declared_arguments` from the input variables a
+    `retrieval.input` node accepts — never stored on a definition. The search
+    API and the chat tool schema render from these. `required` arguments must
+    be supplied by the caller (an input variable with no default);
+    `expose_to_llm` publishes the argument in the chat tool schema.
     """
 
     name: str = Field(max_length=64)
@@ -107,6 +138,26 @@ class PipelineInputArgument(BaseModel):
     maximum: float | None = None
     choices: list[str] = Field(default_factory=list)
     expose_to_llm: bool = False
+
+
+def as_input_argument(variable: PipelineVariable) -> PipelineInputArgument:
+    """Project an input-source variable onto the caller-facing argument shape.
+
+    A model-typed default has no scalar wire shape (and model-typed inputs are
+    a validation error anyway), so it projects as required-with-no-default.
+    """
+    default = variable.value if not isinstance(variable.value, ModelValue) else None
+    return PipelineInputArgument(
+        name=variable.name,
+        type=variable.type,
+        description=variable.description,
+        required=default is None,
+        default=default,
+        minimum=variable.minimum,
+        maximum=variable.maximum,
+        choices=list(variable.choices),
+        expose_to_llm=variable.expose_to_llm,
+    )
 
 
 class PipelineOutputField(BaseModel):

@@ -34,15 +34,14 @@ from app.pipelines.resolution import (
     build_environment,
 )
 from app.pipelines.validation_declarations import (
-    argument_issues,
     name_issues,
     variabledeclaration_issues,
 )
 from app.pipelines.variables import (
     EXPR_TYPES,
     QUERY_VARIABLE,
-    PipelineInputArgument,
     PipelineVariable,
+    VariableSource,
     expression_source,
     valid_variable_name,
 )
@@ -55,14 +54,11 @@ def collect_variable_issues(
     """Return every variable/argument/expression issue in the definition."""
     issues: list[PipelineValidationIssue] = []
     seen: set[str] = {QUERY_VARIABLE}
-    arguments = _collect_arguments(definition, issues)
-    for argument in arguments:
-        issues.extend(name_issues(argument.name, seen, "Argument"))
-        issues.extend(argument_issues(argument))
     for variable in definition.variables:
         issues.extend(name_issues(variable.name, seen, "Variable"))
         issues.extend(variabledeclaration_issues(variable))
-    types, tainted = _static_types(definition, arguments)
+    issues.extend(_accepted_argument_issues(definition))
+    types, tainted = _static_types(definition)
     issues.extend(_derived_expression_issues(definition.variables, types))
     issues.extend(_environment_issues(definition))
     issues.extend(_node_config_issues(definition, registry, types, tainted))
@@ -135,15 +131,24 @@ def _dedupe(issues: list[PipelineValidationIssue]) -> list[PipelineValidationIss
     return unique
 
 
-def _collect_arguments(
+def _accepted_argument_issues(
     definition: PipelineDefinition,
-    issues: list[PipelineValidationIssue],
-) -> list[PipelineInputArgument]:
-    """Gather declared arguments, flagging input nodes whose config won't parse."""
-    arguments: list[PipelineInputArgument] = []
-    for node in definition.nodes:
-        if node.type != RetrievalInputNode.type:
-            continue
+) -> list[PipelineValidationIssue]:
+    """Check the retrieval.input node's accepted-argument name list.
+
+    Errors: a malformed config, or a listed name that doesn't resolve to an
+    input-source variable. Warning: an input-source variable no input node
+    accepts — callers can never supply it, so its default always stands in.
+    """
+    issues: list[PipelineValidationIssue] = []
+    input_names = {
+        variable.name
+        for variable in definition.variables
+        if variable.source is VariableSource.INPUT
+    }
+    accepted: set[str] = set()
+    input_nodes = [node for node in definition.nodes if node.type == RetrievalInputNode.type]
+    for node in input_nodes:
         try:
             config = RetrievalInputConfig.model_validate(node.config or {})
         except ValidationError:
@@ -156,27 +161,54 @@ def _collect_arguments(
                 )
             )
             continue
-        arguments.extend(config.arguments)
-    return arguments
+        for name in config.arguments:
+            accepted.add(name)
+            if name not in input_names:
+                issues.append(
+                    PipelineValidationIssue(
+                        code="arguments_invalid",
+                        message=(
+                            f"Node '{node.id}' accepts '{name}', which is not a "
+                            "declared input variable."
+                        ),
+                        node_id=node.id,
+                        field="arguments",
+                    )
+                )
+    if input_nodes:
+        for name in sorted(input_names - accepted):
+            issues.append(
+                PipelineValidationIssue(
+                    code="argument_unaccepted",
+                    severity="warning",
+                    message=(
+                        f"Input variable '{name}' is not accepted by the retrieval "
+                        "input node, so callers cannot supply it and its default "
+                        "always applies."
+                    ),
+                )
+            )
+    return issues
 
 
 def _static_types(
     definition: PipelineDefinition,
-    arguments: list[PipelineInputArgument],
 ) -> tuple[dict[str, ExprType], frozenset[str]]:
     """Build the static type environment and the tainted-name closure.
 
-    Taint starts at input arguments and propagates through derived variables
+    Taint starts at input variables and propagates through derived variables
     by iterating to a fixpoint (reference chains are short; cycles are
     reported separately and simply stop expanding).
     """
     types: dict[str, ExprType] = {QUERY_VARIABLE: ExprType.STRING}
-    for argument in arguments:
-        types.setdefault(argument.name, EXPR_TYPES[argument.type])
     for variable in definition.variables:
         types.setdefault(variable.name, EXPR_TYPES[variable.type])
 
-    tainted: set[str] = {argument.name for argument in arguments}
+    tainted: set[str] = {
+        variable.name
+        for variable in definition.variables
+        if variable.source is VariableSource.INPUT
+    }
     tainted.add(QUERY_VARIABLE)
     derived_refs: dict[str, frozenset[str]] = {}
     for variable in definition.variables:
