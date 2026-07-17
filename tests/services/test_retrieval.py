@@ -290,9 +290,17 @@ def _declare_pipeline_variables(
     session.commit()
 
 
+def test_query_arguments_default_scaffold_declares_top_k(session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    response = RetrievalService(session).query_arguments(user, collection)
+    assert [argument.name for argument in response.arguments] == ["top_k"]
+
+
 def test_query_arguments_empty_when_pipeline_declares_none(session: Session) -> None:
     user = _create_user(session)
     collection = _create_collection(session, user)
+    _declare_pipeline_variables(session, user, arguments=[])
     response = RetrievalService(session).query_arguments(user, collection)
     assert response.arguments == []
 

@@ -136,7 +136,8 @@
             "ui": {}
           }
         ],
-        "viewport": {}
+        "viewport": {},
+        "variables": []
       }
     },
     {
@@ -147,7 +148,19 @@
             "id": "query-input",
             "type": "retrieval.input",
             "name": "Retrieval Input",
-            "config": {},
+            "config": {
+              "arguments": [
+                {
+                  "name": "top_k",
+                  "type": "integer",
+                  "description": "How many chunks to retrieve.",
+                  "default": 5,
+                  "minimum": 1,
+                  "maximum": 10,
+                  "expose_to_llm": true
+                }
+              ]
+            },
             "position": null,
             "ui": {}
           },
@@ -253,7 +266,8 @@
             "ui": {}
           }
         ],
-        "viewport": {}
+        "viewport": {},
+        "variables": []
       }
     }
   ],
@@ -453,10 +467,12 @@
             ],
             "default": null,
             "description": "Provider connection that serves the embedding model.",
+            "static_only": true,
             "title": "Connection Id"
           },
           "model_name": {
             "default": "",
+            "static_only": true,
             "title": "Model Name",
             "type": "string"
           },
@@ -472,6 +488,7 @@
             ],
             "default": null,
             "description": "Optional override for the embedding vector dimension.",
+            "static_only": true,
             "title": "Dimension"
           }
         },
@@ -522,11 +539,13 @@
         "properties": {
           "index_name": {
             "default": "",
+            "static_only": true,
             "title": "Index Name",
             "type": "string"
           },
           "namespace": {
             "default": "col-{collection_id}",
+            "static_only": true,
             "title": "Namespace",
             "type": "string"
           },
@@ -541,10 +560,12 @@
               }
             ],
             "default": null,
+            "static_only": true,
             "title": "Dimension"
           },
           "metric": {
             "default": "cosine",
+            "static_only": true,
             "title": "Metric",
             "type": "string"
           },
@@ -554,7 +575,8 @@
             "type": "boolean"
           },
           "backend": {
-            "$ref": "#/$defs/IndexBackend"
+            "$ref": "#/$defs/IndexBackend",
+            "static_only": true
           }
         },
         "title": "VectorIndexerConfig",
@@ -606,15 +628,18 @@
         "description": "Configuration for BM25 (sparse/lexical) indexing nodes.\n\nNo dimension or metric: sparse indexes are text-scored (pg_search BM25 /\nPinecone's integrated sparse model). `index_name` defaults to empty like\nthe unified dense indexer \u2014 an index must be chosen explicitly.",
         "properties": {
           "backend": {
-            "$ref": "#/$defs/IndexBackend"
+            "$ref": "#/$defs/IndexBackend",
+            "static_only": true
           },
           "index_name": {
             "default": "",
+            "static_only": true,
             "title": "Index Name",
             "type": "string"
           },
           "namespace": {
             "default": "col-{collection_id}",
+            "static_only": true,
             "title": "Namespace",
             "type": "string"
           },
@@ -685,12 +710,114 @@
         }
       ],
       "config_schema": {
-        "description": "Configuration for retrieval input nodes.",
-        "properties": {},
+        "$defs": {
+          "PipelineInputArgument": {
+            "description": "A caller-supplied retrieval argument declared on `retrieval.input`.\n\n`required` arguments must be supplied by the caller; optional arguments\nmust declare a `default` (enforced by validation) so expressions always\nhave a value. `expose_to_llm` publishes the argument in the chat tool\nschema; the `model` type is panel-only and never valid here.",
+            "properties": {
+              "name": {
+                "maxLength": 64,
+                "title": "Name",
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/VariableType",
+                "default": "string"
+              },
+              "description": {
+                "default": "",
+                "title": "Description",
+                "type": "string"
+              },
+              "required": {
+                "default": false,
+                "title": "Required",
+                "type": "boolean"
+              },
+              "default": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Default"
+              },
+              "minimum": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Minimum"
+              },
+              "maximum": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Maximum"
+              },
+              "choices": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Choices",
+                "type": "array"
+              },
+              "expose_to_llm": {
+                "default": false,
+                "title": "Expose To Llm",
+                "type": "boolean"
+              }
+            },
+            "required": ["name"],
+            "title": "PipelineInputArgument",
+            "type": "object"
+          },
+          "VariableType": {
+            "description": "Declared types for pipeline variables and input arguments.",
+            "enum": ["integer", "number", "string", "boolean", "enum", "model"],
+            "title": "VariableType",
+            "type": "string"
+          }
+        },
+        "description": "Configuration for retrieval input nodes.\n\n`arguments` declares the caller-supplied inputs this pipeline accepts \u2014\nthe search page renders a control per entry and the chat tool schema\npublishes the `expose_to_llm` ones. The built-in `query` argument is\nimplicit and always present.",
+        "properties": {
+          "arguments": {
+            "items": {
+              "$ref": "#/$defs/PipelineInputArgument"
+            },
+            "title": "Arguments",
+            "type": "array"
+          }
+        },
         "title": "RetrievalInputConfig",
         "type": "object"
       },
-      "default_config": {},
+      "default_config": {
+        "arguments": []
+      },
       "hidden": false
     },
     {
@@ -730,16 +857,33 @@
         "properties": {
           "index_name": {
             "default": "",
+            "static_only": true,
             "title": "Index Name",
             "type": "string"
           },
           "namespace": {
             "default": "col-{collection_id}",
+            "static_only": true,
             "title": "Namespace",
             "type": "string"
           },
+          "top_k": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Override how many chunks to fetch; unset uses the request's top_k.",
+            "title": "Top K"
+          },
           "backend": {
-            "$ref": "#/$defs/IndexBackend"
+            "$ref": "#/$defs/IndexBackend",
+            "static_only": true
           }
         },
         "title": "VectorRetrieverConfig",
@@ -748,6 +892,7 @@
       "default_config": {
         "index_name": "",
         "namespace": "col-{collection_id}",
+        "top_k": null,
         "backend": "pgvector"
       },
       "hidden": false
@@ -785,20 +930,37 @@
             "type": "string"
           }
         },
-        "description": "Configuration for BM25 (sparse/lexical) retriever nodes.",
+        "description": "Configuration for BM25 (sparse/lexical) retriever nodes.\n\n`top_k` mirrors the dense retriever's override: set (typically to an\nexpression) to over-retrieve; unset uses the request's depth.",
         "properties": {
           "backend": {
-            "$ref": "#/$defs/IndexBackend"
+            "$ref": "#/$defs/IndexBackend",
+            "static_only": true
           },
           "index_name": {
             "default": "",
+            "static_only": true,
             "title": "Index Name",
             "type": "string"
           },
           "namespace": {
             "default": "col-{collection_id}",
+            "static_only": true,
             "title": "Namespace",
             "type": "string"
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Override how many chunks to fetch; unset uses the request's top_k.",
+            "title": "Top K"
           }
         },
         "title": "Bm25RetrieverConfig",
@@ -807,7 +969,8 @@
       "default_config": {
         "backend": "pgvector",
         "index_name": "",
-        "namespace": "col-{collection_id}"
+        "namespace": "col-{collection_id}",
+        "top_k": null
       },
       "hidden": false
     },
@@ -892,12 +1055,42 @@
         }
       ],
       "config_schema": {
-        "description": "Configuration for retrieval output nodes.",
-        "properties": {},
+        "$defs": {
+          "PipelineOutputField": {
+            "description": "A named expression evaluated at run end and returned beside results.",
+            "properties": {
+              "name": {
+                "maxLength": 64,
+                "title": "Name",
+                "type": "string"
+              },
+              "expression": {
+                "default": "",
+                "title": "Expression",
+                "type": "string"
+              }
+            },
+            "required": ["name"],
+            "title": "PipelineOutputField",
+            "type": "object"
+          }
+        },
+        "description": "Configuration for retrieval output nodes.\n\n`outputs` declares extra named expressions evaluated against the run's\nvariable environment and returned beside the results (e.g. the effective\nover-retrieval depth). Purely additive: an empty list is today's behavior.",
+        "properties": {
+          "outputs": {
+            "items": {
+              "$ref": "#/$defs/PipelineOutputField"
+            },
+            "title": "Outputs",
+            "type": "array"
+          }
+        },
         "title": "RetrievalOutputConfig",
         "type": "object"
       },
-      "default_config": {},
+      "default_config": {
+        "outputs": []
+      },
       "hidden": false
     }
   ]

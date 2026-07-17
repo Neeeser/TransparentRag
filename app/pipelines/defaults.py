@@ -247,6 +247,23 @@ def build_default_retrieval_pipeline(
             id="query-input",
             type="retrieval.input",
             name="Retrieval Input",
+            # Declares the historical tool contract explicitly (query is
+            # built in): callers and the chat tool schema see the same
+            # top_k the hardcoded schema used to advertise, and pipeline
+            # authors can retune or hide it per pipeline.
+            config={
+                "arguments": [
+                    {
+                        "name": "top_k",
+                        "type": "integer",
+                        "description": "How many chunks to retrieve.",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 10,
+                        "expose_to_llm": True,
+                    }
+                ]
+            },
         ),
         PipelineNodeDefinition(
             id="embed-query",

@@ -53,13 +53,14 @@ def _declare_top_k_argument(session: Session, user: models.User) -> None:
     session.commit()
 
 
-def test_query_arguments_empty_for_legacy_pipeline(
+def test_query_arguments_reflect_default_scaffold(
     client: TestClient, session: Session
 ) -> None:
     collection_id = _create_collection(client)
     response = client.get(f"/api/collections/{collection_id}/query-arguments")
     assert response.status_code == 200
-    assert response.json() == {"arguments": []}
+    names = [argument["name"] for argument in response.json()["arguments"]]
+    assert names == ["top_k"]
 
 
 def test_query_arguments_returns_declared_shape(

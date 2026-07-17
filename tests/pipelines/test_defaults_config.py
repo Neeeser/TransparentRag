@@ -208,3 +208,20 @@ def test_default_scaffolds_carry_no_positions(session: Session) -> None:
     """
 for definition in (_build_ingestion(), _build_retrieval()):
         assert all(node.position is None for node in definition.nodes)
+
+
+def test_default_retrieval_pipeline_declares_top_k_argument() -> None:
+    """The scaffold declares the historical tool contract explicitly: an
+    exposed integer top_k (default 5, 1-10) on the retrieval input node."""
+    from app.pipelines.resolution import declared_arguments
+
+    definition = build_default_retrieval_pipeline(
+        embedding_connection_id=uuid4(), embedding_model="test-embed"
+    )
+    arguments = declared_arguments(definition)
+    assert [argument.name for argument in arguments] == ["top_k"]
+    top_k = arguments[0]
+    assert top_k.type.value == "integer"
+    assert top_k.default == 5
+    assert (top_k.minimum, top_k.maximum) == (1, 10)
+    assert top_k.expose_to_llm is True
