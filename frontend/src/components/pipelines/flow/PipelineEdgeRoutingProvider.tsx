@@ -142,16 +142,17 @@ export function PipelineEdgeRoutingProvider({
   nodes,
   children,
 }: Readonly<{ nodes: PipelineNode[]; children: ReactNode }>) {
+  const routingNodes = nodes.filter((node) => node.type !== "dropPreview");
   const [runtime] = useState(() => new RoutingRuntime());
   const { scheduler } = runtime;
   const edgeInputsRef = useRef(new Map<string, BatchEdgeInput>());
   const routingNodesRef = useRef<Node[]>([]);
   const flushScheduledRef = useRef(false);
-  const [geometry, setGeometry] = useState(() => makeGeometry(nodes));
-  const nextSignature = geometrySignature(nodes);
+  const [geometry, setGeometry] = useState(() => makeGeometry(routingNodes));
+  const nextSignature = geometrySignature(routingNodes);
   let currentGeometry = geometry;
   if (nextSignature !== geometry.signature) {
-    currentGeometry = makeGeometry(nodes);
+    currentGeometry = makeGeometry(routingNodes);
     setGeometry(currentGeometry);
   }
 

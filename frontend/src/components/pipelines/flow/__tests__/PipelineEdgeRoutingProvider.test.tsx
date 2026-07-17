@@ -84,6 +84,16 @@ const nodes: Node<PipelineNodeData>[] = [
   },
 ];
 
+const dropPreviewNode = {
+  id: "drop-preview",
+  type: "dropPreview",
+  position: { x: 368, y: 24 },
+  data: { label: "Add node" },
+  selectable: false,
+  draggable: false,
+  connectable: false,
+} as unknown as Node<PipelineNodeData>;
+
 function RouteProbe({
   edgeId = "edge-1",
   sourceX,
@@ -209,6 +219,15 @@ describe("PipelineEdgeRoutingProvider", () => {
     expect(worker.messages[1].input.nodes[0].position.x).toBe(24);
     act(() => worker.complete(1, "moved"));
     expect(screen.getByTestId(ROUTE_TEST_ID)).toHaveTextContent("moved");
+  });
+
+  it("excludes the label-only drop preview from routing geometry", async () => {
+    render(graph(264, [...nodes, dropPreviewNode]));
+
+    const worker = FakeWorker.instances[0];
+    await waitFor(() => expect(worker.messages).toHaveLength(1));
+
+    expect(worker.messages[0].input.nodes.map((node) => node.id)).toEqual(["source", "target"]);
   });
 
   it("keeps the native fallback when the worker fails and sync routing finds no path", async () => {
