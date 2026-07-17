@@ -23,7 +23,12 @@ from app.schemas.retrieval import (
     QueryArgumentRead,
     RetrievedChunk,
 )
-from app.services.errors import ExternalServiceError, InvalidInputError, is_external_provider_error
+from app.services.errors import (
+    ExternalServiceError,
+    InvalidInputError,
+    InvalidQueryArgumentsError,
+    is_external_provider_error,
+)
 from app.services.pipeline_resolution import ResolvedRetrievalPipeline, resolve_retrieval_pipeline
 from app.telemetry import record
 from app.telemetry.events import RetrievalQueryRan
@@ -60,7 +65,7 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
                 runner, resolved, user, collection, query, top_k, arguments
             )
         except VariableResolutionError as exc:
-            raise InvalidInputError(str(exc)) from exc
+            raise InvalidQueryArgumentsError(str(exc)) from exc
         try:
             result = runner.execute(handle)
             payload = self._extract_retrieval_payload(result.terminal_outputs)
