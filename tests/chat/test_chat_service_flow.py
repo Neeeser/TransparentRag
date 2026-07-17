@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -36,6 +37,24 @@ def _only_session_id(session: Session, user: models.User) -> Any:
     sessions = ChatRepository(session).list_sessions(user_id=user.id)
     assert len(sessions) == 1
     return sessions[0].id
+
+
+def test_collection_tool_spec_includes_collection_description(
+    chat_user, make_collection
+) -> None:
+    collection = make_collection(chat_user, name="Evaluation Papers")
+    collection.description = "Peer-reviewed evaluation results and methods."
+
+    tools, _ = ToolExecutor.specs(
+        [SimpleNamespace(tool_name="search_evaluation_papers", collection=collection)]
+    )
+
+    description = tools[0]["function"]["description"]
+    assert description == (
+        "Search the document collection 'Evaluation Papers'. "
+        "Peer-reviewed evaluation results and methods. "
+        "Always call this tool before answering questions about documents in this collection."
+    )
 
 
 def test_send_message_records_response(

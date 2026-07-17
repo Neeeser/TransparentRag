@@ -107,18 +107,20 @@ class ToolExecutor:
         tool_map: dict[str, models.Collection] = {}
         for tool_context in tool_collections:
             tool_name = tool_context.tool_name
-            tool_map[tool_name] = tool_context.collection
+            collection = tool_context.collection
+            tool_map[tool_name] = collection
+            description_parts = [f"Search the document collection '{collection.name}'."]
+            if collection.description.strip():
+                description_parts.append(collection.description.strip())
+            description_parts.append(
+                "Always call this tool before answering questions about documents in this collection."
+            )
             tools.append(
                 {
                     "type": "function",
                     "function": {
                         "name": tool_name,
-                        "description": (
-                            "Search the Pinecone namespace for the collection "
-                            f"'{tool_context.collection.name}' to gather grounded context. "
-                            "Always call this tool before answering questions about "
-                            "documents in this collection."
-                        ),
+                        "description": " ".join(description_parts),
                         "parameters": {
                             "type": "object",
                             "properties": {
