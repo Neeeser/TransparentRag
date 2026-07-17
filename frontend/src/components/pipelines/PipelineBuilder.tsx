@@ -375,7 +375,6 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         validationErrors={selectedNodeErrors}
         validationIssues={selectedValidationIssues}
         variables={variables}
-        variableNodes={variableNodes}
         vectorIndexes={indexes}
         onOpenIndexManager={handleOpenIndexManager}
         embeddingModels={embeddingModels}

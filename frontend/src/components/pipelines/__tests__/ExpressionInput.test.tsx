@@ -1,17 +1,21 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { ExpressionInput, evaluateExpressionFeedback } from "../ExpressionInput";
 import { buildStaticEnvironment } from "../lib/variable-env";
 
-import type { PipelineInputArgument } from "@/lib/types";
+import type { PipelineVariable } from "@/lib/types";
 
-const TOP_K: PipelineInputArgument = { name: "top_k", type: "integer", default: 5 };
+const TOP_K: PipelineVariable = { name: "top_k", type: "integer", source: "input", value: 5 };
 
-const env = buildStaticEnvironment(
-  [TOP_K],
-  [{ name: "emb", type: "model", value: { connection_id: "c-1", model_name: "mini" } }],
-);
+const EXPRESSION_LABEL = "Top K expression";
+const SUGGESTIONS = "Expression suggestions";
+
+const env = buildStaticEnvironment([
+  TOP_K,
+  { name: "emb", type: "model", value: { connection_id: "c-1", model_name: "mini" } },
+]);
 
 describe("evaluateExpressionFeedback", () => {
   it("previews a valid expression against argument defaults", () => {
@@ -53,7 +57,7 @@ describe("ExpressionInput", () => {
   it("shows the live preview for a valid expression", () => {
     render(
       <ExpressionInput
-        aria-label="Top K expression"
+        aria-label={EXPRESSION_LABEL}
         value="min(top_k * 3, 12)"
         onChange={() => undefined}
         env={env}
@@ -66,13 +70,60 @@ describe("ExpressionInput", () => {
   it("marks the input invalid and shows the message on errors", () => {
     render(
       <ExpressionInput
-        aria-label="Top K expression"
+        aria-label={EXPRESSION_LABEL}
         value="missing + 1"
         onChange={() => undefined}
         env={env}
       />,
     );
-    expect(screen.getByLabelText("Top K expression")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText(EXPRESSION_LABEL)).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText(/Unknown variable 'missing'/)).toBeInTheDocument();
+  });
+
+  it("opens the suggestion listbox on focus and inserts the picked variable", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ExpressionInput aria-label={EXPRESSION_LABEL} value="" onChange={onChange} env={env} />,
+    );
+    await user.click(screen.getByLabelText(EXPRESSION_LABEL));
+    const listbox = screen.getByRole("listbox", { name: SUGGESTIONS });
+    expect(listbox).toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: /top_k/ }));
+    expect(onChange).toHaveBeenCalledWith("top_k");
+  });
+
+  it("filters against the typed token and accepts with Enter", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ExpressionInput aria-label={EXPRESSION_LABEL} value="ma" onChange={onChange} env={env} />,
+    );
+    const input = screen.getByLabelText(EXPRESSION_LABEL);
+    await user.click(input);
+    expect(screen.queryByRole("option", { name: /top_k/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /max/ })).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledWith("max()");
+  });
+
+  it("Escape closes only the suggestion listbox and does not bubble", async () => {
+    const user = userEvent.setup();
+    const outerEscape = vi.fn();
+    render(
+      <div onKeyDown={(event) => event.key === "Escape" && outerEscape()}>
+        <ExpressionInput
+          aria-label={EXPRESSION_LABEL}
+          value=""
+          onChange={() => undefined}
+          env={env}
+        />
+      </div>,
+    );
+    await user.click(screen.getByLabelText(EXPRESSION_LABEL));
+    expect(screen.getByRole("listbox", { name: SUGGESTIONS })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox", { name: SUGGESTIONS })).not.toBeInTheDocument();
+    expect(outerEscape).not.toHaveBeenCalled();
   });
 });

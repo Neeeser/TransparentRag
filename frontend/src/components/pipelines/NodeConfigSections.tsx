@@ -14,9 +14,9 @@ import { ConfigFieldRow } from "./ConfigFieldRow";
 import { EmbeddingModelSelectorCard } from "./EmbeddingModelSelectorCard";
 import { IndexBackendIcon } from "./icons/IndexBackendIcon";
 import {
-  ArgumentsEditor,
+  ArgumentsPicker,
   OutputsEditor,
-  argumentsFromConfig,
+  acceptedNamesFromConfig,
   outputsFromConfig,
 } from "./IoDeclarationEditors";
 import { buildPipelineConfigFields, coerceFieldValue } from "./lib/pipeline-config";
@@ -26,7 +26,6 @@ import {
   RETRIEVAL_INPUT_TYPE,
   RETRIEVAL_OUTPUT_TYPE,
   buildStaticEnvironment,
-  declaredArguments,
 } from "./lib/variable-env";
 
 import type { PipelineConfigField } from "./lib/pipeline-config";
@@ -56,8 +55,6 @@ export type NodeConfigSectionsProps = {
   onCatalogVisible?: () => void;
   onSelectEmbeddingModel: (model: CatalogModel) => void;
   variables: PipelineVariable[];
-  /** All canvas nodes (type + config) — source of declared arguments. */
-  variableNodes: Array<{ type: string; config: Record<string, unknown> }>;
 };
 
 const BACKEND_OPTIONS: Array<{ value: IndexBackend; label: string; hint: string }> = [
@@ -86,7 +83,6 @@ export function NodeConfigSections({
   onCatalogVisible,
   onSelectEmbeddingModel,
   variables,
-  variableNodes,
 }: NodeConfigSectionsProps) {
   const { config: appConfig } = useAppConfig();
   const nodeType = node.data.nodeType;
@@ -96,18 +92,9 @@ export function NodeConfigSections({
   const isRetrievalInput = nodeType === RETRIEVAL_INPUT_TYPE;
   const isRetrievalOutput = nodeType === RETRIEVAL_OUTPUT_TYPE;
 
-  // The static expression environment. For the retrieval input node the
-  // drawer's draft arguments replace the canvas node's, so live feedback
-  // tracks unsaved edits.
-  const expressionEnv = useMemo(() => {
-    const argumentSources = isRetrievalInput
-      ? [
-          ...variableNodes.filter((entry) => entry.type !== RETRIEVAL_INPUT_TYPE),
-          { type: RETRIEVAL_INPUT_TYPE, config },
-        ]
-      : variableNodes;
-    return buildStaticEnvironment(declaredArguments(argumentSources), variables);
-  }, [isRetrievalInput, variableNodes, config, variables]);
+  // The static expression environment — built from the definition's
+  // variables alone (input-source ones included).
+  const expressionEnv = useMemo(() => buildStaticEnvironment(variables), [variables]);
 
   useEffect(() => {
     if (isEmbedder) onCatalogVisible?.();
@@ -350,10 +337,10 @@ export function NodeConfigSections({
         </ParameterFieldCard>
       ) : null}
       {isRetrievalInput ? (
-        <ArgumentsEditor
-          argumentsList={argumentsFromConfig(config)}
-          onChange={(argumentsList) => setConfigValue("arguments", argumentsList)}
-          reservedNames={new Set(variables.map((variable) => variable.name))}
+        <ArgumentsPicker
+          acceptedNames={acceptedNamesFromConfig(config)}
+          onChange={(names) => setConfigValue("arguments", names)}
+          variables={variables}
           disabled={isPreview}
         />
       ) : null}

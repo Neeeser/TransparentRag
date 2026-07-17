@@ -12,21 +12,23 @@ import { cn } from "@/lib/utils";
 import { ExpressionInput } from "./ExpressionInput";
 import {
   RESERVED_VARIABLE_NAMES,
+  RETRIEVAL_INPUT_TYPE,
   VARIABLE_NAME_PATTERN,
   VARIABLE_TYPE_OPTIONS,
   buildStaticEnvironment,
-  declaredArguments,
   formatPreviewValue,
+  variableSource,
 } from "./lib/variable-env";
+import { ConstantValueField, InputVariableFields } from "./VariableValueFields";
 
-import type { CatalogModel, PipelineVariable, VariableType } from "@/lib/types";
+import type { CatalogModel, PipelineVariable, VariableSource, VariableType } from "@/lib/types";
 
 type NodeLike = { type: string; config: Record<string, unknown> };
 
 type VariablesPanelProps = {
   variables: PipelineVariable[];
   onChange: (variables: PipelineVariable[]) => void;
-  /** Current canvas nodes — source of declared arguments and reference checks. */
+  /** Current canvas nodes — reference checks and input-node acceptance. */
   nodes: NodeLike[];
   modelOptions: CatalogModel[];
   disabled?: boolean;
@@ -41,6 +43,12 @@ const DEFAULT_VALUES: Record<VariableType, PipelineVariable["value"]> = {
   model: null,
 };
 
+const SOURCE_BADGES: Record<VariableSource, string> = {
+  value: "const",
+  expression: "expr",
+  input: "input",
+};
+
 function nameProblem(name: string, taken: Set<string>): string | null {
   if (!name) return "Name is required.";
   if (!VARIABLE_NAME_PATTERN.test(name)) {
@@ -51,7 +59,8 @@ function nameProblem(name: string, taken: Set<string>): string | null {
   return null;
 }
 
-/** Names a variable is referenced by: other variables plus node config expressions. */
+/** Names a variable is referenced by: other variables, node config expressions,
+ * and the retrieval input node's accepted-arguments list. */
 function referenceSites(name: string, variables: PipelineVariable[], nodes: NodeLike[]): string[] {
   const sites: string[] = [];
   const pattern = new RegExp(`\\b${name}\\b`);
@@ -61,6 +70,13 @@ function referenceSites(name: string, variables: PipelineVariable[], nodes: Node
     }
   }
   for (const node of nodes) {
+    if (
+      node.type === RETRIEVAL_INPUT_TYPE &&
+      Array.isArray(node.config.arguments) &&
+      node.config.arguments.includes(name)
+    ) {
+      sites.push("the retrieval input node");
+    }
     for (const [key, value] of Object.entries(node.config)) {
       const source = expressionSource(value);
       if (source && pattern.test(source)) sites.push(`${node.type} · ${key}`);
@@ -77,11 +93,7 @@ export function VariablesPanel({
   disabled,
 }: VariablesPanelProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
-  const argumentsList = useMemo(() => declaredArguments(nodes), [nodes]);
-  const env = useMemo(
-    () => buildStaticEnvironment(argumentsList, variables),
-    [argumentsList, variables],
-  );
+  const env = useMemo(() => buildStaticEnvironment(variables), [variables]);
 
   const update = (index: number, patch: Partial<PipelineVariable>) => {
     onChange(variables.map((variable, i) => (i === index ? { ...variable, ...patch } : variable)));
@@ -89,17 +101,14 @@ export function VariablesPanel({
 
   const addVariable = () => {
     const base = "variable";
-    const taken = new Set([
-      ...variables.map((variable) => variable.name),
-      ...argumentsList.map((argument) => argument.name),
-    ]);
+    const taken = new Set(variables.map((variable) => variable.name));
     let name = base;
     let suffix = 1;
     while (taken.has(name)) {
       suffix += 1;
       name = `${base}_${suffix}`;
     }
-    onChange([...variables, { name, type: "integer", value: 1 }]);
+    onChange([...variables, { name, type: "integer", source: "value", value: 1 }]);
     setExpanded(name);
   };
 
@@ -109,30 +118,15 @@ export function VariablesPanel({
 
   return (
     <div className="mt-4 space-y-3">
-      {argumentsList.length > 0 ? (
-        <div className="space-y-1 rounded-2xl border border-hairline bg-surface p-3">
-          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">Arguments</p>
-          <ul className="space-y-0.5">
-            {argumentsList.map((argument) => (
-              <li key={argument.name} className="flex items-baseline justify-between gap-2">
-                <span className="font-mono text-xs text-body">{argument.name}</span>
-                <span className="font-mono text-[11px] text-meta">{argument.type}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-meta">Declared on the retrieval input node.</p>
-        </div>
-      ) : null}
-
       <ul className="space-y-2">
         {variables.map((variable, index) => {
-          const otherNames = new Set([
-            ...variables.filter((_, i) => i !== index).map((entry) => entry.name),
-            ...argumentsList.map((argument) => argument.name),
-          ]);
+          const otherNames = new Set(
+            variables.filter((_, i) => i !== index).map((entry) => entry.name),
+          );
           const problem =
             nameProblem(variable.name, otherNames) ?? env.problems.get(variable.name) ?? null;
           const isOpen = expanded === variable.name;
+          const source = variableSource(variable);
           return (
             <li
               key={index}
@@ -154,11 +148,21 @@ export function VariablesPanel({
                 }}
                 className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-2xl px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet"
               >
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-body">
-                  {variable.name || "—"}
+                <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                  <span className="truncate font-mono text-xs text-body">
+                    {variable.name || "—"}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-mono text-[10px] uppercase tracking-[0.2em]",
+                      source === "input" ? "text-accent-cyan" : "text-meta",
+                    )}
+                  >
+                    {SOURCE_BADGES[source]}
+                  </span>
                 </span>
                 <span className="font-mono text-[11px] text-meta">
-                  {variable.expression != null
+                  {source === "expression"
                     ? `= ${formatPreviewValue(env.values.get(variable.name))}`
                     : formatPreviewValue(env.values.get(variable.name))}
                 </span>
@@ -200,6 +204,32 @@ type VariableEditorProps = {
   onRemove: () => void;
 };
 
+/** The patch a type switch applies: reset the value, keep what still fits. */
+function typePatch(variable: PipelineVariable, type: VariableType): Partial<PipelineVariable> {
+  const source = variableSource(variable);
+  return {
+    type,
+    value: source === "expression" ? null : DEFAULT_VALUES[type],
+    expression: type === "model" ? null : variable.expression,
+    source: type === "model" && source !== "value" ? "value" : variable.source,
+    choices: type === "enum" ? (variable.choices ?? []) : undefined,
+    minimum: undefined,
+    maximum: undefined,
+  };
+}
+
+/** The patch a source switch applies: swap the value origin, keep the type. */
+function sourcePatch(variable: PipelineVariable, next: VariableSource): Partial<PipelineVariable> {
+  return {
+    source: next,
+    expression: next === "expression" ? "" : null,
+    value: next === "expression" ? null : DEFAULT_VALUES[variable.type],
+    expose_to_llm: next === "input" ? (variable.expose_to_llm ?? false) : undefined,
+    minimum: next === "input" ? variable.minimum : undefined,
+    maximum: next === "input" ? variable.maximum : undefined,
+  };
+}
+
 function VariableEditor({
   variable,
   problem,
@@ -210,22 +240,7 @@ function VariableEditor({
   onPatch,
   onRemove,
 }: VariableEditorProps) {
-  const isDerived = variable.expression != null;
-  const modelValue =
-    variable.type === "model" && variable.value && typeof variable.value === "object"
-      ? variable.value
-      : null;
-
-  const setType = (type: VariableType) => {
-    onPatch({
-      type,
-      value: isDerived ? null : DEFAULT_VALUES[type],
-      expression: type === "model" ? null : variable.expression,
-      choices: type === "enum" ? (variable.choices ?? []) : undefined,
-      minimum: undefined,
-      maximum: undefined,
-    });
-  };
+  const source = variableSource(variable);
 
   return (
     <div className="space-y-3 border-t border-hairline px-3 py-3">
@@ -244,60 +259,38 @@ function VariableEditor({
             options={VARIABLE_TYPE_OPTIONS}
             placeholder="Type"
             disabled={disabled}
-            onValueChange={(value) => setType(value as VariableType)}
+            onValueChange={(value) => onPatch(typePatch(variable, value as VariableType))}
           />
         </Field>
         {variable.type !== "model" ? (
           <Field label="Source">
             <CustomSelect
-              value={isDerived ? "expression" : "value"}
+              value={source}
               options={[
                 { value: "value", label: "Value" },
                 { value: "expression", label: "Expression" },
+                { value: "input", label: "Input" },
               ]}
               placeholder="Source"
               disabled={disabled}
-              onValueChange={(mode) =>
-                onPatch(
-                  mode === "expression"
-                    ? { expression: "", value: null }
-                    : { expression: null, value: DEFAULT_VALUES[variable.type] },
-                )
-              }
+              onValueChange={(mode) => {
+                if (mode !== source) onPatch(sourcePatch(variable, mode as VariableSource));
+              }}
             />
           </Field>
         ) : null}
       </div>
 
-      {isDerived && variable.type !== "model" ? (
-        <ExpressionInput
-          aria-label={`Expression for ${variable.name}`}
-          value={variable.expression ?? ""}
-          onChange={(expression) => onPatch({ expression })}
-          env={env}
-          expectedType={variable.type === "enum" ? "string" : variable.type}
-        />
-      ) : variable.type === "model" ? (
-        <Field label="Model">
-          <CustomSelect
-            value={modelValue ? `${modelValue.connection_id}::${modelValue.model_name}` : ""}
-            options={modelOptions.map((model) => ({
-              value: `${model.connection_id}::${model.id}`,
-              label: `${model.name} — ${model.connection_label}`,
-            }))}
-            placeholder="Pick a model"
-            disabled={disabled}
-            onValueChange={(encoded) => {
-              const [connectionId, ...rest] = encoded.split("::");
-              onPatch({ value: { connection_id: connectionId, model_name: rest.join("::") } });
-            }}
-          />
-        </Field>
-      ) : (
-        <ConstantValueField variable={variable} disabled={disabled} onPatch={onPatch} />
-      )}
+      <VariableValueEditor
+        variable={variable}
+        source={source}
+        env={env}
+        modelOptions={modelOptions}
+        disabled={disabled}
+        onPatch={onPatch}
+      />
 
-      {variable.type === "enum" ? (
+      {variable.type === "enum" && source !== "expression" ? (
         <Field label="Choices" hint="Comma-separated.">
           <TextInput
             value={(variable.choices ?? []).join(", ")}
@@ -333,75 +326,62 @@ function VariableEditor({
       </div>
       {referencedBy.length > 0 ? (
         <p className="text-xs text-data-neg">
-          Deleting breaks the expressions above until they are updated.
+          Deleting breaks the references above until they are updated.
         </p>
       ) : null}
     </div>
   );
 }
 
-function ConstantValueField({
+/** The value control for one variable, dispatched on its source and type. */
+function VariableValueEditor({
   variable,
+  source,
+  env,
+  modelOptions,
   disabled,
   onPatch,
 }: {
   variable: PipelineVariable;
+  source: VariableSource;
+  env: ReturnType<typeof buildStaticEnvironment>;
+  modelOptions: CatalogModel[];
   disabled?: boolean;
   onPatch: (patch: Partial<PipelineVariable>) => void;
 }) {
-  if (variable.type === "boolean") {
-    return (
-      <Field label="Value">
-        <CustomSelect
-          value={variable.value === true ? "true" : "false"}
-          options={[
-            { value: "true", label: "true" },
-            { value: "false", label: "false" },
-          ]}
-          placeholder="Value"
-          disabled={disabled}
-          onValueChange={(value) => onPatch({ value: value === "true" })}
-        />
-      </Field>
-    );
+  if (source === "input") {
+    return <InputVariableFields variable={variable} disabled={disabled} onPatch={onPatch} />;
   }
-  if (variable.type === "enum") {
+  if (source === "expression" && variable.type !== "model") {
     return (
-      <Field label="Value">
-        <CustomSelect
-          value={typeof variable.value === "string" ? variable.value : ""}
-          options={(variable.choices ?? []).map((choice) => ({ value: choice, label: choice }))}
-          placeholder="Pick a choice"
-          disabled={disabled}
-          onValueChange={(value) => onPatch({ value })}
-        />
-      </Field>
-    );
-  }
-  const numeric = variable.type === "integer" || variable.type === "number";
-  return (
-    <Field label="Value">
-      <TextInput
-        type={numeric ? "number" : "text"}
-        step={variable.type === "integer" ? 1 : undefined}
-        value={variable.value == null ? "" : String(variable.value)}
-        disabled={disabled}
-        className={numeric ? "font-mono text-[13px]" : undefined}
-        onChange={(event) => {
-          if (!numeric) {
-            onPatch({ value: event.target.value });
-            return;
-          }
-          const raw = event.target.value;
-          if (raw === "") {
-            onPatch({ value: null });
-            return;
-          }
-          const parsed = Number(raw);
-          if (Number.isNaN(parsed)) return;
-          onPatch({ value: variable.type === "integer" ? Math.trunc(parsed) : parsed });
-        }}
+      <ExpressionInput
+        aria-label={`Expression for ${variable.name}`}
+        value={variable.expression ?? ""}
+        onChange={(expression) => onPatch({ expression })}
+        env={env}
+        expectedType={variable.type === "enum" ? "string" : variable.type}
       />
-    </Field>
-  );
+    );
+  }
+  if (variable.type === "model") {
+    const modelValue = variable.value && typeof variable.value === "object" ? variable.value : null;
+    return (
+      <Field label="Model">
+        <CustomSelect
+          value={modelValue ? `${modelValue.connection_id}::${modelValue.model_name}` : ""}
+          options={modelOptions.map((model) => ({
+            value: `${model.connection_id}::${model.id}`,
+            label: `${model.name} — ${model.connection_label}`,
+          }))}
+          placeholder="Pick a model"
+          disabled={disabled}
+          onValueChange={(encoded) => {
+            const [connectionId, ...rest] = encoded.split("::");
+            onPatch({ value: { connection_id: connectionId, model_name: rest.join("::") } });
+          }}
+        />
+      </Field>
+    );
+  }
+  return <ConstantValueField variable={variable} disabled={disabled} onPatch={onPatch} />;
 }

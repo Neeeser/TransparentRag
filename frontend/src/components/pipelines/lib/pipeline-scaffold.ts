@@ -5,12 +5,7 @@
  * holds one responsibility (and stays under the size cap).
  */
 
-import type {
-  IndexBackend,
-  PipelineDefinition,
-  PipelineInputArgument,
-  PipelineKind,
-} from "@/lib/types";
+import type { IndexBackend, PipelineDefinition, PipelineKind, PipelineVariable } from "@/lib/types";
 
 const PORT_SOURCE = "source";
 const PORT_DOCUMENT = "document";
@@ -25,6 +20,7 @@ const NODE_EMBED_QUERY = "embed-query";
 const NODE_VECTOR_RETRIEVER = "vector-retriever";
 const NODE_BM25_RETRIEVER = "bm25-retriever";
 const NODE_FUSE_RESULTS = "fuse-results";
+const NODE_LIMIT_RESULTS = "limit-results";
 const NODE_RETRIEVAL_OUTPUT = "retrieval-output";
 const NODE_INGEST_INPUT = "ingest-input";
 const NODE_PARSE_DOCUMENT = "parse-document";
@@ -40,6 +36,7 @@ export const RETRIEVER_NODE_TYPE = "retriever.vector";
 export const BM25_INDEXER_NODE_TYPE = "indexer.bm25";
 export const BM25_RETRIEVER_NODE_TYPE = "retriever.bm25";
 export const RRF_FUSION_NODE_TYPE = "fusion.rrf";
+export const LIMIT_NODE_TYPE = "limit.top_n";
 
 // Scaffolds deliberately carry no node positions: the shared auto-layout
 // (`layoutPipelineNodes`) places any definition whose nodes lack saved
@@ -53,15 +50,17 @@ const DEFAULT_INDEX_NAME_MAX_LENGTH = 45;
 const BM25_INDEX_SUFFIX = "-bm25";
 
 // Mirrors the backend scaffold (`app/pipelines/defaults.py`): retrieval
-// pipelines declare the historical top_k tool contract explicitly, so the
-// search page and the chat tool schema see the same argument whether the
-// pipeline was scaffolded by the wizard or by the backend.
-const DEFAULT_RETRIEVAL_ARGUMENTS: PipelineInputArgument[] = [
+// pipelines declare the historical top_k tool contract as an input variable
+// (the retrieval input node accepts it by name), so the search page and the
+// chat tool schema see the same argument whether the pipeline was scaffolded
+// by the wizard or by the backend.
+const DEFAULT_RETRIEVAL_VARIABLES: PipelineVariable[] = [
   {
     name: "top_k",
     type: "integer",
+    source: "input",
     description: "How many chunks to retrieve.",
-    default: 5,
+    value: 5,
     minimum: 1,
     maximum: 10,
     expose_to_llm: true,
@@ -131,7 +130,7 @@ export const buildDefaultDefinition = (
         id: NODE_QUERY_INPUT,
         type: "retrieval.input",
         name: "Retrieval Input",
-        config: { arguments: DEFAULT_RETRIEVAL_ARGUMENTS },
+        config: { arguments: ["top_k"] },
       },
       {
         id: NODE_EMBED_QUERY,
@@ -182,6 +181,14 @@ export const buildDefaultDefinition = (
           name: "RRF Fusion",
           config: {},
         },
+        // Fusion never cuts; the Top-N node is the explicit cut back to the
+        // requested top_k (its unset-config default).
+        {
+          id: NODE_LIMIT_RESULTS,
+          type: LIMIT_NODE_TYPE,
+          name: "Top-N",
+          config: {},
+        },
       );
       edges.push(
         {
@@ -206,8 +213,15 @@ export const buildDefaultDefinition = (
           target_port: PORT_RESULTS,
         },
         {
-          id: "edge-fusion-output",
+          id: "edge-fusion-limit",
           source: NODE_FUSE_RESULTS,
+          target: NODE_LIMIT_RESULTS,
+          source_port: PORT_RESULTS,
+          target_port: PORT_RESULTS,
+        },
+        {
+          id: "edge-limit-output",
+          source: NODE_LIMIT_RESULTS,
           target: NODE_RETRIEVAL_OUTPUT,
           source_port: PORT_RESULTS,
           target_port: PORT_RESULTS,
@@ -222,7 +236,12 @@ export const buildDefaultDefinition = (
         target_port: PORT_RESULTS,
       });
     }
-    return { nodes, edges, viewport: {} };
+    return {
+      nodes,
+      edges,
+      viewport: {},
+      variables: DEFAULT_RETRIEVAL_VARIABLES.map((variable) => ({ ...variable })),
+    };
   }
 
   const nodes: PipelineDefinition["nodes"] = [

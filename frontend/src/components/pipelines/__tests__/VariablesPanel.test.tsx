@@ -6,10 +6,17 @@ import { VariablesPanel } from "../VariablesPanel";
 
 import type { PipelineVariable } from "@/lib/types";
 
+const TOP_K: PipelineVariable = {
+  name: "top_k",
+  type: "integer",
+  source: "input",
+  value: 5,
+};
+
 const INPUT_NODE = {
   type: "retrieval.input",
   config: {
-    arguments: [{ name: "top_k", type: "integer", default: 5 }],
+    arguments: ["top_k"],
   },
 };
 
@@ -31,10 +38,20 @@ const renderPanel = (
 };
 
 describe("VariablesPanel", () => {
-  it("lists declared arguments from the retrieval input node", () => {
-    renderPanel([]);
+  it("shows an input variable with its badge and accepted-by reference", async () => {
+    renderPanel([TOP_K]);
     expect(screen.getByText("top_k")).toBeInTheDocument();
-    expect(screen.getByText("Declared on the retrieval input node.")).toBeInTheDocument();
+    expect(screen.getByText("input")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("top_k"));
+    expect(screen.getByText(/Used by the retrieval input node/)).toBeInTheDocument();
+  });
+
+  it("edits an input variable's caller contract in place", async () => {
+    const onChange = renderPanel([TOP_K]);
+    await userEvent.click(screen.getByText("top_k"));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Expose to model" }));
+    const next = onChange.mock.calls.at(-1)?.[0] as PipelineVariable[];
+    expect(next[0].expose_to_llm).toBe(true);
   });
 
   it("adds a variable with a non-colliding name", async () => {
@@ -45,8 +62,8 @@ describe("VariablesPanel", () => {
     expect(next[1].name).toBe("variable_2");
   });
 
-  it("previews a derived variable's value from argument defaults", () => {
-    renderPanel([{ name: "candidates", type: "integer", expression: "top_k * 2" }]);
+  it("previews a derived variable's value from input defaults", () => {
+    renderPanel([TOP_K, { name: "candidates", type: "integer", expression: "top_k * 2" }]);
     expect(screen.getByText("= 10")).toBeInTheDocument();
   });
 

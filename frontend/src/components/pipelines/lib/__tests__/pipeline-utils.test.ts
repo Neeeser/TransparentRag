@@ -372,14 +372,20 @@ describe("hybrid BM25 scaffolding", () => {
     expect(bm25Retriever?.config).toEqual({ backend: "pgvector", index_name: "docs-bm25" });
     const fusion = retrieval.nodes.find((node) => node.type === "fusion.rrf");
     expect(fusion).toBeDefined();
-    // Both retriever branches feed the fusion node, which feeds the output.
+    // Both retriever branches feed the fusion node, which feeds the Top-N
+    // cut (fusion never truncates), which feeds the output.
     const fusionTargets = retrieval.edges.filter((edge) => edge.target === fusion?.id);
     expect(fusionTargets.map((edge) => edge.source).sort()).toEqual([
       "bm25-retriever",
       "vector-retriever",
     ]);
+    const limit = retrieval.nodes.find((node) => node.type === "limit.top_n");
+    expect(limit).toBeDefined();
     expect(retrieval.edges).toContainEqual(
-      expect.objectContaining({ source: fusion?.id, target: "retrieval-output" }),
+      expect.objectContaining({ source: fusion?.id, target: limit?.id }),
+    );
+    expect(retrieval.edges).toContainEqual(
+      expect.objectContaining({ source: limit?.id, target: "retrieval-output" }),
     );
   });
 

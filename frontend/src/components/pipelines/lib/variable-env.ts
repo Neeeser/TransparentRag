@@ -1,16 +1,17 @@
 /**
  * Static variable environments for the editor, mirroring the backend's
  * `default_environment` semantics (`app/pipelines/resolution.py`): the
- * built-in `query`, every declared input argument (default or a
- * constraint-respecting placeholder), and every panel variable (constants
- * validated, derived expressions evaluated in dependency order). Powers live
- * expression type checks and value previews before anything is saved.
+ * built-in `query`, every input-source variable (default or a
+ * constraint-respecting placeholder — tainted, since callers supply them),
+ * and every other variable (constants validated, derived expressions
+ * evaluated in dependency order). Powers live expression type checks and
+ * value previews before anything is saved.
  */
 
 import { checkType, evaluate, parse, references, ExpressionError } from "@/lib/expressions";
 
 import type { ExprType, ExprValue } from "@/lib/expressions";
-import type { PipelineInputArgument, PipelineVariable, VariableType } from "@/lib/types";
+import type { PipelineVariable, VariableType } from "@/lib/types";
 
 export const QUERY_VARIABLE = "query";
 export const RETRIEVAL_INPUT_TYPE = "retrieval.input";
@@ -45,24 +46,33 @@ export function exprTypeOf(type: VariableType): ExprType {
 
 type NodeLike = { type: string; config: Record<string, unknown> };
 
-/** Read the declared input arguments off retrieval.input node configs. */
-export function declaredArguments(nodes: NodeLike[]): PipelineInputArgument[] {
-  const collected: PipelineInputArgument[] = [];
+/** The variable's effective source (older payloads may omit the field). */
+export function variableSource(variable: PipelineVariable): "value" | "expression" | "input" {
+  if (variable.source) return variable.source;
+  return variable.expression != null ? "expression" : "value";
+}
+
+/** The input-source variables, in declaration order. */
+export function inputVariables(variables: PipelineVariable[]): PipelineVariable[] {
+  return variables.filter((variable) => variableSource(variable) === "input");
+}
+
+/** The variable names the retrieval.input node(s) accept from callers. */
+export function acceptedArgumentNames(nodes: NodeLike[]): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
   for (const node of nodes) {
     if (node.type !== RETRIEVAL_INPUT_TYPE) continue;
     const raw = node.config.arguments;
     if (!Array.isArray(raw)) continue;
     for (const entry of raw) {
-      if (
-        entry &&
-        typeof entry === "object" &&
-        typeof (entry as { name?: unknown }).name === "string"
-      ) {
-        collected.push(entry as unknown as PipelineInputArgument);
+      if (typeof entry === "string" && !seen.has(entry)) {
+        seen.add(entry);
+        names.push(entry);
       }
     }
   }
-  return collected;
+  return names;
 }
 
 export interface StaticEnvironment {
@@ -72,15 +82,23 @@ export interface StaticEnvironment {
   tainted: Set<string>;
   /** Per-variable problems found while building the environment. */
   problems: Map<string, string>;
+  /** Each name's source — powers the suggestion dropdown's badges. */
+  sources: Map<string, "value" | "expression" | "input">;
 }
 
-function argumentPlaceholder(argument: PipelineInputArgument): ExprValue {
-  if (argument.default !== null && argument.default !== undefined) return argument.default;
-  if (argument.type === "integer")
-    return argument.minimum != null ? Math.trunc(argument.minimum) : 1;
-  if (argument.type === "number") return argument.minimum ?? 1;
-  if (argument.type === "boolean") return false;
-  if (argument.type === "enum" && argument.choices?.length) return argument.choices[0];
+function inputPlaceholder(variable: PipelineVariable): ExprValue {
+  if (
+    variable.value !== null &&
+    variable.value !== undefined &&
+    typeof variable.value !== "object"
+  ) {
+    return variable.value;
+  }
+  if (variable.type === "integer")
+    return variable.minimum != null ? Math.trunc(variable.minimum) : 1;
+  if (variable.type === "number") return variable.minimum ?? 1;
+  if (variable.type === "boolean") return false;
+  if (variable.type === "enum" && variable.choices?.length) return variable.choices[0];
   return "";
 }
 
@@ -119,31 +137,33 @@ function evaluationOrder(
 }
 
 /**
- * Build the static environment from declared arguments and panel variables.
- * Never throws: per-variable failures land in `problems` so the panel can
- * annotate the offending row while the rest of the environment stays usable.
+ * Build the static environment from the definition's variables (input-source
+ * ones included). Never throws: per-variable failures land in `problems` so
+ * the panel can annotate the offending row while the rest of the environment
+ * stays usable.
  */
-export function buildStaticEnvironment(
-  argumentsList: PipelineInputArgument[],
-  variables: PipelineVariable[],
-): StaticEnvironment {
+export function buildStaticEnvironment(variables: PipelineVariable[]): StaticEnvironment {
   const types = new Map<string, ExprType>([[QUERY_VARIABLE, "string"]]);
   const values = new Map<string, ExprValue>([[QUERY_VARIABLE, ""]]);
   const tainted = new Set<string>([QUERY_VARIABLE]);
   const problems = new Map<string, string>();
+  const sources = new Map<string, "value" | "expression" | "input">([[QUERY_VARIABLE, "input"]]);
 
-  for (const argument of argumentsList) {
-    if (types.has(argument.name)) continue;
-    types.set(argument.name, exprTypeOf(argument.type));
-    values.set(argument.name, argumentPlaceholder(argument));
-    tainted.add(argument.name);
+  for (const variable of inputVariables(variables)) {
+    if (types.has(variable.name)) continue;
+    types.set(variable.name, exprTypeOf(variable.type));
+    values.set(variable.name, inputPlaceholder(variable));
+    tainted.add(variable.name);
+    sources.set(variable.name, "input");
   }
 
   const declared = new Map<string, PipelineVariable>();
   for (const variable of variables) {
+    if (variableSource(variable) === "input") continue;
     if (types.has(variable.name) || declared.has(variable.name)) continue;
     declared.set(variable.name, variable);
     types.set(variable.name, exprTypeOf(variable.type));
+    sources.set(variable.name, variableSource(variable));
   }
 
   const parsed = new Map<string, ReturnType<typeof parse>>();
@@ -178,7 +198,7 @@ export function buildStaticEnvironment(
     }
   }
 
-  return { types, values, tainted, problems };
+  return { types, values, tainted, problems, sources };
 }
 
 /** Format an evaluated value for a compact preview. */
