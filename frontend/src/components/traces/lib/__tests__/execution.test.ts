@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildExecutionSections, initialExecutionNodeId } from "@/components/traces/lib/execution";
+import {
+  buildExecutionSections,
+  initialExecutionNodeId,
+  traceQueryText,
+} from "@/components/traces/lib/execution";
 import { makeNodeRunTrace } from "@/test/fixtures";
 
 import type { TraceGraph, TraceStage, TraceStep } from "@/components/traces/trace-graph";
@@ -12,6 +16,8 @@ const RETRIEVAL_STAGE: TraceStage = "retrieval";
 const RETRIEVAL_INPUT_ID = "retrieval::input";
 const ORIGIN_INPUT_ID = "origin::input";
 const RETRIEVAL_DENSE_ID = "retrieval::dense";
+const RETRIEVAL_INPUT_NAME = "Retrieval input";
+const SEMANTIC_RETRIEVER_NAME = "Semantic retriever";
 
 const itemList = (ids: string[]): PipelineNodeSummaryValue => ({
   label: "Match items",
@@ -55,8 +61,8 @@ describe("buildExecutionSections", () => {
       step(ORIGIN_INPUT_ID, "Ingestion input", ORIGIN_STAGE),
       step("origin::parser", "Markdown parser", ORIGIN_STAGE),
       step("origin::chunk", "Token chunker", ORIGIN_STAGE, [itemList([FOCUSED_ID])]),
-      step(RETRIEVAL_INPUT_ID, "Retrieval input", RETRIEVAL_STAGE),
-      step(RETRIEVAL_DENSE_ID, "Semantic retriever", RETRIEVAL_STAGE, [
+      step(RETRIEVAL_INPUT_ID, RETRIEVAL_INPUT_NAME, RETRIEVAL_STAGE),
+      step(RETRIEVAL_DENSE_ID, SEMANTIC_RETRIEVER_NAME, RETRIEVAL_STAGE, [
         itemList(["other", FOCUSED_ID]),
       ]),
     ]);
@@ -81,8 +87,8 @@ describe("initialExecutionNodeId", () => {
   it("starts a focused end-to-end trace at retrieval input", () => {
     const trace = graph([
       step(ORIGIN_INPUT_ID, "Ingestion input", ORIGIN_STAGE),
-      step(RETRIEVAL_INPUT_ID, "Retrieval input", RETRIEVAL_STAGE),
-      step(RETRIEVAL_DENSE_ID, "Semantic retriever", RETRIEVAL_STAGE),
+      step(RETRIEVAL_INPUT_ID, RETRIEVAL_INPUT_NAME, RETRIEVAL_STAGE),
+      step(RETRIEVAL_DENSE_ID, SEMANTIC_RETRIEVER_NAME, RETRIEVAL_STAGE),
     ]);
 
     expect(initialExecutionNodeId(trace, true)).toBe(RETRIEVAL_INPUT_ID);
@@ -96,5 +102,23 @@ describe("initialExecutionNodeId", () => {
     ]);
 
     expect(initialExecutionNodeId(trace, true)).toBe("embed");
+  });
+});
+
+describe("traceQueryText", () => {
+  it("keeps the retrieval query available throughout focused trace inspection", () => {
+    const query = "Which provider handles embeddings?";
+    const trace = graph([
+      step(RETRIEVAL_INPUT_ID, RETRIEVAL_INPUT_NAME, RETRIEVAL_STAGE, [
+        {
+          label: "Query",
+          kind: "text",
+          value: { preview: query, full: query, length: query.length },
+        },
+      ]),
+      step(RETRIEVAL_DENSE_ID, SEMANTIC_RETRIEVER_NAME, RETRIEVAL_STAGE),
+    ]);
+
+    expect(traceQueryText(trace)).toBe(query);
   });
 });

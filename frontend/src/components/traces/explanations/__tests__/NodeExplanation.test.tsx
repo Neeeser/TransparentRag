@@ -196,7 +196,7 @@ describe("NodeExplanation", () => {
     expect(screen.getAllByText("Chunk 1")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Open chunk" }));
     expect(onOpenArtifact).toHaveBeenCalledWith(firstContext);
-    fireEvent.click(screen.getByRole("button", { name: "Trace this result" }));
+    fireEvent.click(screen.getByRole("button", { name: "Trace result guide.md · Chunk 2" }));
     expect(onFocusItem).toHaveBeenCalledWith("doc:1");
   });
 
@@ -269,7 +269,10 @@ describe("NodeExplanation", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Inspect result doc:2" }));
+    expect(screen.getByRole("button", { name: "Inspect result doc:2" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(screen.getByText("Focused text for pg_search ranking")).toBeInTheDocument();
     expect(screen.getByText("Vector similarity · 0.7000")).toBeInTheDocument();
     expect(screen.getByText("BM25 score · 12.400")).toBeInTheDocument();

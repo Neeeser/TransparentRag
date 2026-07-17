@@ -105,7 +105,15 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
                 {minScorePct === 0 ? "off" : `${minScorePct}% top`}
               </span>
             </label>
-            <span className="ml-auto">
+            <span className="ml-auto flex items-center gap-3">
+              {search.running ? (
+                <span
+                  role="status"
+                  className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent-cyan"
+                >
+                  Running query…
+                </span>
+              ) : null}
               <Button type="submit" loading={search.running} disabled={!search.query.trim()}>
                 Run query
               </Button>
@@ -148,7 +156,7 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
             {search.result.query_event_id && (
               <span className="ml-auto">
                 <Button variant="secondary" size="sm" onClick={() => openTrace()}>
-                  View retrieval trace
+                  Trace query
                 </Button>
               </span>
             )}

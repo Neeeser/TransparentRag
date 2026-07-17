@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, FileText } from "lucide-react";
+import { FileText, LocateFixed } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatTracePreview } from "@/components/traces/explanations/summary-data";
@@ -73,13 +73,19 @@ export function ResultList({
           const selected = item.id === inspectedItemId;
           const context = contextById.get(item.id);
           const preview = context?.text ?? previews.get(item.id);
+          const baseTitle = context?.filename ?? `Result ${index + 1}`;
+          const chunkTitle =
+            context?.chunk_index !== null && context?.chunk_index !== undefined
+              ? ` · Chunk ${context.chunk_index + 1}`
+              : "";
+          const title = `${baseTitle}${chunkTitle}`;
           return (
             <li
               key={item.id}
               ref={focused ? focusedRef : undefined}
               aria-current={focused ? "true" : undefined}
               className={cn(
-                "overflow-hidden rounded-lg border transition",
+                "relative overflow-hidden rounded-lg border transition",
                 focused
                   ? "border-accent-cyan/60 bg-accent-cyan/10"
                   : selected
@@ -92,17 +98,14 @@ export function ResultList({
                 aria-label={`Inspect result ${item.id}`}
                 aria-pressed={selected}
                 onClick={() => setInspectedItemId(item.id)}
-                className="w-full px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-violet"
+                className="w-full px-2.5 py-2 pr-20 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-violet"
               >
                 <span className="flex items-center gap-2">
                   <span className="w-7 shrink-0 font-mono text-[10px] text-muted">
                     #{index + 1}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-xs font-medium text-primary">
-                    {context?.filename ?? `Result ${index + 1}`}
-                    {context?.chunk_index !== null && context?.chunk_index !== undefined
-                      ? ` · Chunk ${context.chunk_index + 1}`
-                      : ""}
+                    {title}
                   </span>
                   {typeof item.score === "number" ? (
                     <span className="shrink-0 font-mono text-[10px] text-accent-cyan">
@@ -116,25 +119,29 @@ export function ResultList({
                   </span>
                 ) : null}
               </button>
-              {selected && (context || (onFocusItem && item.id !== focusedItemId)) ? (
+              {onFocusItem && !focused ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Trace result ${title}`}
+                  onClick={() => onFocusItem(item.id)}
+                  className="absolute right-1.5 top-1.5 h-7 gap-1 px-2 text-[10px]"
+                >
+                  <LocateFixed className="h-3 w-3" aria-hidden />
+                  Trace result
+                </Button>
+              ) : null}
+              {selected && context && onOpenArtifact ? (
                 <div className="flex flex-wrap justify-end gap-2 border-t border-hairline px-2.5 py-2">
-                  {context && onOpenArtifact ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onOpenArtifact(context)}
-                      className="gap-1.5"
-                    >
-                      <FileText className="h-3.5 w-3.5" aria-hidden />
-                      Open chunk
-                    </Button>
-                  ) : null}
-                  {onFocusItem && item.id !== focusedItemId ? (
-                    <Button size="sm" onClick={() => onFocusItem(item.id)} className="gap-1.5">
-                      Trace this result
-                      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                    </Button>
-                  ) : null}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onOpenArtifact(context)}
+                    className="gap-1.5"
+                  >
+                    <FileText className="h-3.5 w-3.5" aria-hidden />
+                    Open chunk
+                  </Button>
                 </div>
               ) : null}
             </li>
