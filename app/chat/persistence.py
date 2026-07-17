@@ -163,6 +163,13 @@ def record_message(context: RecordContext, record: MessageRecord) -> models.Chat
     return message
 
 
+def touch_session(context: RecordContext, session_model: models.ChatSession) -> None:
+    """Mark a session changed after recording or editing its messages."""
+    session_model.updated_at = utc_now()
+    context.session.add(session_model)
+    context.session.flush()
+
+
 def record_tool_call_assistant_message(
     *,
     context: RecordContext,
@@ -183,12 +190,7 @@ def record_tool_call_assistant_message(
             tool=ToolCallRecord(payload=tool_call_payload),
         ),
     )
-    # session_model's own columns don't otherwise change here (only the new
-    # message row does) -- this manual touch is what makes the row dirty so
-    # its updated_at reflects the new message; onupdate alone wouldn't fire.
-    session_model.updated_at = utc_now()
-    context.session.add(session_model)
-    context.session.flush()
+    touch_session(context, session_model)
 
 
 def record_error_message(
@@ -206,9 +208,7 @@ def record_error_message(
             content=content,
         ),
     )
-    session_model.updated_at = utc_now()
-    context.session.add(session_model)
-    context.session.flush()
+    touch_session(context, session_model)
 
 
 def record_partial_assistant_message(
@@ -237,11 +237,7 @@ def record_partial_assistant_message(
             reasoning=reasoning_payload,
         ),
     )
-    # Same reasoning as record_tool_call_assistant_message above: nothing else
-    # on session_model changes in this path, so this touch is load-bearing.
-    session_model.updated_at = utc_now()
-    context.session.add(session_model)
-    context.session.flush()
+    touch_session(context, session_model)
 
 
 # --- Response conversion ----------------------------------------------------
@@ -279,11 +275,7 @@ def ensure_session(request: SessionRequest) -> models.ChatSession:
         existing = request.chat_repo.get_session(payload.session_id, user_id=request.user.id)
         if existing:
             return existing
-        # The id isn't owned by this user. If it belongs to *another* user,
-        # reject as not-found rather than attempting to create a session under a
-        # colliding primary key (which surfaced as an opaque IntegrityError/500
-        # and is a cross-user access attempt). A genuinely unused client-supplied
-        # id still creates a new session below.
+        # Reject a cross-user id as not-found; a genuinely unused id creates a session below.
         if request.chat_repo.get_session(payload.session_id) is not None:
             raise InvalidInputError("Chat session not found.")
         return create_session(request=request, session_id=payload.session_id)
