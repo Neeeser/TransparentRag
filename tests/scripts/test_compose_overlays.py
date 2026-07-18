@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 BASE_COMPOSE = ROOT / "docker-compose.yml"
 README = ROOT / "README.md"
+DOCKER_SETUPS = ROOT / "docs/docker-setups.md"
 OVERLAYS = {
     "ollama": ROOT / "deploy/compose/ollama.yml",
     "tei-embedding": ROOT / "deploy/compose/tei-embedding.yml",
@@ -57,6 +58,14 @@ def _render(overlays: Iterable[str]) -> dict[str, object]:
 def test_readme_quick_start_compose_matches_root_compose_file() -> None:
     """The standalone quick-start stack must remain an exact copy of the root file."""
     assert _read_quick_start_compose() == BASE_COMPOSE.read_text()
+
+
+def test_arm64_example_uses_the_published_tei_image_tag() -> None:
+    """The ARM example must name the GHCR tag that can actually be pulled."""
+    guide = DOCKER_SETUPS.read_text()
+
+    assert "cpu-arm64-latest" in guide
+    assert "text-embeddings-inference:cpu-arm64-1.9" not in guide
 
 
 @pytest.mark.parametrize("overlays", COMBINATIONS)

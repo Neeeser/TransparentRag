@@ -85,10 +85,14 @@ required task. The model weights are cached in the named volume for the service.
 For example, set values for one command without creating an environment file:
 
 ```bash
-TEI_EMBEDDING_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9 \
+TEI_EMBEDDING_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest \
 TEI_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B \
 docker compose -f docker-compose.yml -f deploy/compose/tei-embedding.yml up -d
 ```
+
+The ARM64 CPU image uses a rolling tag because GHCR does not publish the
+versioned `cpu-arm64-1.9` tag. Pin the resolved image digest for a reproducible
+deployment.
 
 For a GPU image, device access and runtime configuration depend on the host and
 selected TEI image. Follow the image provider's hardware requirements before
