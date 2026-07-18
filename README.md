@@ -134,6 +134,9 @@ The Compose file follows the current release through the `latest` image tag. For
 a reproducible deployment, replace `latest` with a version from the
 [releases page](https://github.com/Neeeser/Ragworks/releases).
 
+For optional Ollama and Text Embeddings Inference services, see the [Docker
+deployment setups](docs/docker-setups.md).
+
 ## 🔎 How Ragworks
 
 **A Ragworks pipeline is a directed graph.** Nodes represent parsing, chunking,

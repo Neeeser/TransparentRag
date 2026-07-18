@@ -1,0 +1,11 @@
+services:
+  tei-embedding:
+    image: ${TEI_EMBEDDING_IMAGE:-ghcr.io/huggingface/text-embeddings-inference:cpu-1.9}
+    command:
+      - --model-id
+      - ${TEI_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+    volumes:
+      - tei-embedding-data:/data
+
+volumes:
+  tei-embedding-data:

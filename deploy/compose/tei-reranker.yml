@@ -1,0 +1,11 @@
+services:
+  tei-reranker:
+    image: ${TEI_RERANKER_IMAGE:-ghcr.io/huggingface/text-embeddings-inference:cpu-1.9}
+    command:
+      - --model-id
+      - ${TEI_RERANKER_MODEL:-BAAI/bge-reranker-base}
+    volumes:
+      - tei-reranker-data:/data
+
+volumes:
+  tei-reranker-data:
