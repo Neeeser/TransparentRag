@@ -52,16 +52,11 @@ def _definition(
 
 
 def _issues(definition: PipelineDefinition) -> list[str]:
-    return [
-        issue.message for issue in collect_variable_issues(definition, default_registry())
-    ]
+    return [issue.message for issue in collect_variable_issues(definition, default_registry())]
 
 
 def _codes(definition: PipelineDefinition) -> set[str]:
-    return {
-        issue.code or ""
-        for issue in collect_variable_issues(definition, default_registry())
-    }
+    return {issue.code or "" for issue in collect_variable_issues(definition, default_registry())}
 
 
 class TestDeclarations:
@@ -96,9 +91,7 @@ class TestDeclarations:
 
     def test_duplicate_across_arguments_and_variables_flagged(self) -> None:
         definition = _definition(
-            arguments=[
-                PipelineInputArgument(name="top_k", type=VariableType.INTEGER, default=5)
-            ],
+            arguments=[PipelineInputArgument(name="top_k", type=VariableType.INTEGER, default=5)],
             variables=[PipelineVariable(name="top_k", type=VariableType.INTEGER, value=1)],
         )
         assert any("Duplicate" in message for message in _issues(definition))
@@ -165,9 +158,7 @@ class TestDeclarations:
             name="Input",
             config={"arguments": ["ghost"]},
         )
-        issues = collect_variable_issues(
-            PipelineDefinition(nodes=[node]), default_registry()
-        )
+        issues = collect_variable_issues(PipelineDefinition(nodes=[node]), default_registry())
         assert any(
             issue.code == "arguments_invalid" and "ghost" in issue.message for issue in issues
         )
@@ -205,46 +196,44 @@ class TestExpressions:
     def test_syntax_error_is_field_addressable(self) -> None:
         node = PipelineNodeDefinition(
             id="limit",
-            type="limit.top_n",
+            type="limit.results",
             name="Top-N",
-            config={"top_n": {"$expr": "top_k *"}},
+            config={"max_results": {"$expr": "top_k *"}},
         )
         definition = _definition(
-            arguments=[
-                PipelineInputArgument(name="top_k", type=VariableType.INTEGER, default=5)
-            ],
+            arguments=[PipelineInputArgument(name="top_k", type=VariableType.INTEGER, default=5)],
             nodes=[node],
         )
         issues = collect_variable_issues(definition, default_registry())
         syntax = [issue for issue in issues if issue.code == "expression_invalid"]
         assert syntax
         assert syntax[0].node_id == "limit"
-        assert syntax[0].field == "top_n"
+        assert syntax[0].field == "max_results"
 
     def test_type_mismatch_against_field_schema(self) -> None:
         node = PipelineNodeDefinition(
             id="limit",
-            type="limit.top_n",
+            type="limit.results",
             name="Top-N",
-            config={"top_n": {"$expr": "'ten'"}},
+            config={"max_results": {"$expr": "'ten'"}},
         )
         assert "expression_type" in _codes(_definition(nodes=[node]))
 
     def test_integer_expression_satisfies_integer_field(self) -> None:
         node = PipelineNodeDefinition(
             id="limit",
-            type="limit.top_n",
+            type="limit.results",
             name="Top-N",
-            config={"top_n": {"$expr": "2 + 3"}},
+            config={"max_results": {"$expr": "2 + 3"}},
         )
         assert "expression_type" not in _codes(_definition(nodes=[node]))
 
     def test_unknown_variable_reference_flagged(self) -> None:
         node = PipelineNodeDefinition(
             id="limit",
-            type="limit.top_n",
+            type="limit.results",
             name="Top-N",
-            config={"top_n": {"$expr": "missing * 2"}},
+            config={"max_results": {"$expr": "missing * 2"}},
         )
         assert "expression_invalid" in _codes(_definition(nodes=[node]))
 
@@ -256,9 +245,7 @@ class TestExpressions:
             config={"index_name": {"$expr": "'idx-' + suffix"}},
         )
         definition = _definition(
-            arguments=[
-                PipelineInputArgument(name="suffix", type=VariableType.STRING, default="a")
-            ],
+            arguments=[PipelineInputArgument(name="suffix", type=VariableType.STRING, default="a")],
             nodes=[node],
         )
         issues = collect_variable_issues(definition, default_registry())
@@ -275,9 +262,7 @@ class TestExpressions:
             config={"index_name": {"$expr": "'idx-' + suffix"}},
         )
         definition = _definition(
-            variables=[
-                PipelineVariable(name="suffix", type=VariableType.STRING, value="a")
-            ],
+            variables=[PipelineVariable(name="suffix", type=VariableType.STRING, value="a")],
             nodes=[node],
         )
         assert "expression_static_only" not in _codes(definition)
@@ -290,9 +275,7 @@ class TestExpressions:
             config={"index_name": {"$expr": "derived"}},
         )
         definition = _definition(
-            arguments=[
-                PipelineInputArgument(name="suffix", type=VariableType.STRING, default="a")
-            ],
+            arguments=[PipelineInputArgument(name="suffix", type=VariableType.STRING, default="a")],
             variables=[
                 PipelineVariable(
                     name="derived", type=VariableType.STRING, expression="'idx-' + suffix"
@@ -333,15 +316,12 @@ class TestValidatorIntegration:
             config={"index_name": {"$expr": "'docs-' + suffix"}},
         )
         definition = _definition(
-            variables=[
-                PipelineVariable(name="suffix", type=VariableType.STRING, value="main")
-            ],
+            variables=[PipelineVariable(name="suffix", type=VariableType.STRING, value="main")],
             nodes=[node],
         )
         result = PipelineValidator(default_registry()).validate(definition)
         assert not any(
-            issue.node_id == "retriever" and issue.field == "index_name"
-            for issue in result.issues
+            issue.node_id == "retriever" and issue.field == "index_name" for issue in result.issues
         )
 
     def test_expression_free_definitions_validate_as_before(self) -> None:

@@ -116,14 +116,14 @@ def build_environment(
     *,
     query: str | None = None,
     supplied: Mapping[str, object] | None = None,
-    legacy_top_k: int | None = None,
+    request_top_k: int | None = None,
     static_defaults: bool = False,
 ) -> VariableEnvironment:
     """Build the variable environment for a run.
 
-    `legacy_top_k` is the pre-variables `top_k` request field: when the
-    pipeline declares a `top_k` argument and the caller did not supply it in
-    `supplied`, the legacy value feeds it, so old clients keep working.
+    `request_top_k` is the external query API's established request field. When
+    the pipeline accepts `result_limit` and the caller did not also supply it
+    in `supplied`, that boundary value feeds the pipeline argument.
     `static_defaults=True` builds the environment validation and settings
     resolution use: required arguments get a constraint-respecting
     placeholder instead of failing.
@@ -145,7 +145,7 @@ def build_environment(
             value = _argument_value(
                 argument,
                 remaining,
-                legacy_top_k=legacy_top_k,
+                request_top_k=request_top_k,
                 static_defaults=static_defaults,
                 errors=errors,
             )
@@ -246,15 +246,15 @@ def _argument_value(
     argument: PipelineInputArgument,
     remaining: dict[str, object],
     *,
-    legacy_top_k: int | None,
+    request_top_k: int | None,
     static_defaults: bool,
     errors: list[str],
 ) -> ExprValue | None:
     """Resolve one argument's value from supplied input, defaults, or placeholder."""
     if argument.name in remaining:
         raw: object = remaining.pop(argument.name)
-    elif argument.name == "top_k" and legacy_top_k is not None:
-        raw = legacy_top_k
+    elif argument.name == "result_limit" and request_top_k is not None:
+        raw = request_top_k
     elif static_defaults:
         return _static_placeholder(argument)
     elif argument.default is not None:

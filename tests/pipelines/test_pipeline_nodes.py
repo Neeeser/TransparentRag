@@ -280,10 +280,11 @@ def test_default_retrieval_pipeline_executes(monkeypatch, session: Session) -> N
     definition = build_default_retrieval_pipeline(
         embedding_connection_id=EMBED_CONNECTION_ID, embedding_model="test-embed"
     )
-    # Resolve-then-run: the scaffold's Top-N carries an `{"$expr": "top_k"}`
+    # Resolve-then-run: Result Limit carries an explicit result_limit expression,
     # config, so the executor only ever sees the resolved literal.
     resolved = resolve_definition(
-        definition, build_environment(definition, query="hello", supplied={"top_k": 3})
+        definition,
+        build_environment(definition, query="hello", supplied={"result_limit": 3}),
     )
     executor = PipelineExecutor(build_default_registry())
     result = executor.execute(resolved, context)
@@ -396,9 +397,7 @@ def test_ingestion_input_requires_source_path(session: Session, tmp_path: Path) 
         node.run({}, context)
 
 
-def test_ingestion_input_summarizes_the_logical_file_path(
-    session: Session, tmp_path: Path
-) -> None:
+def test_ingestion_input_summarizes_the_logical_file_path(session: Session, tmp_path: Path) -> None:
     from app.pipelines.nodes.io import IngestionInputConfig, IngestionInputNode
     from app.pipelines.tracing.summaries import SourceSummary
 
@@ -576,9 +575,7 @@ def test_embedder_guard_handles_missing_connection_and_zero_effective_limit(
     assert no_connection._guard_embedding_inputs(payload, context) == payload.chunks
     assert no_connection._embedding_input_limit(context) is None
 
-    node = EmbedderNode(
-        EmbedderConfig(connection_id=EMBED_CONNECTION_ID, model_name="test-embed")
-    )
+    node = EmbedderNode(EmbedderConfig(connection_id=EMBED_CONNECTION_ID, model_name="test-embed"))
     context.providers = StubProviderResolver(embedding_input_limit=16)
     result = node.run({"chunks": payload}, context)
     assert isinstance(result["embedded"], EmbeddingPayload)
@@ -639,9 +636,7 @@ def test_embedder_node_skips_guard_when_limit_lookup_is_unavailable() -> None:
         ],
         tokenizer=TokenizerSpec(kind="whitespace"),
     )
-    node = EmbedderNode(
-        EmbedderConfig(connection_id=EMBED_CONNECTION_ID, model_name="test-embed")
-    )
+    node = EmbedderNode(EmbedderConfig(connection_id=EMBED_CONNECTION_ID, model_name="test-embed"))
     user = _build_user()
     context = _build_context(Session(), user, _build_collection(user))
     context.providers = _UnavailableLimitResolver()

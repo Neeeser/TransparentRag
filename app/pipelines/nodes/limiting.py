@@ -1,4 +1,4 @@
-"""Top-N node: truncate an ordered result stream to its top N matches.
+"""Result-limit node: truncate an ordered result stream to a maximum size.
 
 The single cut point in the ranking stage: retrievers may over-fetch (e.g.
 `top_k * 2`), fusion/reranking reorders the candidates, and this node cuts
@@ -25,42 +25,42 @@ from app.pipelines.tracing.summaries import (
 )
 
 
-class LimitConfig(BaseModel):
+class ResultLimitConfig(BaseModel):
     """Configuration for result-limiting nodes."""
 
-    top_n: int | None = Field(
+    max_results: int | None = Field(
         default=None,
         gt=0,
         description=(
             "Keep the first N matches of the ordered input and drop the "
-            "rest — typically the top_k variable, so the caller's requested "
-            "depth is what survives an over-retrieving, fused pipeline. "
-            "Unset: the run's requested top_k."
+            "rest — typically the result_limit variable, so the caller's "
+            "requested limit survives an over-retrieving, fused pipeline. "
+            "Unset: the run's requested result limit."
         ),
     )
 
 
-class LimitNode(PipelineNodeBase[LimitConfig]):
-    """Keep the top N matches of an ordered retrieval result stream."""
+class ResultLimitNode(PipelineNodeBase[ResultLimitConfig]):
+    """Keep at most the configured number of ordered retrieval matches."""
 
-    type = "limit.top_n"
-    label = "Top-N"
+    type = "limit.results"
+    label = "Result Limit"
     category = "retrieval"
-    description = "Cut ordered results to the top N matches (default: the requested top_k)."
-    example = "RetrievalPayload(a, b, c), top_n=2 -> RetrievalPayload(a, b)."
+    description = "Cut ordered results to the requested maximum result count."
+    example = "RetrievalPayload(a, b, c), max_results=2 -> RetrievalPayload(a, b)."
     input_ports = (NodePort(key="results", label="Results", data_type="retrieval_results"),)
     output_ports = (NodePort(key="results", label="Results", data_type="retrieval_results"),)
-    config_model = LimitConfig
+    config_model = ResultLimitConfig
 
-    def __init__(self, config: LimitConfig) -> None:
+    def __init__(self, config: ResultLimitConfig) -> None:
         """Track the run's effective depth so the trace can report it."""
         super().__init__(config)
-        self._effective_top_n: int | None = config.top_n
+        self._effective_max_results: int | None = config.max_results
 
-    def _resolve_top_n(self, context: PipelineRunContext) -> int | None:
-        """Return the effective cut depth: explicit config, else requested top_k."""
-        if self.config.top_n is not None:
-            return self.config.top_n
+    def _resolve_max_results(self, context: PipelineRunContext) -> int | None:
+        """Return the explicit cut depth, or the request boundary's limit."""
+        if self.config.max_results is not None:
+            return self.config.max_results
         if context.top_k is not None:
             # A requested top_k of 0 means zero results, never "no cut".
             return max(context.top_k, 0)
@@ -69,10 +69,10 @@ class LimitNode(PipelineNodeBase[LimitConfig]):
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
         """Truncate the ordered match list to the effective depth."""
         payload = RetrievalPayload.model_validate(inputs.get("results"))
-        self._effective_top_n = self._resolve_top_n(context)
+        self._effective_max_results = self._resolve_max_results(context)
         matches = list(payload.response.matches)
-        if self._effective_top_n is not None:
-            matches = matches[: self._effective_top_n]
+        if self._effective_max_results is not None:
+            matches = matches[: self._effective_max_results]
         response = payload.response.model_copy(update={"matches": matches})
         return {"results": payload.model_copy(update={"response": response})}
 
@@ -104,7 +104,7 @@ class LimitNode(PipelineNodeBase[LimitConfig]):
                 NodeTraceValue(
                     label="Kept",
                     value={
-                        "top_n": self._effective_top_n,
+                        "max_results": self._effective_max_results,
                         "kept": len(output_payload.response.matches),
                         "dropped": len(input_payload.response.matches)
                         - len(output_payload.response.matches),

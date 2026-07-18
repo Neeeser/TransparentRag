@@ -67,7 +67,7 @@ describe("pipeline-utils", () => {
     expect(retriever?.config).toEqual({
       backend: "pgvector",
       index_name: "docs",
-      top_k: { $expr: "top_k" },
+      top_k: { $expr: "result_limit" },
     });
     const ingestion = buildDefaultDefinition("ingestion", "pgvector", { indexName: "docs" });
     const indexer = ingestion.nodes.find((node) => node.type === INDEXER_TYPE);
@@ -85,7 +85,7 @@ describe("pipeline-utils", () => {
     expect(retriever?.config).toEqual({
       backend: "pinecone",
       index_name: "index-a",
-      top_k: { $expr: "top_k" },
+      top_k: { $expr: "result_limit" },
     });
     const ingestionCheck = buildDefaultDefinition("ingestion", "pinecone", {
       indexName: "index-a",
@@ -380,18 +380,17 @@ describe("hybrid BM25 scaffolding", () => {
     expect(bm25Retriever?.config).toEqual({
       backend: "pgvector",
       index_name: "docs-bm25",
-      top_k: { $expr: "top_k" },
+      top_k: { $expr: "result_limit" },
     });
     const fusion = retrieval.nodes.find((node) => node.type === "fusion.rrf");
     expect(fusion).toBeDefined();
-    // Both retriever branches feed the fusion node, which feeds the Top-N
-    // cut (fusion never truncates), which feeds the output.
+    // Both retriever branches feed fusion, which feeds Result Limit and then output.
     const fusionTargets = retrieval.edges.filter((edge) => edge.target === fusion?.id);
     expect(fusionTargets.map((edge) => edge.source).sort()).toEqual([
       "bm25-retriever",
       "vector-retriever",
     ]);
-    const limit = retrieval.nodes.find((node) => node.type === "limit.top_n");
+    const limit = retrieval.nodes.find((node) => node.type === "limit.results");
     expect(limit).toBeDefined();
     expect(retrieval.edges).toContainEqual(
       expect.objectContaining({ source: fusion?.id, target: limit?.id }),

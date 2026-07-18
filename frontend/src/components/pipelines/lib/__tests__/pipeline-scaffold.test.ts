@@ -3,20 +3,20 @@ import { describe, expect, it } from "vitest";
 import { buildDefaultDefinition } from "@/components/pipelines/lib/pipeline-scaffold";
 
 describe("buildDefaultDefinition", () => {
-  it("declares the historical top_k input variable, mirroring the backend scaffold", () => {
-    // The backend scaffold (app/pipelines/defaults.py) declares top_k as an
+  it("declares the result_limit input variable, mirroring the backend scaffold", () => {
+    // The backend scaffold (app/pipelines/defaults.py) declares result_limit as an
     // input-source variable accepted by retrieval.input, so search controls
     // and the chat tool schema see the same contract; wizard-created
     // pipelines must not silently declare nothing.
     const definition = buildDefaultDefinition("retrieval", "pgvector");
     const input = definition.nodes.find((node) => node.type === "retrieval.input");
-    expect(input?.config).toEqual({ arguments: ["top_k"] });
+    expect(input?.config).toEqual({ arguments: ["result_limit"] });
     expect(definition.variables).toEqual([
       {
-        name: "top_k",
+        name: "result_limit",
         type: "integer",
         source: "input",
-        description: "How many chunks to retrieve.",
+        description: "Maximum number of results to return.",
         value: 5,
         minimum: 1,
         maximum: 10,
@@ -25,16 +25,17 @@ describe("buildDefaultDefinition", () => {
     ]);
   });
 
-  it("scaffolds the hybrid ranking row: fusion never cuts, Top-N does", () => {
+  it("scaffolds the hybrid ranking row: fusion never cuts, Result Limit does", () => {
     const definition = buildDefaultDefinition("retrieval", "pgvector", { includeBm25: true });
     const fusion = definition.nodes.find((node) => node.type === "fusion.rrf");
-    const limit = definition.nodes.find((node) => node.type === "limit.top_n");
+    const limit = definition.nodes.find((node) => node.type === "limit.results");
     expect(fusion?.config).toEqual({});
-    expect(limit?.config).toEqual({ top_n: { $expr: "top_k" } });
+    expect(limit?.name).toBe("Result Limit");
+    expect(limit?.config).toEqual({ max_results: { $expr: "result_limit" } });
     // Retrievers carry their fetch depth explicitly — no invisible fallback.
     for (const type of ["retriever.vector", "retriever.bm25"]) {
       const retriever = definition.nodes.find((node) => node.type === type);
-      expect(retriever?.config).toMatchObject({ top_k: { $expr: "top_k" } });
+      expect(retriever?.config).toMatchObject({ top_k: { $expr: "result_limit" } });
     }
     expect(
       definition.edges.some((edge) => edge.source === fusion?.id && edge.target === limit?.id),

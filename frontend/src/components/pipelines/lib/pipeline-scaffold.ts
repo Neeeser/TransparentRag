@@ -36,7 +36,7 @@ export const RETRIEVER_NODE_TYPE = "retriever.vector";
 export const BM25_INDEXER_NODE_TYPE = "indexer.bm25";
 export const BM25_RETRIEVER_NODE_TYPE = "retriever.bm25";
 export const RRF_FUSION_NODE_TYPE = "fusion.rrf";
-export const LIMIT_NODE_TYPE = "limit.top_n";
+export const LIMIT_NODE_TYPE = "limit.results";
 
 // Scaffolds deliberately carry no node positions: the shared auto-layout
 // (`layoutPipelineNodes`) places any definition whose nodes lack saved
@@ -50,16 +50,16 @@ const DEFAULT_INDEX_NAME_MAX_LENGTH = 45;
 const BM25_INDEX_SUFFIX = "-bm25";
 
 // Mirrors the backend scaffold (`app/pipelines/defaults.py`): retrieval
-// pipelines declare the historical top_k tool contract as an input variable
+// pipelines declare the caller-facing result limit as an input variable
 // (the retrieval input node accepts it by name), so the search page and the
 // chat tool schema see the same argument whether the pipeline was scaffolded
 // by the wizard or by the backend.
 const DEFAULT_RETRIEVAL_VARIABLES: PipelineVariable[] = [
   {
-    name: "top_k",
+    name: "result_limit",
     type: "integer",
     source: "input",
-    description: "How many chunks to retrieve.",
+    description: "Maximum number of results to return.",
     value: 5,
     minimum: 1,
     maximum: 10,
@@ -123,23 +123,23 @@ export const buildDefaultDefinition = (
   }
 
   if (kind === "retrieval") {
-    // Fetch depth is always explicit — the declared top_k variable, never an
+    // Fetch depth is always explicit — the declared result limit, never an
     // invisible request fallback.
     const retrieverConfig: Record<string, unknown> = {
       ...indexConfig,
-      top_k: { $expr: "top_k" },
+      top_k: { $expr: "result_limit" },
     };
     delete retrieverConfig.dimension;
     const bm25RetrieverConfig: Record<string, unknown> = {
       ...bm25Config,
-      top_k: { $expr: "top_k" },
+      top_k: { $expr: "result_limit" },
     };
     const nodes: PipelineDefinition["nodes"] = [
       {
         id: NODE_QUERY_INPUT,
         type: "retrieval.input",
         name: "Retrieval Input",
-        config: { arguments: ["top_k"] },
+        config: { arguments: ["result_limit"] },
       },
       {
         id: NODE_EMBED_QUERY,
@@ -190,13 +190,13 @@ export const buildDefaultDefinition = (
           name: "RRF Fusion",
           config: {},
         },
-        // Fusion never cuts; the Top-N node is the explicit cut back to the
-        // declared top_k input variable.
+        // Fusion never cuts; Result Limit is the explicit cut back to the
+        // declared result_limit input variable.
         {
           id: NODE_LIMIT_RESULTS,
           type: LIMIT_NODE_TYPE,
-          name: "Top-N",
-          config: { top_n: { $expr: "top_k" } },
+          name: "Result Limit",
+          config: { max_results: { $expr: "result_limit" } },
         },
       );
       edges.push(

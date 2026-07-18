@@ -206,37 +206,40 @@ def test_default_scaffolds_carry_no_positions(session: Session) -> None:
     editor and freeze the scaffold in a layout the algorithm never chose —
     the drift this rule exists to prevent.
     """
+
+
 for definition in (_build_ingestion(), _build_retrieval()):
-        assert all(node.position is None for node in definition.nodes)
+    assert all(node.position is None for node in definition.nodes)
 
 
-def test_default_retrieval_pipeline_declares_top_k_argument() -> None:
-    """The scaffold declares the historical tool contract explicitly: an
-    exposed integer top_k (default 5, 1-10) on the retrieval input node."""
+def test_default_retrieval_pipeline_declares_result_limit_argument() -> None:
+    """The scaffold exposes the caller-facing final result limit explicitly."""
     from app.pipelines.resolution import declared_arguments
 
     definition = build_default_retrieval_pipeline(
         embedding_connection_id=uuid4(), embedding_model="test-embed"
     )
     arguments = declared_arguments(definition)
-    assert [argument.name for argument in arguments] == ["top_k"]
-    top_k = arguments[0]
-    assert top_k.type.value == "integer"
-    assert top_k.default == 5
-    assert (top_k.minimum, top_k.maximum) == (1, 10)
-    assert top_k.expose_to_llm is True
+    assert [argument.name for argument in arguments] == ["result_limit"]
+    result_limit = arguments[0]
+    assert result_limit.type.value == "integer"
+    assert result_limit.default == 5
+    assert (result_limit.minimum, result_limit.maximum) == (1, 10)
+    assert result_limit.expose_to_llm is True
 
 
-def test_default_retrieval_pipeline_pins_retriever_depth_to_top_k() -> None:
+def test_default_retrieval_pipeline_uses_result_limit_for_fetch_and_final_cut() -> None:
     """Every scaffold retriever carries its fetch depth explicitly — the
     declared top_k variable, never an invisible request fallback."""
     definition = build_default_retrieval_pipeline(
         embedding_connection_id=uuid4(), embedding_model="test-embed"
     )
     retrievers = [
-        node
-        for node in definition.nodes
-        if node.type in ("retriever.vector", "retriever.bm25")
+        node for node in definition.nodes if node.type in ("retriever.vector", "retriever.bm25")
     ]
     assert retrievers
-    assert all(node.config["top_k"] == {"$expr": "top_k"} for node in retrievers)
+    assert all(node.config["top_k"] == {"$expr": "result_limit"} for node in retrievers)
+    limit = next(node for node in definition.nodes if node.id == "limit-results")
+    assert limit.type == "limit.results"
+    assert limit.name == "Result Limit"
+    assert limit.config == {"max_results": {"$expr": "result_limit"}}

@@ -19,7 +19,7 @@ from app.pipelines.nodes.io import (
     RetrievalOutputConfig,
     RetrievalOutputNode,
 )
-from app.pipelines.nodes.limiting import LimitConfig, LimitNode
+from app.pipelines.nodes.limiting import ResultLimitConfig, ResultLimitNode
 from app.pipelines.nodes.retrieval import VectorRetrieverConfig, VectorRetrieverNode
 from app.pipelines.payloads import RetrievalPayload, RetrievalRequestPayload
 from app.pipelines.registry import build_default_registry
@@ -137,7 +137,7 @@ class TestRetrievalInputNode:
 
 
 class TestRunnerEffectiveTopK:
-    """PipelineRunner.start replaces the legacy top_k with a declared one."""
+    """PipelineRunner maps the declared result limit to the request boundary."""
 
     @staticmethod
     def _start(session: Session, **start_overrides: object):
@@ -151,7 +151,7 @@ class TestRunnerEffectiveTopK:
         definition = _input_definition(
             [
                 PipelineInputArgument(
-                    name="top_k", type=VariableType.INTEGER, default=7, minimum=1
+                    name="result_limit", type=VariableType.INTEGER, default=7, minimum=1
                 )
             ]
         )
@@ -162,9 +162,7 @@ class TestRunnerEffectiveTopK:
             definition=definition,
         )
         session.commit()
-        collection = models.Collection(
-            user_id=user.id, name="C", description="", extra_metadata={}
-        )
+        collection = models.Collection(user_id=user.id, name="C", description="", extra_metadata={})
         session.add(collection)
         session.commit()
         session.refresh(collection)
@@ -187,16 +185,14 @@ class TestRunnerEffectiveTopK:
         return runner.start(**kwargs)  # type: ignore[arg-type]
 
     def test_supplied_argument_becomes_context_top_k(self, session: Session) -> None:
-        handle = self._start(session, top_k=3, arguments={"top_k": 9})
+        handle = self._start(session, top_k=3, arguments={"result_limit": 9})
         assert handle.context.top_k == 9
 
-    def test_declared_default_beats_legacy_absent_supplied(
-        self, session: Session
-    ) -> None:
+    def test_declared_default_beats_absent_request_value(self, session: Session) -> None:
         handle = self._start(session)
         assert handle.context.top_k == 7
 
-    def test_legacy_top_k_feeds_declared_argument(self, session: Session) -> None:
+    def test_request_top_k_feeds_declared_argument(self, session: Session) -> None:
         handle = self._start(session, top_k=3)
         assert handle.context.top_k == 3
 
@@ -223,13 +219,14 @@ class TestRetrieverTopKOverride:
         )
         assert store.query_calls[0]["top_k"] == 20
 
-class TestLimitNode:
+
+class TestResultLimitNode:
     """The clamp node truncates ordered results and traces the cut honestly."""
 
-    def test_truncates_to_top_n(self, session: Session) -> None:
+    def test_truncates_to_max_results(self, session: Session) -> None:
         matches = [_chunk(order) for order in range(5)]
         payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
-        node = LimitNode(LimitConfig(top_n=2))
+        node = ResultLimitNode(ResultLimitConfig(max_results=2))
         outputs = node.run({"results": payload}, _context(session))
         result = RetrievalPayload.model_validate(outputs["results"])
         assert [match.chunk.chunk_id for match in result.response.matches] == [
@@ -239,28 +236,26 @@ class TestLimitNode:
 
     def test_short_input_passes_through(self, session: Session) -> None:
         payload = RetrievalPayload(response=RetrievalResponse(matches=[_chunk(0)]))
-        node = LimitNode(LimitConfig(top_n=10))
+        node = ResultLimitNode(ResultLimitConfig(max_results=10))
         outputs = node.run({"results": payload}, _context(session))
         result = RetrievalPayload.model_validate(outputs["results"])
         assert len(result.response.matches) == 1
 
-    def test_unset_top_n_falls_back_to_requested_top_k(self, session: Session) -> None:
+    def test_unset_max_results_falls_back_to_requested_top_k(self, session: Session) -> None:
         matches = [_chunk(order) for order in range(5)]
         payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
-        node = LimitNode(LimitConfig())
+        node = ResultLimitNode(ResultLimitConfig())
         outputs = node.run({"results": payload}, _context(session, top_k=2))
         result = RetrievalPayload.model_validate(outputs["results"])
         assert len(result.response.matches) == 2
         summary = node.summarize_io({"results": payload}, outputs)
         kept = next(value.value for value in summary.outputs if value.label == "Kept")
-        assert kept == {"top_n": 2, "kept": 2, "dropped": 3}
+        assert kept == {"max_results": 2, "kept": 2, "dropped": 3}
 
     def test_zero_requested_top_k_keeps_nothing(self, session: Session) -> None:
         """A falsy requested top_k is honored, not treated as 'unset'."""
-        payload = RetrievalPayload(
-            response=RetrievalResponse(matches=[_chunk(0), _chunk(1)])
-        )
-        node = LimitNode(LimitConfig())
+        payload = RetrievalPayload(response=RetrievalResponse(matches=[_chunk(0), _chunk(1)]))
+        node = ResultLimitNode(ResultLimitConfig())
         outputs = node.run({"results": payload}, _context(session, top_k=0))
         result = RetrievalPayload.model_validate(outputs["results"])
         assert result.response.matches == []
@@ -268,7 +263,7 @@ class TestLimitNode:
     def test_no_config_and_no_request_keeps_everything(self, session: Session) -> None:
         matches = [_chunk(order) for order in range(3)]
         payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
-        node = LimitNode(LimitConfig())
+        node = ResultLimitNode(ResultLimitConfig())
         outputs = node.run({"results": payload}, _context(session, top_k=None))
         result = RetrievalPayload.model_validate(outputs["results"])
         assert len(result.response.matches) == 3
@@ -276,11 +271,11 @@ class TestLimitNode:
     def test_trace_shows_full_input_and_kept_counts(self, session: Session) -> None:
         matches = [_chunk(order) for order in range(4)]
         payload = RetrievalPayload(response=RetrievalResponse(matches=matches))
-        node = LimitNode(LimitConfig(top_n=3))
+        node = ResultLimitNode(ResultLimitConfig(max_results=3))
         outputs = node.run({"results": payload}, _context(session))
         summary = node.summarize_io({"results": payload}, outputs)
         kept = next(value.value for value in summary.outputs if value.label == "Kept")
-        assert kept == {"top_n": 3, "kept": 3, "dropped": 1}
+        assert kept == {"max_results": 3, "kept": 3, "dropped": 1}
         candidate_items = next(
             value.value for value in summary.inputs if value.label == "Candidate items"
         )
@@ -301,18 +296,14 @@ class TestRetrievalOutputNode:
             )
         )
         payload = RetrievalPayload(response=RetrievalResponse(matches=[]))
-        result = RetrievalPayload.model_validate(
-            node.run({"results": payload}, context)["result"]
-        )
+        result = RetrievalPayload.model_validate(node.run({"results": payload}, context)["result"])
         assert result.outputs == {"candidates": 8}
 
     def test_no_outputs_declared_is_passthrough(self, session: Session) -> None:
         context = _context(session)
         node = RetrievalOutputNode(RetrievalOutputConfig())
         payload = RetrievalPayload(response=RetrievalResponse(matches=[]))
-        result = RetrievalPayload.model_validate(
-            node.run({"results": payload}, context)["result"]
-        )
+        result = RetrievalPayload.model_validate(node.run({"results": payload}, context)["result"])
         assert result.outputs == {}
 
     def test_broken_output_expression_fails_the_run(self, session: Session) -> None:
@@ -356,9 +347,9 @@ def test_end_to_end_over_retrieve_and_clamp(session: Session) -> None:
             ),
             PipelineNodeDefinition(
                 id="limit",
-                type="limit.top_n",
+                type="limit.results",
                 name="Limit",
-                config={"top_n": {"$expr": "top_k"}},
+                config={"max_results": {"$expr": "top_k"}},
             ),
             PipelineNodeDefinition(
                 id="output",
@@ -368,20 +359,38 @@ def test_end_to_end_over_retrieve_and_clamp(session: Session) -> None:
             ),
         ],
         edges=[
-            {"id": "e1", "source": "input", "target": "embed",
-             "source_port": "request", "target_port": "request"},
-            {"id": "e2", "source": "embed", "target": "retrieve",
-             "source_port": "query_embedding", "target_port": "query_embedding"},
-            {"id": "e3", "source": "retrieve", "target": "limit",
-             "source_port": "results", "target_port": "results"},
-            {"id": "e4", "source": "limit", "target": "output",
-             "source_port": "results", "target_port": "results"},
+            {
+                "id": "e1",
+                "source": "input",
+                "target": "embed",
+                "source_port": "request",
+                "target_port": "request",
+            },
+            {
+                "id": "e2",
+                "source": "embed",
+                "target": "retrieve",
+                "source_port": "query_embedding",
+                "target_port": "query_embedding",
+            },
+            {
+                "id": "e3",
+                "source": "retrieve",
+                "target": "limit",
+                "source_port": "results",
+                "target_port": "results",
+            },
+            {
+                "id": "e4",
+                "source": "limit",
+                "target": "output",
+                "source_port": "results",
+                "target_port": "results",
+            },
         ],
         variables=[
             _input_variable(
-                PipelineInputArgument(
-                    name="top_k", type=VariableType.INTEGER, default=5, minimum=1
-                )
+                PipelineInputArgument(name="top_k", type=VariableType.INTEGER, default=5, minimum=1)
             )
         ],
     )

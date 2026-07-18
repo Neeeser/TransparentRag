@@ -96,22 +96,22 @@ class TestBuildEnvironment:
         env = build_environment(_definition(arguments=[_top_k_argument()]), query="q")
         assert env.values["top_k"] == 5
 
-    def test_legacy_top_k_feeds_declared_argument(self) -> None:
+    def test_request_top_k_feeds_declared_argument(self) -> None:
         env = build_environment(
-            _definition(arguments=[_top_k_argument()]),
+            _definition(arguments=[_top_k_argument(name="result_limit")]),
             query="q",
-            legacy_top_k=7,
+            request_top_k=7,
         )
-        assert env.values["top_k"] == 7
+        assert env.values["result_limit"] == 7
 
-    def test_supplied_wins_over_legacy_top_k(self) -> None:
+    def test_supplied_wins_over_request_top_k(self) -> None:
         env = build_environment(
-            _definition(arguments=[_top_k_argument()]),
+            _definition(arguments=[_top_k_argument(name="result_limit")]),
             query="q",
-            supplied={"top_k": 3},
-            legacy_top_k=7,
+            supplied={"result_limit": 3},
+            request_top_k=7,
         )
-        assert env.values["top_k"] == 3
+        assert env.values["result_limit"] == 3
 
     def test_arguments_are_tainted(self) -> None:
         env = build_environment(_definition(arguments=[_top_k_argument()]), query="q")
@@ -123,8 +123,14 @@ class TestBuildEnvironment:
             build_environment(_definition(), query="q", supplied={"nope": 1})
 
     def test_missing_required_argument_rejected(self) -> None:
-        argument = _top_k_argument(name="mode", type=VariableType.STRING, default=None,
-                                   minimum=None, maximum=None, required=True)
+        argument = _top_k_argument(
+            name="mode",
+            type=VariableType.STRING,
+            default=None,
+            minimum=None,
+            maximum=None,
+            required=True,
+        )
         with pytest.raises(VariableResolutionError, match="Missing required argument 'mode'"):
             build_environment(_definition(arguments=[argument]), query="q")
 
@@ -267,17 +273,17 @@ class TestResolveDefinition:
     def test_expression_config_resolves_to_literal(self) -> None:
         node = PipelineNodeDefinition(
             id="limit",
-            type="limit.top_n",
+            type="limit.results",
             name="Top-N",
-            config={"top_n": {"$expr": "top_k * 2"}},
+            config={"max_results": {"$expr": "top_k * 2"}},
         )
         definition = _definition(arguments=[_top_k_argument()], nodes=[node])
         env = build_environment(definition, query="q", supplied={"top_k": 6})
         resolved = resolve_definition(definition, env)
         limit = resolved.node_map()["limit"]
-        assert limit.config == {"top_n": 12}
+        assert limit.config == {"max_results": 12}
         # The original definition is untouched.
-        assert definition.node_map()["limit"].config["top_n"] == {"$expr": "top_k * 2"}
+        assert definition.node_map()["limit"].config["max_results"] == {"$expr": "top_k * 2"}
 
     def test_model_member_resolves_to_string(self) -> None:
         node = PipelineNodeDefinition(

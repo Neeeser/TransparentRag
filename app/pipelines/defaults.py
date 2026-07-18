@@ -23,7 +23,7 @@ from app.pipelines.nodes.indexing import (
     VectorIndexerNode,
     default_index_name,
 )
-from app.pipelines.nodes.limiting import LimitNode
+from app.pipelines.nodes.limiting import ResultLimitNode
 from app.pipelines.nodes.retrieval import Bm25RetrieverNode, VectorRetrieverNode
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
 from app.pipelines.variables import PipelineVariable, VariableSource, VariableType
@@ -40,16 +40,17 @@ from app.vectorstores.registry import CAPABILITIES_BY_BACKEND, lexical_available
 
 # The historical tool contract as an input variable: definitions own the
 # declaration; the retrieval.input node just accepts it by name.
-DEFAULT_TOP_K_VARIABLE = PipelineVariable(
-    name="top_k",
+DEFAULT_RESULT_LIMIT_VARIABLE = PipelineVariable(
+    name="result_limit",
     type=VariableType.INTEGER,
     source=VariableSource.INPUT,
-    description="How many chunks to retrieve.",
+    description="Maximum number of results to return.",
     value=5,
     minimum=1,
     maximum=10,
     expose_to_llm=True,
 )
+
 
 def _default_backend() -> IndexBackend:
     """Return the deployment's configured default index backend."""
@@ -141,7 +142,7 @@ def build_default_ingestion_pipeline(
             id="embed-chunks",
             type="embedder.text",
             name="Embedder",
-config={
+            config={
                 "connection_id": str(embedding_connection_id),
                 "model_name": embedding_model,
             },
@@ -262,17 +263,15 @@ def build_default_retrieval_pipeline(
             id="query-input",
             type="retrieval.input",
             name="Retrieval Input",
-            # Accepts the `top_k` input variable declared on the definition
-            # (query is built in): callers and the chat tool schema see the
-            # same top_k the hardcoded schema used to advertise, and pipeline
-            # authors can retune or hide it per pipeline.
-            config={"arguments": ["top_k"]},
+            # The definition owns the caller-facing result limit. The external
+            # query API's top_k field is translated at the runner boundary.
+            config={"arguments": [DEFAULT_RESULT_LIMIT_VARIABLE.name]},
         ),
         PipelineNodeDefinition(
             id="embed-query",
             type="embedder.text",
             name="Embedder",
-config={
+            config={
                 "connection_id": str(embedding_connection_id),
                 "model_name": embedding_model,
             },
@@ -281,13 +280,13 @@ config={
             id="vector-retriever",
             type=VectorRetrieverNode.type,
             name="Semantic Retriever",
-            # Fetch depth is always explicit — the declared top_k variable,
+            # Fetch depth is always explicit — the declared result limit,
             # never an invisible request fallback.
             config={
                 "backend": backend.value,
                 "index_name": index_name,
                 "namespace": DEFAULT_NAMESPACE_TEMPLATE,
-                "top_k": {"$expr": DEFAULT_TOP_K_VARIABLE.name},
+                "top_k": {"$expr": DEFAULT_RESULT_LIMIT_VARIABLE.name},
             },
         ),
         PipelineNodeDefinition(
@@ -323,7 +322,7 @@ config={
                         "backend": backend.value,
                         "index_name": bm25_sibling_index_name(index_name, backend),
                         "namespace": DEFAULT_NAMESPACE_TEMPLATE,
-                        "top_k": {"$expr": DEFAULT_TOP_K_VARIABLE.name},
+                        "top_k": {"$expr": DEFAULT_RESULT_LIMIT_VARIABLE.name},
                     },
                 ),
                 PipelineNodeDefinition(
@@ -331,13 +330,12 @@ config={
                     type=RRFusionNode.type,
                     name="RRF Fusion",
                 ),
-                # Fusion never cuts; the Top-N node is the explicit cut back
-                # to the declared top_k input variable.
+                # Fusion never cuts; Result Limit is the explicit final cap.
                 PipelineNodeDefinition(
                     id="limit-results",
-                    type=LimitNode.type,
-                    name="Top-N",
-                    config={"top_n": {"$expr": DEFAULT_TOP_K_VARIABLE.name}},
+                    type=ResultLimitNode.type,
+                    name="Result Limit",
+                    config={"max_results": {"$expr": DEFAULT_RESULT_LIMIT_VARIABLE.name}},
                 ),
             ]
         )
@@ -394,5 +392,5 @@ config={
         nodes=nodes,
         edges=edges,
         viewport={},
-        variables=[DEFAULT_TOP_K_VARIABLE.model_copy(deep=True)],
+        variables=[DEFAULT_RESULT_LIMIT_VARIABLE.model_copy(deep=True)],
     )

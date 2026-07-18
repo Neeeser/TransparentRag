@@ -118,8 +118,8 @@ describe("PipelineNode", () => {
       <PipelineNode
         {...nodeProps(
           {
-            label: "Top-N",
-            nodeType: "limit.top_n",
+            label: "Result Limit",
+            nodeType: "limit.results",
             inputs: [
               {
                 key: "results",

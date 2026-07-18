@@ -149,7 +149,7 @@ class RRFusionConfig(FusionConfig):
 
     `k` is the standard RRF dampening constant (Cormack et al.: 60): higher
     values flatten the difference between ranks. Fusion never truncates —
-    cutting the fused list is the Top-N node's job (`limit.top_n`), so the
+    cutting the fused list is the Result Limit node's job (`limit.results`), so the
     cut is always an explicit, traced step.
     """
 
@@ -163,7 +163,7 @@ class RRFusionConfig(FusionConfig):
             "early ranks outweigh late ones: at k=1 a rank-1 hit scores 25x "
             "a rank-49 hit; at the standard k=60, about 1.8x — so appearing "
             "in several branches counts for more than winning any single "
-            "one. Fusion emits every fused candidate; the Top-N node cuts."
+            "one. Fusion emits every fused candidate; Result Limit cuts."
         ),
     )
 
@@ -194,7 +194,7 @@ class RRFusionNode(BaseFusionNode):
         indexes, so the same chunk retrieved by several branches accumulates).
         The fused score replaces per-branch scores — raw BM25 and cosine
         values are not comparable. Every fused chunk is emitted; cutting the
-        list is the Top-N node's job.
+        list is the Result Limit node's job.
         """
         scores: dict[str, float] = {}
         first_seen: dict[str, ScoredChunk] = {}

@@ -53,7 +53,6 @@ class _StubProviderResolver:
         return _StubEmbedder(model_name)
 
 
-
 def _create_user(session: Session) -> models.User:
     user = models.User(
         email="retrieval@example.com",
@@ -67,7 +66,9 @@ def _create_user(session: Session) -> models.User:
     return user
 
 
-def _create_collection(session: Session, user: models.User, **overrides: object) -> models.Collection:
+def _create_collection(
+    session: Session, user: models.User, **overrides: object
+) -> models.Collection:
     defaults: dict[str, object] = {
         "user_id": user.id,
         "name": "Collection",
@@ -301,30 +302,34 @@ def _declare_pipeline_variables(
             node.config = {**node.config, "outputs": outputs}
         if retriever_top_k_expression is not None and node.type == "retriever.vector":
             node.config = {**node.config, "top_k": {"$expr": retriever_top_k_expression}}
-        if node.type == "limit.top_n" and "top_k" not in names:
-            # The scaffold's Top-N references the top_k variable this helper
-            # just replaced; unset it so the cut falls back to the requested
-            # depth instead of a dangling expression.
-            node.config = {key: value for key, value in node.config.items() if key != "top_n"}
+        if node.type == "limit.results" and "result_limit" not in names:
+            # This helper replaces the scaffold variables. Point the final cut
+            # at a custom top_k argument when present; otherwise leave it unset.
+            node.config = (
+                {**node.config, "max_results": {"$expr": "top_k"}}
+                if "top_k" in names
+                else {key: value for key, value in node.config.items() if key != "max_results"}
+            )
         if (
             node.type in ("retriever.vector", "retriever.bm25")
-            and "top_k" not in names
-            and retriever_top_k_expression is None
+            and "result_limit" not in names
+            and not (node.type == "retriever.vector" and retriever_top_k_expression is not None)
         ):
-            # Same for the scaffold retrievers' required depth: pin a literal
-            # when the top_k variable is gone.
-            node.config = {**node.config, "top_k": 5}
+            node.config = {
+                **node.config,
+                "top_k": {"$expr": "top_k"} if "top_k" in names else 5,
+            }
     service.update_pipeline(
         pipeline=pipeline, definition=definition, change_summary="Declare arguments."
     )
     session.commit()
 
 
-def test_query_arguments_default_scaffold_declares_top_k(session: Session) -> None:
+def test_query_arguments_default_scaffold_declares_result_limit(session: Session) -> None:
     user = _create_user(session)
     collection = _create_collection(session, user)
     response = RetrievalService(session).query_arguments(user, collection)
-    assert [argument.name for argument in response.arguments] == ["top_k"]
+    assert [argument.name for argument in response.arguments] == ["result_limit"]
 
 
 def test_query_arguments_empty_when_pipeline_declares_none(session: Session) -> None:
@@ -380,18 +385,14 @@ def test_query_collection_rejects_unknown_argument(monkeypatch, session: Session
     assert session.exec(select(models.PipelineRun)).first() is None
 
 
-def test_query_collection_rejects_constraint_violation(
-    monkeypatch, session: Session
-) -> None:
+def test_query_collection_rejects_constraint_violation(monkeypatch, session: Session) -> None:
     monkeypatch.setattr("app.services.retrieval.ProviderResolver", _StubProviderResolver)
     user = _create_user(session)
     collection = _create_collection(session, user)
     _declare_pipeline_variables(
         session,
         user,
-        arguments=[
-            {"name": "top_k", "type": "integer", "default": 5, "minimum": 1, "maximum": 10}
-        ],
+        arguments=[{"name": "top_k", "type": "integer", "default": 5, "minimum": 1, "maximum": 10}],
     )
     with pytest.raises(InvalidInputError, match="must be at most 10"):
         RetrievalService(session).query_collection(
@@ -414,10 +415,16 @@ def test_query_collection_arguments_drive_over_retrieval_and_outputs(
         session,
         user,
         arguments=[
-            {"name": "top_k", "type": "integer", "default": 5, "minimum": 1, "maximum": 10}
+            {
+                "name": "result_limit",
+                "type": "integer",
+                "default": 5,
+                "minimum": 1,
+                "maximum": 10,
+            }
         ],
-        outputs=[{"name": "candidates", "expression": "top_k * 2"}],
-        retriever_top_k_expression="top_k * 2",
+        outputs=[{"name": "candidates", "expression": "result_limit * 2"}],
+        retriever_top_k_expression="result_limit * 2",
     )
 
     store = PgvectorStore(session)
@@ -439,19 +446,19 @@ def test_query_collection_arguments_drive_over_retrieval_and_outputs(
     )
 
     response = RetrievalService(session).query_collection(
-        user, collection, query="capital of France", arguments={"top_k": 2}
+        user, collection, query="capital of France", arguments={"result_limit": 2}
     )
 
     assert response.top_k == 2
     assert response.outputs == {"candidates": 4}
-    # The declared top_k argument (2) caps the fused list even though the
+    # The declared result_limit (2) caps the fused list even though the
     # retriever over-fetched 4 candidates.
     assert len(response.chunks) == 2
 
     event = session.get(models.QueryEvent, response.query_event_id)
     assert event is not None
     assert event.top_k == 2
-    assert event.response_payload["arguments"] == {"top_k": 2}
+    assert event.response_payload["arguments"] == {"result_limit": 2}
     assert event.response_payload["outputs"] == {"candidates": 4}
     assert len(recorded_events) == 1
     assert recorded_events[0].top_k == 2

@@ -72,7 +72,7 @@ const ROUTER_STYLE: FamilyStyle = {
   badge: "text-stage-router",
 };
 // The ranking family: everything that reorders or cuts a result stream
-// (fusion, rerankers, Top-N) shares the rerank stage token.
+// (fusion, rerankers, Result Limit) shares the rerank stage token.
 const RERANK_STYLE: FamilyStyle = {
   accent: "bg-stage-rerank",
   border: "border-stage-rerank/40",

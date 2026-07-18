@@ -21,7 +21,7 @@ def upgrade_stored_pipeline_definitions(session: Session) -> int:
     Two passes per version: the node-vocabulary rewrite (shape-driven), and
     the variables v1 -> v2 migration, gated by the raw stored dict *lacking*
     ``schema_version`` — re-dumping stamps the current version, so a row is
-    only ever migrated once (a user deleting a migrated Top-N node later must
+    only ever migrated once (a user deleting a migrated Result Limit node later must
     never see it reinserted on the next boot).
     """
     versions = PipelineVersionRepository(session)

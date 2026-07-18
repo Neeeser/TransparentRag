@@ -84,15 +84,15 @@ class PipelineRunner:
             definition,
             query=query,
             supplied=arguments,
-            legacy_top_k=top_k,
+            request_top_k=top_k,
         )
         resolved = resolve_definition(definition, environment)
-        # A declared `top_k` (argument or variable) becomes the run's effective
-        # depth — one owner, so every context.top_k consumer (input node,
-        # fusion fallback) agrees without re-reading the environment.
-        declared_top_k = environment.values.get("top_k")
-        if isinstance(declared_top_k, int) and not isinstance(declared_top_k, bool):
-            top_k = declared_top_k
+        # The caller-facing result limit becomes the run's effective request
+        # depth at this boundary. Retriever configs still use their precise
+        # `top_k` field name and may deliberately over-fetch.
+        result_limit = environment.values.get("result_limit")
+        if isinstance(result_limit, int) and not isinstance(result_limit, bool):
+            top_k = result_limit
         run = models.PipelineRun(
             pipeline_id=pipeline.id,
             pipeline_version_id=version.id,

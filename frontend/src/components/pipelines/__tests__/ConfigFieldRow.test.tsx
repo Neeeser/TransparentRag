@@ -16,7 +16,7 @@ const VARIABLES: PipelineVariable[] = [
 const env = buildStaticEnvironment(VARIABLES);
 
 const TOP_N_FIELD: PipelineConfigField = {
-  key: "top_n",
+  key: "max_results",
   label: "Top N",
   input: "integer",
   nullable: true,
@@ -43,27 +43,27 @@ const renderRow = (config: Record<string, unknown>, onValueChange = vi.fn()) => 
 describe("ConfigFieldRow ƒx toggle", () => {
   it("switches between literal and expression mode with a pressed state", async () => {
     const user = userEvent.setup();
-    const onValueChange = renderRow({ top_n: 3 });
+    const onValueChange = renderRow({ max_results: 3 });
     const toggle = screen.getByRole("button", { name: "Toggle expression mode" });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await user.click(toggle);
-    expect(onValueChange).toHaveBeenCalledWith("top_n", { $expr: "" });
+    expect(onValueChange).toHaveBeenCalledWith("max_results", { $expr: "" });
   });
 
   it("clears the expression back to a literal when pressed again", async () => {
     const user = userEvent.setup();
-    const onValueChange = renderRow({ top_n: { $expr: "top_k" } });
+    const onValueChange = renderRow({ max_results: { $expr: "top_k" } });
     const toggle = screen.getByRole("button", { name: "Toggle expression mode" });
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     await user.click(toggle);
-    expect(onValueChange).toHaveBeenCalledWith("top_n", undefined);
+    expect(onValueChange).toHaveBeenCalledWith("max_results", undefined);
   });
 });
 
 describe("ConfigFieldRow literal-mode variable awareness", () => {
   it("offers type-matched variables when a number literal is focused", async () => {
     const user = userEvent.setup();
-    renderRow({ top_n: 3 });
+    renderRow({ max_results: 3 });
     await user.click(screen.getByLabelText("Top N"));
     const listbox = screen.getByRole("listbox", { name: "Expression suggestions" });
     expect(listbox).toBeInTheDocument();
@@ -75,17 +75,17 @@ describe("ConfigFieldRow literal-mode variable awareness", () => {
 
   it("converts the field to expression mode when a variable is picked", async () => {
     const user = userEvent.setup();
-    const onValueChange = renderRow({ top_n: 3 });
+    const onValueChange = renderRow({ max_results: 3 });
     await user.click(screen.getByLabelText("Top N"));
     await user.click(screen.getByRole("option", { name: /top_k/ }));
-    expect(onValueChange).toHaveBeenCalledWith("top_n", { $expr: "top_k" });
+    expect(onValueChange).toHaveBeenCalledWith("max_results", { $expr: "top_k" });
   });
 
   it("converts to expression mode seeded with a typed letter", async () => {
     const user = userEvent.setup();
-    const onValueChange = renderRow({ top_n: 3 });
+    const onValueChange = renderRow({ max_results: 3 });
     await user.click(screen.getByLabelText("Top N"));
     await user.keyboard("t");
-    expect(onValueChange).toHaveBeenCalledWith("top_n", { $expr: "t" });
+    expect(onValueChange).toHaveBeenCalledWith("max_results", { $expr: "t" });
   });
 });

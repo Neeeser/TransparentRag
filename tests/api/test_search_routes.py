@@ -22,7 +22,7 @@ def _create_collection(client: TestClient) -> str:
     return str(response.json()["id"])
 
 
-def _declare_top_k_argument(session: Session, user: models.User) -> None:
+def _declare_result_limit_argument(session: Session, user: models.User) -> None:
     pipeline = session.exec(
         select(models.Pipeline).where(
             models.Pipeline.user_id == user.id,
@@ -30,12 +30,10 @@ def _declare_top_k_argument(session: Session, user: models.User) -> None:
         )
     ).one()
     service = PipelineService(session)
-    definition = PipelineDefinition.model_validate(
-        service.get_current_version(pipeline).definition
-    )
+    definition = PipelineDefinition.model_validate(service.get_current_version(pipeline).definition)
     definition.variables = [
         PipelineVariable(
-            name="top_k",
+            name="result_limit",
             type=VariableType.INTEGER,
             source=VariableSource.INPUT,
             value=5,
@@ -46,34 +44,34 @@ def _declare_top_k_argument(session: Session, user: models.User) -> None:
     ]
     for node in definition.nodes:
         if node.type == "retrieval.input":
-            node.config = {**node.config, "arguments": ["top_k"]}
+            node.config = {**node.config, "arguments": ["result_limit"]}
     service.update_pipeline(
-        pipeline=pipeline, definition=definition, change_summary="Declare top_k."
+        pipeline=pipeline,
+        definition=definition,
+        change_summary="Declare result_limit.",
     )
     session.commit()
 
 
-def test_query_arguments_reflect_default_scaffold(
-    client: TestClient, session: Session
-) -> None:
+def test_query_arguments_reflect_default_scaffold(client: TestClient, session: Session) -> None:
     collection_id = _create_collection(client)
     response = client.get(f"/api/collections/{collection_id}/query-arguments")
     assert response.status_code == 200
     names = [argument["name"] for argument in response.json()["arguments"]]
-    assert names == ["top_k"]
+    assert names == ["result_limit"]
 
 
 def test_query_arguments_returns_declared_shape(
     client: TestClient, session: Session, auth_user: models.User
 ) -> None:
     collection_id = _create_collection(client)
-    _declare_top_k_argument(session, auth_user)
+    _declare_result_limit_argument(session, auth_user)
     response = client.get(f"/api/collections/{collection_id}/query-arguments")
     assert response.status_code == 200
     arguments = response.json()["arguments"]
     assert arguments == [
         {
-            "name": "top_k",
+            "name": "result_limit",
             "type": "integer",
             "description": "",
             "required": False,
@@ -97,18 +95,16 @@ def test_query_rejects_invalid_argument_value_with_400(
     client: TestClient, session: Session, auth_user: models.User
 ) -> None:
     collection_id = _create_collection(client)
-    _declare_top_k_argument(session, auth_user)
+    _declare_result_limit_argument(session, auth_user)
     response = client.post(
         f"/api/collections/{collection_id}/query",
-        json={"query": "hello", "arguments": {"top_k": 99}},
+        json={"query": "hello", "arguments": {"result_limit": 99}},
     )
     assert response.status_code == 400
     assert "must be at most 10" in response.json()["detail"]
 
 
-def test_query_rejects_unknown_argument_with_400(
-    client: TestClient, session: Session
-) -> None:
+def test_query_rejects_unknown_argument_with_400(client: TestClient, session: Session) -> None:
     collection_id = _create_collection(client)
     response = client.post(
         f"/api/collections/{collection_id}/query",

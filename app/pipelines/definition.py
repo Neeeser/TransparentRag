@@ -19,7 +19,7 @@ CURRENT_DEFINITION_SCHEMA_VERSION = 2
 
 Version 2: variables own input declarations (`source="input"`); the
 `retrieval.input` node's `arguments` config is a list of variable names; and
-fusion nodes never truncate (a Top-N node carries the cut). Stored raw
+fusion nodes never truncate (a Result Limit node carries the cut). Stored raw
 definitions *without* the key predate the field and are treated as version 1.
 """
 
