@@ -204,6 +204,67 @@ def test_upgrade_definition_splices_reranker_fan_in_out_with_stable_unique_ids()
     }
 
 
+def test_upgrade_definition_contracts_adjacent_legacy_rerankers() -> None:
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="source", type="retriever.vector", name="Retriever"),
+            PipelineNodeDefinition(
+                id="reranker-a",
+                type="reranker.cross_encoder",
+                name="Legacy Reranker A",
+            ),
+            PipelineNodeDefinition(
+                id="reranker-b",
+                type="reranker.cross_encoder",
+                name="Legacy Reranker B",
+            ),
+            PipelineNodeDefinition(id="target", type="limit.results", name="Result Limit"),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="source-reranker-a",
+                source="source",
+                target="reranker-a",
+                source_port="source-results",
+                target_port="first-input",
+            ),
+            PipelineEdgeDefinition(
+                id="reranker-a-reranker-b",
+                source="reranker-a",
+                target="reranker-b",
+                source_port="first-output",
+                target_port="second-input",
+            ),
+            PipelineEdgeDefinition(
+                id="reranker-b-target",
+                source="reranker-b",
+                target="target",
+                source_port="second-output",
+                target_port="target-results",
+            ),
+        ],
+    )
+
+    upgraded = upgrade_definition(definition)
+
+    assert upgraded is not None
+    assert {node.id for node in upgraded.nodes} == {"source", "target"}
+    assert upgraded.edges == [
+        PipelineEdgeDefinition(
+            id="edge-source-target",
+            source="source",
+            target="target",
+            source_port="source-results",
+            target_port="target-results",
+        )
+    ]
+    legacy_ids = {"reranker-a", "reranker-b"}
+    assert all(
+        edge.source not in legacy_ids and edge.target not in legacy_ids
+        for edge in upgraded.edges
+    )
+
+
 def test_upgrade_definition_returns_none_when_already_current() -> None:
     definition = _legacy_retrieval_definition()
     first = upgrade_definition(definition)
