@@ -16,4 +16,5 @@ def test_provider_reranker_preserves_every_candidate_before_result_limit(
     assert target is not None
     result = run_live_smoke(target)
     assert result.reranked_count > result.result_limit
+    assert result.top_chunk_id == "live-smoke:1"
     assert result.limited_count == result.result_limit

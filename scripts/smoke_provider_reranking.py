@@ -49,6 +49,15 @@ _ENVIRONMENT: dict[ProviderName, tuple[str, str]] = {
     "cohere": ("COHERE_API_KEY", "COHERE_RERANK_MODEL"),
 }
 _RESULT_LIMIT = 2
+EXPECTED_TOP_CHUNK_ID = "live-smoke:1"
+SAFE_SMOKE_FAILURE_MESSAGE = "Provider reranking smoke failed."
+
+
+class LiveSmokeError(RuntimeError):
+    """Fixed-message failure exposed by the live smoke boundary."""
+
+    def __init__(self) -> None:
+        super().__init__(SAFE_SMOKE_FAILURE_MESSAGE)
 
 
 @dataclass(frozen=True)
@@ -61,9 +70,10 @@ class LiveRerankingTarget:
 
 @dataclass(frozen=True)
 class LiveSmokeResult:
-    """Non-sensitive counts emitted by a completed smoke run."""
+    """Non-sensitive ordering evidence and counts from a completed smoke run."""
 
     reranked_count: int
+    top_chunk_id: str
     result_limit: int
     limited_count: int
 
@@ -131,7 +141,7 @@ def _ordered_chunk_ids(matches: Sequence[ScoredChunk]) -> list[str]:
     return [match.chunk.chunk_id for match in matches]
 
 
-def run_live_smoke(target: LiveRerankingTarget) -> LiveSmokeResult:
+def _run_live_smoke(target: LiveRerankingTarget) -> LiveSmokeResult:
     """Exercise a real adapter and node path, then verify the later final cut."""
     api_key_name, _ = _ENVIRONMENT[target.provider]
     api_key = os.environ[api_key_name]
@@ -173,6 +183,9 @@ def run_live_smoke(target: LiveRerankingTarget) -> LiveSmokeResult:
                 _ordered_chunk_ids(original)
             ):
                 raise RuntimeError("Provider reranking did not return every submitted candidate.")
+            top_chunk_id = reranked[0].chunk.chunk_id
+            if top_chunk_id != EXPECTED_TOP_CHUNK_ID:
+                raise RuntimeError("Provider reranking returned the wrong semantic winner.")
 
             limited_payload = RetrievalPayload.model_validate(
                 ResultLimitNode(ResultLimitConfig(max_results=_RESULT_LIMIT)).run(
@@ -184,12 +197,22 @@ def run_live_smoke(target: LiveRerankingTarget) -> LiveSmokeResult:
                 raise RuntimeError("Result Limit did not preserve the complete reranked order.")
             return LiveSmokeResult(
                 reranked_count=len(reranked),
+                top_chunk_id=top_chunk_id,
                 result_limit=_RESULT_LIMIT,
                 limited_count=len(limited),
             )
     finally:
         engine.dispose()
         close_provider_clients()
+
+
+def run_live_smoke(target: LiveRerankingTarget) -> LiveSmokeResult:
+    """Run the live smoke while redacting every database and provider failure."""
+    try:
+        return _run_live_smoke(target)
+    except Exception:
+        pass
+    raise LiveSmokeError
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -211,7 +234,11 @@ def main(argv: list[str] | None = None) -> int:
     if target is None:
         print("Live reranking is not enabled or its required environment is incomplete.")
         return 2
-    result = run_live_smoke(target)
+    try:
+        result = run_live_smoke(target)
+    except LiveSmokeError:
+        print(SAFE_SMOKE_FAILURE_MESSAGE)
+        return 1
     print(
         "Provider reranking smoke passed: "
         f"reranked={result.reranked_count}, result_limit={result.result_limit}, kept={result.limited_count}."

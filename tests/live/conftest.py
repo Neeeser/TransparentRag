@@ -42,4 +42,5 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         reason = "set the selected provider's reranking key and model environment variables"
     marker = pytest.mark.skip(reason=reason)
     for item in items:
-        item.add_marker(marker)
+        if item.get_closest_marker("live_provider_reranking") is not None:
+            item.add_marker(marker)
