@@ -10,6 +10,7 @@ import type { ProviderConnection, ProviderKind, ProviderTypeInfo } from "@/lib/t
 export interface UseConnectionsResult {
   connections: ProviderConnection[];
   connectionsLoading: boolean;
+  connectionsResolved: boolean;
   connectionsError: string | null;
   reloadConnections: () => void;
   hasKind: (kind: ProviderKind) => boolean;
@@ -35,6 +36,7 @@ export function useConnections(authToken: string, authLoading = false): UseConne
   return {
     connections,
     connectionsLoading: loading || authLoading,
+    connectionsResolved: data !== null,
     connectionsError: error,
     reloadConnections: reload,
     hasKind,

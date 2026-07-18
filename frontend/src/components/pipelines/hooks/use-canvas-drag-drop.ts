@@ -39,6 +39,8 @@ interface UseCanvasDragDropParams {
   reactFlowInstance: ReactFlowInstance<Node<PipelineNodeData>, TypedEdgeType> | null;
   onAddNode: (spec: NodeSpec, position?: FlowPosition) => void;
   onUnknownNodeType: () => void;
+  canAddNode?: (spec: NodeSpec) => boolean;
+  onUnavailableNodeType?: () => void;
 }
 
 export interface UseCanvasDragDropResult {
@@ -60,6 +62,8 @@ export function useCanvasDragDrop({
   reactFlowInstance,
   onAddNode,
   onUnknownNodeType,
+  canAddNode = () => true,
+  onUnavailableNodeType,
 }: UseCanvasDragDropParams): UseCanvasDragDropResult {
   const [dropPreviewPosition, setDropPreviewPosition] = useState<FlowPosition | null>(null);
   const [dropPreviewLabel, setDropPreviewLabel] = useState<string | null>(null);
@@ -79,7 +83,7 @@ export function useCanvasDragDrop({
         return;
       }
       const spec = catalogSpecs.find((item) => item.type === type);
-      if (!spec || !reactFlowInstance) {
+      if (!spec || !canAddNode(spec) || !reactFlowInstance) {
         handleDragLeave();
         return;
       }
@@ -87,7 +91,7 @@ export function useCanvasDragDrop({
       setDropPreviewPosition(position);
       setDropPreviewLabel(spec.label);
     },
-    [catalogSpecs, handleDragLeave, reactFlowInstance],
+    [canAddNode, catalogSpecs, handleDragLeave, reactFlowInstance],
   );
 
   const handleDrop = useCallback(
@@ -98,6 +102,11 @@ export function useCanvasDragDrop({
       const spec = catalogSpecs.find((item) => item.type === type);
       if (!spec) {
         onUnknownNodeType();
+        return;
+      }
+      if (!canAddNode(spec)) {
+        handleDragLeave();
+        onUnavailableNodeType?.();
         return;
       }
       if (dropPreviewPosition) {
@@ -111,7 +120,16 @@ export function useCanvasDragDrop({
       const position = resolveFlowPosition(reactFlowInstance, pointFromEvent(event));
       onAddNode(spec, position);
     },
-    [catalogSpecs, dropPreviewPosition, onAddNode, onUnknownNodeType, reactFlowInstance],
+    [
+      canAddNode,
+      catalogSpecs,
+      dropPreviewPosition,
+      handleDragLeave,
+      onAddNode,
+      onUnavailableNodeType,
+      onUnknownNodeType,
+      reactFlowInstance,
+    ],
   );
 
   return { dropPreviewPosition, dropPreviewLabel, handleDragOver, handleDrop, handleDragLeave };

@@ -4,18 +4,16 @@ import { useEdgesState, useNodesState } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Loader } from "@/components/ui/loader";
-import { GlassCard } from "@/components/ui/panel";
 import { useAuth } from "@/providers/auth-provider";
 
 import { useCanvasDecorations } from "./hooks/use-canvas-decorations";
 import { useCanvasDragDrop } from "./hooks/use-canvas-drag-drop";
 import { useConnectionTyping } from "./hooks/use-connection-typing";
-import { useEmbeddingModelCatalog } from "./hooks/use-embedding-model-catalog";
 import { useIndexBackends } from "./hooks/use-index-backends";
 import { useIndexes } from "./hooks/use-indexes";
 import { useLayoutPersistence } from "./hooks/use-layout-persistence";
 import { useNodeEditing } from "./hooks/use-node-editing";
+import { usePipelineModelCatalogs } from "./hooks/use-pipeline-model-catalogs";
 import { usePipelines } from "./hooks/use-pipelines";
 import { useSidebarWidth } from "./hooks/use-sidebar-width";
 import { useTokenizerConsent } from "./hooks/use-tokenizer-consent";
@@ -29,12 +27,12 @@ import {
   toFlowNodes,
   toPipelineDefinition,
 } from "./lib/pipeline-utils";
+import { RERANKER_NODE_TYPE, RERANKER_PROVIDER_REQUIRED } from "./lib/reranking";
 import { NodeEditorDrawer } from "./NodeEditorDrawer";
-import { PipelineCanvas } from "./PipelineCanvas";
+import { PipelineBuilderWorkspace } from "./PipelineBuilderWorkspace";
 import { PipelineEditorDialogs } from "./PipelineEditorDialogs";
 import { PipelineHeader } from "./PipelineHeader";
 import { PipelineModals } from "./PipelineModals";
-import { PipelineSidebar } from "./PipelineSidebar";
 import { TokenizerConsentDialog } from "./TokenizerConsentDialog";
 
 import type { TypedEdgeType } from "./flow/TypedEdge";
@@ -45,6 +43,20 @@ import type { Node, ReactFlowInstance } from "@xyflow/react";
 
 type PipelineBuilderProps = {
   kind: PipelineKind;
+};
+
+const previewWithRerankerGate = (
+  spec: NodeSpec,
+  hasRerankingProvider: boolean,
+  rerankingProviderMessage: string | null,
+  previewNodeSpec: (candidate: NodeSpec) => void,
+  setMessage: (message: string | null) => void,
+) => {
+  if (spec.type === RERANKER_NODE_TYPE && !hasRerankingProvider) {
+    setMessage(rerankingProviderMessage ?? RERANKER_PROVIDER_REQUIRED);
+    return;
+  }
+  previewNodeSpec(spec);
 };
 
 export function PipelineBuilder({ kind }: PipelineBuilderProps) {
@@ -82,9 +94,16 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     embeddingModelsLoading,
     embeddingModelsError,
     embeddingCatalog,
-    refreshModels,
-  } = useEmbeddingModelCatalog(token, user?.id);
-  const handleCatalogVisible = useCallback(() => void refreshModels(), [refreshModels]);
+    rerankingModels,
+    rerankingModelsLoading,
+    rerankingModelsError,
+    rerankingCatalog,
+    hasRerankingProvider,
+    rerankingProviderMessage,
+    onEmbeddingCatalogVisible,
+    onRerankingCatalogVisible,
+    onRetryRerankingModels,
+  } = usePipelineModelCatalogs(token, user?.id);
 
   const { indexes, indexesLoading, indexesError, refreshIndexes } = useIndexes(token);
   const { backends } = useIndexBackends(token);
@@ -139,7 +158,21 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
     reactFlowInstance,
     onAddNode: handleAddNode,
     onUnknownNodeType: () => setMessage("Unable to add node: unknown type."),
+    canAddNode: (spec) => spec.type !== RERANKER_NODE_TYPE || hasRerankingProvider,
+    onUnavailableNodeType: () => setMessage(rerankingProviderMessage ?? RERANKER_PROVIDER_REQUIRED),
   });
+
+  const handlePreviewNode = useCallback(
+    (spec: NodeSpec) =>
+      previewWithRerankerGate(
+        spec,
+        hasRerankingProvider,
+        rerankingProviderMessage,
+        previewNodeSpec,
+        setMessage,
+      ),
+    [hasRerankingProvider, previewNodeSpec, rerankingProviderMessage, setMessage],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -278,7 +311,7 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         embeddingCatalog={embeddingCatalog}
         embeddingModelsLoading={embeddingModelsLoading}
         embeddingModelsError={embeddingModelsError}
-        onCatalogVisible={handleCatalogVisible}
+        onCatalogVisible={onEmbeddingCatalogVisible}
         indexesLoading={indexesLoading}
         indexesError={indexesError}
         onRefreshIndexes={refreshIndexes}
@@ -298,70 +331,47 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         hasPipeline={Boolean(selectedPipeline)}
       />
 
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <GlassCard className="flex items-center justify-center rounded-3xl p-10">
-            <Loader className="h-6 w-6" />
-          </GlassCard>
-        </div>
-      ) : (
-        <div
-          className="grid flex-1 min-h-0 gap-3 xl:[grid-template-columns:var(--sidebar-width)_auto_1fr]"
-          style={{ "--sidebar-width": `${sidebar.width}px` } as React.CSSProperties}
-        >
-          <div className="min-h-0">
-            <PipelineSidebar
-              pipelines={pipelines}
-              selectedPipelineId={selectedPipeline?.id}
-              catalog={catalogByFamily}
-              onSelectPipeline={handleSelectPipeline}
-              onDeletePipeline={handleDeletePipeline}
-              pipelineUsage={pipelineUsage}
-              onPreviewNode={previewNodeSpec}
-              variables={variables}
-              onVariablesChange={setVariables}
-              variableNodes={variableNodes}
-              modelOptions={embeddingModels}
-              variablesDisabled={!selectedPipeline}
-            />
-          </div>
-
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize sidebar"
-            tabIndex={0}
-            onPointerDown={sidebar.startResize}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowLeft") sidebar.resizeBy(-16);
-              if (event.key === "ArrowRight") sidebar.resizeBy(16);
-            }}
-            className="hidden w-1.5 cursor-col-resize self-stretch rounded-full bg-surface transition-colors hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet xl:block"
-          />
-
-          <PipelineCanvas
-            canvasKey={`${selectedPipelineId ?? "none"}-v${selectedPipelineVersion}`}
-            nodes={nodesForCanvas}
-            edges={edgesWithValidation}
-            selectedPipeline={selectedPipeline}
-            notice={message}
-            onNoticeDismiss={() => setMessage(null)}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={handleConnect}
-            onConnectStart={handleConnectStart}
-            onConnectEnd={handleConnectEnd}
-            isValidConnection={(connection) => validateConnection(connection).valid}
-            onNodeSelect={selectNode}
-            onNodeDragStop={scheduleLayoutSave}
-            onAutoLayout={handleAutoLayout}
-            onDrop={dragDrop.handleDrop}
-            onDragOver={dragDrop.handleDragOver}
-            onDragLeave={dragDrop.handleDragLeave}
-            onInit={setReactFlowInstance}
-          />
-        </div>
-      )}
+      <PipelineBuilderWorkspace
+        loading={loading}
+        resize={sidebar}
+        sidebar={{
+          pipelines,
+          selectedPipelineId: selectedPipeline?.id,
+          catalog: catalogByFamily,
+          onSelectPipeline: handleSelectPipeline,
+          onDeletePipeline: handleDeletePipeline,
+          pipelineUsage,
+          onPreviewNode: handlePreviewNode,
+          variables,
+          onVariablesChange: setVariables,
+          variableNodes,
+          modelOptions: embeddingModels,
+          variablesDisabled: !selectedPipeline,
+          hasRerankingProvider,
+          rerankingProviderMessage,
+        }}
+        canvas={{
+          canvasKey: `${selectedPipelineId ?? "none"}-v${selectedPipelineVersion}`,
+          nodes: nodesForCanvas,
+          edges: edgesWithValidation,
+          selectedPipeline,
+          notice: message,
+          onNoticeDismiss: () => setMessage(null),
+          onNodesChange,
+          onEdgesChange,
+          onConnect: handleConnect,
+          onConnectStart: handleConnectStart,
+          onConnectEnd: handleConnectEnd,
+          isValidConnection: (connection) => validateConnection(connection).valid,
+          onNodeSelect: selectNode,
+          onNodeDragStop: scheduleLayoutSave,
+          onAutoLayout: handleAutoLayout,
+          onDrop: dragDrop.handleDrop,
+          onDragOver: dragDrop.handleDragOver,
+          onDragLeave: dragDrop.handleDragLeave,
+          onInit: setReactFlowInstance,
+        }}
+      />
 
       <NodeEditorDrawer
         node={inspectedNode}
@@ -381,7 +391,15 @@ export function PipelineBuilder({ kind }: PipelineBuilderProps) {
         embeddingCatalog={embeddingCatalog}
         embeddingModelsLoading={embeddingModelsLoading}
         embeddingModelsError={embeddingModelsError}
-        onCatalogVisible={handleCatalogVisible}
+        onCatalogVisible={onEmbeddingCatalogVisible}
+        rerankingModels={rerankingModels}
+        rerankingCatalog={rerankingCatalog}
+        rerankingModelsLoading={rerankingModelsLoading}
+        rerankingModelsError={rerankingModelsError}
+        onRerankingCatalogVisible={onRerankingCatalogVisible}
+        onRetryRerankingModels={onRetryRerankingModels}
+        hasRerankingProvider={hasRerankingProvider}
+        rerankingProviderMessage={rerankingProviderMessage}
       />
 
       <PipelineEditorDialogs

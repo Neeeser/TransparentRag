@@ -166,6 +166,7 @@ export function computeKindCoverage(
   const coverage: Record<ProviderKind, boolean> = {
     embedding: false,
     chat: false,
+    reranking: false,
     vector_store: false,
   };
   for (const connection of connections) {

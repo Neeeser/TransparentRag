@@ -27,6 +27,8 @@ type PipelineSidebarProps = {
   variableNodes: Array<{ type: string; config: Record<string, unknown> }>;
   modelOptions: CatalogModel[];
   variablesDisabled: boolean;
+  hasRerankingProvider: boolean;
+  rerankingProviderMessage?: string | null;
 };
 
 export function PipelineSidebar({
@@ -42,6 +44,8 @@ export function PipelineSidebar({
   variableNodes,
   modelOptions,
   variablesDisabled,
+  hasRerankingProvider,
+  rerankingProviderMessage,
 }: PipelineSidebarProps) {
   const [tab, setTab] = useState<SidebarTab>("pipelines");
 
@@ -66,7 +70,12 @@ export function PipelineSidebar({
             onDelete={onDeletePipeline}
             pipelineUsage={pipelineUsage}
           />
-          <PipelineNodeLibrary catalog={catalog} onPreviewNode={onPreviewNode} />
+          <PipelineNodeLibrary
+            catalog={catalog}
+            onPreviewNode={onPreviewNode}
+            hasRerankingProvider={hasRerankingProvider}
+            rerankingProviderMessage={rerankingProviderMessage}
+          />
         </div>
       ) : (
         <div role="tabpanel" aria-labelledby={tabId("variables")}>

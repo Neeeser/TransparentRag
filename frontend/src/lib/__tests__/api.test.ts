@@ -24,6 +24,7 @@ import {
   fetchDocumentTrace,
   fetchQueryEventTrace,
   fetchEmbeddingModels,
+  fetchRerankingModels,
   fetchPipeline,
   fetchPipelineNodes,
   fetchPipelineRunTrace,
@@ -409,12 +410,16 @@ describe("api", () => {
       .mockResolvedValueOnce(createJsonResponse([]))
       .mockResolvedValueOnce(createJsonResponse([]))
       .mockResolvedValueOnce(createJsonResponse({}))
+      .mockResolvedValueOnce(createJsonResponse({}))
       .mockResolvedValueOnce(createJsonResponse({}));
 
     await listChatModels("token");
+    await fetchRerankingModels("token", true);
     await listModelEndpoints("token", "conn-1", "openai", "gpt-4o");
     await listChatModels("token");
     await listModelEndpoints("token", "conn-1", "openai", "gpt-4o");
+
+    expect(fetchMock.mock.calls[1]?.[0]).toContain("/api/models?kind=reranking&refresh=true");
   });
 
   it("streams chat events and returns final payload", async () => {

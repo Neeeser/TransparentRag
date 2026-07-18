@@ -7,11 +7,13 @@ import type {
   UUID,
 } from "@/lib/types";
 
+const REFRESH_QUERY = "&refresh=true";
+
 export async function listChatModels(
   token: string,
   refresh = false,
 ): Promise<ModelCatalogResponse> {
-  return apiFetch<ModelCatalogResponse>(`/api/models?kind=chat${refresh ? "&refresh=true" : ""}`, {
+  return apiFetch<ModelCatalogResponse>(`/api/models?kind=chat${refresh ? REFRESH_QUERY : ""}`, {
     token,
   });
 }
@@ -21,7 +23,17 @@ export async function fetchEmbeddingModels(
   refresh = false,
 ): Promise<ModelCatalogResponse> {
   return apiFetch<ModelCatalogResponse>(
-    `/api/models?kind=embedding${refresh ? "&refresh=true" : ""}`,
+    `/api/models?kind=embedding${refresh ? REFRESH_QUERY : ""}`,
+    { token },
+  );
+}
+
+export async function fetchRerankingModels(
+  token: string,
+  refresh = false,
+): Promise<ModelCatalogResponse> {
+  return apiFetch<ModelCatalogResponse>(
+    `/api/models?kind=reranking${refresh ? REFRESH_QUERY : ""}`,
     { token },
   );
 }

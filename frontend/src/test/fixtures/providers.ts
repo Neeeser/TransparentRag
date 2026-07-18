@@ -57,6 +57,8 @@ export function makeCatalogModel(overrides: Partial<CatalogModel> = {}): Catalog
     context_length: 8192,
     pricing: { prompt: "0.000001", completion: "0.000002" },
     dimension: null,
+    input_modalities: ["text"],
+    output_modalities: ["text"],
     supported_parameters: ["tools", "temperature"],
     ...overrides,
   };

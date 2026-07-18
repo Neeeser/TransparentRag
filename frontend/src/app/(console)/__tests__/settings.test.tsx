@@ -55,6 +55,17 @@ describe("SettingsPage (provider connections)", () => {
     });
   });
 
+  it("shows reranking providers and the TEI connection constraint from its descriptor", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: /add provider/i }));
+    expect(screen.getAllByText("Reranking").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: /Hugging Face TEI/i }));
+
+    expect(screen.getByText("Each TEI connection serves one model and task.")).toBeInTheDocument();
+  });
+
   it("surfaces a failed pre-save probe without creating the connection", async () => {
     api.validateConnectionConfig.mockResolvedValueOnce({
       valid: false,

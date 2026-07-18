@@ -80,20 +80,17 @@ describe("resolveNodeSignature", () => {
     });
   });
 
-  it("shows the reranker as disabled with the model demoted to the detail line", () => {
-    const signature = resolveNodeSignature(
-      "reranker.cross_encoder",
-      { enabled: false, model_name: "cross-encoder/ms-marco" },
-      [],
-    );
+  it("shows the provider-backed reranker model without truncation controls", () => {
+    const signature = resolveNodeSignature("reranker.model", { model_name: "rerank-v3.5" }, []);
     expect(signature).toMatchObject({
-      value: "disabled",
-      detail: "cross-encoder/ms-marco",
+      value: "rerank-v3.5",
+      missing: false,
+    });
+    expect(signature?.consumedKeys).toEqual(["model_name"]);
+    expect(resolveNodeSignature("reranker.model", {}, [])).toMatchObject({
+      value: "no model selected",
       missing: true,
     });
-    expect(
-      resolveNodeSignature("reranker.cross_encoder", { enabled: true, model_name: "m" }, []),
-    ).toMatchObject({ value: "m", missing: false });
   });
 
   it("returns null for nodes with nothing to highlight", () => {
