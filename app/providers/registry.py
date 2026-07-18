@@ -32,6 +32,7 @@ from app.providers.ollama import OllamaAdapter
 from app.providers.openrouter import OpenRouterAdapter
 from app.providers.pinecone import PineconeAdapter
 from app.retrieval.embedders.base import Embedder
+from app.retrieval.rerankers.base import Reranker
 from app.schemas.enums import ProviderKind, ProviderType
 from app.schemas.providers import OllamaConnectionConfig, OpenRouterConnectionConfig
 from app.services.errors import InvalidInputError, NotFoundError
@@ -201,3 +202,7 @@ class ProviderResolver:
     def chat(self, connection_id: UUID) -> ChatProvider:
         """Construct a chat provider from a connection id."""
         return self.adapter(connection_id, ProviderKind.CHAT).chat_provider()
+
+    def reranker(self, connection_id: UUID, model_name: str) -> Reranker:
+        """Construct a reranker from a connection id and model name."""
+        return self.adapter(connection_id, ProviderKind.RERANKING).reranker(model_name)

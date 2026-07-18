@@ -99,6 +99,7 @@ class ProviderKind(str, Enum):
 
     EMBEDDING = "embedding"
     CHAT = "chat"
+    RERANKING = "reranking"
     VECTOR_STORE = "vector_store"
 
 

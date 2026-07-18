@@ -147,6 +147,8 @@ class CatalogModel(BaseModel):
     max_input_tokens: int | None = None
     pricing: ModelPricing | None = None
     dimension: int | None = None
+    input_modalities: list[str] = Field(default_factory=list)
+    output_modalities: list[str] = Field(default_factory=list)
     supported_parameters: list[str] = Field(default_factory=list)
     default_parameters: dict[str, Any] | None = None
 
