@@ -8,7 +8,7 @@ import type {
   EvalMetricInfo,
   EvalRun,
   EvalRunCreatePayload,
-  EvalRunItem,
+  EvalRunItemsResponse,
   EvalRunSummary,
 } from "@/lib/types";
 
@@ -74,8 +74,11 @@ export async function fetchEvalRun(token: string, runId: string): Promise<EvalRu
   return apiFetch<EvalRun>(`/api/evals/runs/${runId}`, { token });
 }
 
-export async function fetchEvalRunItems(token: string, runId: string): Promise<EvalRunItem[]> {
-  return apiFetch<EvalRunItem[]>(`/api/evals/runs/${runId}/items`, { token });
+export async function fetchEvalRunItems(
+  token: string,
+  runId: string,
+): Promise<EvalRunItemsResponse> {
+  return apiFetch<EvalRunItemsResponse>(`/api/evals/runs/${runId}/items`, { token });
 }
 
 export async function cancelEvalRun(token: string, runId: string): Promise<EvalRun> {

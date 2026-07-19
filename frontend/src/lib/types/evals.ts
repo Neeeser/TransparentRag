@@ -24,6 +24,8 @@ export interface BuiltinDatasetInfo {
   key: string;
   name: string;
   description: string;
+  domain: string;
+  measures: string;
   num_queries: number;
   num_corpus_docs: number;
 }
@@ -57,6 +59,7 @@ export interface EvalRunConfig {
   num_queries: number;
   distractor_pool_size: number;
   seed: number;
+  concurrency: number;
   k_values: number[];
   selected_metrics: string[];
   run_inputs: Record<string, unknown>;
@@ -96,18 +99,43 @@ export interface FunnelSummary {
   findings: EvalFinding[];
 }
 
+/** Mirrors `EvalRetrievedChunk` — one retrieved chunk, in rank order. */
+export interface EvalRetrievedChunk {
+  chunk_id?: string | null;
+  document_id: string;
+  score?: number | null;
+}
+
+/**
+ * Mirrors `EvalItemNodeDocs` — the documents one node emitted for one query.
+ * `node_id` matches the run-level funnel stages (including `"ingestion"`).
+ */
+export interface EvalItemNodeDocs {
+  node_id: string;
+  document_ids: string[];
+}
+
 /** Mirrors `EvalRunItemRead` — one evaluated query. */
 export interface EvalRunItem {
   id: UUID;
   query_external_id: string;
   query_text: string;
   pipeline_run_id?: UUID | null;
+  query_event_id?: UUID | null;
   result_count: number;
   gold_doc_ids: string[];
   retrieved_document_ids: string[];
+  retrieved: EvalRetrievedChunk[];
+  per_node_funnel: EvalItemNodeDocs[];
   metrics: Record<string, number>;
   failed: boolean;
   error_message?: string | null;
+}
+
+/** Mirrors `EvalRunItemsResponse` — items plus document display titles. */
+export interface EvalRunItemsResponse {
+  items: EvalRunItem[];
+  document_titles: Record<string, string>;
 }
 
 /** Mirrors `EvalRunRead`. */

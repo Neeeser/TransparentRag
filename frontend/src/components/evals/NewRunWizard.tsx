@@ -3,12 +3,26 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import {
+  clampToBounds,
+  coerceInputs,
+  CONCURRENCY_CHOICES,
+  DEFAULT_CONCURRENCY,
+  DEFAULT_SELECTED_K,
+  declaredInputs,
+  defaultInputValue,
+  effectiveResultDepth,
+  isDepthVariable,
+  K_CHOICES,
+  truncatedCutoffs,
+} from "@/components/evals/lib/run-config";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Field, TextInput } from "@/components/ui/field";
 import { WizardFooter, WizardShell } from "@/components/ui/wizard-shell";
 import { createEvalRun, fetchPipelines } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useApiQuery } from "@/lib/use-api-query";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
 import type { EvalDataset, Pipeline, PipelineVariable } from "@/lib/types";
@@ -61,8 +75,6 @@ const STEPS = [
   { id: "scope", label: "Scope", description: "How much of the dataset the run covers." },
 ];
 
-const DEFAULT_K = "1, 5, 10, 25";
-
 export function NewRunWizard({ open, datasets, onClose }: NewRunWizardProps) {
   const { token } = useAuth();
   const router = useRouter();
@@ -75,7 +87,8 @@ export function NewRunWizard({ open, datasets, onClose }: NewRunWizardProps) {
   const [numQueries, setNumQueries] = useState("");
   const [distractors, setDistractors] = useState("");
   const [seed, setSeed] = useState("0");
-  const [kValues, setKValues] = useState(DEFAULT_K);
+  const [concurrency, setConcurrency] = useState(DEFAULT_CONCURRENCY);
+  const [kSelected, setKSelected] = useState<number[]>([...DEFAULT_SELECTED_K]);
   const [runInputs, setRunInputs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -93,18 +106,35 @@ export function NewRunWizard({ open, datasets, onClose }: NewRunWizardProps) {
     [retrieval],
   );
 
+  const maxK = kSelected.length ? Math.max(...kSelected) : 10;
+  const boundInputs = useMemo(
+    () => coerceInputs(runInputs, inputVariables, maxK),
+    [runInputs, inputVariables, maxK],
+  );
+  const depthCap = useMemo(
+    () => effectiveResultDepth(retrieval?.definition, boundInputs, maxK),
+    [retrieval, boundInputs, maxK],
+  );
+  const truncated = truncatedCutoffs(kSelected, depthCap.depth);
+
   const readyDatasets = datasets.filter((entry) => entry.status === "ready");
   const stepReady = [
     datasetId !== "",
     ingestionId !== "" && retrievalId !== "",
-    parseKValues(kValues) !== null,
+    kSelected.length > 0,
   ][step];
+
+  const toggleK = (k: number) => {
+    setKSelected((current) =>
+      current.includes(k)
+        ? current.filter((value) => value !== k)
+        : [...current, k].sort((a, b) => a - b),
+    );
+  };
 
   const launch = async () => {
     if (!dataset) return;
     const chosen = PRESETS.find((entry) => entry.key === preset) ?? PRESETS[0];
-    const kList = parseKValues(kValues);
-    if (!kList) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -121,9 +151,10 @@ export function NewRunWizard({ open, datasets, onClose }: NewRunWizardProps) {
             dataset.num_corpus_docs,
           ),
           seed: Number(seed) || 0,
-          k_values: kList,
+          concurrency,
+          k_values: kSelected,
           selected_metrics: [],
-          run_inputs: coerceInputs(runInputs, inputVariables),
+          run_inputs: boundInputs,
         },
       });
       router.push(`/evals/runs/${run.id}`);
@@ -196,13 +227,9 @@ export function NewRunWizard({ open, datasets, onClose }: NewRunWizardProps) {
             />
           </Field>
           {inputVariables.map((variable) => (
-            <Field
-              key={variable.name}
-              label={variable.name}
-              hint={variable.description || "Pipeline input, held fixed for every query."}
-            >
+            <Field key={variable.name} label={variable.name} hint={inputHint(variable, maxK)}>
               <TextInput
-                value={runInputs[variable.name] ?? defaultInputValue(variable)}
+                value={runInputs[variable.name] ?? defaultInputValue(variable, maxK)}
                 onChange={(event) =>
                   setRunInputs((prev) => ({ ...prev, [variable.name]: event.target.value }))
                 }
@@ -236,6 +263,42 @@ export function NewRunWizard({ open, datasets, onClose }: NewRunWizardProps) {
             Sampled queries always keep every document judged relevant to them in the corpus;
             distractors set how much irrelevant material competes.
           </p>
+          <Field
+            label="k cutoffs"
+            hint="Metrics compute at each selected depth. Each query requests the largest cutoff's worth of results."
+          >
+            <div className="flex flex-wrap gap-2" role="group" aria-label="k cutoffs">
+              {K_CHOICES.map((k) => {
+                const selected = kSelected.includes(k);
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleK(k)}
+                    className={cn(
+                      "rounded-full border px-3.5 py-1.5 font-mono text-xs transition",
+                      "focus-visible:ring-2 focus-visible:ring-accent-violet",
+                      selected
+                        ? "border-accent-violet/60 bg-accent-violet/15 text-primary"
+                        : "border-hairline bg-surface text-muted hover:border-strong hover:text-body",
+                    )}
+                  >
+                    @{k}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+          {truncated.length > 0 && (
+            <p className="text-sm text-data-warn" role="alert">
+              {depthCap.label
+                ? `${depthCap.label} caps results at ${depthCap.depth}, so `
+                : `The pipeline returns at most ${depthCap.depth} results, so `}
+              {truncated.map((k) => `@${k}`).join(", ")} will always read as misses. Raise the cap
+              or drop those cutoffs.
+            </p>
+          )}
           <button
             type="button"
             className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted transition hover:text-primary focus-visible:ring-2 focus-visible:ring-accent-violet"
@@ -269,8 +332,20 @@ export function NewRunWizard({ open, datasets, onClose }: NewRunWizardProps) {
                   onChange={(event) => setSeed(event.target.value)}
                 />
               </Field>
-              <Field label="k cutoffs" hint="Comma-separated; metrics compute at each.">
-                <TextInput value={kValues} onChange={(event) => setKValues(event.target.value)} />
+              <Field
+                label="Parallel requests"
+                hint="Retrievals and ingestions in flight at once. Lower it for a local model server; raise it if your provider tolerates parallel load."
+              >
+                <CustomSelect
+                  value={String(concurrency)}
+                  placeholder="Parallel requests"
+                  options={CONCURRENCY_CHOICES.map((value) => ({
+                    value: String(value),
+                    label: String(value),
+                  }))}
+                  onValueChange={(value) => setConcurrency(Number(value))}
+                  aria-label="Parallel requests"
+                />
               </Field>
             </div>
           )}
@@ -290,42 +365,15 @@ function usePipelineOptions(pipelines: Pipeline[] | null, kind: "ingestion" | "r
   );
 }
 
-function declaredInputs(variables: PipelineVariable[] | undefined): PipelineVariable[] {
-  return (variables ?? []).filter((variable) => variable.source === "input");
-}
-
-function defaultInputValue(variable: PipelineVariable): string {
-  if (variable.value === null || variable.value === undefined) return "";
-  if (typeof variable.value === "object") return "";
-  return String(variable.value);
-}
-
-function coerceInputs(
-  raw: Record<string, string>,
-  variables: PipelineVariable[],
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const variable of variables) {
-    const text = raw[variable.name] ?? defaultInputValue(variable);
-    if (text === "") continue;
-    if (variable.type === "integer" || variable.type === "number") {
-      const numeric = Number(text);
-      if (Number.isFinite(numeric)) result[variable.name] = numeric;
-    } else if (variable.type === "boolean") {
-      result[variable.name] = text === "true";
-    } else {
-      result[variable.name] = text;
-    }
+function inputHint(variable: PipelineVariable, maxK: number): string {
+  if (isDepthVariable(variable)) {
+    const suggested = clampToBounds(variable, maxK);
+    return (
+      `Result depth, held fixed for every query. Defaults to the largest k cutoff` +
+      ` (${suggested}) so every selected depth can be scored.`
+    );
   }
-  return result;
-}
-
-function parseKValues(text: string): number[] | null {
-  const values = text
-    .split(",")
-    .map((part) => Number(part.trim()))
-    .filter((value) => Number.isInteger(value) && value > 0);
-  return values.length ? [...new Set(values)].sort((a, b) => a - b) : null;
+  return variable.description || "Pipeline input, held fixed for every query.";
 }
 
 function presetQueries(presetKey: string, dataset: EvalDataset | null): number {
