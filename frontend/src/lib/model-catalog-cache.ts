@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { fetchEmbeddingModels, listChatModels } from "@/lib/api";
+import { fetchEmbeddingModels, fetchRerankingModels, listChatModels } from "@/lib/api";
 import { SharedQueryStore } from "@/lib/shared-query-store";
 
 import type { ModelCatalogResponse, ProviderKind, UUID } from "@/lib/types";
 
-type ModelKind = Extract<ProviderKind, "chat" | "embedding">;
+type ModelKind = Extract<ProviderKind, "chat" | "embedding" | "reranking">;
 export type ModelAvailability = "available" | "unknown" | "missing";
 
 interface CatalogKey {
@@ -26,7 +26,9 @@ const pollDeadlines = new Map<string, number>();
 const keyId = (key: CatalogKey) => `${key.userId}:${key.kind}`;
 
 function loadCatalog(token: string, kind: ModelKind): Promise<ModelCatalogResponse> {
-  return kind === "chat" ? listChatModels(token) : fetchEmbeddingModels(token);
+  if (kind === "chat") return listChatModels(token);
+  if (kind === "reranking") return fetchRerankingModels(token);
+  return fetchEmbeddingModels(token);
 }
 
 async function revalidateCatalog(
@@ -106,14 +108,14 @@ export function useSharedModelCatalog(
 export function invalidateModelCatalogs(userId: UUID, token?: string): void {
   store.invalidate((key) => key.userId === userId);
   if (!token) return;
-  for (const kind of ["chat", "embedding"] as const) {
+  for (const kind of ["chat", "embedding", "reranking"] as const) {
     const key = { userId, kind };
     if (store.subscriberCount(key) > 0) void revalidateCatalog(key, token, true);
   }
 }
 
 export function clearModelCatalogsForUser(userId: UUID): void {
-  for (const kind of ["chat", "embedding"] as const) stopPolling({ userId, kind });
+  for (const kind of ["chat", "embedding", "reranking"] as const) stopPolling({ userId, kind });
   store.removeMatching((key) => key.userId === userId);
 }
 

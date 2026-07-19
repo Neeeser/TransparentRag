@@ -30,4 +30,24 @@ describe("ConnectionConfigFields", () => {
     await user.click(screen.getByRole("button", { name: "Hide secret: api_key" }));
     expect(input).toHaveAttribute("type", "password");
   });
+
+  it("renders provider constraints from config field descriptions", () => {
+    render(
+      <ConnectionConfigFields
+        fields={[
+          {
+            name: "base_url",
+            label: "Server URL",
+            kind: "url",
+            required: true,
+            description: "Each TEI connection serves one model and task.",
+          },
+        ]}
+        config={{}}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Each TEI connection serves one model and task.")).toBeInTheDocument();
+  });
 });

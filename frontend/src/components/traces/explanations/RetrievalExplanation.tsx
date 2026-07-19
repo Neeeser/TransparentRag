@@ -77,7 +77,7 @@ const upstreamScoreLabel = (source: string | undefined): string | null => {
     return "Vector similarity";
   }
   if (normalized.includes("rrf") || normalized.includes("fusion")) return "RRF score";
-  if (normalized.includes("rerank")) return "Cross-encoder score";
+  if (normalized.includes("rerank")) return "Reranker score";
   return null;
 };
 
@@ -244,7 +244,7 @@ export function RerankerExplanation(props: NodeExplanationProps) {
         title="After reranking"
         ariaLabel="After reranking"
         items={after.items}
-        scoreLabel="Cross-encoder score"
+        scoreLabel="Reranker score"
         focusedItemId={props.focusedItemId}
         contextItems={props.contextItems}
         onFocusItem={props.onFocusItem}

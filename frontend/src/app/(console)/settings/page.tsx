@@ -26,7 +26,7 @@ export default function SettingsPage() {
           Provider connections
         </h1>
         <p className="mt-2 text-sm text-muted">
-          Stored per user. Each connection serves embeddings, chat, or a vector database.
+          Provider connections for embeddings, chat, reranking, and vector stores.
         </p>
       </div>
 

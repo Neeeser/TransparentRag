@@ -95,15 +95,13 @@ const TYPE_SIGNATURES: Record<string, SignatureResolver> = {
       consumedKeys: ["k", "top_k"],
     };
   },
-  "reranker.cross_encoder": (read) => {
-    const enabled = read("enabled") === true;
+  "reranker.model": (read) => {
     const model = asString(read("model_name"));
     return {
       label: "Model",
-      value: enabled ? (model ?? "—") : "disabled",
-      detail: enabled ? undefined : model,
-      missing: !enabled,
-      consumedKeys: ["enabled", "model_name"],
+      value: model ?? "no model selected",
+      missing: model === undefined,
+      consumedKeys: ["model_name"],
     };
   },
   "parser.document": (read) => {

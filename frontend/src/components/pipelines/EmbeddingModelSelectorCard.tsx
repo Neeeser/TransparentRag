@@ -204,6 +204,12 @@ export function EmbeddingModelSelectorCard({
             );
           })
         )}
+        {filteredModels.length > visibleModels.length ? (
+          <p className="text-xs text-muted">
+            Showing {visibleModels.length} of {filteredModels.length} models. Search to narrow the
+            list.
+          </p>
+        ) : null}
       </div>
     </div>
   );

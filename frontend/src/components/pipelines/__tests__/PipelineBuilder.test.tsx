@@ -27,6 +27,10 @@ let lastDrawerProps: Record<string, unknown> | null = null;
 let lastSidebarProps: Record<string, unknown> | null = null;
 const baseTimestamp = "2024-01-01T00:00:00.000Z";
 const embedderType = "embedder.openrouter";
+const rerankerType = "reranker.model";
+const rerankerProviderRequired = "Add a reranking provider to continue";
+const rerankerProviderLoading = "Checking reranking providers…";
+const rerankerProviderError = "Unable to load provider connections.";
 const savePipelineLabel = "Save pipeline";
 const openSaveLabel = "Open save dialog";
 const openHistoryLabel = "Open history";
@@ -441,6 +445,18 @@ describe("PipelineBuilder", () => {
     await waitFor(() => {
       expect(api.fetchPipelines).toHaveBeenCalled();
     });
+    await waitFor(() =>
+      expect(lastSidebarProps).toMatchObject({
+        hasRerankingProvider: false,
+        rerankingProviderMessage: rerankerProviderRequired,
+      }),
+    );
+    await waitFor(() =>
+      expect(lastDrawerProps).toMatchObject({
+        embeddingCatalog: expect.any(Object),
+        rerankingCatalog: expect.any(Object),
+      }),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }));
     fireEvent.click(screen.getByRole("button", { name: "Finish create" }));
@@ -449,6 +465,104 @@ describe("PipelineBuilder", () => {
     expect(screen.getByTestId("canvas")).toHaveTextContent(
       "Pipeline created with warnings: Chunking may exceed the model limit.",
     );
+    await waitFor(() => expect(api.listPipelineVersions).toHaveBeenLastCalledWith("token", "new"));
+    await act(async () => {
+      await api.listPipelineVersions.mock.results.at(-1)?.value;
+    });
+  });
+
+  it("blocks reranker preview and drop without an actual reranking connection", async () => {
+    const rerankerSpec = makeNodeSpec({
+      type: rerankerType,
+      label: "Reranker",
+      category: "retrieval",
+    });
+    api.fetchPipelineNodes.mockResolvedValueOnce([rerankerSpec]);
+    api.fetchPipelines.mockResolvedValueOnce([
+      makePipeline({ kind: "retrieval", definition: { nodes: [], edges: [] } }),
+    ]);
+    api.listConnections.mockResolvedValueOnce([]);
+
+    render(<PipelineBuilder kind="retrieval" />);
+
+    await waitFor(() => expect(lastSidebarProps).not.toBeNull());
+    expect(lastSidebarProps).toMatchObject({ hasRerankingProvider: false });
+
+    act(() => {
+      (lastSidebarProps?.onPreviewNode as (spec: NodeSpec) => void)(rerankerSpec);
+    });
+    expect(lastDrawerProps?.node).toBeNull();
+
+    const dropEvent = buildDragEvent(rerankerType);
+    act(() => {
+      (lastCanvasProps?.onDrop as (event: unknown) => void)(dropEvent);
+    });
+    expect(screen.getByTestId("canvas")).toHaveTextContent(/reranking provider/);
+  });
+
+  it("blocks reranker insertion while provider connections are still loading", async () => {
+    const rerankerSpec = makeNodeSpec({
+      type: rerankerType,
+      label: "Reranker",
+      category: "retrieval",
+    });
+    api.fetchPipelineNodes.mockResolvedValueOnce([rerankerSpec]);
+    api.fetchPipelines.mockResolvedValueOnce([
+      makePipeline({ kind: "retrieval", definition: { nodes: [], edges: [] } }),
+    ]);
+    let resolveConnections: ((connections: []) => void) | undefined;
+    api.listConnections.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConnections = resolve;
+        }),
+    );
+
+    render(<PipelineBuilder kind="retrieval" />);
+
+    await waitFor(() => expect(lastSidebarProps).not.toBeNull());
+    expect(lastSidebarProps).toMatchObject({
+      hasRerankingProvider: false,
+      rerankingProviderMessage: rerankerProviderLoading,
+    });
+    act(() => {
+      (lastSidebarProps?.onPreviewNode as (spec: NodeSpec) => void)(rerankerSpec);
+    });
+    expect(screen.getByTestId("canvas")).toHaveTextContent(rerankerProviderLoading);
+
+    await act(async () => resolveConnections?.([]));
+    await waitFor(() =>
+      expect(lastSidebarProps).toMatchObject({
+        hasRerankingProvider: false,
+        rerankingProviderMessage: rerankerProviderRequired,
+      }),
+    );
+  });
+
+  it("blocks reranker insertion and surfaces provider connection errors", async () => {
+    const rerankerSpec = makeNodeSpec({
+      type: rerankerType,
+      label: "Reranker",
+      category: "retrieval",
+    });
+    api.fetchPipelineNodes.mockResolvedValueOnce([rerankerSpec]);
+    api.fetchPipelines.mockResolvedValueOnce([
+      makePipeline({ kind: "retrieval", definition: { nodes: [], edges: [] } }),
+    ]);
+    api.listConnections.mockRejectedValueOnce(new Error("Connection request failed."));
+
+    render(<PipelineBuilder kind="retrieval" />);
+
+    await waitFor(() =>
+      expect(lastSidebarProps).toMatchObject({
+        hasRerankingProvider: false,
+        rerankingProviderMessage: rerankerProviderError,
+      }),
+    );
+    act(() => {
+      (lastSidebarProps?.onPreviewNode as (spec: NodeSpec) => void)(rerankerSpec);
+    });
+    expect(screen.getByTestId("canvas")).toHaveTextContent(rerankerProviderError);
   });
 
   it("handles connect, save, and delete logic", async () => {

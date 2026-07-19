@@ -35,10 +35,25 @@ from app.schemas.providers import (
     ProviderCoverage,
     ProviderTypeRead,
 )
-from app.services.errors import InvalidInputError
+from app.services.errors import InvalidInputError, ServiceError, is_external_provider_error
 
 PGVECTOR_BUILTIN_TYPE = "pgvector"
 logger = logging.getLogger(__name__)
+
+
+def _connection_kinds(adapter: ProviderAdapter) -> tuple[ProviderKind, ...]:
+    """Return actual capabilities, retaining Settings access during outages."""
+    try:
+        return adapter.kinds
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        if not (is_external_provider_error(exc) or isinstance(exc, ServiceError)):
+            raise
+        logger.warning(
+            "Capability discovery failed for provider connection %s.",
+            adapter.connection.id,
+            exc_info=True,
+        )
+        return adapter.descriptor.kinds
 
 
 def provider_type_catalog() -> list[ProviderTypeRead]:
@@ -71,6 +86,18 @@ def provider_type_catalog() -> list[ProviderTypeRead]:
 def connection_to_read(connection: models.ProviderConnection) -> ConnectionRead:
     """Build the redacted wire shape for a connection row."""
     descriptor = ADAPTERS[ProviderType(connection.provider_type)].descriptor
+    try:
+        adapter: ProviderAdapter | None = build_adapter(connection)
+    except InvalidInputError:
+        # A row whose stored config no longer validates must still list —
+        # rendering from the descriptor keeps it visible and deletable instead
+        # of turning the whole listing into a 400.
+        logger.warning(
+            "Rendering connection %s from its descriptor; stored config is invalid.",
+            connection.id,
+            exc_info=True,
+        )
+        adapter = None
     public_config: dict[str, str] = {}
     secrets_configured: dict[str, bool] = {}
     for field in descriptor.config_fields:
@@ -83,7 +110,8 @@ def connection_to_read(connection: models.ProviderConnection) -> ConnectionRead:
         id=connection.id,
         provider_type=ProviderType(connection.provider_type),
         label=connection.label,
-        kinds=list(descriptor.kinds),
+        kinds=list(descriptor.kinds if adapter is None else _connection_kinds(adapter)),
+        config_valid=adapter is not None,
         config=public_config,
         secrets_configured=secrets_configured,
         created_at=connection.created_at,
@@ -120,13 +148,14 @@ class ConnectionService:
             kinds.add(ProviderKind.VECTOR_STORE)
         for row in self.repo.list_for_user(user.id):
             try:
-                descriptor = self._descriptor(row.provider_type)
+                adapter = build_adapter(row)
             except InvalidInputError:
                 continue
-            kinds.update(descriptor.kinds)
+            kinds.update(_connection_kinds(adapter))
         return ProviderCoverage(
             has_embedding=ProviderKind.EMBEDDING in kinds,
             has_chat=ProviderKind.CHAT in kinds,
+            has_reranking=ProviderKind.RERANKING in kinds,
             has_vector_store=ProviderKind.VECTOR_STORE in kinds,
         )
 
