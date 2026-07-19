@@ -43,27 +43,36 @@ def build_sample_plan(
     dropped (they could never be retrieved).
     """
     rng = random.Random(seed)
-
-    ordered_queries = sorted(query_ids)
-    sample_count = min(num_queries, len(ordered_queries))
-    sampled_queries = sorted(rng.sample(ordered_queries, sample_count))
-
+    sampled_queries = _sample_queries(rng, query_ids, num_queries)
     corpus_set = set(corpus_doc_ids)
     gold: set[str] = set()
     for query_id in sampled_queries:
         gold |= qrels.get(query_id, set()) & corpus_set
-
-    non_gold = sorted(corpus_set - gold)
-    distractor_count = min(distractor_pool_size, len(non_gold))
-    distractors = sorted(rng.sample(non_gold, distractor_count))
-
+    distractors = _sample_distractors(rng, corpus_set, gold, distractor_pool_size)
     corpus = sorted(gold | set(distractors))
-    corpus_hash = hashlib.sha256("\n".join(corpus).encode("utf-8")).hexdigest()[:16]
-
     return SamplePlan(
         query_ids=sampled_queries,
         gold_doc_ids=sorted(gold),
         distractor_doc_ids=distractors,
         corpus_doc_ids=corpus,
-        corpus_hash=corpus_hash,
+        corpus_hash=hashlib.sha256("\n".join(corpus).encode("utf-8")).hexdigest()[:16],
     )
+
+
+def _sample_queries(
+    rng: random.Random, query_ids: Sequence[str], num_queries: int
+) -> list[str]:
+    """Deterministically sample query ids, capped at the available count."""
+    ordered = sorted(query_ids)
+    return sorted(rng.sample(ordered, min(num_queries, len(ordered))))
+
+
+def _sample_distractors(
+    rng: random.Random,
+    corpus_set: set[str],
+    gold: set[str],
+    distractor_pool_size: int,
+) -> list[str]:
+    """Deterministically sample non-gold docs, capped at what exists."""
+    non_gold = sorted(corpus_set - gold)
+    return sorted(rng.sample(non_gold, min(distractor_pool_size, len(non_gold))))

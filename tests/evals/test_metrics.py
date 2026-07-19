@@ -82,7 +82,8 @@ def test_registry_lists_all_v1_metrics() -> None:
     names = {metric.name for metric in list_metrics()}
     assert names == {"recall", "precision", "hit", "mrr", "ndcg", "map"}
     for metric in list_metrics():
-        assert metric.label and metric.description
+        assert metric.label
+        assert metric.description
 
 
 def test_evaluate_metrics_expands_over_k_values() -> None:
@@ -98,4 +99,5 @@ def test_evaluate_metrics_expands_over_k_values() -> None:
 def test_evaluate_metrics_defaults_to_all_metrics() -> None:
     """An empty metric selection computes every registered metric."""
     result = evaluate_metrics(RETRIEVED, GOLD, k_values=[10], metric_names=[])
-    assert "recall@10" in result and "ndcg@10" in result
+    assert "recall@10" in result
+    assert "ndcg@10" in result

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
+from sqlalchemy import delete as sa_delete
 from sqlmodel import col, select
 
 from app.db import models
@@ -83,17 +84,18 @@ class EvalDatasetRepository(Repository):
         return list(self.session.exec(statement).all())
 
     def delete(self, dataset: models.EvalDataset) -> None:
-        """Delete a dataset and all of its corpus/queries/qrels rows."""
+        """Delete a dataset and all of its corpus/queries/qrels rows.
+
+        Children are bulk-deleted before the parent row: the ORM has no mapped
+        relationships here, so relying on flush ordering trips the foreign keys.
+        """
         dataset_id = dataset.id
         for model in (
             models.EvalDatasetDocument,
             models.EvalDatasetQuery,
             models.EvalRelevanceJudgment,
         ):
-            for row in self.session.exec(
-                select(model).where(col(model.dataset_id) == dataset_id)
-            ).all():
-                self.session.delete(row)
+            self.session.execute(sa_delete(model).where(col(model.dataset_id) == dataset_id))
         self.session.delete(dataset)
         self.session.flush()
 

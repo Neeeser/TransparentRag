@@ -31,7 +31,9 @@ def test_registry_lists_curated_datasets() -> None:
     keys = {entry.key for entry in entries}
     assert "scifact" in keys
     for entry in entries:
-        assert entry.name and entry.description and entry.url
+        assert entry.name
+        assert entry.description
+        assert entry.url
 
 
 def test_get_builtin_rejects_unknown_key() -> None:
