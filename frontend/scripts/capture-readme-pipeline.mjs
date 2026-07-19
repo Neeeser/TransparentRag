@@ -13,6 +13,7 @@ const PORT = 3417;
 const MAX_ASSET_BYTES = 8 * 1024 * 1024;
 export const CAPTURE_SIZE = { width: 1920, height: 720 };
 export const GIF_ENCODER = "gifski";
+export const GIF_FPS = 20;
 export const GIF_WIDTH = 1920;
 export const CAPTURE_THEMES = [
   {
@@ -112,7 +113,7 @@ const encodeAnimation = (ingestionVideo, retrievalVideo, theme, tempDir, gifPath
     "-i",
     retrievalVideo.path,
     "-filter_complex",
-    `[0:v]fps=10,drawbox=x=0:y=ih-80:w=100:h=80:color=0x${theme.canvasColor}:t=fill,format=yuv420p[v0];[1:v]fps=10,drawbox=x=0:y=ih-80:w=100:h=80:color=0x${theme.canvasColor}:t=fill,format=yuv420p[v1];[v0][v1]xfade=transition=fade:duration=${fadeSeconds}:offset=${fadeOffset}[v]`,
+    `[0:v]fps=${GIF_FPS},drawbox=x=0:y=ih-80:w=100:h=80:color=0x${theme.canvasColor}:t=fill,format=yuv420p[v0];[1:v]fps=${GIF_FPS},drawbox=x=0:y=ih-80:w=100:h=80:color=0x${theme.canvasColor}:t=fill,format=yuv420p[v1];[v0][v1]xfade=transition=fade:duration=${fadeSeconds}:offset=${fadeOffset}[v]`,
     "-map",
     "[v]",
     "-an",
@@ -120,7 +121,7 @@ const encodeAnimation = (ingestionVideo, retrievalVideo, theme, tempDir, gifPath
   ]);
   run(GIF_ENCODER, [
     "--fps",
-    "10",
+    String(GIF_FPS),
     "--quality",
     "90",
     "--motion-quality",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAPTURE_SIZE,
+  GIF_FPS,
   CAPTURE_THEMES,
   GIF_ENCODER,
   GIF_WIDTH,
@@ -16,6 +17,7 @@ describe("captureDurationMs", () => {
 
   it("captures above GitHub display resolution before encoding", () => {
     expect(CAPTURE_SIZE).toEqual({ width: 1920, height: 720 });
+    expect(GIF_FPS).toBe(20);
     expect(GIF_WIDTH).toBe(1920);
     expect(GIF_ENCODER).toBe("gifski");
   });
