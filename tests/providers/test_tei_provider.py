@@ -93,6 +93,29 @@ def test_adapter_caches_served_capability_until_a_catalog_refresh(
     assert infos == []
 
 
+def test_fresh_adapters_share_the_clients_cached_info(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-request adapter construction must not re-probe the TEI server.
+
+    Regression: `_cached_info` lived on the adapter instance, and adapters are
+    built fresh per request — so every connections listing and coverage check
+    issued one live `/info` probe per TEI row.
+    """
+    calls = {"info": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/info"
+        calls["info"] += 1
+        return _info_response(request, model_id="acme/embed")
+
+    client = _client(httpx.MockTransport(handler))
+
+    assert _adapter(monkeypatch, client).kinds == (ProviderKind.EMBEDDING,)
+    assert _adapter(monkeypatch, client).kinds == (ProviderKind.EMBEDDING,)
+    assert calls["info"] == 1
+
+
 ProbeHandler = Callable[[httpx.Request], httpx.Response]
 
 

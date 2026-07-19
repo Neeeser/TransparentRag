@@ -25,6 +25,9 @@ class TEIEmbedder(Embedder):
         """Embed all document chunks, preserving their request order."""
         if not chunks:
             return []
+        # A TEI restart with a different --model-id between adapter validation
+        # and this call would silently index wrong-model vectors.
+        self._client.ensure_serves(self.model_name)
         vectors = self._client.embed([chunk.text for chunk in chunks])
         if len(vectors) != len(chunks):
             raise ValueError("TEI returned a mismatched number of embedding vectors.")
@@ -32,6 +35,7 @@ class TEIEmbedder(Embedder):
 
     def embed_query(self, query: str) -> EmbeddingVector:
         """Embed one retrieval query."""
+        self._client.ensure_serves(self.model_name)
         vectors = self._client.embed([query])
         if len(vectors) != 1:
             raise ValueError("TEI must return exactly one embedding vector for a query.")

@@ -74,17 +74,19 @@ class TEIAdapter(ProviderAdapter):
         """Parse stored connection configuration and defer the live `/info` probe."""
         super().__init__(connection)
         self._config = self.parse_config(TEIConnectionConfig, connection.config)
-        self._cached_info: TEIInfo | None = None
 
     def _client(self) -> TEIClient:
         """Return the shared client for this server configuration."""
         return get_tei_client(self._config.base_url, self._config.api_key)
 
     def _info(self, force_refresh: bool = False) -> TEIInfo:
-        """Return this adapter's served-model metadata, caching it for its lifetime."""
-        if force_refresh or self._cached_info is None:
-            self._cached_info = self._client().info()
-        return self._cached_info
+        """Return served-model metadata through the client's process-wide TTL cache.
+
+        Adapters are constructed per request, so caching here would re-probe the
+        TEI server on every connections listing and coverage check — the cache
+        must live on the shared client.
+        """
+        return self._client().info(force_refresh=force_refresh)
 
     @property
     def kinds(self) -> tuple[ProviderKind, ...]:

@@ -23,6 +23,9 @@ class TEIReranker(Reranker):
         """Return every candidate in the order and scores supplied by TEI."""
         if not candidates:
             return []
+        # Reranker scores carry no dimension check, so a swapped served model
+        # would go completely undetected without this guard.
+        self._client.ensure_serves(self.model_name)
         results = self._client.rerank(query, [candidate.chunk.text for candidate in candidates])
         scores = [RerankScore(index=result.index, score=result.score) for result in results]
         return apply_rerank_scores(candidates, scores)

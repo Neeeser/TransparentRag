@@ -89,6 +89,50 @@ def test_rerank_posts_query_and_texts_and_parses_indexed_scores() -> None:
     assert [(item.index, item.score) for item in response] == [(1, 0.8), (0, 0.2)]
 
 
+def test_info_is_cached_until_a_forced_refresh() -> None:
+    """Repeated capability reads must not re-probe the TEI server.
+
+    Regression: `/info` was fetched per adapter instance, so every connections
+    listing, coverage check, and catalog request issued a live probe — a down
+    TEI server added its connect timeout to each of those routes per row.
+    """
+    calls = {"info": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/info"
+        calls["info"] += 1
+        return httpx.Response(
+            200,
+            json={
+                "model_id": f"acme/model-v{calls['info']}",
+                "model_type": {"embedding": {"pooling": "mean"}},
+            },
+        )
+
+    client = _build_client(httpx.MockTransport(handler))
+
+    assert client.info().model_id == "acme/model-v1"
+    assert client.info().model_id == "acme/model-v1"
+    assert calls["info"] == 1
+    assert client.info(force_refresh=True).model_id == "acme/model-v2"
+    assert calls["info"] == 2
+
+
+def test_ensure_serves_rejects_a_swapped_served_model() -> None:
+    """Inference against a server whose --model-id changed is refused by name."""
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"model_id": "acme/other", "model_type": {"embedding": {"pooling": "mean"}}},
+        )
+
+    client = _build_client(httpx.MockTransport(handler))
+
+    client.ensure_serves("acme/other")
+    with pytest.raises(ValueError, match="now serves 'acme/other', not 'acme/selected'"):
+        client.ensure_serves("acme/selected")
+
+
 def test_cached_clients_are_normalized_and_closed_when_connections_change() -> None:
     """Connection edits retire the matching shared HTTP client without touching peers."""
     close_tei_clients()

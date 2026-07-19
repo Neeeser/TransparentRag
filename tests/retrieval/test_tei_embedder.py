@@ -13,7 +13,14 @@ from app.retrieval.models import DocumentChunk
 @dataclass
 class _TEIClient:
     response: list[list[float]]
+    served_model: str | None = None
     calls: list[list[str]] = field(default_factory=list)
+
+    def ensure_serves(self, model_name: str) -> None:
+        if self.served_model is not None and self.served_model != model_name:
+            raise ValueError(
+                f"The TEI server now serves '{self.served_model}', not '{model_name}'."
+            )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         self.calls.append(texts)
@@ -57,6 +64,23 @@ def test_embed_query_rejects_a_missing_vector() -> None:
 
     with pytest.raises(ValueError, match="exactly one"):
         embedder.embed_query("hello")
+
+
+def test_embedding_aborts_before_sending_inputs_when_served_model_changed() -> None:
+    """A TEI restart with a different --model-id mid-ingest must not index vectors.
+
+    Regression: the served model was validated only when the embedder was
+    constructed, so a container swapped between validation and inference
+    silently indexed wrong-model vectors.
+    """
+    client = _TEIClient([[0.1, 0.2]], served_model="BAAI/bge-large-en-v1.5")
+    embedder = TEIEmbedder(client, "BAAI/bge-base-en-v1.5")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="now serves"):
+        embedder.embed_documents(_chunks("alpha"))
+    with pytest.raises(ValueError, match="now serves"):
+        embedder.embed_query("hello")
+    assert client.calls == []
 
 
 def test_embed_query_rejects_multiple_vectors() -> None:

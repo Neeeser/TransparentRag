@@ -82,6 +82,14 @@ required task. The model weights are cached in the named volume for the service.
 | `TEI_RERANKER_IMAGE` | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9` |
 | `TEI_RERANKER_MODEL` | `BAAI/bge-reranker-base` |
 
+Ragworks reads the served model from each TEI server's `/info` endpoint and
+caches it briefly. If a TEI service is restarted with a different
+`TEI_*_MODEL`, embedding and reranking requests against the old selection are
+rejected within about 30 seconds with a message naming the newly served model.
+After changing a model, re-validate the connection, reselect the model in any
+pipeline that uses it, and re-ingest collections whose embeddings were built
+with the previous model.
+
 For example, set values for one command without creating an environment file:
 
 ```bash
