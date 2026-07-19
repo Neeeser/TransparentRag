@@ -312,4 +312,37 @@ describe("NodeExplanation", () => {
 
     expect(screen.getByText("RRF score")).toBeInTheDocument();
   });
+
+  it("labels provider-backed reranking scores without naming an implementation", () => {
+    const summary: PipelineNodeSummary = {
+      inputs: [
+        {
+          label: "Input items",
+          kind: "items",
+          value: { kind: "matches", items: [{ id: "doc:2", score: 0.032 }] },
+        },
+      ],
+      outputs: [
+        {
+          label: "Output items",
+          kind: "items",
+          value: { kind: "matches", items: [{ id: "doc:2", score: 0.9948 }] },
+        },
+      ],
+    };
+
+    render(
+      <NodeExplanation
+        step={makeStep("reranker.model", summary)}
+        node={makeNode("reranker.model")}
+        focusedItemId={null}
+        contextItems={[contextItem(2, FOCUSED_TEXT)]}
+        itemEffect={null}
+        inputSources={["RRF Fusion"]}
+      />,
+    );
+
+    expect(screen.getByText("Reranker score")).toBeInTheDocument();
+    expect(screen.queryByText("Cross-encoder score")).not.toBeInTheDocument();
+  });
 });

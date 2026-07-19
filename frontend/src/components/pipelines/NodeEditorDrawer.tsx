@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
+import Link from "next/link";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,9 @@ import { modelAvailability } from "@/lib/model-catalog-cache";
 import { cn } from "@/lib/utils";
 
 import { getNodeFamilyLabel, getNodeFamilyStyles, resolveNodeFamily } from "./lib/pipeline-theme";
-import { NodeConfigSections, NodeDescription, NodeExampleSection } from "./NodeConfigSections";
+import { RERANKER_NODE_TYPE, RERANKER_PROVIDER_REQUIRED } from "./lib/reranking";
+import { NodeConfigSections } from "./NodeConfigSections";
+import { NodeDescription, NodeExampleSection } from "./NodeInfoSections";
 
 import type { NodeConfigSectionsProps } from "./NodeConfigSections";
 import type { PipelineNodeData } from "./PipelineNode";
@@ -24,7 +27,7 @@ export type NodeEdits = {
 
 type SectionCatalogProps = Omit<
   NodeConfigSectionsProps,
-  "node" | "onConfigChange" | "onSelectEmbeddingModel"
+  "node" | "onConfigChange" | "onSelectEmbeddingModel" | "onSelectRerankingModel"
 >;
 
 type NodeEditorDrawerProps = SectionCatalogProps & {
@@ -34,10 +37,14 @@ type NodeEditorDrawerProps = SectionCatalogProps & {
   onApply: (nodeId: string, edits: NodeEdits) => void;
   /** Preview mode only: add the previewed node to the canvas. */
   onAddToCanvas?: () => void;
+  hasRerankingProvider: boolean;
+  rerankingProviderMessage?: string | null;
 };
 
 const sameConfig = (a: Record<string, unknown>, b: Record<string, unknown>) =>
   JSON.stringify(a) === JSON.stringify(b);
+const providerUnavailableMessage = (message?: string | null) =>
+  message ?? RERANKER_PROVIDER_REQUIRED;
 
 /**
  * The drawer's editing surface for one node. Edits accumulate in a local
@@ -75,6 +82,15 @@ function DrawerContent({
       selectedEmbeddingConnectionId,
       selectedEmbeddingModelId,
     ) === "missing";
+  const rerankingSelectionMissing =
+    node.data.nodeType === RERANKER_NODE_TYPE &&
+    modelAvailability(
+      catalogProps.rerankingCatalog,
+      selectedEmbeddingConnectionId,
+      selectedEmbeddingModelId,
+    ) === "missing";
+  const rerankerUnavailable =
+    node.data.nodeType === RERANKER_NODE_TYPE && !catalogProps.hasRerankingProvider;
 
   const draftNode: Node<PipelineNodeData> = {
     ...node,
@@ -97,8 +113,12 @@ function DrawerContent({
     });
   };
 
+  const handleSelectRerankingModel = (model: CatalogModel) => {
+    setDraftConfig({ connection_id: model.connection_id, model_name: model.id });
+  };
+
   const handleSave = () => {
-    if (embeddingSelectionMissing) return;
+    if (embeddingSelectionMissing || rerankingSelectionMissing) return;
     onApply(node.id, { label: draftLabel, config: draftConfig });
     onClose();
   };
@@ -153,7 +173,11 @@ function DrawerContent({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {!isPreview ? (
-              <Button size="sm" onClick={handleSave} disabled={!dirty || embeddingSelectionMissing}>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={!dirty || embeddingSelectionMissing || rerankingSelectionMissing}
+              >
                 Save node
               </Button>
             ) : null}
@@ -175,6 +199,7 @@ function DrawerContent({
             isPreview={isPreview}
             onConfigChange={setDraftConfig}
             onSelectEmbeddingModel={handleSelectEmbeddingModel}
+            onSelectRerankingModel={handleSelectRerankingModel}
             {...catalogProps}
           />
           <NodeExampleSection node={node} />
@@ -182,10 +207,21 @@ function DrawerContent({
 
         {isPreview ? (
           <div className="border-t border-hairline px-6 py-4">
-            <Button className="w-full" onClick={onAddToCanvas}>
+            <Button className="w-full" onClick={onAddToCanvas} disabled={rerankerUnavailable}>
               <Plus className="h-4 w-4" />
               Add to canvas
             </Button>
+            {rerankerUnavailable ? (
+              <p className="mt-2 text-xs text-muted">
+                {providerUnavailableMessage(catalogProps.rerankingProviderMessage)}{" "}
+                <Link
+                  href="/settings"
+                  className="text-accent-cyan underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet"
+                >
+                  Settings
+                </Link>
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>

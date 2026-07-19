@@ -10,6 +10,7 @@ import type { ProviderConnection, ProviderKind, ProviderTypeInfo } from "@/lib/t
 export interface UseConnectionsResult {
   connections: ProviderConnection[];
   connectionsLoading: boolean;
+  connectionsResolved: boolean;
   connectionsError: string | null;
   reloadConnections: () => void;
   hasKind: (kind: ProviderKind) => boolean;
@@ -28,13 +29,20 @@ export function useConnections(authToken: string, authLoading = false): UseConne
   const connections = useMemo(() => data ?? [], [data]);
 
   const hasKind = useCallback(
-    (kind: ProviderKind) => connections.some((connection) => connection.kinds.includes(kind)),
+    // A row with an invalid stored config lists its descriptor's potential
+    // kinds so it stays visible, but it cannot serve models — counting it
+    // would enable features the backend coverage check rejects.
+    (kind: ProviderKind) =>
+      connections.some(
+        (connection) => connection.config_valid !== false && connection.kinds.includes(kind),
+      ),
     [connections],
   );
 
   return {
     connections,
     connectionsLoading: loading || authLoading,
+    connectionsResolved: data !== null,
     connectionsError: error,
     reloadConnections: reload,
     hasKind,

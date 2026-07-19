@@ -2,7 +2,7 @@
 
 import { History, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { QueryArgumentControls } from "@/components/collections/detail/search/QueryArgumentControls";
 import { SearchResultCard } from "@/components/collections/detail/search/SearchResultCard";
@@ -22,9 +22,6 @@ type CollectionSearchProps = {
 export function CollectionSearch({ collectionId, token }: CollectionSearchProps) {
   const router = useRouter();
   const search = useCollectionSearch(token, collectionId);
-  // Client-side floor as a fraction of the top score — raw score ranges vary
-  // by retrieval strategy (cosine vs RRF vs BM25), so an absolute cut is wrong.
-  const [minScorePct, setMinScorePct] = useState(0);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,17 +36,8 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
     router.push(`/traces/queries/${search.result.query_event_id}${chunkParam}`);
   };
 
-  const topScore = useMemo(
-    () => Math.max(0, ...(search.result?.chunks ?? []).map((chunk) => chunk.score ?? 0)),
-    [search.result],
-  );
-  const visibleChunks = useMemo(() => {
-    const chunks = search.result?.chunks ?? [];
-    if (minScorePct === 0 || topScore === 0) return chunks;
-    const floor = (minScorePct / 100) * topScore;
-    return chunks.filter((chunk) => (chunk.score ?? 0) >= floor);
-  }, [search.result, minScorePct, topScore]);
-  const hiddenCount = (search.result?.chunks?.length ?? 0) - visibleChunks.length;
+  const chunks = useMemo(() => search.result?.chunks ?? [], [search.result]);
+  const topScore = useMemo(() => Math.max(0, ...chunks.map((chunk) => chunk.score ?? 0)), [chunks]);
 
   return (
     <div className="space-y-6">
@@ -100,23 +88,6 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
                 />
               </label>
             ) : null}
-            <label className="flex items-center gap-2 text-sm text-body">
-              <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
-                Min score
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={90}
-                step={5}
-                value={minScorePct}
-                onChange={(event) => setMinScorePct(Number(event.target.value))}
-                className="w-32 accent-[var(--accent-violet)]"
-              />
-              <span className="w-14 font-mono text-[11px] text-muted">
-                {minScorePct === 0 ? "off" : `${minScorePct}% top`}
-              </span>
-            </label>
             <span className="ml-auto flex items-center gap-3">
               {search.running ? (
                 <span
@@ -169,8 +140,7 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
           <div className="flex flex-wrap items-center gap-3">
             <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">Results</p>
             <span className="text-sm text-muted">
-              {visibleChunks.length} of {search.result.chunks?.length ?? 0} matches
-              {hiddenCount > 0 && ` — ${hiddenCount} below score floor`}
+              {chunks.length} {chunks.length === 1 ? "match" : "matches"}
             </span>
             {search.result.query_event_id && (
               <span className="ml-auto">
@@ -195,7 +165,7 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
           ) : null}
 
           <div className="mt-5 space-y-3">
-            {visibleChunks.map((chunk, index) => (
+            {chunks.map((chunk, index) => (
               <SearchResultCard
                 key={`${chunk.chunk_id ?? chunk.id}-${chunk.chunk_index}-${chunk.score}`}
                 chunk={chunk}
@@ -204,8 +174,8 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
                 onTrace={() => openTrace((chunk.chunk_id ?? chunk.id) as string)}
               />
             ))}
-            {visibleChunks.length === 0 && (
-              <p className="text-sm text-muted">No matches above the score floor.</p>
+            {chunks.length === 0 && (
+              <p className="text-sm text-muted">No matches for this query.</p>
             )}
           </div>
         </GlassCard>

@@ -91,6 +91,8 @@ class ProviderType(str, Enum):
 
     OPENROUTER = "openrouter"
     OLLAMA = "ollama"
+    COHERE = "cohere"
+    TEI = "tei"
     PINECONE = "pinecone"
 
 
@@ -99,6 +101,7 @@ class ProviderKind(str, Enum):
 
     EMBEDDING = "embedding"
     CHAT = "chat"
+    RERANKING = "reranking"
     VECTOR_STORE = "vector_store"
 
 

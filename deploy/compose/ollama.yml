@@ -1,0 +1,8 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  ollama-data:

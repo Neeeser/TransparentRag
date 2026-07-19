@@ -58,6 +58,7 @@ describe("PipelineSidebar", () => {
         variableNodes={[]}
         modelOptions={[]}
         variablesDisabled={false}
+        hasRerankingProvider={false}
       />,
     );
 
@@ -65,5 +66,8 @@ describe("PipelineSidebar", () => {
     expect(screen.getByTestId("library")).toBeInTheDocument();
     expect(pipelineCatalogMock).toHaveBeenCalled();
     expect(pipelineLibraryMock).toHaveBeenCalled();
+    expect(pipelineLibraryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ hasRerankingProvider: false }),
+    );
   });
 });

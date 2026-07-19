@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
-import { VariablesTree } from "@/components/traces/debugger/VariablesTree";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ParameterFieldCard } from "@/components/ui/parameter-controls";
 import { expressionSource } from "@/lib/expressions";
-import { modelAvailability } from "@/lib/model-catalog-cache";
 import { useAppConfig } from "@/providers/config-provider";
 
 import { ChunkerTokenizerFields } from "./ChunkerTokenizerFields";
 import { ConfigFieldRow } from "./ConfigFieldRow";
-import { EmbeddingModelSelectorCard } from "./EmbeddingModelSelectorCard";
 import { IndexBackendIcon } from "./icons/IndexBackendIcon";
 import {
   ArgumentsPicker,
@@ -22,18 +19,19 @@ import {
 import { buildPipelineConfigFields, coerceFieldValue } from "./lib/pipeline-config";
 import { CREATE_SENTINEL } from "./lib/pipeline-kinds";
 import { sortIndexesByName } from "./lib/pipeline-utils";
+import { RERANKER_NODE_TYPE } from "./lib/reranking";
 import {
   RETRIEVAL_INPUT_TYPE,
   RETRIEVAL_OUTPUT_TYPE,
   buildStaticEnvironment,
 } from "./lib/variable-env";
+import { NodeModelSelectors } from "./NodeModelSelectors";
 
 import type { PipelineConfigField } from "./lib/pipeline-config";
+import type { NodeModelCatalogProps } from "./NodeModelSelectors";
 import type { PipelineNodeData } from "./PipelineNode";
 import type {
-  CatalogModel,
   IndexBackend,
-  ModelCatalogResponse,
   PipelineValidationIssue,
   PipelineVariable,
   VectorIndex,
@@ -48,14 +46,8 @@ export type NodeConfigSectionsProps = {
   validationIssues?: PipelineValidationIssue[];
   vectorIndexes: VectorIndex[];
   onOpenIndexManager?: () => void;
-  embeddingModels: CatalogModel[];
-  embeddingCatalog: ModelCatalogResponse | null;
-  embeddingModelsLoading: boolean;
-  embeddingModelsError: string | null;
-  onCatalogVisible?: () => void;
-  onSelectEmbeddingModel: (model: CatalogModel) => void;
   variables: PipelineVariable[];
-};
+} & NodeModelCatalogProps;
 
 const BACKEND_OPTIONS: Array<{ value: IndexBackend; label: string; hint: string }> = [
   { value: "pgvector", label: "pgvector", hint: "Built-in Postgres" },
@@ -76,18 +68,14 @@ export function NodeConfigSections({
   validationIssues = [],
   vectorIndexes,
   onOpenIndexManager,
-  embeddingModels,
-  embeddingCatalog,
-  embeddingModelsLoading,
-  embeddingModelsError,
-  onCatalogVisible,
-  onSelectEmbeddingModel,
   variables,
+  ...modelCatalogProps
 }: NodeConfigSectionsProps) {
   const { config: appConfig } = useAppConfig();
   const nodeType = node.data.nodeType;
   const config = useMemo<Record<string, unknown>>(() => node.data.config ?? {}, [node]);
   const isEmbedder = nodeType === "embedder.text";
+  const isReranker = nodeType === RERANKER_NODE_TYPE;
   const isChunker = nodeType.startsWith("chunker.");
   const isRetrievalInput = nodeType === RETRIEVAL_INPUT_TYPE;
   const isRetrievalOutput = nodeType === RETRIEVAL_OUTPUT_TYPE;
@@ -96,9 +84,6 @@ export function NodeConfigSections({
   // variables alone (input-source ones included).
   const expressionEnv = useMemo(() => buildStaticEnvironment(variables), [variables]);
 
-  useEffect(() => {
-    if (isEmbedder) onCatalogVisible?.();
-  }, [isEmbedder, onCatalogVisible]);
   const isVectorNode = nodeType.startsWith("indexer.") || nodeType.startsWith("retriever.");
   // BM25 nodes target sparse (lexical) indexes; dense nodes never list them.
   const isBm25Node = nodeType.endsWith(".bm25");
@@ -115,16 +100,20 @@ export function NodeConfigSections({
   const filteredFields = fields.filter((field) => {
     const embedderHidden =
       isEmbedder && ["connection_id", "model_name", "dimension"].includes(field.key);
+    const rerankerHidden = isReranker && ["connection_id", "model_name"].includes(field.key);
     const vectorHidden = isVectorNode && ["backend", "index_name", "dimension"].includes(field.key);
     const chunkerTokenizerField = isChunker && ["tokenizer", "hf_model_id"].includes(field.key);
     const declarationField =
       (isRetrievalInput && field.key === "arguments") ||
       (isRetrievalOutput && field.key === "outputs");
-    return !(embedderHidden || vectorHidden || chunkerTokenizerField || declarationField);
+    return !(
+      embedderHidden ||
+      rerankerHidden ||
+      vectorHidden ||
+      chunkerTokenizerField ||
+      declarationField
+    );
   });
-  const selectedEmbeddingModelKey = typeof config.model_name === "string" ? config.model_name : "";
-  const selectedEmbeddingConnectionId =
-    typeof config.connection_id === "string" ? config.connection_id : null;
   const backendIndexes = useMemo(
     () =>
       sortIndexesByName(
@@ -207,21 +196,12 @@ export function NodeConfigSections({
 
   return (
     <div className="space-y-4">
-      {isEmbedder && !boundModelVariable ? (
-        <EmbeddingModelSelectorCard
-          models={embeddingModels}
-          selectedModelKey={selectedEmbeddingModelKey}
-          selectedConnectionId={selectedEmbeddingConnectionId}
-          selectedAvailability={modelAvailability(
-            embeddingCatalog,
-            selectedEmbeddingConnectionId,
-            selectedEmbeddingModelKey || null,
-          )}
-          modelsLoading={embeddingModelsLoading}
-          modelsError={embeddingModelsError}
-          onSelectModel={onSelectEmbeddingModel}
-        />
-      ) : null}
+      <NodeModelSelectors
+        nodeType={nodeType}
+        config={config}
+        embeddingBoundToVariable={Boolean(boundModelVariable)}
+        {...modelCatalogProps}
+      />
       {isEmbedder && modelVariables.length > 0 ? (
         <ParameterFieldCard
           label="Model variable"
@@ -368,7 +348,7 @@ export function NodeConfigSections({
             />
           ))}
         </div>
-      ) : !isEmbedder && !isVectorNode && !isRetrievalInput && !isRetrievalOutput ? (
+      ) : !isEmbedder && !isReranker && !isVectorNode && !isRetrievalInput && !isRetrievalOutput ? (
         <p className="rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body">
           This node has no configurable settings.
         </p>
@@ -380,42 +360,6 @@ export function NodeConfigSections({
           ))}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/** The node's one-paragraph description, shown first under the drawer header. */
-export function NodeDescription({ node }: { node: Node<PipelineNodeData> }) {
-  return (
-    <p className="text-sm leading-relaxed text-body">
-      {node.data.description || "No description available."}
-    </p>
-  );
-}
-
-/**
- * Example input/output rendered with the trace viewer's VariablesTree so node
- * IO reads the same everywhere in the product.
- */
-export function NodeExampleSection({ node }: { node: Node<PipelineNodeData> }) {
-  const example = node.data.example;
-  if (!example) return null;
-  return (
-    <div className="space-y-4 border-t border-hairline pt-4">
-      <VariablesTree
-        title="Inputs"
-        tone="cyan"
-        summaryItems={[{ label: "example", value: example.input, kind: "text" }]}
-        ioRecords={[]}
-        emptySummaryLabel="No inputs recorded."
-      />
-      <VariablesTree
-        title="Outputs"
-        tone="violet"
-        summaryItems={[{ label: "example", value: example.output, kind: "text" }]}
-        ioRecords={[]}
-        emptySummaryLabel="No outputs recorded."
-      />
     </div>
   );
 }

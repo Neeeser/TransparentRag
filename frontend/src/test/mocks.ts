@@ -167,6 +167,7 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     streamChat: vi.fn(async () => makeChatCompletion()),
     // models
     fetchEmbeddingModels: vi.fn(async () => makeModelCatalog()),
+    fetchRerankingModels: vi.fn(async () => makeModelCatalog()),
     fetchEmbeddingDimension: vi.fn(async () => ({ dimension: 1536 })),
     listChatModels: vi.fn(async () => makeModelCatalog()),
     listModelEndpoints: vi.fn(async () => ({ data: makeProviderDirectory() })),
@@ -187,6 +188,34 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
             required: false,
           },
         ],
+      }),
+      makeProviderType({
+        provider_type: "cohere",
+        label: "Cohere",
+        kinds: ["embedding", "chat", "reranking"],
+        config_fields: [{ name: "api_key", label: "API key", kind: "secret", required: true }],
+        docs_url: "https://dashboard.cohere.com/api-keys",
+      }),
+      makeProviderType({
+        provider_type: "tei",
+        label: "Hugging Face TEI",
+        kinds: ["embedding", "reranking"],
+        config_fields: [
+          {
+            name: "base_url",
+            label: "Server URL",
+            kind: "url",
+            required: true,
+            description: "Each TEI connection serves one model and task.",
+          },
+          {
+            name: "api_key",
+            label: "API key (optional, for proxied servers)",
+            kind: "secret",
+            required: false,
+          },
+        ],
+        docs_url: "https://huggingface.co/docs/text-embeddings-inference",
       }),
       makeProviderType({
         provider_type: "pgvector",

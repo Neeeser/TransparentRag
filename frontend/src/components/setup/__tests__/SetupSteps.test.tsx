@@ -50,7 +50,7 @@ function makeWizard(overrides: Partial<SetupWizardApi> = {}): SetupWizardApi {
     connectionsLoading: false,
     connectionsError: null,
     reloadConnections: vi.fn(),
-    coverage: { embedding: true, chat: true, vector_store: true },
+    coverage: { embedding: true, chat: true, reranking: false, vector_store: true },
     providersReady: true,
     models,
     modelsLoading: false,
@@ -141,7 +141,7 @@ describe("StepLaunch", () => {
 describe("StepProviders", () => {
   it("blocks Continue until every capability is covered", () => {
     const wizard = makeWizard({
-      coverage: { embedding: true, chat: true, vector_store: false },
+      coverage: { embedding: true, chat: true, reranking: false, vector_store: false },
       providersReady: false,
     });
     render(<StepProviders wizard={wizard} />);

@@ -15,6 +15,8 @@ import type { ComponentProps } from "react";
 const NODE_TYPE_EMBEDDER = "embedder.text";
 const NODE_TYPE_INDEXER = "indexer.vector";
 const NODE_TYPE_PARSER = "parser.document";
+const NODE_TYPE_RERANKER = "reranker.model";
+const RERANKER_MODEL_ID = "reranker-1";
 const INDEX_SELECT_LABEL = "Vector index";
 const SAVE_NODE = "Save node";
 const CLOSE_EDITOR = "Close node editor";
@@ -23,6 +25,7 @@ const NODE_LABEL = "Node label";
 
 const parameterInputMock = vi.fn();
 let lastEmbeddingProps: Record<string, unknown> | null = null;
+let lastRerankingProps: Record<string, unknown> | null = null;
 
 vi.mock("@/providers/config-provider", async () => (await import("@/test/mocks")).mockAppConfig());
 
@@ -95,6 +98,13 @@ vi.mock("@/components/pipelines/EmbeddingModelSelectorCard", () => ({
   },
 }));
 
+vi.mock("@/components/pipelines/RerankingModelSelectorCard", () => ({
+  RerankingModelSelectorCard: (props: Record<string, unknown>) => {
+    lastRerankingProps = props;
+    return <div data-testid="reranking-selector" />;
+  },
+}));
+
 const makeNode = (
   nodeType: string,
   config: Record<string, unknown> = {},
@@ -133,6 +143,12 @@ const renderDrawer = (overrides: Partial<DrawerProps> = {}) => {
     embeddingCatalog: null,
     embeddingModelsLoading: false,
     embeddingModelsError: null,
+    rerankingModels: [],
+    rerankingCatalog: null,
+    rerankingModelsLoading: false,
+    rerankingModelsError: null,
+    onRetryRerankingModels: () => undefined,
+    hasRerankingProvider: true,
     variables: [],
     ...overrides,
   };
@@ -156,6 +172,12 @@ function DrawerWithIndexManager() {
         embeddingCatalog={null}
         embeddingModelsLoading={false}
         embeddingModelsError={null}
+        rerankingModels={[]}
+        rerankingCatalog={null}
+        rerankingModelsLoading={false}
+        rerankingModelsError={null}
+        onRetryRerankingModels={() => undefined}
+        hasRerankingProvider
       />
       <ModalOverlay
         open={managerOpen}
@@ -175,6 +197,7 @@ describe("NodeEditorDrawer", () => {
   beforeEach(() => {
     parameterInputMock.mockClear();
     lastEmbeddingProps = null;
+    lastRerankingProps = null;
   });
 
   it("renders nothing when no node is selected", () => {
@@ -417,6 +440,77 @@ describe("NodeEditorDrawer", () => {
       label: "Node",
       config: { connection_id: "conn-openrouter-1", model_name: "emb-2" },
     });
+  });
+
+  it("configures a reranker with only its connection-qualified model", () => {
+    const onApply = vi.fn();
+    const model = makeCatalogModel({
+      connection_id: "reranking-connection",
+      id: RERANKER_MODEL_ID,
+    });
+    renderDrawer({
+      node: makeNode(
+        NODE_TYPE_RERANKER,
+        { top_n: 2, top_k: 3, enabled: false },
+        {
+          properties: {
+            connection_id: { type: "string" },
+            model_name: { type: "string" },
+          },
+        },
+      ),
+      rerankingModels: [model],
+      rerankingCatalog: makeModelCatalog([model]),
+      onApply,
+    });
+
+    expect(screen.getByTestId("reranking-selector")).toBeInTheDocument();
+    act(() => {
+      (lastRerankingProps?.onSelectModel as (selected: unknown) => void)(model);
+    });
+    fireEvent.click(screen.getByRole("button", { name: SAVE_NODE }));
+
+    expect(onApply).toHaveBeenCalledWith("node-1", {
+      label: "Node",
+      config: { connection_id: "reranking-connection", model_name: RERANKER_MODEL_ID },
+    });
+  });
+
+  it("keeps a missing saved reranker visible and blocks saving it", () => {
+    const onApply = vi.fn();
+    const otherModel = makeCatalogModel({ connection_id: "other", id: RERANKER_MODEL_ID });
+    renderDrawer({
+      node: makeNode(NODE_TYPE_RERANKER, {
+        connection_id: "removed",
+        model_name: RERANKER_MODEL_ID,
+      }),
+      rerankingModels: [otherModel],
+      rerankingCatalog: makeModelCatalog([otherModel]),
+      onApply,
+    });
+
+    expect(lastRerankingProps).toMatchObject({
+      selectedConnectionId: "removed",
+      selectedModelKey: RERANKER_MODEL_ID,
+      selectedAvailability: "missing",
+    });
+    fireEvent.change(screen.getByLabelText(NODE_LABEL), { target: { value: RENAMED_LABEL } });
+    expect(screen.getByRole("button", { name: SAVE_NODE })).toBeDisabled();
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("disables preview add-to-canvas when no reranking provider exists", () => {
+    const onAddToCanvas = vi.fn();
+    renderDrawer({
+      node: makeNode(NODE_TYPE_RERANKER),
+      isPreview: true,
+      hasRerankingProvider: false,
+      onAddToCanvas,
+    });
+
+    expect(screen.getByRole("button", { name: "Add to canvas" })).toBeDisabled();
+    expect(screen.getByText("Add a reranking provider to continue")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 
   it("blocks node edits when a refreshed catalog no longer contains the selected model", () => {

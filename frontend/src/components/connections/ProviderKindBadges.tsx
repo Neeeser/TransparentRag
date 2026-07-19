@@ -3,6 +3,7 @@ import type { ProviderKind } from "@/lib/types";
 const KIND_LABELS: Record<ProviderKind, string> = {
   embedding: "Embeddings",
   chat: "Chat",
+  reranking: "Reranking",
   vector_store: "Vector DB",
 };
 

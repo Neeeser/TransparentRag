@@ -48,4 +48,25 @@ describe("node-content", () => {
     expect(resolveNodeDescription(spec)).toBe("Custom description");
     expect(resolveNodeExample(spec)).toBeUndefined();
   });
+
+  it("describes the provider-backed reranker without local or truncation settings", () => {
+    const spec: NodeSpec = {
+      type: "reranker.model",
+      label: "Reranker",
+      category: "retrieval",
+      description: "Fallback description",
+      example: "",
+      input_ports: [],
+      output_ports: [],
+      config_schema: {},
+      default_config: {},
+      hidden: false,
+    };
+
+    expect(resolveNodeDescription(spec)).toContain("configured provider connection");
+    expect(resolveNodeDescription(spec)).not.toMatch(/enabled|top[_ ]?[nk]|limit/i);
+    expect(resolveNodeExample(spec)).toEqual(
+      expect.objectContaining({ input: expect.any(String), output: expect.any(String) }),
+    );
+  });
 });
