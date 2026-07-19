@@ -209,7 +209,7 @@ class EvalRunner:
         ingestion = self._require_pipeline(pipelines, run.ingestion_pipeline_id, user.id)
         retrieval = self._require_pipeline(pipelines, run.retrieval_pipeline_id, user.id)
         provisioner = EvalProvisioner(self.session)
-        cache_key = provisioner.cache_key_for(dataset, plan.corpus_hash, ingestion)
+        cache_key = provisioner.cache_key_for(dataset, ingestion)
         corpus_docs = self.datasets.get_documents_by_external_ids(
             dataset.id, plan.corpus_doc_ids
         )

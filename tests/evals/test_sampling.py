@@ -104,15 +104,6 @@ def test_corpus_is_the_union_of_gold_and_distractors() -> None:
     assert set(plan.corpus_doc_ids) == set(plan.gold_doc_ids) | set(plan.distractor_doc_ids)
 
 
-def test_corpus_hash_is_stable_and_content_addressed() -> None:
-    """The corpus hash is stable for identical corpora and changes when it changes."""
-    same_a = _plan(num_queries=4, distractors=0)
-    same_b = _plan(num_queries=4, distractors=0)
-    different = _plan(num_queries=4, distractors=3)
-    assert same_a.corpus_hash == same_b.corpus_hash
-    assert same_a.corpus_hash != different.corpus_hash
-
-
 def test_positive_qrels_excludes_judged_not_relevant_rows() -> None:
     """Relevance 0 means judged NOT relevant (TREC/BEIR); it never becomes gold.
 

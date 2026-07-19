@@ -265,6 +265,46 @@ def test_failed_queries_are_recorded_and_counted(
 
 
 @pytest.mark.usefixtures("stubbed_providers")
+def test_reuse_ingests_only_the_missing_documents(pg_search_session: Session) -> None:
+    """A larger second run with the same ingestion pipeline tops up the
+    existing eval collection with only the documents it doesn't hold yet,
+    instead of provisioning (and re-ingesting) a whole new collection."""
+    session = pg_search_session
+    user = _create_user(session)
+
+    first = _start_run(session, user, num_queries=1, distractor_pool_size=0)
+    EvalRunner(session).execute(first)
+    dataset = session.get(models.EvalDataset, first.dataset_id)
+    assert dataset is not None
+    with Session(session.get_bind()) as fresh:
+        first_docs = {
+            doc.name: doc.id
+            for doc in fresh.exec(select(models.Document)).all()
+        }
+    assert len(first_docs) == 1  # one sampled query's single gold document
+
+    second = _start_run(
+        session, user, dataset=dataset, num_queries=2, distractor_pool_size=1
+    )
+    EvalRunner(session).execute(second)
+
+    eval_collections = CollectionRepository(session).list_eval_for_user(user.id)
+    assert len(eval_collections) == 1  # topped up, not re-provisioned
+
+    with Session(session.get_bind()) as fresh:
+        docs = fresh.exec(select(models.Document)).all()
+        assert sorted(doc.name for doc in docs) == ["docA.txt", "docB.txt", "docC.txt"]
+        # The first run's document was kept, not deleted and re-ingested.
+        for doc in docs:
+            if doc.name in first_docs:
+                assert doc.id == first_docs[doc.name]
+        second_stored = fresh.get(models.EvalRun, second.id)
+        assert second_stored is not None
+        assert second_stored.status == EvalRunStatus.COMPLETED.value
+        assert second_stored.aggregate_metrics["recall@10"] == pytest.approx(1.0)
+
+
+@pytest.mark.usefixtures("stubbed_providers")
 def test_eval_collections_are_hidden_and_reused(pg_search_session: Session) -> None:
     """Same ingestion pipeline → the ingested collection is reused, and eval
     collections never surface in the user-facing collections listing."""

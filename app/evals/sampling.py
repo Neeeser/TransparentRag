@@ -10,7 +10,6 @@ the same ingestion pipeline.
 
 from __future__ import annotations
 
-import hashlib
 import random
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -51,7 +50,6 @@ class SamplePlan:
     gold_doc_ids: list[str]
     distractor_doc_ids: list[str]
     corpus_doc_ids: list[str]
-    corpus_hash: str
 
 
 def build_sample_plan(
@@ -88,7 +86,6 @@ def build_sample_plan(
         gold_doc_ids=sorted(gold),
         distractor_doc_ids=distractors,
         corpus_doc_ids=corpus,
-        corpus_hash=hashlib.sha256("\n".join(corpus).encode("utf-8")).hexdigest()[:16],
     )
 
 

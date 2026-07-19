@@ -3,10 +3,11 @@
 An eval collection is system-managed scaffolding: a real collection tagged
 `system_purpose="eval"`, materialized from the benchmark corpus and ingested with
 the ingestion pipeline under test. It is cache-keyed by
-`(dataset, sampled corpus, ingestion pipeline definition)`, so a second run with
-the same ingestion pipeline reuses the already-embedded collection and only the
-retrieval side re-runs. Per-gold-document ingestion outcomes feed the funnel's
-stage 0 (indexed coverage).
+`(dataset, ingestion pipeline definition)`: a second run with the same ingestion
+pipeline reuses the already-embedded collection and ingests only the sampled
+documents not yet in it, while any edit to the pipeline definition changes the
+key and provisions a fresh collection. Per-gold-document ingestion outcomes feed
+the funnel's stage 0 (indexed coverage).
 """
 
 from __future__ import annotations
@@ -66,14 +67,17 @@ class ProvisionSpec:
 
 def compute_cache_key(
     dataset_id: UUID,
-    corpus_hash: str,
     ingestion_definition: dict[str, object],
 ) -> str:
-    """Content-address a (dataset, sampled corpus, ingestion pipeline) triple."""
+    """Content-address a (dataset, ingestion pipeline definition) pair.
+
+    Deliberately excludes the run's sampled corpus: a larger later run tops up
+    the same collection with only its missing documents, so growing a sample
+    never re-ingests what an earlier run already embedded.
+    """
     canonical = json.dumps(
         {
             "dataset_id": str(dataset_id),
-            "corpus_hash": corpus_hash,
             "ingestion": ingestion_definition,
         },
         sort_keys=True,
@@ -95,12 +99,11 @@ class EvalProvisioner:
     def cache_key_for(
         self,
         dataset: models.EvalDataset,
-        corpus_hash: str,
         ingestion_pipeline: models.Pipeline,
     ) -> str:
         """Compute the cache key from the pipeline's current stored definition."""
         definition = self.pipelines.get_definition(ingestion_pipeline)
-        return compute_cache_key(dataset.id, corpus_hash, definition.model_dump(mode="json"))
+        return compute_cache_key(dataset.id, definition.model_dump(mode="json"))
 
     def find_existing(self, user: models.User, cache_key: str) -> models.Collection | None:
         """Return the user's eval collection for this cache key, if provisioned."""
@@ -123,14 +126,19 @@ class EvalProvisioner:
     ) -> ProvisionResult:
         """Ensure an ingested eval collection exists for this cache key.
 
-        On reuse, only the retrieval pipeline binding is updated. On a fresh
-        provision, every corpus document is materialized as a file and ingested
-        with the ingestion pipeline under test; a document that fails to ingest
-        is recorded (stage-0 funnel loss), never fatal to the run.
+        On reuse, the retrieval pipeline binding is updated and only the
+        sampled documents not already in the collection are materialized and
+        ingested — a larger run tops up the earlier run's collection. On a
+        fresh provision, every corpus document is ingested. Either way, a
+        document that fails to ingest is recorded (stage-0 funnel loss),
+        never fatal to the run.
         """
         existing = self.find_existing(user, spec.cache_key)
         if existing is not None:
             self._bind_retrieval(existing, spec.retrieval_pipeline)
+            missing = self._missing_docs(existing.id, corpus_docs)
+            if missing:
+                self._materialize_and_ingest(user, existing, missing, on_document_done, spec)
             indexed, failed = self._ingestion_outcomes(existing.id)
             return ProvisionResult(
                 collection=existing,
@@ -171,6 +179,22 @@ class EvalProvisioner:
             str(document.id): _external_id_from_name(document.name)
             for document in DocumentRepository(self.session).list_for_collection(collection_id)
         }
+
+    def _missing_docs(
+        self, collection_id: UUID, corpus_docs: list[models.EvalDatasetDocument]
+    ) -> list[models.EvalDatasetDocument]:
+        """The sampled corpus docs not yet materialized in the collection.
+
+        Compares stored file names (not recovered external ids) so ids the
+        file-name sanitizer rewrites ("/" -> "_") still match their document.
+        """
+        present = {
+            document.name
+            for document in DocumentRepository(self.session).list_for_collection(collection_id)
+        }
+        return [
+            doc for doc in corpus_docs if _file_name_for(doc.external_doc_id) not in present
+        ]
 
     def _bind_retrieval(
         self, collection: models.Collection, retrieval_pipeline: models.Pipeline
