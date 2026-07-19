@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { ImportBenchmarkDialog } from "@/components/evals/ImportBenchmarkDialog";
@@ -61,9 +62,21 @@ export function DatasetsPanel({
       </div>
       {datasets.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
-          {loading
-            ? "Loading datasets…"
-            : "No datasets. Import a vetted benchmark or upload your own in BEIR format (corpus.jsonl, queries.jsonl, qrels TSV)."}
+          {loading ? (
+            "Loading datasets…"
+          ) : (
+            <>
+              No datasets. Import a vetted benchmark or upload your own in BEIR format
+              (corpus.jsonl, queries.jsonl, qrels TSV) —{" "}
+              <Link
+                href="/evals/datasets/format"
+                className="text-accent-cyan underline-offset-4 hover:underline"
+              >
+                file formats and examples
+              </Link>
+              .
+            </>
+          )}
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-[color:var(--border-hairline)]">

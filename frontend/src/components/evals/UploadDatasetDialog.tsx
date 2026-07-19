@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -89,7 +90,13 @@ export function UploadDatasetDialog({ open, onUpload, onClose }: UploadDatasetDi
           Upload a dataset
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Standard BEIR format: a corpus, queries, and relevance judgments.
+          Standard BEIR format: a corpus, queries, and relevance judgments.{" "}
+          <Link
+            href="/evals/datasets/format"
+            className="text-accent-cyan underline-offset-4 hover:underline"
+          >
+            File formats and examples
+          </Link>
         </p>
         <div className="mt-5 space-y-4">
           <Field label="Name">
