@@ -80,6 +80,27 @@ def test_message_conversion_preserves_tool_history_and_text_blocks() -> None:
     ]
 
 
+def test_message_conversion_drops_empty_assistant_messages() -> None:
+    """An assistant message with no text and no tool calls never reaches Cohere.
+
+    Regression: Cohere's v2 chat API rejects an assistant history entry whose
+    content is empty with a 400, so one aborted turn that persisted an empty
+    assistant message poisoned its session — every later turn failed.
+    """
+    converted = convert_messages_to_cohere(
+        [
+            {"role": "user", "content": "first question"},
+            {"role": "assistant", "content": ""},
+            {"role": "user", "content": "second question"},
+        ]
+    )
+
+    assert converted == [
+        {"role": "user", "content": "first question"},
+        {"role": "user", "content": "second question"},
+    ]
+
+
 def test_chat_omits_empty_parameter_envelopes() -> None:
     """A request without sampler controls does not send an empty Cohere parameter map."""
 

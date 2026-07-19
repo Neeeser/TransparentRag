@@ -52,6 +52,10 @@ def convert_messages_to_cohere(messages: Iterable[dict[str, Any]]) -> list[dict[
         entry: dict[str, Any] = {"role": role, "content": _text_content(message.get("content"))}
         if role == "assistant" and message.get("tool_calls"):
             entry["tool_calls"] = message["tool_calls"]
+        if role == "assistant" and not entry["content"] and "tool_calls" not in entry:
+            # Cohere 400s on an empty assistant history entry; an aborted turn
+            # that persisted no content would otherwise poison its session.
+            continue
         converted.append(entry)
     return converted
 
