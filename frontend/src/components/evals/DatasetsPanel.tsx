@@ -52,7 +52,7 @@ export function DatasetsPanel({
         <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">Datasets</p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setUploadOpen(true)} className="px-5">
-            Upload golden dataset
+            Upload dataset
           </Button>
           <Button variant="secondary" onClick={() => setImportOpen(true)} className="px-5">
             Import benchmark
@@ -63,7 +63,7 @@ export function DatasetsPanel({
         <p className="mt-6 text-sm text-muted">
           {loading
             ? "Loading datasets…"
-            : "No datasets. Import a vetted benchmark or upload a BEIR-format golden dataset (corpus.jsonl, queries.jsonl, qrels TSV)."}
+            : "No datasets. Import a vetted benchmark or upload your own in BEIR format (corpus.jsonl, queries.jsonl, qrels TSV)."}
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-[color:var(--border-hairline)]">

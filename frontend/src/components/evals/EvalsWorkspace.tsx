@@ -20,9 +20,9 @@ export function EvalsWorkspace() {
           Retrieval evaluation
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-body">
-          Run a benchmark or your own golden dataset against an ingestion and retrieval pipeline
-          pair. Metrics score the retrieved documents against the dataset&apos;s relevance
-          judgments; the trace funnel shows which node lost them.
+          Run a benchmark or your own dataset against an ingestion and retrieval pipeline pair.
+          Metrics score the retrieved documents against the dataset&apos;s relevance judgments; the
+          trace funnel shows which node lost them.
         </p>
       </div>
 

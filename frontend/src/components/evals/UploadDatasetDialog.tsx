@@ -86,7 +86,7 @@ export function UploadDatasetDialog({ open, onUpload, onClose }: UploadDatasetDi
       <GlassCard className="w-full max-w-xl rounded-3xl border border-hairline bg-canvas-raised/95 p-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">Datasets</p>
         <h2 id={titleId} className="mt-2 text-xl font-semibold text-primary">
-          Upload a golden dataset
+          Upload a dataset
         </h2>
         <p className="mt-1 text-sm text-muted">
           Standard BEIR format: a corpus, queries, and relevance judgments.
@@ -96,7 +96,7 @@ export function UploadDatasetDialog({ open, onUpload, onClose }: UploadDatasetDi
             <TextInput
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Support KB golden set"
+              placeholder="Support KB eval set"
             />
           </Field>
           {FILE_PARTS.map((part) => (

@@ -149,7 +149,7 @@ class EvalService:
         qrels: str,
         description: str | None = None,
     ) -> models.EvalDataset:
-        """Parse and persist a user-uploaded BEIR-format golden dataset."""
+        """Parse and persist a user-uploaded BEIR-format dataset."""
         triple = parse_beir_upload(
             name=name, corpus=corpus, queries=queries, qrels=qrels, description=description
         )

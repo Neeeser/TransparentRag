@@ -1,7 +1,7 @@
 """The dataset abstraction shared by every eval dataset source.
 
 A dataset is the BEIR triple — corpus, queries, and relevance judgments (qrels).
-A curated benchmark, a user's uploaded golden dataset, and a future synthetic
+A curated benchmark, a user's uploaded dataset, and a future synthetic
 generator all resolve to the same `DatasetTriple`, so the run engine consumes one
 shape regardless of where the data came from.
 """

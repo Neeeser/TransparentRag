@@ -77,7 +77,7 @@ def upload_dataset(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> EvalDatasetRead:
-    """Parse and store an uploaded BEIR-format golden dataset."""
+    """Parse and store an uploaded BEIR-format dataset."""
     try:
         dataset = EvalService(session).upload_dataset(
             current_user,

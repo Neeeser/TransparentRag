@@ -20,7 +20,7 @@ from app.db.models.user import TimestampMixin
 
 
 class EvalDataset(SQLModel, TimestampMixin, table=True):
-    """A benchmark or uploaded golden dataset the run engine evaluates against."""
+    """A benchmark or user-uploaded dataset the run engine evaluates against."""
 
     __tablename__ = "eval_datasets"
 

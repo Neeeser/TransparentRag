@@ -1,4 +1,4 @@
-"""Parse a user-uploaded golden dataset in the standard BEIR format.
+"""Parse a user-uploaded dataset in the standard BEIR format.
 
 BEIR ships three files: `corpus.jsonl` (`_id`, `title`, `text`), `queries.jsonl`
 (`_id`, `text`), and a `qrels` TSV (`query-id`, `corpus-id`, `score`, with an
