@@ -25,12 +25,17 @@ def recall_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> fl
 
 
 def precision_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
-    """Fraction of the top-k that is relevant, over min(k, results returned)."""
-    denominator = min(k, len(retrieved))
-    if denominator == 0 or not gold:
+    """Fraction of the top-k that is relevant, always divided by k.
+
+    trec_eval convention: returning fewer than k results does not shrink the
+    denominator — otherwise a pipeline returning 3 results is scored over 3
+    while a competitor returning k is scored over k, and the numbers are not
+    comparable across pipelines.
+    """
+    if k <= 0 or not gold:
         return 0.0
     hits = sum(1 for doc_id in retrieved[:k] if doc_id in gold)
-    return hits / denominator
+    return hits / k
 
 
 def hit_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:

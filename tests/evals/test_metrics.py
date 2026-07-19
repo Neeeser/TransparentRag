@@ -33,10 +33,14 @@ def test_recall_at_k(k: int, expected: float) -> None:
 
 @pytest.mark.parametrize(
     ("k", "expected"),
-    [(1, 0.0), (3, 1 / 3), (5, 0.4), (10, 0.4)],
+    [(1, 0.0), (3, 1 / 3), (5, 0.4), (10, 0.2)],
 )
 def test_precision_at_k(k: int, expected: float) -> None:
-    """Precision@k divides relevant-in-top-k by min(k, results returned)."""
+    """Precision@k always divides by k (trec_eval), even with fewer results.
+
+    At k=10 only 5 documents were returned (2 relevant): the score is 2/10, not
+    2/5 — a shrinking denominator would inflate precision for sparse returns.
+    """
     assert _compute("precision", k, RETRIEVED, GOLD) == pytest.approx(expected)
 
 
