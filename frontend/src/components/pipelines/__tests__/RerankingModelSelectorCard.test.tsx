@@ -73,6 +73,30 @@ describe("RerankingModelSelectorCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("states how many models the capped list hides", () => {
+    // Regression: the list silently rendered only the first 50 models, so a
+    // searched-for model could exist in the catalog but never appear with no
+    // hint to narrow the search.
+    const models = Array.from({ length: 60 }, (_, index) =>
+      makeCatalogModel({ id: `rerank-${index}`, name: `Rerank ${index}` }),
+    );
+
+    render(
+      <RerankingModelSelectorCard
+        models={models}
+        selectedModelKey=""
+        selectedConnectionId={null}
+        selectedAvailability="unknown"
+        modelsLoading={false}
+        modelsError={null}
+        onRetry={vi.fn()}
+        onSelectModel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Showing 50 of 60 models/)).toBeInTheDocument();
+  });
+
   it("distinguishes an empty catalog from an error and supports retry", async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();

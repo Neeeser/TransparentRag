@@ -71,7 +71,8 @@ function RerankingModelList({
       </p>
     );
   }
-  return models.slice(0, 50).map((model) => {
+  const visibleModels = models.slice(0, 50);
+  const rendered = visibleModels.map((model) => {
     const selected = model.id === selectedModelKey && model.connection_id === selectedConnectionId;
     const inputLimit = model.context_length ?? model.max_input_tokens;
     return (
@@ -114,6 +115,16 @@ function RerankingModelList({
       </button>
     );
   });
+  return (
+    <>
+      {rendered}
+      {models.length > visibleModels.length ? (
+        <p className="text-xs text-muted">
+          Showing {visibleModels.length} of {models.length} models. Search to narrow the list.
+        </p>
+      ) : null}
+    </>
+  );
 }
 
 export function RerankingModelSelectorCard({
