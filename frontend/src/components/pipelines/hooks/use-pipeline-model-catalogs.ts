@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useConnections } from "@/components/connections/hooks/use-connections";
 
@@ -25,10 +25,16 @@ export function usePipelineModelCatalogs(token: string | null, userId?: UUID | n
     token,
     userId,
   );
-  const { connectionsLoading, connectionsResolved, connectionsError, hasKind } = useConnections(
-    token ?? "",
-    !token,
-  );
+  const { connectionsLoading, connectionsResolved, connectionsError, hasKind, reloadConnections } =
+    useConnections(token ?? "", !token);
+  useEffect(() => {
+    // A user typically adds their first reranking provider in Settings in
+    // another tab or window; without this, the "add a reranking provider"
+    // gate stays stale until the next token-rotation refetch (~12 minutes).
+    const onFocus = () => reloadConnections();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [reloadConnections]);
   const connectionsPending = connectionsLoading || !connectionsResolved;
   const hasRerankingProvider = !connectionsPending && !connectionsError && hasKind("reranking");
   const rerankingProviderMessage = connectionsError
