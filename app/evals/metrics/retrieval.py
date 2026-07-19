@@ -1,20 +1,22 @@
 """The v1 retrieval metric family, defined once with hand-checkable formulas.
 
 Every function scores an ordered, document-level-deduplicated result list against
-a gold document set at cutoff `k`. `k` is an evaluation-side truncation point:
-`retrieved[:k]` uses whatever the pipeline returned, so a pipeline that returned
-fewer than `k` results (or used a score threshold) needs no special handling.
+the query's gold documents at cutoff `k`. `gold` maps each relevant document id
+to its positive relevance grade: binary metrics use membership, nDCG uses the
+grade as its gain. `k` is an evaluation-side truncation point: `retrieved[:k]`
+uses whatever the pipeline returned, so a pipeline that returned fewer than `k`
+results (or used a score threshold) needs no special handling.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from app.evals.metrics.base import Metric
 
 
-def recall_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
+def recall_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
     """Fraction of gold documents that appear in the top-k."""
     if not gold:
         return 0.0
@@ -22,7 +24,7 @@ def recall_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
     return hits / len(gold)
 
 
-def precision_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
+def precision_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
     """Fraction of the top-k that is relevant, over min(k, results returned)."""
     denominator = min(k, len(retrieved))
     if denominator == 0 or not gold:
@@ -31,14 +33,14 @@ def precision_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
     return hits / denominator
 
 
-def hit_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
+def hit_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
     """1.0 when any gold document is in the top-k, else 0.0."""
     if not gold:
         return 0.0
     return 1.0 if any(doc_id in gold for doc_id in retrieved[:k]) else 0.0
 
 
-def mrr_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
+def mrr_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
     """Reciprocal rank of the first gold document within the top-k."""
     if not gold:
         return 0.0
@@ -48,23 +50,29 @@ def mrr_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
     return 0.0
 
 
-def ndcg_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
-    """Normalized discounted cumulative gain at k with binary relevance."""
+def ndcg_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
+    """Normalized discounted cumulative gain at k with graded relevance.
+
+    Gain is the qrels grade itself (the trec_eval/pytrec_eval convention), so a
+    binary dataset (every grade 1) reduces to the familiar binary nDCG and a
+    graded dataset matches published BEIR-style baselines.
+    """
     if not gold:
         return 0.0
     dcg = sum(
-        1.0 / math.log2(rank + 1)
+        gold.get(doc_id, 0) / math.log2(rank + 1)
         for rank, doc_id in enumerate(retrieved[:k], start=1)
-        if doc_id in gold
     )
-    ideal_hits = min(len(gold), k)
-    idcg = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_hits + 1))
+    ideal_grades = sorted(gold.values(), reverse=True)[:k]
+    idcg = sum(
+        grade / math.log2(rank + 1) for rank, grade in enumerate(ideal_grades, start=1)
+    )
     if idcg == 0.0:
         return 0.0
     return dcg / idcg
 
 
-def map_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
+def map_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
     """Average precision at k: mean precision over each gold hit in the top-k."""
     if not gold:
         return 0.0

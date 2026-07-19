@@ -12,8 +12,35 @@ from __future__ import annotations
 
 import hashlib
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import Protocol
+
+
+class JudgmentLike(Protocol):
+    """The fields qrels grouping needs off a relevance-judgment row."""
+
+    query_external_id: str
+    doc_external_id: str
+    relevance: int
+
+
+def positive_qrels(judgments: Iterable[JudgmentLike]) -> dict[str, dict[str, int]]:
+    """Group judgments by query, keeping only positive relevance grades.
+
+    TREC/BEIR convention: a qrels row with relevance 0 means judged and
+    explicitly NOT relevant (TREC-derived benchmarks ship such rows in volume).
+    Counting those as gold inflates recall denominators, scores judged-irrelevant
+    hits as relevant, and makes unanswerable queries look judged — so they are
+    excluded here, at the single place qrels become gold.
+    """
+    qrels: dict[str, dict[str, int]] = {}
+    for judgment in judgments:
+        if judgment.relevance <= 0:
+            continue
+        grades = qrels.setdefault(judgment.query_external_id, {})
+        grades[judgment.doc_external_id] = judgment.relevance
+    return qrels
 
 
 @dataclass(frozen=True)

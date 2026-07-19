@@ -26,14 +26,18 @@ def score_query(
     run_id: UUID,
     query_external_id: str,
     query_text: str,
-    gold: set[str],
+    gold: Mapping[str, int],
     config: EvalRunConfig,
     mapping: Mapping[str, str],
     indexed_external_ids: set[str],
     response: CollectionQueryResponse,
     node_runs: Sequence[models.PipelineNodeRun],
 ) -> tuple[models.EvalRunItem, QueryFunnelInput]:
-    """Build the persisted item and funnel input for one successful retrieval."""
+    """Build the persisted item and funnel input for one successful retrieval.
+
+    `gold` maps each relevant document's external id to its positive relevance
+    grade (graded metrics use the grade; set metrics use membership).
+    """
     retrieved_external = rank_ordered_documents(
         [chunk.document_id for chunk in response.chunks], mapping
     )
@@ -43,10 +47,11 @@ def score_query(
         k_values=config.k_values,
         metric_names=config.selected_metrics,
     )
+    gold_set = set(gold)
     node_traces = extract_node_traces(node_runs, mapping)
     funnel_input = QueryFunnelInput(
-        gold_doc_ids=gold,
-        indexed_gold_doc_ids=gold & indexed_external_ids,
+        gold_doc_ids=gold_set,
+        indexed_gold_doc_ids=gold_set & indexed_external_ids,
         nodes=node_traces,
     )
     item = models.EvalRunItem(
@@ -71,7 +76,7 @@ def score_query(
         per_node_funnel=[
             {
                 "node_id": INGESTION_NODE_ID,
-                "document_ids": sorted(gold & indexed_external_ids),
+                "document_ids": sorted(gold_set & indexed_external_ids),
             },
             *(
                 {"node_id": trace.node_id, "document_ids": trace.document_ids}

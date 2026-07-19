@@ -7,7 +7,10 @@ deterministic under a fixed seed (so runs are reproducible and comparable).
 
 from __future__ import annotations
 
-from app.evals.sampling import build_sample_plan
+from uuid import uuid4
+
+from app.db import models
+from app.evals.sampling import build_sample_plan, positive_qrels
 
 QUERIES = ["q1", "q2", "q3", "q4"]
 QRELS = {
@@ -108,3 +111,24 @@ def test_corpus_hash_is_stable_and_content_addressed() -> None:
     different = _plan(num_queries=4, distractors=3)
     assert same_a.corpus_hash == same_b.corpus_hash
     assert same_a.corpus_hash != different.corpus_hash
+
+
+def test_positive_qrels_excludes_judged_not_relevant_rows() -> None:
+    """Relevance 0 means judged NOT relevant (TREC/BEIR); it never becomes gold.
+
+    TREC-derived benchmarks ship explicit 0-score qrels rows in volume; counting
+    them as gold inflates recall denominators and scores judged-irrelevant hits
+    as relevant.
+    """
+    judgments = [
+        models.EvalRelevanceJudgment(
+            dataset_id=uuid4(), query_external_id=query, doc_external_id=doc, relevance=grade
+        )
+        for query, doc, grade in [
+            ("q1", "d1", 2),
+            ("q1", "d2", 0),
+            ("q1", "d3", 1),
+            ("q2", "d1", 0),
+        ]
+    ]
+    assert positive_qrels(judgments) == {"q1": {"d1": 2, "d3": 1}}

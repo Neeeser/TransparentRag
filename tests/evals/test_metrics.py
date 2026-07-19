@@ -15,10 +15,10 @@ from app.evals.metrics.registry import evaluate_metrics, get_metric, list_metric
 
 # Ordered, document-level-deduplicated retrieval result: d2 is rank 2, d4 is rank 4.
 RETRIEVED = ["d1", "d2", "d3", "d4", "d5"]
-GOLD = {"d2", "d4", "d6"}  # three gold docs; d6 is never retrieved
+GOLD = {"d2": 1, "d4": 1, "d6": 1}  # three gold docs; d6 is never retrieved
 
 
-def _compute(name: str, k: int, retrieved: list[str], gold: set[str]) -> float:
+def _compute(name: str, k: int, retrieved: list[str], gold: dict[str, int]) -> float:
     return get_metric(name).compute(retrieved, gold, k)
 
 
@@ -53,10 +53,18 @@ def test_mrr_at_k(k: int, expected: float) -> None:
 
 
 def test_ndcg_at_k() -> None:
-    """nDCG@k is DCG@k over the ideal DCG@k with binary gain."""
+    """nDCG@k is DCG@k over the ideal DCG@k; binary grades give binary gains."""
     dcg = 1 / math.log2(3) + 1 / math.log2(5)  # gold at ranks 2 and 4
     idcg = 1 / math.log2(2) + 1 / math.log2(3) + 1 / math.log2(4)  # 3 gold ideally
     assert _compute("ndcg", 5, RETRIEVED, GOLD) == pytest.approx(dcg / idcg)
+
+
+def test_ndcg_at_k_uses_relevance_grades_as_gains() -> None:
+    """A graded dataset weights highly-relevant docs more, per trec_eval gains."""
+    graded = {"d2": 1, "d4": 2, "d6": 3}
+    dcg = 1 / math.log2(3) + 2 / math.log2(5)  # d2 at rank 2, d4 at rank 4
+    idcg = 3 / math.log2(2) + 2 / math.log2(3) + 1 / math.log2(4)  # grades 3,2,1
+    assert _compute("ndcg", 5, RETRIEVED, graded) == pytest.approx(dcg / idcg)
 
 
 def test_map_at_k() -> None:
@@ -74,7 +82,7 @@ def test_metrics_handle_empty_results() -> None:
 def test_metrics_handle_empty_gold() -> None:
     """An empty gold set yields 0.0 rather than dividing by zero."""
     for name in ("recall", "precision", "hit", "mrr", "ndcg", "map"):
-        assert _compute(name, 5, RETRIEVED, set()) == pytest.approx(0.0)
+        assert _compute(name, 5, RETRIEVED, {}) == pytest.approx(0.0)
 
 
 def test_registry_lists_all_v1_metrics() -> None:

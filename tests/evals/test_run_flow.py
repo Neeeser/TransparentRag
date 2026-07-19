@@ -192,6 +192,39 @@ def test_eval_run_end_to_end(pg_search_session: Session, concurrency: int) -> No
 
 
 @pytest.mark.usefixtures("stubbed_providers")
+def test_relevance_zero_judgments_are_not_gold(pg_search_session: Session) -> None:
+    """Qrels rows with relevance 0 (judged NOT relevant) never enter the gold set.
+
+    q1 carries an explicit 0-score judgment for docC and q3's only judgment is a
+    0-score row: docC must not count as gold for q1, and q3 must be treated as
+    unanswerable rather than sampled.
+    """
+    session = pg_search_session
+    user = _create_user(session)
+    dataset = EvalService(session).upload_dataset(
+        user,
+        name="Capitals with zero qrels",
+        corpus=CORPUS,
+        queries=QUERIES + '{"_id": "q3", "text": "capital of Spain"}\n',
+        qrels=QRELS + "q1\tdocC\t0\nq3\tdocA\t0\n",
+    )
+    run = _start_run(session, user, dataset=dataset, num_queries=3, concurrency=1)
+
+    EvalRunner(session).execute(run)
+
+    with Session(session.get_bind()) as fresh:
+        items = fresh.exec(
+            select(models.EvalRunItem).where(models.EvalRunItem.run_id == run.id)
+        ).all()
+        by_query = {item.query_external_id: item for item in items}
+        assert set(by_query) == {"q1", "q2"}  # q3 has no positive judgment
+        assert by_query["q1"].gold_doc_ids == ["docA"]  # docC's 0-row is not gold
+        stored = fresh.get(models.EvalRun, run.id)
+        assert stored is not None
+        assert stored.aggregate_metrics["recall@10"] == pytest.approx(1.0)
+
+
+@pytest.mark.usefixtures("stubbed_providers")
 def test_eval_collections_are_hidden_and_reused(pg_search_session: Session) -> None:
     """Same ingestion pipeline → the ingested collection is reused, and eval
     collections never surface in the user-facing collections listing."""

@@ -26,7 +26,7 @@ from app.db.repositories import EvalDatasetRepository, EvalRunRepository
 from app.evals.attribution.funnel import QueryFunnelInput, build_funnel
 from app.evals.execution.scoring import aggregate_metrics_mean, failed_item, score_query
 from app.evals.provisioning import EvalProvisioner, ProvisionResult, ProvisionSpec
-from app.evals.sampling import SamplePlan, build_sample_plan
+from app.evals.sampling import SamplePlan, build_sample_plan, positive_qrels
 from app.schemas.enums import EvalRunStatus
 from app.schemas.evals import EvalRunConfig
 from app.services.pipelines import PipelineService
@@ -65,11 +65,11 @@ class _QueryContext:
 
 @dataclass(frozen=True)
 class _QueryTask:
-    """One sampled query, reduced to primitives safe to hand a worker thread."""
+    """One sampled query, reduced to read-only data safe to hand a worker thread."""
 
     external_id: str
     text: str
-    gold: frozenset[str]
+    gold: dict[str, int]
 
 
 def _evaluate_task(
@@ -104,7 +104,7 @@ def _evaluate_task(
             run_id=context.run_id,
             query_external_id=task.external_id,
             query_text=task.text,
-            gold=set(task.gold),
+            gold=task.gold,
             config=context.config,
             mapping=context.mapping,
             indexed_external_ids=context.indexed_external_ids,
@@ -185,14 +185,11 @@ class EvalRunner:
     def _build_plan(self, dataset: models.EvalDataset, config: EvalRunConfig) -> SamplePlan:
         """Sample queries, gold docs, and distractors for this run."""
         queries = self.datasets.list_queries(dataset.id)
-        judgments = self.datasets.list_judgments(dataset.id)
+        graded = positive_qrels(self.datasets.list_judgments(dataset.id))
         documents = self.datasets.list_documents(dataset.id)
-        qrels: dict[str, set[str]] = {}
-        for judgment in judgments:
-            qrels.setdefault(judgment.query_external_id, set()).add(judgment.doc_external_id)
         return build_sample_plan(
             query_ids=[query.external_query_id for query in queries],
-            qrels=qrels,
+            qrels={query_id: set(grades) for query_id, grades in graded.items()},
             corpus_doc_ids=[doc.external_doc_id for doc in documents],
             num_queries=config.num_queries,
             distractor_pool_size=config.distractor_pool_size,
@@ -252,7 +249,7 @@ class EvalRunner:
         user: models.User,
         collection: models.Collection,
         queries: list[models.EvalDatasetQuery],
-        qrels: dict[str, set[str]],
+        qrels: dict[str, dict[str, int]],
         plan: SamplePlan,
         config: EvalRunConfig,
         mapping: dict[str, str],
@@ -277,7 +274,11 @@ class EvalRunner:
             _QueryTask(
                 external_id=query.external_query_id,
                 text=query.text,
-                gold=frozenset(qrels.get(query.external_query_id, set()) & corpus),
+                gold={
+                    doc_id: grade
+                    for doc_id, grade in qrels.get(query.external_query_id, {}).items()
+                    if doc_id in corpus
+                },
             )
             for query in queries
         ]
@@ -325,12 +326,9 @@ class EvalRunner:
         ]
         return sorted(queries, key=lambda query: query.external_query_id)
 
-    def _qrels_by_query(self, dataset_id: UUID) -> dict[str, set[str]]:
-        """Group the dataset's qrels by query external id."""
-        qrels: dict[str, set[str]] = {}
-        for judgment in self.datasets.list_judgments(dataset_id):
-            qrels.setdefault(judgment.query_external_id, set()).add(judgment.doc_external_id)
-        return qrels
+    def _qrels_by_query(self, dataset_id: UUID) -> dict[str, dict[str, int]]:
+        """Group the dataset's positive qrels (grades by doc) per query."""
+        return positive_qrels(self.datasets.list_judgments(dataset_id))
 
     def _retrieval_edges(self, run: models.EvalRun) -> list[tuple[str, str]]:
         """Read (source, target) edges off the retrieval pipeline definition."""

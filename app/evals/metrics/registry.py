@@ -7,7 +7,7 @@ off this registry rather than hardcoding a list.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from app.evals.metrics.base import Metric
 from app.evals.metrics.retrieval import RETRIEVAL_METRICS
@@ -30,7 +30,7 @@ def list_metrics() -> list[Metric]:
 
 def evaluate_metrics(
     retrieved: Sequence[str],
-    gold: set[str],
+    gold: Mapping[str, int],
     *,
     k_values: Sequence[int],
     metric_names: Sequence[str],
@@ -38,8 +38,8 @@ def evaluate_metrics(
     """Compute selected metrics over every cutoff, keyed `"<name>@<k>"`.
 
     An empty `metric_names` computes every registered metric. `retrieved` is the
-    ordered, document-level-deduplicated result list; `gold` the query's relevant
-    document ids.
+    ordered, document-level-deduplicated result list; `gold` maps the query's
+    relevant document ids to their positive relevance grades.
     """
     names = list(metric_names) if metric_names else list(_REGISTRY)
     result: dict[str, float] = {}
