@@ -40,11 +40,17 @@ def build_sample_plan(
 
     Inputs are sorted before sampling so the plan depends only on the content and
     the seed, not on iteration order. Gold documents absent from the corpus are
-    dropped (they could never be retrieved).
+    dropped (they could never be retrieved), and only queries with at least one
+    in-corpus judgment are sampled: BEIR archives ship every split's queries but
+    only one split's qrels, and an unjudged (or unanswerable) query scores 0 on
+    every metric, silently diluting the run's aggregates.
     """
     rng = random.Random(seed)
-    sampled_queries = _sample_queries(rng, query_ids, num_queries)
     corpus_set = set(corpus_doc_ids)
+    judged = [
+        query_id for query_id in query_ids if qrels.get(query_id, set()) & corpus_set
+    ]
+    sampled_queries = _sample_queries(rng, judged, num_queries)
     gold: set[str] = set()
     for query_id in sampled_queries:
         gold |= qrels.get(query_id, set()) & corpus_set

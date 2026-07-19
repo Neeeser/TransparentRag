@@ -35,6 +35,26 @@ def test_sampling_is_deterministic_under_a_fixed_seed() -> None:
     assert _plan(num_queries=2, seed=7) == _plan(num_queries=2, seed=7)
 
 
+def test_unjudged_queries_are_never_sampled() -> None:
+    """Only queries with an in-corpus relevance judgment are sampled.
+
+    BEIR archives ship every split's queries but only one split's qrels
+    (SciFact: 1,109 queries, 300 judged) — an unjudged query scores 0 on every
+    metric and silently dilutes the run's aggregates. The same goes for a
+    judged query whose every gold doc is missing from the corpus: it can never
+    be answered.
+    """
+    plan = build_sample_plan(
+        query_ids=[*QUERIES, "q-unjudged"],
+        qrels=QRELS,
+        corpus_doc_ids=CORPUS,
+        num_queries=99,
+        distractor_pool_size=0,
+        seed=0,
+    )
+    assert set(plan.query_ids) == {"q1", "q2", "q3"}
+
+
 def test_gold_docs_are_always_in_the_corpus() -> None:
     """Every gold doc for a sampled query appears in the sampled corpus."""
     plan = _plan(num_queries=2, distractors=1, seed=3)
@@ -66,9 +86,13 @@ def test_distractor_pool_is_capped_at_available_non_gold_docs() -> None:
 
 
 def test_query_count_is_capped_at_available_queries() -> None:
-    """Asking for more queries than exist samples all of them."""
+    """Asking for more queries than exist samples every judged one.
+
+    q4's only gold doc is missing from the corpus, so it is unanswerable and
+    excluded from the sampling pool along with unjudged queries.
+    """
     plan = _plan(num_queries=99)
-    assert len(plan.query_ids) == 4
+    assert plan.query_ids == ["q1", "q2", "q3"]
 
 
 def test_corpus_is_the_union_of_gold_and_distractors() -> None:
