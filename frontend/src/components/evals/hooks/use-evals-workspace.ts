@@ -53,14 +53,18 @@ export function useEvalsWorkspace() {
 
   // Poll only while something is in flight; a background reload keeps
   // identities/selection stable because useApiQuery replaces data in place.
+  // Depend on the stable reload callbacks, not the query result objects —
+  // those are new every render and would tear the interval down each time.
+  const reloadRuns = runs.reload;
+  const reloadDatasets = datasets.reload;
   useEffect(() => {
     if (!hasActiveRun && !hasDownloadingDataset) return;
     const timer = window.setInterval(() => {
-      if (hasActiveRun) runs.reload();
-      if (hasDownloadingDataset) datasets.reload();
+      if (hasActiveRun) reloadRuns();
+      if (hasDownloadingDataset) reloadDatasets();
     }, ACTIVE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [hasActiveRun, hasDownloadingDataset, runs, datasets]);
+  }, [hasActiveRun, hasDownloadingDataset, reloadRuns, reloadDatasets]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, reloads: Array<() => void>) => {
