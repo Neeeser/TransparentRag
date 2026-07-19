@@ -39,20 +39,23 @@ export function EvalsWorkspace() {
         onNewRun={() => setWizardOpen(true)}
         onDeleteRun={workspace.removeRun}
       />
-      <DatasetsPanel
-        datasets={workspace.datasets.data ?? []}
-        benchmarks={workspace.benchmarks.data ?? []}
-        loading={workspace.datasets.loading}
-        onImport={workspace.importBenchmark}
-        onUpload={workspace.uploadDataset}
-        onDelete={workspace.removeDataset}
-      />
-      <CollectionsPanel
-        collections={workspace.collections.data ?? []}
-        datasets={workspace.datasets.data ?? []}
-        loading={workspace.collections.loading}
-        onDelete={workspace.removeCollection}
-      />
+      <div className="grid items-start gap-6 xl:grid-cols-2">
+        <DatasetsPanel
+          datasets={workspace.datasets.data ?? []}
+          benchmarks={workspace.benchmarks.data ?? []}
+          loading={workspace.datasets.loading}
+          onImport={workspace.importBenchmark}
+          onUpload={workspace.uploadDataset}
+          onDelete={workspace.removeDataset}
+        />
+        <CollectionsPanel
+          collections={workspace.collections.data ?? []}
+          datasets={workspace.datasets.data ?? []}
+          pipelines={workspace.pipelines.data ?? []}
+          loading={workspace.collections.loading}
+          onDelete={workspace.removeCollection}
+        />
+      </div>
 
       <NewRunWizard
         open={wizardOpen}

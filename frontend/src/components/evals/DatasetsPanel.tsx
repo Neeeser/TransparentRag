@@ -44,6 +44,7 @@ export function DatasetsPanel({
       .filter((dataset) => dataset.source === "builtin_benchmark" && dataset.source_ref)
       .map((dataset) => dataset.source_ref as string),
   );
+  const domainByKey = new Map(benchmarks.map((benchmark) => [benchmark.key, benchmark.domain]));
 
   return (
     <GlassCard className="rounded-3xl border border-hairline bg-surface p-6">
@@ -69,9 +70,20 @@ export function DatasetsPanel({
           {datasets.map((dataset) => (
             <li key={dataset.id} className="flex items-center justify-between gap-4 py-3">
               <div className="min-w-0">
-                <p className="truncate font-medium text-primary">{dataset.name}</p>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <p className="truncate font-medium text-primary">{dataset.name}</p>
+                  {dataset.source_ref && domainByKey.has(dataset.source_ref) && (
+                    <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-accent-cyan">
+                      {domainByKey.get(dataset.source_ref)}
+                    </p>
+                  )}
+                </div>
+                {dataset.description && (
+                  <p className="mt-1 truncate text-sm text-body">{dataset.description}</p>
+                )}
                 <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
-                  {dataset.num_queries} queries · {dataset.num_corpus_docs} docs ·{" "}
+                  {dataset.num_queries.toLocaleString()} queries ·{" "}
+                  {dataset.num_corpus_docs.toLocaleString()} docs ·{" "}
                   {dataset.source === "builtin_benchmark" ? "benchmark" : "upload"}
                 </p>
                 {dataset.status === "failed" && dataset.error_message && (

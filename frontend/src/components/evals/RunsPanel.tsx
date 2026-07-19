@@ -4,7 +4,7 @@ import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { formatMetric, isRunActive } from "@/components/evals/lib/metrics";
+import { formatMetric, headlineMetric, isRunActive } from "@/components/evals/lib/metrics";
 import { RunStatusBadge } from "@/components/evals/RunStatusBadge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -20,8 +20,6 @@ interface RunsPanelProps {
   onNewRun: () => void;
   onDeleteRun: (runId: string) => Promise<boolean>;
 }
-
-const HEADLINE_METRIC = "recall@10";
 
 export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: RunsPanelProps) {
   const [pendingDelete, setPendingDelete] = useState<EvalRunSummary | null>(null);
@@ -48,7 +46,7 @@ export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: Ru
                 <th className="py-2 pr-4 font-normal">Dataset</th>
                 <th className="py-2 pr-4 font-normal">Status</th>
                 <th className="py-2 pr-4 font-normal">Progress</th>
-                <th className="py-2 pr-4 font-normal">Recall@10</th>
+                <th className="py-2 pr-4 font-normal">Recall</th>
                 <th className="py-2 pr-4 font-normal">Started</th>
                 <th className="py-2 font-normal">
                   <span className="sr-only">Actions</span>
@@ -74,7 +72,7 @@ export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: Ru
                     {run.progress_total > 0 ? `${run.progress_done}/${run.progress_total}` : "—"}
                   </td>
                   <td className="py-3 pr-4 font-mono text-xs text-body">
-                    {formatMetric(run.aggregate_metrics[HEADLINE_METRIC])}
+                    <RecallCell aggregates={run.aggregate_metrics} />
                   </td>
                   <td className="py-3 pr-4 text-xs text-muted">{formatDateTime(run.created_at)}</td>
                   <td className="py-3 text-right">
@@ -108,5 +106,17 @@ export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: Ru
         onCancel={() => setPendingDelete(null)}
       />
     </GlassCard>
+  );
+}
+
+/** The run's recall at its own deepest computed cutoff. */
+function RecallCell({ aggregates }: { aggregates: Record<string, number> }) {
+  const headline = headlineMetric(aggregates, "recall");
+  if (!headline) return <>—</>;
+  return (
+    <>
+      {formatMetric(headline.value)}
+      <span className="ml-1.5 text-meta">@{headline.k}</span>
+    </>
   );
 }

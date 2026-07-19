@@ -56,6 +56,20 @@ function sortByK(values: Array<{ k: number; value: number }>): Array<{ k: number
   return [...values].sort((a, b) => a.k - b.k);
 }
 
+/** The deepest computed cutoff of one metric, e.g. recall@25 over recall@10. */
+export function headlineMetric(
+  aggregates: Record<string, number>,
+  metricName: string,
+): { k: number; value: number } | null {
+  let best: { k: number; value: number } | null = null;
+  for (const [key, value] of Object.entries(aggregates)) {
+    const parsed = parseMetricKey(key);
+    if (!parsed || parsed.name !== metricName) continue;
+    if (!best || parsed.k > best.k) best = { k: parsed.k, value };
+  }
+  return best;
+}
+
 /** Format a 0–1 metric value for display. */
 export function formatMetric(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";

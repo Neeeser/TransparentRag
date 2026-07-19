@@ -12,6 +12,7 @@ import {
   fetchEvalDatasets,
   fetchEvalMetricCatalog,
   fetchEvalRuns,
+  fetchPipelines,
   importEvalBenchmark,
   uploadEvalDataset,
 } from "@/lib/api";
@@ -39,6 +40,7 @@ export function useEvalsWorkspace() {
   const metricCatalog = useApiQuery(() => fetchEvalMetricCatalog(token!), [token], {
     enabled: !!token,
   });
+  const pipelines = useApiQuery(() => fetchPipelines(token!), [token], { enabled: !!token });
 
   const hasActiveRun = useMemo(
     () => (runs.data ?? []).some((run) => isRunActive(run.status)),
@@ -109,6 +111,7 @@ export function useEvalsWorkspace() {
     collections,
     benchmarks,
     metricCatalog,
+    pipelines,
     actionError,
     clearActionError: () => setActionError(null),
     importBenchmark,
