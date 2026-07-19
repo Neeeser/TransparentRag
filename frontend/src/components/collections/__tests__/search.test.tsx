@@ -81,7 +81,7 @@ describe("CollectionSearch", () => {
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-3");
   });
 
-  it("filters results below the min-score floor client-side", async () => {
+  it("shows every returned match without a client-side score floor control", async () => {
     api.runCollectionQuery.mockResolvedValueOnce(
       makeQueryResult({
         query_event_id: "event-2",
@@ -97,12 +97,11 @@ describe("CollectionSearch", () => {
     await waitFor(() => {
       expect(screen.getByText("Strong")).toBeInTheDocument();
     });
+    // Every match the pipeline returned is shown; truncation belongs to the
+    // pipeline's Result Limit node, not a client-side slider.
     expect(screen.getByText("Weak")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByRole("slider"), { target: { value: "50" } });
-    expect(screen.queryByText("Weak")).not.toBeInTheDocument();
-    expect(screen.getByText(/1 of 2 matches/)).toBeInTheDocument();
-    expect(screen.getByText(/1 below score floor/)).toBeInTheDocument();
+    expect(screen.getByText(/2 matches/)).toBeInTheDocument();
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
 
   it("remembers recent queries and re-runs them from chips", async () => {
