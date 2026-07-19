@@ -138,6 +138,14 @@ export interface EvalRunItemsResponse {
   document_titles: Record<string, string>;
 }
 
+/** Mirrors `EvalRunCoverage` — read-time dataset coverage for a run. */
+export interface EvalRunCoverage {
+  corpus_ingested: number;
+  corpus_total: number;
+  queries_done: number;
+  queries_total: number;
+}
+
 /** Mirrors `EvalRunRead`. */
 export interface EvalRun {
   id: UUID;
@@ -151,6 +159,7 @@ export interface EvalRun {
   progress_done: number;
   progress_total: number;
   failed_count: number;
+  coverage?: EvalRunCoverage | null;
   aggregate_metrics: Record<string, number>;
   funnel: FunnelSummary;
   error_message?: string | null;
@@ -168,6 +177,7 @@ export interface EvalRunSummary {
   progress_done: number;
   progress_total: number;
   failed_count: number;
+  coverage?: EvalRunCoverage | null;
   aggregate_metrics: Record<string, number>;
   created_at: string;
 }

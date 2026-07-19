@@ -20,6 +20,7 @@ from app.db.repositories import (
     CollectionRepository,
     CollectionStats,
     CollectionStatsRepository,
+    DocumentRepository,
     EvalDatasetRepository,
     EvalRunRepository,
 )
@@ -37,6 +38,7 @@ from app.schemas.evals import (
     BuiltinDatasetInfo,
     EvalCollectionRead,
     EvalMetricInfo,
+    EvalRunCoverage,
     EvalRunCreate,
 )
 from app.services.collection_deletion import CollectionDeletionService
@@ -272,6 +274,37 @@ class EvalService:
         if run is None:
             raise NotFoundError("Eval run not found.")
         return run
+
+    def coverage_for(self, runs: list[models.EvalRun]) -> dict[UUID, EvalRunCoverage]:
+        """Dataset coverage per run, computed at read time in three queries.
+
+        Corpus coverage counts READY documents in the run's eval collection
+        against the dataset's full corpus; query coverage counts evaluated
+        items against the dataset's full query set. Runs sharing a collection
+        or dataset share the underlying counts.
+        """
+        if not runs:
+            return {}
+        collection_ids = {run.eval_collection_id for run in runs if run.eval_collection_id}
+        ready = DocumentRepository(self.session).ready_counts_by_collection(collection_ids)
+        items = self.runs.count_items_by_run([run.id for run in runs])
+        datasets = {
+            dataset.id: dataset
+            for dataset in self.datasets.get_by_ids({run.dataset_id for run in runs})
+        }
+        coverage: dict[UUID, EvalRunCoverage] = {}
+        for run in runs:
+            dataset = datasets.get(run.dataset_id)
+            if dataset is None:
+                continue
+            ingested = ready.get(run.eval_collection_id, 0) if run.eval_collection_id else 0
+            coverage[run.id] = EvalRunCoverage(
+                corpus_ingested=ingested,
+                corpus_total=dataset.num_corpus_docs,
+                queries_done=items.get(run.id, 0),
+                queries_total=dataset.num_queries,
+            )
+        return coverage
 
     def list_run_items(
         self, user: models.User, run_id: UUID

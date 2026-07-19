@@ -283,10 +283,19 @@ def test_reuse_ingests_only_the_missing_documents(pg_search_session: Session) ->
         }
     assert len(first_docs) == 1  # one sampled query's single gold document
 
+    service = EvalService(session)
+    first_coverage = service.coverage_for([first])[first.id]
+    assert (first_coverage.corpus_ingested, first_coverage.corpus_total) == (1, 3)
+    assert (first_coverage.queries_done, first_coverage.queries_total) == (1, 2)
+
     second = _start_run(
         session, user, dataset=dataset, num_queries=2, distractor_pool_size=1
     )
     EvalRunner(session).execute(second)
+
+    second_coverage = service.coverage_for([second])[second.id]
+    assert (second_coverage.corpus_ingested, second_coverage.corpus_total) == (3, 3)
+    assert (second_coverage.queries_done, second_coverage.queries_total) == (2, 2)
 
     eval_collections = CollectionRepository(session).list_eval_for_user(user.id)
     assert len(eval_collections) == 1  # topped up, not re-provisioned

@@ -258,6 +258,20 @@ class EvalRunItemsResponse(BaseModel):
     document_titles: dict[str, str] = Field(default_factory=dict)
 
 
+class EvalRunCoverage(BaseModel):
+    """How much of the dataset a run covered, computed at read time.
+
+    Corpus counts come from the run's eval collection (READY documents over
+    the dataset's full corpus); query counts are evaluated items over the
+    dataset's full query set.
+    """
+
+    corpus_ingested: int
+    corpus_total: int
+    queries_done: int
+    queries_total: int
+
+
 class EvalRunRead(BaseModel):
     """An eval run's status, progress, and (once complete) results."""
 
@@ -272,6 +286,7 @@ class EvalRunRead(BaseModel):
     progress_done: int
     progress_total: int
     failed_count: int = 0
+    coverage: EvalRunCoverage | None = None
     aggregate_metrics: dict[str, float] = Field(default_factory=dict)
     funnel: FunnelSummary = Field(default_factory=FunnelSummary)
     error_message: str | None = None
@@ -290,6 +305,7 @@ class EvalRunSummary(BaseModel):
     progress_done: int
     progress_total: int
     failed_count: int = 0
+    coverage: EvalRunCoverage | None = None
     aggregate_metrics: dict[str, float] = Field(default_factory=dict)
     created_at: datetime
 

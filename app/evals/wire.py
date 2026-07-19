@@ -18,6 +18,7 @@ from app.schemas.evals import (
     EvalItemNodeDocs,
     EvalRetrievedChunk,
     EvalRunConfig,
+    EvalRunCoverage,
     EvalRunItemRead,
     EvalRunRead,
     EvalRunSummary,
@@ -44,8 +45,10 @@ def to_dataset_read(dataset: models.EvalDataset) -> EvalDatasetRead:
     )
 
 
-def to_run_read(run: models.EvalRun) -> EvalRunRead:
-    """Shape one run row (with funnel and aggregates) for the wire."""
+def to_run_read(
+    run: models.EvalRun, coverage: EvalRunCoverage | None = None
+) -> EvalRunRead:
+    """Shape one run row (with funnel, aggregates, and coverage) for the wire."""
     return EvalRunRead(
         id=run.id,
         name=run.name,
@@ -58,6 +61,7 @@ def to_run_read(run: models.EvalRun) -> EvalRunRead:
         progress_done=run.progress_done,
         progress_total=run.progress_total,
         failed_count=run.failed_count,
+        coverage=coverage,
         aggregate_metrics={
             key: float(value)
             for key, value in run.aggregate_metrics.items()
@@ -73,7 +77,9 @@ def to_run_read(run: models.EvalRun) -> EvalRunRead:
     )
 
 
-def to_run_summary(run: models.EvalRun) -> EvalRunSummary:
+def to_run_summary(
+    run: models.EvalRun, coverage: EvalRunCoverage | None = None
+) -> EvalRunSummary:
     """Shape one run row for list views."""
     return EvalRunSummary(
         id=run.id,
@@ -83,6 +89,7 @@ def to_run_summary(run: models.EvalRun) -> EvalRunSummary:
         progress_done=run.progress_done,
         progress_total=run.progress_total,
         failed_count=run.failed_count,
+        coverage=coverage,
         aggregate_metrics={
             key: float(value)
             for key, value in run.aggregate_metrics.items()

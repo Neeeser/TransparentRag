@@ -1,6 +1,27 @@
 /** Builders for eval domain objects. */
 
-import type { EvalRunItem, FunnelStage } from "@/lib/types";
+import type { EvalRunItem, EvalRunSummary, FunnelStage } from "@/lib/types";
+
+export function makeEvalRunSummary(overrides: Partial<EvalRunSummary> = {}): EvalRunSummary {
+  return {
+    id: "run-1",
+    name: "SciFact · Quick",
+    dataset_id: "ds-1",
+    status: "completed",
+    progress_done: 52,
+    progress_total: 52,
+    failed_count: 0,
+    coverage: {
+      corpus_ingested: 302,
+      corpus_total: 5183,
+      queries_done: 50,
+      queries_total: 300,
+    },
+    aggregate_metrics: { "recall@10": 0.9 },
+    created_at: "2026-07-19T12:00:00Z",
+    ...overrides,
+  };
+}
 
 export function makeFunnelStage(overrides: Partial<FunnelStage> = {}): FunnelStage {
   return {

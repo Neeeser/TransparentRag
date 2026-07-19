@@ -139,8 +139,11 @@ def list_runs(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list[EvalRunSummary]:
-    """List the user's eval runs."""
-    return [to_run_summary(run) for run in EvalService(session).list_runs(current_user)]
+    """List the user's eval runs with dataset-coverage indicators."""
+    service = EvalService(session)
+    runs = service.list_runs(current_user)
+    coverage = service.coverage_for(runs)
+    return [to_run_summary(run, coverage.get(run.id)) for run in runs]
 
 
 @router.get("/runs/{run_id}", response_model=EvalRunRead)
@@ -149,9 +152,11 @@ def get_run(
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> EvalRunRead:
-    """Return one run with progress, aggregates, and the funnel."""
+    """Return one run with progress, aggregates, funnel, and coverage."""
     try:
-        return to_run_read(EvalService(session).get_run(current_user, run_id))
+        service = EvalService(session)
+        run = service.get_run(current_user, run_id)
+        return to_run_read(run, service.coverage_for([run]).get(run.id))
     except ServiceError as exc:
         raise to_http_exception(exc) from exc
 

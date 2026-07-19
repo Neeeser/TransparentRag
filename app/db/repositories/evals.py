@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
@@ -25,6 +25,14 @@ class EvalDatasetRepository(Repository):
         if not dataset or dataset.user_id != user_id:
             return None
         return dataset
+
+    def get_by_ids(self, dataset_ids: Iterable[UUID]) -> list[models.EvalDataset]:
+        """Return the datasets with the given ids (owner-agnostic bulk read)."""
+        ids = list(dataset_ids)
+        if not ids:
+            return []
+        statement = select(models.EvalDataset).where(col(models.EvalDataset.id).in_(ids))
+        return list(self.session.exec(statement).all())
 
     def list_for_user(self, user_id: UUID) -> list[models.EvalDataset]:
         """Return every dataset owned by the user, newest first."""
@@ -148,6 +156,20 @@ class EvalRunRepository(Repository):
             col(models.EvalRun.dataset_id) == dataset_id
         )
         return int(self.session.exec(statement).one())
+
+    def count_items_by_run(self, run_ids: Sequence[UUID]) -> dict[UUID, int]:
+        """Count persisted (evaluated) items per run, in one query."""
+        if not run_ids:
+            return {}
+        statement = (
+            select(
+                col(models.EvalRunItem.run_id),
+                func.count(col(models.EvalRunItem.id)),  # pylint: disable=not-callable
+            )
+            .where(col(models.EvalRunItem.run_id).in_(run_ids))
+            .group_by(col(models.EvalRunItem.run_id))
+        )
+        return {row[0]: int(row[1]) for row in self.session.exec(statement).all()}
 
     def delete_with_items(self, run: models.EvalRun) -> None:
         """Delete a run and bulk-delete its per-query items.

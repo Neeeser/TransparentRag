@@ -9,9 +9,10 @@ import { RunStatusBadge } from "@/components/evals/RunStatusBadge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GlassCard } from "@/components/ui/panel";
+import { Tooltip } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/datetime";
 
-import type { EvalDataset, EvalMetricInfo, EvalRunSummary } from "@/lib/types";
+import type { EvalDataset, EvalMetricInfo, EvalRunCoverage, EvalRunSummary } from "@/lib/types";
 
 interface RunsPanelProps {
   runs: EvalRunSummary[];
@@ -54,6 +55,7 @@ export function RunsPanel({
                 <th className="py-2 pr-4 font-normal">Dataset</th>
                 <th className="py-2 pr-4 font-normal">Status</th>
                 <th className="py-2 pr-4 font-normal">Progress</th>
+                <th className="py-2 pr-4 font-normal">Coverage</th>
                 <th className="py-2 pr-4 font-normal">Score</th>
                 <th className="py-2 pr-4 font-normal">Started</th>
                 <th className="py-2 font-normal">
@@ -78,6 +80,9 @@ export function RunsPanel({
                   </td>
                   <td className="py-3 pr-4 font-mono text-xs text-body">
                     {run.progress_total > 0 ? `${run.progress_done}/${run.progress_total}` : "—"}
+                  </td>
+                  <td className="py-3 pr-4 font-mono text-xs text-body">
+                    <CoverageCell coverage={run.coverage ?? null} />
                   </td>
                   <td className="py-3 pr-4 font-mono text-xs text-body">
                     <HeadlineCell aggregates={run.aggregate_metrics} catalog={metricCatalog} />
@@ -115,6 +120,37 @@ export function RunsPanel({
       />
     </GlassCard>
   );
+}
+
+/** Share of the dataset the run covered: corpus ingested and queries evaluated. */
+function CoverageCell({ coverage }: { coverage: EvalRunCoverage | null }) {
+  if (!coverage) return <>—</>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Tooltip
+        content={`${coverage.corpus_ingested.toLocaleString()} of ${coverage.corpus_total.toLocaleString()} corpus documents ingested`}
+      >
+        <span className="cursor-default">
+          docs {percent(coverage.corpus_ingested, coverage.corpus_total)}
+        </span>
+      </Tooltip>
+      <span aria-hidden className="text-meta">
+        ·
+      </span>
+      <Tooltip
+        content={`${coverage.queries_done.toLocaleString()} of ${coverage.queries_total.toLocaleString()} dataset queries evaluated`}
+      >
+        <span className="cursor-default">
+          queries {percent(coverage.queries_done, coverage.queries_total)}
+        </span>
+      </Tooltip>
+    </span>
+  );
+}
+
+function percent(done: number, total: number): string {
+  if (total <= 0) return "—";
+  return `${Math.round((done / total) * 100)}%`;
 }
 
 /** The run's first catalog-ordered computed metric at its deepest cutoff. */
