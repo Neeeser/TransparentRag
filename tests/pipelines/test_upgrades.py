@@ -204,6 +204,56 @@ def test_upgrade_definition_splices_reranker_fan_in_out_with_stable_unique_ids()
     }
 
 
+def test_upgrade_definition_never_duplicates_an_existing_spliced_edge() -> None:
+    """Bypassing a legacy reranker must not clone an edge that already exists.
+
+    A retriever feeding both a legacy reranker and the same variadic fusion
+    port directly would otherwise gain a second identical edge, silently
+    double-counting that branch in the fusion.
+    """
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(id="source", type="retriever.vector", name="Source"),
+            PipelineNodeDefinition(
+                id="reranker", type="reranker.cross_encoder", name="Legacy Reranker"
+            ),
+            PipelineNodeDefinition(id="fuse", type="fusion.rrf", name="Fusion"),
+        ],
+        edges=[
+            PipelineEdgeDefinition(
+                id="into-reranker",
+                source="source",
+                target="reranker",
+                source_port="results",
+                target_port="results",
+            ),
+            PipelineEdgeDefinition(
+                id="reranker-to-fuse",
+                source="reranker",
+                target="fuse",
+                source_port="results",
+                target_port="results",
+            ),
+            PipelineEdgeDefinition(
+                id="direct",
+                source="source",
+                target="fuse",
+                source_port="results",
+                target_port="results",
+            ),
+        ],
+    )
+
+    upgraded = upgrade_definition(definition)
+
+    assert upgraded is not None
+    identities = [
+        (edge.source, edge.target, edge.source_port, edge.target_port)
+        for edge in upgraded.edges
+    ]
+    assert identities == [("source", "fuse", "results", "results")]
+
+
 def test_upgrade_definition_contracts_adjacent_legacy_rerankers() -> None:
     definition = PipelineDefinition(
         nodes=[

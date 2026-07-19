@@ -153,6 +153,21 @@ def _bypass_nodes(
         ]
         for inbound in incoming:
             for outbound in outgoing:
+                identity = (
+                    inbound.source,
+                    outbound.target,
+                    inbound.source_port,
+                    outbound.target_port,
+                )
+                # A pre-existing identical edge (e.g. a retriever feeding both
+                # the bypassed node and the same variadic fusion port) must not
+                # be cloned — the duplicate would double-count that branch.
+                if any(
+                    (edge.source, edge.target, edge.source_port, edge.target_port)
+                    == identity
+                    for edge in rewritten
+                ):
+                    continue
                 rewritten.append(
                     PipelineEdgeDefinition(
                         id=_unique_edge_id(
