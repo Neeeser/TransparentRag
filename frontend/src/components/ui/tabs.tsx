@@ -58,7 +58,10 @@ export function TabList<T extends string>({
               document.getElementById(tabId(next.id))?.focus();
             }}
             className={cn(
-              "flex-1 rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.28em] transition-colors",
+              // min-w-0 + truncate keep a pill inside the rounded strip at any
+              // sidebar width — flex items otherwise refuse to shrink below
+              // their label and the selected pill escapes the container.
+              "min-w-0 flex-1 truncate rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
               selected ? "bg-surface-strong text-primary" : "text-muted hover:text-body",
             )}
