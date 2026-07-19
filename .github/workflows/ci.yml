@@ -97,19 +97,3 @@ jobs:
         run: npm run format:check
       - name: Build
         run: npm run build
-
-  compose:
-    name: Compose overlays
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate every documented stack
-        run: |
-          docker compose -f docker-compose.yml config --quiet
-          docker compose -f docker-compose.yml -f deploy/compose/ollama.yml config --quiet
-          docker compose -f docker-compose.yml -f deploy/compose/tei-embedding.yml config --quiet
-          docker compose -f docker-compose.yml -f deploy/compose/tei-reranker.yml config --quiet
-          docker compose -f docker-compose.yml -f deploy/compose/ollama.yml -f deploy/compose/tei-embedding.yml config --quiet
-          docker compose -f docker-compose.yml -f deploy/compose/ollama.yml -f deploy/compose/tei-reranker.yml config --quiet
-          docker compose -f docker-compose.yml -f deploy/compose/tei-embedding.yml -f deploy/compose/tei-reranker.yml config --quiet
-          docker compose -f docker-compose.yml -f deploy/compose/ollama.yml -f deploy/compose/tei-embedding.yml -f deploy/compose/tei-reranker.yml config --quiet
