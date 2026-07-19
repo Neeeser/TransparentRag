@@ -70,6 +70,48 @@ export function headlineMetric(
   return best;
 }
 
+/** Metric names present in the items at cutoff k, in catalog order.
+
+ * Derived from what the run actually computed, so a run that selected only
+ * ndcg+precision gets those columns instead of em-dashes under hardcoded ones.
+ */
+export function itemMetricNames(
+  items: Array<{ metrics: Record<string, number> }>,
+  k: number,
+  catalog: EvalMetricInfo[],
+): string[] {
+  const present = new Set<string>();
+  for (const item of items) {
+    for (const key of Object.keys(item.metrics)) {
+      const parsed = parseMetricKey(key);
+      if (parsed && parsed.k === k) present.add(parsed.name);
+    }
+  }
+  const known = catalog.filter((metric) => present.has(metric.name)).map((metric) => metric.name);
+  const knownSet = new Set(known);
+  const unknown = [...present].filter((name) => !knownSet.has(name)).sort();
+  return [...known, ...unknown];
+}
+
+/** The run's headline: its first catalog-ordered metric at the deepest cutoff. */
+export function headlineAggregate(
+  aggregates: Record<string, number>,
+  catalog: EvalMetricInfo[],
+): { name: string; k: number; value: number } | null {
+  const names = [
+    ...catalog.map((metric) => metric.name),
+    ...Object.keys(aggregates)
+      .map((key) => parseMetricKey(key)?.name)
+      .filter((name): name is string => !!name)
+      .sort(),
+  ];
+  for (const name of names) {
+    const headline = headlineMetric(aggregates, name);
+    if (headline) return { name, ...headline };
+  }
+  return null;
+}
+
 /** Format a 0–1 metric value for display. */
 export function formatMetric(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";

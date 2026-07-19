@@ -4,24 +4,32 @@ import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { formatMetric, headlineMetric, isRunActive } from "@/components/evals/lib/metrics";
+import { formatMetric, headlineAggregate, isRunActive } from "@/components/evals/lib/metrics";
 import { RunStatusBadge } from "@/components/evals/RunStatusBadge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GlassCard } from "@/components/ui/panel";
 import { formatDateTime } from "@/lib/datetime";
 
-import type { EvalDataset, EvalRunSummary } from "@/lib/types";
+import type { EvalDataset, EvalMetricInfo, EvalRunSummary } from "@/lib/types";
 
 interface RunsPanelProps {
   runs: EvalRunSummary[];
   datasets: EvalDataset[];
+  metricCatalog: EvalMetricInfo[];
   loading: boolean;
   onNewRun: () => void;
   onDeleteRun: (runId: string) => Promise<boolean>;
 }
 
-export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: RunsPanelProps) {
+export function RunsPanel({
+  runs,
+  datasets,
+  metricCatalog,
+  loading,
+  onNewRun,
+  onDeleteRun,
+}: RunsPanelProps) {
   const [pendingDelete, setPendingDelete] = useState<EvalRunSummary | null>(null);
   const datasetNames = new Map(datasets.map((dataset) => [dataset.id, dataset.name]));
 
@@ -46,7 +54,7 @@ export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: Ru
                 <th className="py-2 pr-4 font-normal">Dataset</th>
                 <th className="py-2 pr-4 font-normal">Status</th>
                 <th className="py-2 pr-4 font-normal">Progress</th>
-                <th className="py-2 pr-4 font-normal">Recall</th>
+                <th className="py-2 pr-4 font-normal">Score</th>
                 <th className="py-2 pr-4 font-normal">Started</th>
                 <th className="py-2 font-normal">
                   <span className="sr-only">Actions</span>
@@ -72,7 +80,7 @@ export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: Ru
                     {run.progress_total > 0 ? `${run.progress_done}/${run.progress_total}` : "—"}
                   </td>
                   <td className="py-3 pr-4 font-mono text-xs text-body">
-                    <RecallCell aggregates={run.aggregate_metrics} />
+                    <HeadlineCell aggregates={run.aggregate_metrics} catalog={metricCatalog} />
                   </td>
                   <td className="py-3 pr-4 text-xs text-muted">{formatDateTime(run.created_at)}</td>
                   <td className="py-3 text-right">
@@ -109,14 +117,22 @@ export function RunsPanel({ runs, datasets, loading, onNewRun, onDeleteRun }: Ru
   );
 }
 
-/** The run's recall at its own deepest computed cutoff. */
-function RecallCell({ aggregates }: { aggregates: Record<string, number> }) {
-  const headline = headlineMetric(aggregates, "recall");
+/** The run's first catalog-ordered computed metric at its deepest cutoff. */
+function HeadlineCell({
+  aggregates,
+  catalog,
+}: {
+  aggregates: Record<string, number>;
+  catalog: EvalMetricInfo[];
+}) {
+  const headline = headlineAggregate(aggregates, catalog);
   if (!headline) return <>—</>;
   return (
     <>
       {formatMetric(headline.value)}
-      <span className="ml-1.5 text-meta">@{headline.k}</span>
+      <span className="ml-1.5 text-meta">
+        {headline.name}@{headline.k}
+      </span>
     </>
   );
 }

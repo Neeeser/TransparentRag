@@ -5,18 +5,19 @@ import Link from "next/link";
 import { Fragment, useState } from "react";
 
 import { goldHitCount } from "@/components/evals/lib/journey";
-import { formatMetric } from "@/components/evals/lib/metrics";
+import { formatMetric, itemMetricNames } from "@/components/evals/lib/metrics";
 import { QueryDrilldown } from "@/components/evals/QueryDrilldown";
 import { GlassCard } from "@/components/ui/panel";
 import { truncate } from "@/lib/utils";
 
-import type { EvalRunItem, FunnelStage } from "@/lib/types";
+import type { EvalMetricInfo, EvalRunItem, FunnelStage } from "@/lib/types";
 
 interface ItemsTableProps {
   items: EvalRunItem[];
   documentTitles: Record<string, string>;
   stages: FunnelStage[];
   kValues: number[];
+  catalog?: EvalMetricInfo[];
 }
 
 /**
@@ -24,14 +25,15 @@ interface ItemsTableProps {
  * (with their stage paths) and returned results; the trace link opens the
  * query-event trace, where focusing a result joins in its ingestion origin.
  */
-export function ItemsTable({ items, documentTitles, stages, kValues }: ItemsTableProps) {
+export function ItemsTable({ items, documentTitles, stages, kValues, catalog }: ItemsTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   if (items.length === 0) {
     return null;
   }
   const headlineK = kValues.length ? Math.max(...kValues) : 10;
-  const recallKey = `recall@${headlineK}`;
-  const mrrKey = `mrr@${headlineK}`;
+  // Columns come from the metrics the run actually computed, in catalog order.
+  const metricNames = itemMetricNames(items, headlineK, catalog ?? []);
+  const labels = new Map((catalog ?? []).map((metric) => [metric.name, metric.label]));
 
   return (
     <GlassCard className="rounded-3xl border border-hairline bg-surface p-6">
@@ -46,8 +48,11 @@ export function ItemsTable({ items, documentTitles, stages, kValues }: ItemsTabl
               <th className="py-2 pr-4 font-normal">Query</th>
               <th className="py-2 pr-4 font-normal">Gold found</th>
               <th className="py-2 pr-4 font-normal">Returned</th>
-              <th className="py-2 pr-4 font-normal">Recall@{headlineK}</th>
-              <th className="py-2 pr-4 font-normal">MRR@{headlineK}</th>
+              {metricNames.map((name) => (
+                <th key={name} className="py-2 pr-4 font-normal">
+                  {metricColumnHeader(name, labels.get(name), headlineK)}
+                </th>
+              ))}
               <th className="py-2 font-normal">Trace</th>
             </tr>
           </thead>
@@ -89,19 +94,18 @@ export function ItemsTable({ items, documentTitles, stages, kValues }: ItemsTabl
                       </span>
                     </td>
                     <td className="py-3 pr-4 font-mono text-xs text-body">{item.result_count}</td>
-                    <td className="py-3 pr-4 font-mono text-xs text-primary">
-                      {item.failed ? "—" : formatMetric(item.metrics[recallKey])}
-                    </td>
-                    <td className="py-3 pr-4 font-mono text-xs text-primary">
-                      {item.failed ? "—" : formatMetric(item.metrics[mrrKey])}
-                    </td>
+                    {metricNames.map((name) => (
+                      <td key={name} className="py-3 pr-4 font-mono text-xs text-primary">
+                        {item.failed ? "—" : formatMetric(item.metrics[`${name}@${headlineK}`])}
+                      </td>
+                    ))}
                     <td className="py-3">
                       <TraceLink item={item} />
                     </td>
                   </tr>
                   {expanded && (
                     <tr className="border-b border-hairline last:border-b-0">
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={5 + metricNames.length} className="p-0">
                         <QueryDrilldown
                           item={item}
                           stages={stages}
@@ -118,6 +122,12 @@ export function ItemsTable({ items, documentTitles, stages, kValues }: ItemsTabl
       </div>
     </GlassCard>
   );
+}
+
+/** Catalog labels read `Recall@k`; the column pins the run's actual cutoff. */
+function metricColumnHeader(name: string, label: string | undefined, k: number): string {
+  const base = (label ?? name).replace(/@k$/i, "");
+  return `${base}@${k}`;
 }
 
 function TraceLink({ item }: { item: EvalRunItem }) {

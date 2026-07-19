@@ -54,6 +54,35 @@ describe("ItemsTable", () => {
     expect(screen.getByText("Lyon")).toBeInTheDocument();
   });
 
+  it("derives its metric columns from what the run actually computed", () => {
+    const item = makeEvalRunItem({
+      metrics: { "ndcg@10": 0.5, "precision@10": 0.2, "ndcg@5": 0.6 },
+    });
+    render(
+      <ItemsTable
+        items={[item]}
+        documentTitles={{}}
+        stages={STAGES}
+        kValues={[5, 10]}
+        catalog={[
+          {
+            name: "precision",
+            label: "Precision@k",
+            description: "",
+            is_rank_aware: false,
+          },
+          { name: "ndcg", label: "nDCG@k", description: "", is_rank_aware: true },
+        ]}
+      />,
+    );
+    // Catalog order, only computed metrics — no hardcoded recall/mrr columns.
+    expect(screen.getByText("Precision@10")).toBeInTheDocument();
+    expect(screen.getByText("nDCG@10")).toBeInTheDocument();
+    expect(screen.queryByText(/Recall/)).not.toBeInTheDocument();
+    expect(screen.getByText("0.20")).toBeInTheDocument();
+    expect(screen.getByText("0.50")).toBeInTheDocument();
+  });
+
   it("falls back to the pipeline-run trace when no query event was recorded", () => {
     const item = makeEvalRunItem({ query_event_id: null });
     render(<ItemsTable items={[item]} documentTitles={{}} stages={STAGES} kValues={[10]} />);

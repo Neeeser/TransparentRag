@@ -76,6 +76,7 @@ export function RunDetail({ runId }: { runId: string }) {
         documentTitles={items.data?.document_titles ?? {}}
         stages={detail.funnel.stages}
         kValues={detail.config.k_values}
+        catalog={metricCatalog.data ?? []}
       />
     </div>
   );
