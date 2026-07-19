@@ -160,16 +160,61 @@ export function useFlowPlayback({
     [timing, travelMs],
   );
 
-  const hopTravelMs = useCallback(
-    (fromIndex: number): number => {
+  const targetByEdgeId = useMemo(
+    () => new Map(edges.map((edge) => [edge.id, edge.target])),
+    [edges],
+  );
+
+  // Only edges into the immediately next stage gate a hop — a merge edge
+  // skipping stages (bm25 → collection while embed → index runs) would
+  // otherwise stall the whole flow for its longer crossing. Such edges keep
+  // flying as "long-haul" comets through the following phases until their
+  // own constant-speed duration elapses.
+  const hopTravel = useCallback(
+    (fromIndex: number): { window: number; longHaul: { edgeId: string; remaining: number }[] } => {
+      const departing = edgesBetween(fromIndex);
+      const nextStage = new Set(steps[fromIndex + 1]?.nodeIds ?? []);
+      const gating = departing.filter((edgeId) => nextStage.has(targetByEdgeId.get(edgeId) ?? ""));
       let window = 0;
-      for (const edgeId of edgesBetween(fromIndex)) {
+      for (const edgeId of gating.length > 0 ? gating : departing) {
         window = Math.max(window, travelMsForEdge(edgeId));
       }
-      return window || travelMs;
+      if (window === 0) window = travelMs;
+      const longHaul = departing
+        .filter((edgeId) => travelMsForEdge(edgeId) > window)
+        .map((edgeId) => ({ edgeId, remaining: travelMsForEdge(edgeId) - window }));
+      return { window, longHaul };
     },
-    [edgesBetween, travelMsForEdge, travelMs],
+    [edgesBetween, steps, targetByEdgeId, travelMsForEdge, travelMs],
   );
+
+  const [longHaulEdgeIds, setLongHaulEdgeIds] = useState<ReadonlySet<string>>(EMPTY_EDGE_SET);
+  const longHaulTimersRef = useRef(new Map<string, number>());
+
+  const scheduleLongHaulExpiry = useCallback((edgeId: string, remaining: number) => {
+    const timers = longHaulTimersRef.current;
+    window.clearTimeout(timers.get(edgeId));
+    timers.set(
+      edgeId,
+      window.setTimeout(() => {
+        timers.delete(edgeId);
+        setLongHaulEdgeIds((prev) => {
+          if (!prev.has(edgeId)) return prev;
+          const next = new Set(prev);
+          next.delete(edgeId);
+          return next;
+        });
+      }, remaining),
+    );
+  }, []);
+
+  useEffect(() => {
+    const timers = longHaulTimersRef.current;
+    return () => {
+      for (const timer of timers.values()) window.clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (!playing || steps.length === 0) return;
@@ -194,12 +239,29 @@ export function useFlowPlayback({
       }, stepProcessMs(activeIndex));
       return () => window.clearTimeout(timer);
     }
+    const { window: hopWindow, longHaul } = hopTravel(activeIndex);
     const timer = window.setTimeout(() => {
+      // Comets outlasting the hop stay lit past the phase change; each
+      // expires on its own clock so the light never pauses mid-flight.
+      if (longHaul.length > 0) {
+        setLongHaulEdgeIds((prev) => new Set([...prev, ...longHaul.map((e) => e.edgeId)]));
+        for (const { edgeId, remaining } of longHaul) scheduleLongHaulExpiry(edgeId, remaining);
+      }
       setPhase("process");
       setActiveIndex((prev) => Math.min(prev + 1, steps.length - 1));
-    }, hopTravelMs(activeIndex));
+    }, hopWindow);
     return () => window.clearTimeout(timer);
-  }, [playing, phase, activeIndex, steps.length, stepProcessMs, hopTravelMs, edgesBetween, loop]);
+  }, [
+    playing,
+    phase,
+    activeIndex,
+    steps.length,
+    stepProcessMs,
+    hopTravel,
+    scheduleLongHaulExpiry,
+    edgesBetween,
+    loop,
+  ]);
 
   const seek = useCallback(
     (index: number) => {
@@ -238,10 +300,11 @@ export function useFlowPlayback({
     setPlaying(true);
   }, []);
 
-  const travelingEdgeIds = useMemo(
-    () => (phase === "travel" ? new Set(edgesBetween(activeIndex)) : EMPTY_EDGE_SET),
-    [phase, activeIndex, edgesBetween],
-  );
+  const travelingEdgeIds = useMemo(() => {
+    const hopEdges = phase === "travel" ? edgesBetween(activeIndex) : [];
+    if (hopEdges.length === 0 && longHaulEdgeIds.size === 0) return EMPTY_EDGE_SET;
+    return new Set([...hopEdges, ...longHaulEdgeIds]);
+  }, [phase, activeIndex, edgesBetween, longHaulEdgeIds]);
 
   const visitedEdgeIds = useMemo(() => {
     const visited = new Set<string>();
