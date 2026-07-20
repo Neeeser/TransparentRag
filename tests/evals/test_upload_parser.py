@@ -41,6 +41,21 @@ def test_qrels_header_is_optional() -> None:
     assert triple.qrels[0].query_external_id == "q1"
 
 
+def test_qrel_referencing_a_doc_outside_the_corpus_is_kept_at_parse_time() -> None:
+    """The parser does not cross-validate qrels against the corpus.
+
+    BEIR qrels routinely reference documents the parser has no reason to reject
+    here; the out-of-corpus drop is the sampling layer's job (it excludes gold
+    docs absent from the sampled corpus). Rejecting them at parse time would
+    make valid BEIR uploads fail, so parsing keeps every well-formed row.
+    """
+    triple = parse_beir_upload(
+        name="x", corpus=CORPUS, queries=QUERIES, qrels="q1\td-not-in-corpus\t1\n"
+    )
+    assert len(triple.qrels) == 1
+    assert triple.qrels[0].doc_external_id == "d-not-in-corpus"
+
+
 def test_missing_id_is_rejected() -> None:
     """A corpus row without an id is a clear input error, not a silent drop."""
     with pytest.raises(InvalidInputError):

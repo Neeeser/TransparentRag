@@ -123,3 +123,32 @@ def test_positive_qrels_excludes_judged_not_relevant_rows() -> None:
         ]
     ]
     assert positive_qrels(judgments) == {"q1": {"d1": 2, "d3": 1}}
+
+
+def test_positive_qrels_excludes_negative_grades() -> None:
+    """A negative relevance grade is non-positive and never becomes gold."""
+    judgments = [
+        models.EvalRelevanceJudgment(
+            dataset_id=uuid4(), query_external_id="q1", doc_external_id="d1", relevance=-1
+        )
+    ]
+    assert positive_qrels(judgments) == {}
+
+
+def test_positive_qrels_last_grade_wins_for_a_duplicate_pair() -> None:
+    """A repeated (query, doc) pair keeps the last grade, not a sum or the first.
+
+    Malformed uploads can repeat a judgment row; grouping into a dict means the
+    last row wins, so gold membership stays a single grade per document rather
+    than accumulating.
+    """
+    dataset_id = uuid4()
+    judgments = [
+        models.EvalRelevanceJudgment(
+            dataset_id=dataset_id, query_external_id="q1", doc_external_id="d1", relevance=1
+        ),
+        models.EvalRelevanceJudgment(
+            dataset_id=dataset_id, query_external_id="q1", doc_external_id="d1", relevance=3
+        ),
+    ]
+    assert positive_qrels(judgments) == {"q1": {"d1": 3}}

@@ -72,9 +72,23 @@ def test_ndcg_at_k_uses_relevance_grades_as_gains() -> None:
 
 
 def test_map_at_k() -> None:
-    """MAP@k averages precision at each gold hit over min(gold, k)."""
-    # P@2 = 1/2 (d2), P@4 = 2/4 (d4); averaged over min(3, 5) = 3 gold docs.
+    """MAP@k sums precision at each gold hit and divides by total relevant."""
+    # P@2 = 1/2 (d2), P@4 = 2/4 (d4); divided by the 3 relevant docs (trec_eval).
     assert _compute("map", 5, RETRIEVED, GOLD) == pytest.approx((0.5 + 0.5) / 3)
+
+
+def test_map_at_k_divides_by_total_relevant_not_cutoff() -> None:
+    """MAP@k normalizes by total relevant R, matching pytrec_eval's map_cut.
+
+    With 4 gold docs but a cutoff of k=2, only the two gold hits inside the
+    top-2 contribute precision, and the sum is divided by all 4 relevant docs
+    (not min(4, 2) = 2). Dividing by the cutoff would report 1.0 here, hiding
+    that half the relevant documents fell outside the top-k.
+    """
+    retrieved = ["d1", "d2", "d3", "d4"]
+    gold = {"d1": 1, "d2": 1, "d5": 1, "d6": 1}  # 4 relevant; d5, d6 never retrieved
+    # P@1 = 1/1 (d1), P@2 = 2/2 (d2); divided by 4 relevant docs.
+    assert _compute("map", 2, retrieved, gold) == pytest.approx((1.0 + 1.0) / 4)
 
 
 def test_metrics_handle_empty_results() -> None:

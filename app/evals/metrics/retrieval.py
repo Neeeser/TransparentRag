@@ -78,7 +78,16 @@ def ndcg_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> floa
 
 
 def map_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float:
-    """Average precision at k: mean precision over each gold hit in the top-k."""
+    """Average precision at k, normalized the trec_eval/pytrec_eval way.
+
+    Sum the precision at each gold hit within the top-k, then divide by the
+    total number of relevant documents for the query (not `min(len(gold), k)`).
+    This is exactly trec_eval's `map_cut`, which BEIR reports against: a query
+    with more relevant documents than the cutoff is correctly penalized for the
+    relevant documents it could not fit into the top-k. Dividing by
+    `min(len(gold), k)` would overstate MAP whenever a query has more gold
+    documents than `k`.
+    """
     if not gold:
         return 0.0
     hits = 0
@@ -87,10 +96,7 @@ def map_at_k(retrieved: Sequence[str], gold: Mapping[str, int], k: int) -> float
         if doc_id in gold:
             hits += 1
             precision_sum += hits / rank
-    denominator = min(len(gold), k)
-    if denominator == 0:
-        return 0.0
-    return precision_sum / denominator
+    return precision_sum / len(gold)
 
 
 RETRIEVAL_METRICS: tuple[Metric, ...] = (
