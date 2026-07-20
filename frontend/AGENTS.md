@@ -125,14 +125,28 @@ the same PR.
   block is the classic symptom.
 - **Pages are thin shells.** Route files under `app/` delegate to
   components/hooks; no business logic or fetch orchestration in a `page.tsx`.
-- **An async-computed edge route must never render against stale geometry, and
-  is suppressed entirely while a node drags.** The smart router
-  (`usePipelineEdgeRoute`) publishes a route only when it matches the live node
-  signature exactly; during a drag the geometry changes every frame, so a routed
-  result only lands on frames where the cursor pauses — rendering it flipped the
-  wire between the node-avoiding route and the native step path (the drag-flash
-  bug). Edges hold the native `getSmoothStepPath` fallback for the whole drag
-  (gated on `node.dragging`) and snap to the route on drop.
+- **Edge routes are computed synchronously in a pre-paint microtask, never via
+  an async transport.** A Worker roundtrip (or any compute crossing a paint)
+  makes the graph paint native step paths first and shift to routes a beat
+  later — visible on every mount and README/landing scene switch. Routing only
+  runs on discrete geometry commits (mount, drop, tidy, add/remove), so
+  main-thread cost is a few ms at those moments; keep it that way rather than
+  reintroducing a worker.
+- **While a node drags, routing freezes instead of blanking.** The provider
+  holds its pre-drag geometry and submits nothing until drop, so per-edge
+  signature matching keeps every unmoved edge on its exact routed path; only
+  the dragged node's own wires fall back to the native step path that follows
+  the cursor. Suppressing all routes during drag (the old rule) flipped the
+  whole graph at grab; publishing mid-drag routes flips the wire on frames
+  where the cursor pauses (the original drag-flash bug). Both stay fixed only
+  if no route is ever computed against mid-drag geometry.
+- **A route's committed shape must equal the native drag fallback wherever no
+  obstacle forces a detour.** `edge-route-refinement.ts` canonicalizes every
+  monotone, collision-free route to one midpoint right-angle jog — the same
+  shape `getSmoothStepPath` draws mid-drag — so grab/drop doesn't flip the
+  wire between two valid layouts, and near-aligned ports don't render the
+  grid router's crammed micro-jog squiggle. Blocked corridors keep the
+  router's node-avoiding path.
 - **Shared downstream nodes sit between parallel branch rows.** In a hybrid
   pipeline graph, center a merge/output node vertically between its inputs so
   smooth-step edges don't route through either branch's node card.
