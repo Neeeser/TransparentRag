@@ -8,6 +8,7 @@ import pytest
 from sqlmodel import Session, select
 
 from app.db import models
+from app.evals.collections import EvalCollectionService
 from app.evals.service import EvalService
 from app.schemas.enums import EvalDatasetStatus, EvalRunStatus
 from app.schemas.evals import EvalRunConfig, EvalRunCreate
@@ -171,7 +172,7 @@ def test_cancel_only_applies_to_inflight_runs(session: Session) -> None:
 
 def test_delete_eval_collection_never_touches_user_collections(session: Session) -> None:
     """A normal collection is invisible to the eval-collection delete path."""
-    service = EvalService(session)
+    service = EvalCollectionService(session)
     user = _user(session, "collections@example.com")
     collection = models.Collection(user_id=user.id, name="Mine", extra_metadata={})
     session.add(collection)

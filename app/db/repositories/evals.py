@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
-from sqlmodel import col, func, select
+from sqlmodel import col, func, or_, select
 
 from app.db import models
 from app.db.repositories.base import Repository
@@ -109,6 +109,56 @@ class EvalDatasetRepository(Repository):
             for external_id, title in self.session.exec(statement).all()
             if title
         }
+
+    def page_collection_documents(
+        self,
+        dataset_id: UUID,
+        collection_id: UUID,
+        *,
+        search: str | None,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[tuple[models.Document, str, str | None]], int]:
+        """Page a collection's materialized documents joined to their corpus rows.
+
+        Returns `(document, external_doc_id, title)` tuples plus the total match
+        count for the pager. The join reverses the provisioner's file naming
+        (`external_id` with "/" -> "_" plus ".txt"), and `search` matches the
+        external id or the corpus title, case-insensitively.
+        """
+        name_expr = (
+            func.replace(col(models.EvalDatasetDocument.external_doc_id), "/", "_") + ".txt"
+        )
+        clauses = [
+            col(models.Document.collection_id) == collection_id,
+            col(models.EvalDatasetDocument.dataset_id) == dataset_id,
+            col(models.Document.name) == name_expr,
+        ]
+        if search:
+            pattern = f"%{search}%"
+            clauses.append(
+                or_(
+                    col(models.EvalDatasetDocument.external_doc_id).ilike(pattern),
+                    col(models.EvalDatasetDocument.title).ilike(pattern),
+                )
+            )
+        total_statement = select(
+            func.count(col(models.Document.id))  # pylint: disable=not-callable
+        ).where(*clauses)
+        total = int(self.session.exec(total_statement).one())
+        statement = (
+            select(
+                models.Document,
+                col(models.EvalDatasetDocument.external_doc_id),
+                col(models.EvalDatasetDocument.title),
+            )
+            .where(*clauses)
+            .order_by(col(models.EvalDatasetDocument.external_doc_id))
+            .offset(offset)
+            .limit(limit)
+        )
+        rows = self.session.exec(statement).all()
+        return [(row[0], row[1], row[2]) for row in rows], total
 
     def delete(self, dataset: models.EvalDataset) -> None:
         """Delete a dataset and all of its corpus/queries/qrels rows.

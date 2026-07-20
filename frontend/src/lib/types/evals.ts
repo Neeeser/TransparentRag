@@ -189,9 +189,33 @@ export interface EvalCollection {
   dataset_id?: UUID | null;
   ingestion_pipeline_id?: UUID | null;
   num_documents: number;
+  num_ready_documents: number;
   num_chunks: number;
   created_at: string;
   updated_at: string;
+}
+
+/** Mirrors `EvalCollectionDocument` — one ingested corpus document. */
+export interface EvalCollectionDocument {
+  document_id: UUID;
+  external_doc_id: string;
+  title?: string | null;
+  status: "pending" | "processing" | "ready" | "failed";
+  error_message?: string | null;
+  num_chunks: number;
+}
+
+/** Mirrors `EvalCollectionDocumentsPage`. */
+export interface EvalCollectionDocumentsPage {
+  total: number;
+  items: EvalCollectionDocument[];
+}
+
+/** Mirrors `EvalDatasetDocumentRead` — a corpus document's stored text. */
+export interface EvalDatasetDocument {
+  external_doc_id: string;
+  title?: string | null;
+  text: string;
 }
 
 /** Request body for `POST /api/evals/datasets/upload`. */

@@ -84,7 +84,12 @@ export function DatasetsPanel({
             <li key={dataset.id} className="flex items-center justify-between gap-4 py-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <p className="truncate font-medium text-primary">{dataset.name}</p>
+                  <Link
+                    href={`/evals/datasets/${dataset.id}`}
+                    className="truncate font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-accent-violet"
+                  >
+                    {dataset.name}
+                  </Link>
                   {dataset.source_ref && domainByKey.has(dataset.source_ref) && (
                     <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-accent-cyan">
                       {domainByKey.get(dataset.source_ref)}

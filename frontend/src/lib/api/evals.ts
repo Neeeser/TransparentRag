@@ -3,7 +3,9 @@ import { apiFetch } from "@/lib/api/client";
 import type {
   BuiltinDatasetInfo,
   EvalCollection,
+  EvalCollectionDocumentsPage,
   EvalDataset,
+  EvalDatasetDocument,
   EvalDatasetUploadPayload,
   EvalMetricInfo,
   EvalRun,
@@ -95,4 +97,31 @@ export async function fetchEvalCollections(token: string): Promise<EvalCollectio
 
 export async function deleteEvalCollection(token: string, collectionId: string): Promise<void> {
   await apiFetch<void>(`/api/evals/collections/${collectionId}`, { token, method: "DELETE" });
+}
+
+export async function fetchEvalCollectionDocuments(
+  token: string,
+  collectionId: string,
+  params: { search?: string; offset?: number; limit?: number } = {},
+): Promise<EvalCollectionDocumentsPage> {
+  const query = new URLSearchParams();
+  if (params.search) query.set("search", params.search);
+  if (params.offset) query.set("offset", String(params.offset));
+  if (params.limit) query.set("limit", String(params.limit));
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return apiFetch<EvalCollectionDocumentsPage>(
+    `/api/evals/collections/${collectionId}/documents${suffix}`,
+    { token },
+  );
+}
+
+export async function fetchEvalDatasetDocument(
+  token: string,
+  datasetId: string,
+  externalDocId: string,
+): Promise<EvalDatasetDocument> {
+  return apiFetch<EvalDatasetDocument>(
+    `/api/evals/datasets/${datasetId}/documents/${encodeURIComponent(externalDocId)}`,
+    { token },
+  );
 }

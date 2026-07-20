@@ -4,18 +4,21 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlmodel import Session
 
 from app.api.dependencies import get_current_user, get_session
 from app.api.routes.utils import to_http_exception
 from app.db import models
+from app.evals.collections import EvalCollectionService
 from app.evals.execution.runner import run_eval
 from app.evals.service import EvalService, run_dataset_download
 from app.evals.wire import to_dataset_read, to_run_item_read, to_run_read, to_run_summary
 from app.schemas.evals import (
     BuiltinDatasetInfo,
+    EvalCollectionDocumentsPage,
     EvalCollectionRead,
+    EvalDatasetDocumentRead,
     EvalDatasetRead,
     EvalMetricInfo,
     EvalRunCreate,
@@ -210,7 +213,44 @@ def list_eval_collections(
     session: Session = Depends(get_session),
 ) -> list[EvalCollectionRead]:
     """List provisioned eval collections for the management page."""
-    return EvalService(session).list_eval_collections(current_user)
+    return EvalCollectionService(session).list_eval_collections(current_user)
+
+
+@router.get("/collections/{collection_id}/documents", response_model=EvalCollectionDocumentsPage)
+def list_eval_collection_documents(
+    collection_id: UUID,
+    search: str | None = None,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> EvalCollectionDocumentsPage:
+    """Page one eval collection's documents with their ingestion outcomes."""
+    try:
+        return EvalCollectionService(session).list_collection_documents(
+            current_user, collection_id, search=search, offset=offset, limit=limit
+        )
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
+
+
+@router.get(
+    "/datasets/{dataset_id}/documents/{external_doc_id}",
+    response_model=EvalDatasetDocumentRead,
+)
+def get_dataset_document(
+    dataset_id: UUID,
+    external_doc_id: str,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> EvalDatasetDocumentRead:
+    """Return one corpus document's stored source text."""
+    try:
+        return EvalService(session).get_dataset_document(
+            current_user, dataset_id, external_doc_id
+        )
+    except ServiceError as exc:
+        raise to_http_exception(exc) from exc
 
 
 @router.delete("/collections/{collection_id}", status_code=204)
@@ -221,6 +261,6 @@ def delete_eval_collection(
 ) -> None:
     """Purge one eval collection to reclaim space."""
     try:
-        EvalService(session).delete_eval_collection(current_user, collection_id)
+        EvalCollectionService(session).delete_eval_collection(current_user, collection_id)
     except ServiceError as exc:
         raise to_http_exception(exc) from exc

@@ -17,9 +17,6 @@ from sqlmodel import Session
 from app.db import models
 from app.db.engine import session_scope
 from app.db.repositories import (
-    CollectionRepository,
-    CollectionStats,
-    CollectionStatsRepository,
     DocumentRepository,
     EvalDatasetRepository,
     EvalRunRepository,
@@ -29,19 +26,17 @@ from app.evals.datasets.builtin import download_builtin, get_builtin, list_built
 from app.evals.datasets.upload import parse_beir_upload
 from app.evals.metrics.registry import get_metric, list_metrics
 from app.schemas.enums import (
-    CollectionPurpose,
     EvalDatasetSource,
     EvalDatasetStatus,
     EvalRunStatus,
 )
 from app.schemas.evals import (
     BuiltinDatasetInfo,
-    EvalCollectionRead,
+    EvalDatasetDocumentRead,
     EvalMetricInfo,
     EvalRunCoverage,
     EvalRunCreate,
 )
-from app.services.collection_deletion import CollectionDeletionService
 from app.services.errors import InvalidInputError, NotFoundError
 from app.services.pipelines import PipelineService
 
@@ -346,41 +341,19 @@ class EvalService:
         self.runs.delete_with_items(run)
         self.session.commit()
 
-    # -- eval collections ---------------------------------------------------------
-
-    def list_eval_collections(self, user: models.User) -> list[EvalCollectionRead]:
-        """Return the user's provisioned eval collections with size stats."""
-        collections = CollectionRepository(self.session).list_eval_for_user(user.id)
-        stats = CollectionStatsRepository(self.session).stats_for(
-            user.id, [collection.id for collection in collections]
-        )
-        return [
-            self._to_eval_collection(collection, stats.get(collection.id))
-            for collection in collections
-        ]
-
-    def delete_eval_collection(self, user: models.User, collection_id: UUID) -> None:
-        """Purge one eval collection (vectors, files, rows) to reclaim space."""
-        collection = CollectionRepository(self.session).get(collection_id, user.id)
-        if collection is None or collection.system_purpose != CollectionPurpose.EVAL.value:
-            raise NotFoundError("Eval collection not found.")
-        CollectionDeletionService(self.session).delete(user, collection)
-
-    @staticmethod
-    def _to_eval_collection(
-        collection: models.Collection, stats: CollectionStats | None
-    ) -> EvalCollectionRead:
-        """Shape one eval collection row for the management page."""
-        dataset_ref = collection.extra_metadata.get("eval_dataset_id")
-        return EvalCollectionRead(
-            id=collection.id,
-            name=collection.name,
-            dataset_id=UUID(dataset_ref) if isinstance(dataset_ref, str) else None,
-            ingestion_pipeline_id=collection.ingestion_pipeline_id,
-            num_documents=stats.document_count if stats else 0,
-            num_chunks=stats.chunk_count if stats else 0,
-            created_at=collection.created_at,
-            updated_at=collection.updated_at,
+    def get_dataset_document(
+        self, user: models.User, dataset_id: UUID, external_doc_id: str
+    ) -> EvalDatasetDocumentRead:
+        """Return one corpus document's stored source text."""
+        dataset = self.get_dataset(user, dataset_id)
+        documents = self.datasets.get_documents_by_external_ids(dataset.id, [external_doc_id])
+        if not documents:
+            raise NotFoundError("Dataset document not found.")
+        document = documents[0]
+        return EvalDatasetDocumentRead(
+            external_doc_id=document.external_doc_id,
+            title=document.title,
+            text=document.text,
         )
 
     def _require_pipeline(

@@ -14,6 +14,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.enums import (
+    DocumentStatus,
     EvalDatasetSource,
     EvalDatasetStatus,
     EvalFindingSeverity,
@@ -83,6 +84,33 @@ class UploadDatasetRequest(BaseModel):
     corpus: str
     queries: str
     qrels: str
+
+
+class EvalDatasetDocumentRead(BaseModel):
+    """A dataset corpus document's stored source text, for inline viewing."""
+
+    external_doc_id: str
+    title: str | None = None
+    text: str
+
+
+class EvalCollectionDocument(BaseModel):
+    """One corpus document materialized in an eval collection, with its
+    ingestion outcome. `document_id` addresses the document ingestion trace."""
+
+    document_id: UUID
+    external_doc_id: str
+    title: str | None = None
+    status: DocumentStatus
+    error_message: str | None = None
+    num_chunks: int
+
+
+class EvalCollectionDocumentsPage(BaseModel):
+    """One page of an eval collection's documents plus the total match count."""
+
+    total: int
+    items: list[EvalCollectionDocument] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -323,6 +351,7 @@ class EvalCollectionRead(BaseModel):
     dataset_id: UUID | None = None
     ingestion_pipeline_id: UUID | None = None
     num_documents: int
+    num_ready_documents: int = 0
     num_chunks: int
     created_at: datetime
     updated_at: datetime
