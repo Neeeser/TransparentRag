@@ -14,6 +14,7 @@ import {
 
 import { resolveNodeDimensions } from "../lib/pipeline-layout";
 
+import { refineBatchResults } from "./edge-route-refinement";
 import {
   LatestOnlyRoutingScheduler,
   makeEdgeSignature,
@@ -78,7 +79,10 @@ class RoutingRuntime {
       if (!this.active) return;
       let results: ReturnType<typeof routeSmartEdgesBatch> = {};
       try {
-        results = routeSmartEdgesBatch(snapshot.input);
+        results = refineBatchResults(snapshot.input, routeSmartEdgesBatch(snapshot.input), {
+          radius: PIPELINE_EDGE_ROUTING_OPTIONS.borderRadius,
+          padding: PIPELINE_EDGE_ROUTING_OPTIONS.nodePadding,
+        });
       } catch {
         // An empty result keeps native smooth-step fallbacks visible.
       }
