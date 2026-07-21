@@ -112,6 +112,62 @@ def test_patch_config_round_trips_through_public_get(
     assert public["auth"]["allow_registration"] is False
 
 
+def test_admin_config_catalog_exposes_options_and_numeric_bounds(
+    client: TestClient, session: Session, auth_user: models.User
+) -> None:
+    """The catalog must carry the same constraints `AppConfig` enforces, or
+    the admin UI renders a free-text control for a field with a finite
+    domain (issue #76)."""
+    _promote(session, auth_user)
+
+    body = {entry["key"]: entry for entry in client.get("/api/admin/config").json()}
+
+    content_types = body["uploads.allowed_content_types"]
+    assert content_types["kind"] == "multi_select"
+    assert {option["value"] for option in content_types["options"]} == {
+        "text/plain",
+        "text/markdown",
+        "text/csv",
+        "application/pdf",
+    }
+
+    backend = body["indexing.default_backend"]
+    assert backend["kind"] == "select"
+    assert {option["value"] for option in backend["options"]} == {"pgvector", "pinecone"}
+
+    upload_size = body["uploads.max_upload_size_mb"]
+    assert (upload_size["min_value"], upload_size["max_value"]) == (1, 1024)
+
+
+def test_patch_config_rejects_unknown_content_type(
+    client: TestClient, session: Session, auth_user: models.User
+) -> None:
+    """A crafted PATCH bypassing the UI must not persist an unsupported MIME
+    type -- the frontend constrains input, the backend is the boundary."""
+    _promote(session, auth_user)
+
+    response = client.patch(
+        "/api/admin/config",
+        json={"uploads": {"allowed_content_types": ["application/x-not-a-real-type"]}},
+    )
+
+    assert response.status_code == 400
+    assert "uploads.allowed_content_types" in response.json()["detail"]
+
+
+def test_patch_config_rejects_unregistered_backend(
+    client: TestClient, session: Session, auth_user: models.User
+) -> None:
+    _promote(session, auth_user)
+
+    response = client.patch(
+        "/api/admin/config", json={"indexing": {"default_backend": "not-a-backend"}}
+    )
+
+    assert response.status_code == 400
+    assert "indexing.default_backend" in response.json()["detail"]
+
+
 def test_patch_config_unknown_key_is_400(
     client: TestClient, session: Session, auth_user: models.User
 ) -> None:
