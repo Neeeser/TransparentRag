@@ -11,6 +11,7 @@ import type { Node, NodeProps } from "@xyflow/react";
 export type IndexStoreNodeData = {
   indexName: string;
   backend?: string;
+  itemFocus?: "traveled" | "absent";
 };
 
 const BACKEND_LABELS: Record<string, string> = {
@@ -27,7 +28,13 @@ const BACKEND_LABELS: Record<string, string> = {
 export function IndexStoreNode({ data }: NodeProps<Node<IndexStoreNodeData>>) {
   const portClasses = getPortTypeClasses("indexed_batch");
   return (
-    <div className="relative flex w-[220px] flex-col items-center rounded-full border border-stage-index/40 bg-stage-index/10 px-4 py-3 text-center shadow-elevation-2">
+    <div
+      className={cn(
+        "relative flex w-[220px] flex-col items-center rounded-full border border-stage-index/40 bg-stage-index/10 px-4 py-3 text-center shadow-elevation-2",
+        data.itemFocus === "traveled" && "border-accent-cyan/70",
+        data.itemFocus === "absent" && "opacity-30",
+      )}
+    >
       <Handle
         type="target"
         position={Position.Top}

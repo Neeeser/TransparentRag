@@ -3,27 +3,78 @@
 from __future__ import annotations
 
 import logging
-from typing import TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.db.models import ChunkStrategy
 from app.pipelines.execution.context import PipelineRunContext
-from app.pipelines.node import PipelineNodeBase
-from app.pipelines.payloads import ChunkPayload, ParsedDocumentPayload
+from app.pipelines.node import PipelineNodeBase, PipelineValidationIssue
+from app.pipelines.payloads import ChunkPayload, ParsedDocumentPayload, TokenizerSpec
 from app.pipelines.ports import NodePort
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
-from app.pipelines.tracing.summaries import summarize_chunks, summarize_text
+from app.pipelines.tracing.summaries import summarize_chunks, summarize_text, trace_chunk_items
 from app.retrieval.chunkers import build_chunker
+from app.retrieval.tokenizers.huggingface import validate_hf_model_id
+from app.retrieval.tokenizers.resources import build_token_counter
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from app.pipelines.definition import PipelineDefinition, PipelineNodeDefinition
+    from app.pipelines.registry import NodeRegistry
 
 
 class FixedChunkerConfig(BaseModel):
     """Configuration for fixed-strategy chunking nodes."""
 
-    chunk_size: int = Field(default=1024, gt=0)
-    chunk_overlap: int = Field(default=200, ge=0)
+    chunk_size: int = Field(
+        default=512,
+        gt=0,
+        description=(
+            "Maximum tokens per chunk, counted by the selected tokenizer. "
+            "Larger chunks keep more context around each match but dilute the "
+            "embedding and eat into the model's input limit; smaller chunks "
+            "match more precisely but fragment context."
+        ),
+    )
+    chunk_overlap: int = Field(
+        default=200,
+        ge=0,
+        description=(
+            "Tokens repeated from the end of one chunk at the start of the "
+            "next, so text straddling a boundary stays retrievable from both "
+            "sides. The cost is index size — overlapped tokens are stored and "
+            "embedded twice."
+        ),
+    )
+    tokenizer: Literal["wordpiece", "cl100k", "whitespace", "huggingface"] = Field(
+        default="wordpiece",
+        description=(
+            "Counter used to measure chunk_size and overlap. Match the "
+            "embedding model's own tokenizer — wordpiece for BERT-family "
+            "embedders, cl100k for OpenAI-family. whitespace counts words, "
+            "not tokens, and undercounts by roughly 25%."
+        ),
+    )
+    hf_model_id: str | None = Field(
+        default=None,
+        description=(
+            "HuggingFace model id whose tokenizer to download and count with. "
+            "Only used (and required) when tokenizer is huggingface."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_tokenizer_config(self) -> FixedChunkerConfig:
+        """Require a safe model id only for HuggingFace tokenizers."""
+        if self.tokenizer == "huggingface":
+            if self.hf_model_id is None:
+                raise ValueError("A HuggingFace tokenizer requires a model id.")
+            self.hf_model_id = validate_hf_model_id(self.hf_model_id)
+        elif self.hf_model_id is not None:
+            raise ValueError("Only a HuggingFace tokenizer accepts a model id.")
+        return self
 
 
 FixedConfigT = TypeVar("FixedConfigT", bound=FixedChunkerConfig)
@@ -45,19 +96,58 @@ class BaseChunkerNode(PipelineNodeBase[FixedConfigT]):
     config_model = FixedChunkerConfig
     strategy: ChunkStrategy = ChunkStrategy.TOKEN
 
+    @classmethod
+    def validation_issues_for_node(
+        cls,
+        node: PipelineNodeDefinition,
+        _definition: PipelineDefinition,
+        _registry: NodeRegistry,
+    ) -> list[PipelineValidationIssue]:
+        """Return field-addressable issues for invalid chunker config."""
+        try:
+            cls.config_model.model_validate(node.config or {})
+        except ValidationError as exc:
+            issues: list[PipelineValidationIssue] = []
+            for error in exc.errors():
+                location = error["loc"]
+                field = str(location[0]) if location else "hf_model_id"
+                if field in {"tokenizer", "hf_model_id"}:
+                    message = f"Node '{node.id}' has an invalid tokenizer configuration."
+                else:
+                    message = (
+                        f"Node '{node.id}' has an invalid value for '{field}': "
+                        f"{error['msg']}."
+                    )
+                issues.append(
+                    PipelineValidationIssue(
+                        message=message,
+                        node_id=node.id,
+                        field=field,
+                    )
+                )
+            return issues
+        return []
+
     def _resolve_strategy(self) -> ChunkStrategy:
         """Return the chunking strategy to use for this node instance."""
         return self.strategy
+
+    def tokenizer_spec(self) -> TokenizerSpec:
+        """Build the immutable tokenizer selection from this node's config."""
+        return TokenizerSpec(kind=self.config.tokenizer, hf_model_id=self.config.hf_model_id)
 
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
         """Chunk a parsed document into segments."""
         payload = ParsedDocumentPayload.model_validate(inputs.get("document"))
         document = payload.document
 
+        tokenizer = self.tokenizer_spec()
+        counter = build_token_counter(tokenizer, context.storage.base_path)
         chunker = build_chunker(
             self._resolve_strategy(),
             self.config.chunk_size,
             self.config.chunk_overlap,
+            counter=counter,
         )
         chunks = list(chunker.chunk(document))
         logger.info(
@@ -66,7 +156,13 @@ class BaseChunkerNode(PipelineNodeBase[FixedConfigT]):
             len(chunks),
             document.document_id,
         )
-        return {"chunks": ChunkPayload(document=document, chunks=chunks)}
+        return {
+            "chunks": ChunkPayload(
+                document=document,
+                chunks=chunks,
+                tokenizer=tokenizer,
+            )
+        }
 
     def summarize_io(
         self,
@@ -88,7 +184,10 @@ class BaseChunkerNode(PipelineNodeBase[FixedConfigT]):
                 NodeTraceValue(
                     label="Chunks",
                     value=summarize_chunks(output_payload.chunks),
-                )
+                ),
+                NodeTraceValue(
+                    label="Chunk items", value=trace_chunk_items(output_payload.chunks), kind="items"
+                ),
             ],
         )
 

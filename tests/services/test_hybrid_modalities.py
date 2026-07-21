@@ -68,6 +68,9 @@ class _StubProviderResolver:
         del dimensions
         return _StubEmbedder(model_name)
 
+    def embedding_input_limit(self, _connection_id, _model_name: str) -> int | None:
+        return None
+
 
 def _create_user(session: Session) -> models.User:
     user = models.User(
@@ -251,7 +254,8 @@ def test_bm25_only_pipelines_ingest_and_retrieve_without_embeddings(
                     id="bm25",
                     type="retriever.bm25",
                     name="BM25 Retriever",
-                    config={"backend": "pgvector", "index_name": "lex-only"},
+                    # Fetch depth is required config on retrievers.
+                    config={"backend": "pgvector", "index_name": "lex-only", "top_k": 5},
                 ),
                 PipelineNodeDefinition(id="out", type="retrieval.output", name="Out"),
             ],

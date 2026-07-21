@@ -48,6 +48,24 @@ adding one renderer entry + guard — never by branching inside the IO blocks. E
 view caps its own height and scrolls internally so a large value can't reflow the
 viewer.
 
+**Focused trace results stay renderer-driven.** Item-capable value renderers accept
+the optional `focusedItemId`/`onFocusItem` contract, preserve and pin the focused
+row with its node-local rank and score, and explain effects in that value's
+vocabulary. Journeys derive effects client-side from complete item lists; never
+store effects or add tracer-wide node-type conditionals, because new node types
+participate through their summary values and registry renderer. Keep identity-only
+values hidden until focus mode so the ordinary run inspector remains unchanged,
+and model every index target in combined graphs so hybrid branch paths do not end
+at the first store.
+
+**The combined end-to-end graph carries non-`PipelineNodeData` nodes — never
+assume `data.inputs`/`data.outputs` exists.** The index store joining the
+ingestion and retrieval bands is `IndexStoreNodeData` (no port arrays) and sits on
+the index read/write edges. Layout/timing helpers that read `data.inputs.length`
+or `data.outputs.length` must tolerate their absence — an unguarded read crashed
+the whole end-to-end trace (the "no ingestion view from an eval" bug), and it's
+reachable on every hybrid document trace since default pipelines draw a store.
+
 **File previews are a matcher list, not an if-ladder.** The Files page resolves a
 preview renderer per file through `components/files/lib/preview.ts`: an ordered list
 of `{kind, types, typePrefix, extensions}` matchers (content type first, extension
@@ -107,6 +125,28 @@ the same PR.
   block is the classic symptom.
 - **Pages are thin shells.** Route files under `app/` delegate to
   components/hooks; no business logic or fetch orchestration in a `page.tsx`.
+- **Edge routes are computed synchronously in a pre-paint microtask, never via
+  an async transport.** A Worker roundtrip (or any compute crossing a paint)
+  makes the graph paint native step paths first and shift to routes a beat
+  later — visible on every mount and README/landing scene switch. Routing only
+  runs on discrete geometry commits (mount, drop, tidy, add/remove), so
+  main-thread cost is a few ms at those moments; keep it that way rather than
+  reintroducing a worker.
+- **While a node drags, routing freezes instead of blanking.** The provider
+  holds its pre-drag geometry and submits nothing until drop, so per-edge
+  signature matching keeps every unmoved edge on its exact routed path; only
+  the dragged node's own wires fall back to the native step path that follows
+  the cursor. Suppressing all routes during drag (the old rule) flipped the
+  whole graph at grab; publishing mid-drag routes flips the wire on frames
+  where the cursor pauses (the original drag-flash bug). Both stay fixed only
+  if no route is ever computed against mid-drag geometry.
+- **A route's committed shape must equal the native drag fallback wherever no
+  obstacle forces a detour.** `edge-route-refinement.ts` canonicalizes every
+  monotone, collision-free route to one midpoint right-angle jog — the same
+  shape `getSmoothStepPath` draws mid-drag — so grab/drop doesn't flip the
+  wire between two valid layouts, and near-aligned ports don't render the
+  grid router's crammed micro-jog squiggle. Blocked corridors keep the
+  router's node-avoiding path.
 - **Shared downstream nodes sit between parallel branch rows.** In a hybrid
   pipeline graph, center a merge/output node vertically between its inputs so
   smooth-step edges don't route through either branch's node card.
@@ -135,6 +175,12 @@ the same PR.
 - **Effects must not write state they derive.** Computing a value in `useMemo` and
   copying it into `useState` via an effect adds a render per change and a stale
   window. Derive it where you use it.
+- **Background refetches must be invisible to in-progress work.** The auth
+  provider rotates the token every 12 minutes, re-running every data effect
+  keyed on it — a reload must preserve the user's selection (re-find by id, not
+  reset to `[0]`), return previous identities for unchanged content, and not
+  flip `loading`. A fresh `nodeSpecs` identity once re-fired the canvas-seeding
+  effect and silently wiped 12 minutes of unsaved pipeline edits.
 - **Worker-backed providers own their full teardown.** On unmount, terminate the
   worker, cancel in-flight and pending work, and make already-queued microtasks
   no-op so tests and route transitions cannot retain stale background work.

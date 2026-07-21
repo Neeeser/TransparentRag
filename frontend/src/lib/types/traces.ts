@@ -16,6 +16,7 @@ export interface PipelineRunTrace {
   collection_id: UUID;
   status: PipelineRunStatus;
   error_message?: string | null;
+  warnings: string[];
   started_at: string;
   completed_at?: string | null;
   created_at: string;
@@ -42,7 +43,40 @@ export interface PipelineNodeRunTrace {
 export interface PipelineNodeSummaryValue {
   label: string;
   value: unknown;
-  kind?: string;
+  kind?: "json" | "text" | "embedding" | "items" | "ranking";
+}
+
+export interface ItemRef {
+  id: string;
+  score?: number | null;
+}
+
+export interface ItemListTrace {
+  kind: "chunks" | "matches";
+  items: ItemRef[];
+}
+
+export interface RankingSourceEvidence {
+  source_index: number;
+  rank?: number | null;
+  score?: number | null;
+  score_label?: string | null;
+  weight?: number | null;
+  contribution?: number | null;
+}
+
+export interface RankingResultEvidence {
+  id: string;
+  rank: number;
+  score?: number | null;
+  sources: RankingSourceEvidence[];
+}
+
+export interface RankingEvidence {
+  method: string;
+  score_label?: string | null;
+  formula?: string | null;
+  results: RankingResultEvidence[];
 }
 
 export interface PipelineNodeSummary {
@@ -77,8 +111,28 @@ export interface TraceOrigin {
   trace: PipelineTraceResponse;
 }
 
+/** `FocusedItemRead` — the concrete chunk behind a focused trace item. */
+export interface TraceFocusedItem {
+  id: string;
+  status: "resolved" | "missing";
+  text?: string | null;
+  document_id?: UUID | null;
+  filename?: string | null;
+  chunk_index?: number | null;
+  chunk_count?: number | null;
+}
+
+/** `DocumentTraceResponse` — ingestion trace with one chunk resolved for focus. */
+export interface DocumentTrace {
+  trace: PipelineTraceResponse;
+  focused_item?: TraceFocusedItem | null;
+  context_items: TraceFocusedItem[];
+}
+
 /** `EndToEndTraceResponse` — retrieval trace joined with chunk origin. */
 export interface EndToEndTrace {
   retrieval: PipelineTraceResponse;
   origin?: TraceOrigin | null;
+  focused_item?: TraceFocusedItem | null;
+  context_items: TraceFocusedItem[];
 }

@@ -26,6 +26,7 @@ from tests.chat.conftest import (
     StubOpenRouter,
     StubRetrievalService,
     StubSettings,
+    make_tool_collection_context,
     stub_resolver_class,
     tool_model_info,
 )
@@ -36,6 +37,24 @@ def _only_session_id(session: Session, user: models.User) -> Any:
     sessions = ChatRepository(session).list_sessions(user_id=user.id)
     assert len(sessions) == 1
     return sessions[0].id
+
+
+def test_collection_tool_spec_includes_collection_description(
+    chat_user, make_collection
+) -> None:
+    collection = make_collection(chat_user, name="Evaluation Papers")
+    collection.description = "Peer-reviewed evaluation results and methods."
+
+    tools, _ = ToolExecutor.specs(
+        [make_tool_collection_context(collection, tool_name="search_evaluation_papers")]
+    )
+
+    description = tools[0]["function"]["description"]
+    assert description == (
+        "Search the document collection 'Evaluation Papers'. "
+        "Peer-reviewed evaluation results and methods. "
+        "Always call this tool before answering questions about documents in this collection."
+    )
 
 
 def test_send_message_records_response(
@@ -168,6 +187,52 @@ def test_send_message_handles_tool_calls(
     assert result.usage["total_tokens"] == 7
 
 
+def test_failed_tool_call_records_an_error_without_persisting_the_call(
+    session: Session, chat_user, make_collection, monkeypatch, install_chat_flow
+) -> None:
+    """An unavailable tool is visible in history but never becomes provider context."""
+    collection = make_collection(chat_user)
+    response = {
+        "id": "resp-1",
+        "provider": "openrouter",
+        "model": "tool-model",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {
+                                "name": "search_unknown_collection",
+                                "arguments": '{"query": "docs"}',
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    }
+    openrouter = StubOpenRouter(model_info=tool_model_info(), response=response)
+    install_chat_flow(openrouter=openrouter, chat_model="tool-model")
+
+    service = ChatService(session)
+    with pytest.raises(InvalidInputError, match="does not match an enabled collection"):
+        service.send_message(
+            user=chat_user,
+            payload=ChatMessageCreate(content="hi", tool_collection_ids=[collection.id]),
+        )
+
+    messages = ChatRepository(session).list_messages(_only_session_id(session, chat_user))
+    assert [str(message.role) for message in messages] == ["user", "error"]
+    assert messages[-1].content == "The model requested an unavailable collection tool."
+    assert messages[-1].tool_payload is None
+
+
 def test_normalize_tool_calls_backfills_missing_id_then_executes(
     session: Session, chat_user, make_collection
 ) -> None:
@@ -215,7 +280,7 @@ def test_normalize_tool_calls_backfills_missing_id_then_executes(
         messages=[],
         run_state=run_state,
         shared_tool_reasoning=None,
-        tool_collection_map={"pinecone_query": collection},
+        tool_collection_map={"pinecone_query": make_tool_collection_context(collection)},
     )
 
     # Non-streaming callers drain the iterator without forwarding.

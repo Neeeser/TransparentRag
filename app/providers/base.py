@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from app.db.models import ProviderConnection
 from app.providers.chat.base import ChatProvider
 from app.retrieval.embedders.base import Embedder
+from app.retrieval.rerankers.base import Reranker
 from app.schemas.enums import ProviderKind, ProviderType
 from app.schemas.providers import (
     CatalogMetadata,
@@ -28,6 +29,13 @@ from app.schemas.providers import (
 from app.services.errors import InvalidInputError
 
 ConfigT = TypeVar("ConfigT", bound=BaseModel)
+
+EMBEDDING_INPUT_MARGIN_TOKENS = 16
+
+
+def effective_embedding_input_limit(published_limit: int) -> int:
+    """Reserve provider-agnostic headroom for embedding input wrappers."""
+    return max(0, published_limit - EMBEDDING_INPUT_MARGIN_TOKENS)
 
 
 @dataclass(frozen=True)
@@ -81,10 +89,15 @@ class ProviderAdapter(ABC):
 
     def require_kind(self, kind: ProviderKind) -> None:
         """Raise `InvalidInputError` when this provider type lacks a kind."""
-        if kind not in self.descriptor.kinds:
+        if kind not in self.kinds:
             raise InvalidInputError(
                 f"{self.descriptor.label} connections do not provide {kind.value} models."
             )
+
+    @property
+    def kinds(self) -> tuple[ProviderKind, ...]:
+        """Return the capabilities served by this configured connection."""
+        return self.descriptor.kinds
 
     @abstractmethod
     def validate_connection(self) -> ConnectionValidationResult:
@@ -110,8 +123,21 @@ class ProviderAdapter(ABC):
             f"{self.descriptor.label} connections do not provide chat models."
         )
 
+    def reranker(self, model_name: str) -> Reranker:
+        """Construct a reranker for a model served by this connection."""
+        del model_name
+        raise InvalidInputError(
+            f"{self.descriptor.label} connections do not provide reranking models."
+        )
+
     def embedding_dimension(self, model_name: str) -> int | None:
         """Return the embedding dimension for a model, when discoverable."""
+        raise InvalidInputError(
+            f"{self.descriptor.label} connections do not provide embedding models."
+        )
+
+    def embedding_input_limit(self, model_name: str) -> int | None:
+        """Return the provider-published embedding input limit, when known."""
         raise InvalidInputError(
             f"{self.descriptor.label} connections do not provide embedding models."
         )

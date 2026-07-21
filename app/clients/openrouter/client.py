@@ -17,6 +17,7 @@ from app.schemas.openrouter import (
     OpenRouterChatResponse,
     OpenRouterEmbeddingsResponse,
     OpenRouterKeyInfo,
+    OpenRouterRerankResponse,
     OpenRouterStreamChunk,
 )
 
@@ -55,6 +56,7 @@ class OpenRouterClient:
         self._catalog = ModelCatalog(
             fetch_models=self._fetch_models,
             fetch_embedding_models=self._fetch_embedding_models,
+            fetch_rerank_models=self._fetch_rerank_models,
             probe_embedding=self._probe_embedding_dimension,
         )
 
@@ -95,16 +97,33 @@ class OpenRouterClient:
             model_id = item.get("id")
             if not model_id:
                 continue
+            top_provider = item.get("top_provider")
+            max_input_tokens = (
+                top_provider.get("context_length")
+                if isinstance(top_provider, dict)
+                else None
+            )
             models.append(
                 EmbeddingModelInfo(
                     id=str(model_id),
                     name=str(item.get("name") or model_id),
                     description=item.get("description"),
                     context_length=item.get("context_length"),
+                    max_input_tokens=max_input_tokens,
                     pricing=item.get("pricing"),
                 )
             )
         return models
+
+    def _fetch_rerank_models(self) -> list[ModelInfo]:
+        """Fetch reranking models from the filtered unified catalog."""
+        response = self._http.get("/models?output_modalities=rerank")
+        response.raise_for_status()
+        payload = response.json()
+        raw = payload.get("data")
+        if not isinstance(raw, list):
+            return []
+        return [ModelInfo.model_validate(item) for item in raw if isinstance(item, dict)]
 
     def _probe_embedding_dimension(self, model_id: str) -> OpenRouterEmbeddingsResponse:
         """Issue a single-input embeddings call used to measure vector length."""
@@ -119,6 +138,19 @@ class OpenRouterClient:
     ) -> CacheSnapshot[list[EmbeddingModelInfo]]:
         """Return available embedding models, caching for a short period."""
         return self._catalog.list_embedding_models(force_refresh=force_refresh)
+
+    def list_embedding_model_metadata(
+        self,
+        force_refresh: bool = False,
+    ) -> CacheSnapshot[list[EmbeddingModelInfo]]:
+        """Return embedding model limits without dimension-probe API calls."""
+        return self._catalog.list_embedding_models(force_refresh=force_refresh)
+
+    def list_rerank_models(
+        self, force_refresh: bool = False
+    ) -> CacheSnapshot[list[ModelInfo]]:
+        """Return available reranking models with cache metadata."""
+        return self._catalog.list_rerank_models(force_refresh=force_refresh)
 
     def get_embedding_dimension(self, model_id: str) -> int:
         """Return embedding dimension for the requested model."""
@@ -184,6 +216,26 @@ class OpenRouterClient:
             kwargs["dimensions"] = dimensions
         embeddings = self._client.embeddings.create(**kwargs)
         return OpenRouterEmbeddingsResponse.model_validate(embeddings.model_dump())
+
+    def rerank(
+        self,
+        *,
+        model: str,
+        query: str,
+        documents: list[str],
+    ) -> OpenRouterRerankResponse:
+        """Score every supplied document against a query."""
+        response = self._http.post(
+            "/rerank",
+            json={
+                "model": model,
+                "query": query,
+                "documents": documents,
+                "top_n": len(documents),
+            },
+        )
+        response.raise_for_status()
+        return OpenRouterRerankResponse.model_validate(response.json())
 
     # OpenRouter's chat-completion surface has ~8 independent optional knobs
     # (tools, tool_choice, parallel_tool_calls, extra_headers/body, parameters,

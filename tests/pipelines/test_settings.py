@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from app.db import models
 from app.pipelines.definition import PipelineDefinition, PipelineNodeDefinition
+from app.pipelines.payloads import TokenizerSpec
 from app.pipelines.registry import default_registry
 from app.pipelines.settings import resolve_ingestion_settings
 from app.pipelines.template import resolve_collection_template
@@ -41,7 +42,7 @@ def test_resolve_ingestion_settings_falls_back_to_configurable_chunker_when_no_f
     """With no fixed-strategy chunker node present, `_resolve_chunker_config`
     falls through to the configurable `chunker.collection` node type -- an
     empty definition has none of those either, so this pins the literal
-    built-in default (token/1024/200) rather than re-deriving it from
+        built-in default (token/512/200) rather than re-deriving it from
     `ChunkerConfig()`, which would just prove the two reads of the same
     default agree with each other.
     """
@@ -51,8 +52,9 @@ def test_resolve_ingestion_settings_falls_back_to_configurable_chunker_when_no_f
     settings = resolve_ingestion_settings(definition, collection, default_registry())
 
     assert settings.chunk_strategy == models.ChunkStrategy.TOKEN
-    assert settings.chunk_size == 1024
+    assert settings.chunk_size == 512
     assert settings.chunk_overlap == 200
+    assert settings.tokenizer == TokenizerSpec(kind="wordpiece")
 
 
 def test_resolve_ingestion_settings_uses_fixed_strategy_chunker_config() -> None:
@@ -83,3 +85,21 @@ def test_resolve_ingestion_settings_uses_fixed_strategy_chunker_config() -> None
     assert settings.chunk_strategy == models.ChunkStrategy.SENTENCE
     assert settings.chunk_size == 777
     assert settings.chunk_overlap == 111
+
+
+def test_resolve_ingestion_settings_uses_chunker_tokenizer_config() -> None:
+    definition = PipelineDefinition(
+        nodes=[
+            PipelineNodeDefinition(
+                id="chunker-1",
+                type="chunker.token",
+                name="Token Chunker",
+                config={"tokenizer": "whitespace"},
+            ),
+        ],
+        edges=[],
+    )
+
+    settings = resolve_ingestion_settings(definition, _collection(), default_registry())
+
+    assert settings.tokenizer == TokenizerSpec(kind="whitespace")

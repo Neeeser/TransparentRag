@@ -15,7 +15,6 @@ class Reranker(Protocol):  # pylint: disable=too-few-public-methods
         self,
         query: str,
         candidates: Sequence[ScoredChunk],
-        top_k: int | None = None,
     ) -> Sequence[ScoredChunk]:
-        """Return reranked chunks for the query."""
+        """Score and reorder every candidate for the query."""
         ...

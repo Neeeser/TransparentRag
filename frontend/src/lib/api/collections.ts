@@ -6,12 +6,15 @@ import type {
   Collection,
   CollectionCreatePayload,
   CollectionPromptDetails,
+  CollectionQueryArgumentsResponse,
+  CollectionQueryRequest,
   CollectionQueryResult,
   CollectionStats,
   CollectionStatsHistory,
   StatsHistoryRange,
   CollectionUpdatePayload,
   Document,
+  DocumentTrace,
   EndToEndTrace,
   PipelineTraceResponse,
   PromptDetails,
@@ -152,13 +155,23 @@ export async function computeCollectionUmap(
 export async function runCollectionQuery(
   token: string,
   collectionId: string,
-  payload: { query: string; top_k?: number },
+  payload: CollectionQueryRequest,
 ): Promise<CollectionQueryResult> {
   return apiFetch<CollectionQueryResult>(`/api/collections/${collectionId}/query`, {
     method: "POST",
     body: JSON.stringify(payload),
     token,
   });
+}
+
+export async function fetchCollectionQueryArguments(
+  token: string,
+  collectionId: string,
+): Promise<CollectionQueryArgumentsResponse> {
+  return apiFetch<CollectionQueryArgumentsResponse>(
+    `/api/collections/${collectionId}/query-arguments`,
+    { token },
+  );
 }
 
 export async function fetchPipelineRunTrace(
@@ -173,6 +186,15 @@ export async function fetchDocumentTrace(
   documentId: string,
 ): Promise<PipelineTraceResponse> {
   return apiFetch<PipelineTraceResponse>(`/api/documents/${documentId}/trace`, { token });
+}
+
+export async function fetchDocumentFocusedTrace(
+  token: string,
+  documentId: string,
+  chunkId: string,
+): Promise<DocumentTrace> {
+  const params = `?chunk_id=${encodeURIComponent(chunkId)}`;
+  return apiFetch<DocumentTrace>(`/api/documents/${documentId}/trace/full${params}`, { token });
 }
 
 export async function fetchQueryEventTrace(

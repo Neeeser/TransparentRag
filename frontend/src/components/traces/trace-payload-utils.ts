@@ -28,6 +28,7 @@ export const containsChunkId = (value: unknown, chunkId: string, depth = 0): boo
   ) {
     return true;
   }
+  if (typeof record.id === "string" && record.id === chunkId) return true;
   return Object.values(record).some((entry) => containsChunkId(entry, chunkId, depth + 1));
 };
 

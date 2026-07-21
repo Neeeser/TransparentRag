@@ -14,6 +14,7 @@ import {
 
 import { resolveNodeDimensions } from "../lib/pipeline-layout";
 
+import { refineBatchResults } from "./edge-route-refinement";
 import {
   LatestOnlyRoutingScheduler,
   makeEdgeSignature,
@@ -43,15 +44,18 @@ type RoutingContextValue = {
   nodeSignature: string;
   registerEdge: (input: BatchEdgeInput) => () => void;
 };
-type WorkerResponse = { version: number; results: ReturnType<typeof routeSmartEdgesBatch> };
 
 const RoutingContext = createContext<RoutingContextValue | null>(null);
 
+/**
+ * Computes routes synchronously in a pre-paint microtask. Routing only runs
+ * on discrete geometry commits (mount, drop, tidy, node add/remove — drags
+ * are frozen by the provider), so the graph never paints a frame where an
+ * edge is waiting on an async route: results land before the browser paints.
+ */
 class RoutingRuntime {
   readonly scheduler: LatestOnlyRoutingScheduler;
   private active = true;
-  private worker: Worker | null = null;
-  private workerVersion: number | null = null;
 
   constructor() {
     this.scheduler = new LatestOnlyRoutingScheduler((snapshot) => this.dispatch(snapshot));
@@ -70,44 +74,15 @@ class RoutingRuntime {
     return this.active;
   }
 
-  attachWorker(worker: Worker) {
-    this.worker = worker;
-  }
-
-  receiveWorkerResult(response: WorkerResponse) {
-    this.scheduler.complete(response.version, response.results);
-  }
-
-  failWorker(worker: Worker) {
-    if (this.worker !== worker) return;
-    const failedVersion = this.workerVersion;
-    this.releaseWorker(worker);
-    if (failedVersion !== null) this.scheduler.fail(failedVersion);
-  }
-
-  releaseWorker(worker: Worker) {
-    worker.terminate();
-    if (this.worker !== worker) return;
-    this.worker = null;
-    this.workerVersion = null;
-  }
-
   private dispatch(snapshot: RoutingSnapshot) {
     queueMicrotask(() => {
       if (!this.active) return;
-      const worker = this.worker;
-      if (worker) {
-        this.workerVersion = snapshot.version;
-        try {
-          worker.postMessage(snapshot);
-          return;
-        } catch {
-          this.releaseWorker(worker);
-        }
-      }
       let results: ReturnType<typeof routeSmartEdgesBatch> = {};
       try {
-        results = routeSmartEdgesBatch(snapshot.input);
+        results = refineBatchResults(snapshot.input, routeSmartEdgesBatch(snapshot.input), {
+          radius: PIPELINE_EDGE_ROUTING_OPTIONS.borderRadius,
+          padding: PIPELINE_EDGE_ROUTING_OPTIONS.nodePadding,
+        });
       } catch {
         // An empty result keeps native smooth-step fallbacks visible.
       }
@@ -137,7 +112,16 @@ const makeGeometry = (nodes: PipelineNode[]) => ({
   })),
 });
 
-/** Versioned, latest-only edge routing with a synchronous no-Worker fallback. */
+/**
+ * Versioned, latest-only edge routing, computed synchronously before paint.
+ *
+ * While a node drags, the routing geometry is frozen at its pre-drag state
+ * and no new routes are computed: per-edge signature matching then keeps
+ * every unmoved edge on its exact routed path, while edges whose own
+ * endpoints move (the dragged node's wires) fall back to the native step
+ * path that follows the cursor — one snap to the fresh route on drop, and
+ * no graph-wide flip at grab.
+ */
 export function PipelineEdgeRoutingProvider({
   nodes,
   children,
@@ -147,12 +131,22 @@ export function PipelineEdgeRoutingProvider({
   const edgeInputsRef = useRef(new Map<string, BatchEdgeInput>());
   const routingNodesRef = useRef<Node[]>([]);
   const flushScheduledRef = useRef(false);
+  const dragging = nodes.some((node) => node.dragging);
+  const draggingRef = useRef(dragging);
+  // Effect (not render) assignment: children's registerEdge effects only queue
+  // microtasks, which run after all commit effects — the ref is current by the
+  // time any scheduled submission reads it.
+  useEffect(() => {
+    draggingRef.current = dragging;
+  }, [dragging]);
   const [geometry, setGeometry] = useState(() => makeGeometry(nodes));
-  const nextSignature = geometrySignature(nodes);
   let currentGeometry = geometry;
-  if (nextSignature !== geometry.signature) {
-    currentGeometry = makeGeometry(nodes);
-    setGeometry(currentGeometry);
+  if (!dragging) {
+    const nextSignature = geometrySignature(nodes);
+    if (nextSignature !== geometry.signature) {
+      currentGeometry = makeGeometry(nodes);
+      setGeometry(currentGeometry);
+    }
   }
 
   const schedule = useCallback(() => {
@@ -160,7 +154,7 @@ export function PipelineEdgeRoutingProvider({
     flushScheduledRef.current = true;
     queueMicrotask(() => {
       flushScheduledRef.current = false;
-      if (!runtime.isActive()) return;
+      if (!runtime.isActive() || draggingRef.current) return;
       scheduler.submit({
         nodes: routingNodesRef.current,
         edges: [...edgeInputsRef.current.values()],
@@ -185,30 +179,17 @@ export function PipelineEdgeRoutingProvider({
     schedule();
   }, [currentGeometry.nodes, schedule]);
 
+  // Submissions suppressed mid-drag (edges re-register every frame) are
+  // flushed once on drop, even when the node lands back on its exact
+  // pre-drag geometry and no geometry commit fires.
+  useEffect(() => {
+    if (!dragging) schedule();
+  }, [dragging, schedule]);
+
   useEffect(() => {
     runtime.activate();
     return () => {
       runtime.deactivate();
-    };
-  }, [runtime]);
-
-  useEffect(() => {
-    if (typeof Worker === "undefined") return undefined;
-    let worker: Worker;
-    try {
-      worker = new Worker(new URL("./pipeline-edge-routing.worker.ts", import.meta.url));
-    } catch {
-      return undefined;
-    }
-    worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
-      runtime.receiveWorkerResult(event.data);
-    };
-    worker.onerror = () => {
-      runtime.failWorker(worker);
-    };
-    runtime.attachWorker(worker);
-    return () => {
-      runtime.releaseWorker(worker);
     };
   }, [runtime]);
 

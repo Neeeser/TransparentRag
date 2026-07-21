@@ -18,6 +18,7 @@ const openRouterConnectionId = "conn-openrouter-1";
 
 export const baseUser: User = {
   remember_session_days: 30,
+  remember_hf_tokenizer_downloads: false,
   id: baseUserId,
   email: "user@example.com",
   role: "user",
@@ -81,6 +82,7 @@ export const pipeline: Pipeline = {
   is_default: false,
   created_at: baseTimestamp,
   updated_at: baseTimestamp,
+  validation_issues: [],
   definition: {
     nodes: [
       {
@@ -173,6 +175,8 @@ export const modelCatalog: CatalogModel[] = [
     id: "model-1",
     name: "Model One",
     description: "Primary model",
+    input_modalities: ["text"],
+    output_modalities: ["text"],
     supported_parameters: [
       "temperature",
       "reasoning",
@@ -195,6 +199,8 @@ export const modelCatalog: CatalogModel[] = [
     id: "model-2",
     name: "Model Two",
     description: "Backup model",
+    input_modalities: ["text"],
+    output_modalities: ["text"],
     supported_parameters: ["temperature"],
     default_parameters: {
       temperature: 0.1,

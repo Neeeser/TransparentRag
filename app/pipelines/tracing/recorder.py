@@ -48,7 +48,7 @@ class NodeTraceValue(BaseModel):
 
     label: str
     value: object
-    kind: Literal["json", "text", "embedding"] = "json"
+    kind: Literal["json", "text", "embedding", "items", "ranking"] = "json"
 
 
 class NodeTraceSummary(BaseModel):
@@ -142,6 +142,11 @@ class PipelineTraceRecorder:  # pylint: disable=too-few-public-methods
             return
         self._run.status = models.PipelineRunStatus.COMPLETED
         self._run.completed_at = utc_now()
+        self._session.add(self._run)
+
+    def record_warning(self, warning: str) -> None:
+        """Append one non-failing run warning using JSON-safe reassignment."""
+        self._run.warnings = [*self._run.warnings, warning]
         self._session.add(self._run)
 
     def _record_io(

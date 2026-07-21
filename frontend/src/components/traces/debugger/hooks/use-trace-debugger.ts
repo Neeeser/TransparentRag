@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { buildTraceGraph } from "@/components/traces/trace-graph";
 import {
+  fetchDocumentFocusedTrace,
   fetchDocumentTrace,
   fetchPipelineNodes,
   fetchPipelineRunTrace,
@@ -14,7 +15,7 @@ import { useApiQuery } from "@/lib/use-api-query";
 import { useAuth } from "@/providers/auth-provider";
 
 import type { TraceGraph } from "@/components/traces/trace-graph";
-import type { PipelineTraceResponse } from "@/lib/types";
+import type { PipelineTraceResponse, TraceFocusedItem } from "@/lib/types";
 
 /** What the debugger page was opened on — mirrors the three trace endpoints. */
 export type TraceSource = {
@@ -26,6 +27,13 @@ export type TraceSource = {
 type LoadedTrace = {
   trace: PipelineTraceResponse;
   origin: PipelineTraceResponse | null;
+  focusedItem: TraceFocusedItem | null;
+  contextItems: TraceFocusedItem[];
+};
+
+type FocusState = {
+  sourceKey: string;
+  itemId: string | null;
 };
 
 export type UseTraceDebuggerResult = {
@@ -35,6 +43,13 @@ export type UseTraceDebuggerResult = {
   loading: boolean;
   error: string | null;
   reload: () => void;
+  focusedItemId: string | null;
+  /** Live-resolved chunk behind the focused id — text and document context. */
+  focusedItem: TraceFocusedItem | null;
+  /** Live-resolved neighbors around focus in every recorded item list. */
+  contextItems: TraceFocusedItem[];
+  focusItem: (itemId: string) => void;
+  clearFocus: () => void;
   /** Non-blocking: node specs enrich the graph but the trace renders without them. */
   specsNotice: string | null;
 };
@@ -45,14 +60,43 @@ async function loadTrace(token: string, source: TraceSource): Promise<LoadedTrac
       // Tracing a specific chunk joins retrieval with the ingestion run that
       // produced it; absent origin data degrades to the plain retrieval trace.
       const payload = await fetchQueryEventEndToEndTrace(token, source.id, source.chunkId);
-      return { trace: payload.retrieval, origin: payload.origin?.trace ?? null };
+      return {
+        trace: payload.retrieval,
+        origin: payload.origin?.trace ?? null,
+        focusedItem: payload.focused_item ?? null,
+        contextItems: payload.context_items,
+      };
     }
-    return { trace: await fetchQueryEventTrace(token, source.id), origin: null };
+    return {
+      trace: await fetchQueryEventTrace(token, source.id),
+      origin: null,
+      focusedItem: null,
+      contextItems: [],
+    };
   }
   if (source.kind === "document") {
-    return { trace: await fetchDocumentTrace(token, source.id), origin: null };
+    if (source.chunkId) {
+      const payload = await fetchDocumentFocusedTrace(token, source.id, source.chunkId);
+      return {
+        trace: payload.trace,
+        origin: null,
+        focusedItem: payload.focused_item ?? null,
+        contextItems: payload.context_items,
+      };
+    }
+    return {
+      trace: await fetchDocumentTrace(token, source.id),
+      origin: null,
+      focusedItem: null,
+      contextItems: [],
+    };
   }
-  return { trace: await fetchPipelineRunTrace(token, source.id), origin: null };
+  return {
+    trace: await fetchPipelineRunTrace(token, source.id),
+    origin: null,
+    focusedItem: null,
+    contextItems: [],
+  };
 }
 
 /**
@@ -62,10 +106,18 @@ async function loadTrace(token: string, source: TraceSource): Promise<LoadedTrac
  */
 export function useTraceDebugger(source: TraceSource): UseTraceDebuggerResult {
   const { token } = useAuth();
+  const sourceKey = `${source.kind}:${source.id}:${source.chunkId ?? ""}`;
+  const [focusState, setFocusState] = useState<FocusState>({
+    sourceKey,
+    itemId: source.chunkId,
+  });
+  const focusedItemId = focusState.sourceKey === sourceKey ? focusState.itemId : source.chunkId;
+  const traceChunkId = source.kind === "query" ? (source.chunkId ?? focusedItemId) : source.chunkId;
+  const traceSource = { ...source, chunkId: traceChunkId };
 
   const traceQuery = useApiQuery(
-    () => loadTrace(token ?? "", source),
-    [token, source.kind, source.id, source.chunkId],
+    () => loadTrace(token ?? "", traceSource),
+    [token, source.kind, source.id, traceChunkId],
     { enabled: Boolean(token) },
   );
   const specsQuery = useApiQuery(() => fetchPipelineNodes(token ?? ""), [token], {
@@ -86,6 +138,11 @@ export function useTraceDebugger(source: TraceSource): UseTraceDebuggerResult {
     loading: traceQuery.loading || specsQuery.loading,
     error: traceQuery.error,
     reload: traceQuery.reload,
+    focusedItemId,
+    focusedItem: focusedItemId ? (traceQuery.data?.focusedItem ?? null) : null,
+    contextItems: focusedItemId ? (traceQuery.data?.contextItems ?? []) : [],
+    focusItem: (itemId) => setFocusState({ sourceKey, itemId }),
+    clearFocus: () => setFocusState({ sourceKey, itemId: null }),
     specsNotice: specsQuery.error
       ? "Node details are unavailable right now; showing the trace without them."
       : null,

@@ -25,6 +25,18 @@ logger = logging.getLogger(__name__)
 _MAX_IDENTIFIER_LENGTH = 63
 _IndexSignature = tuple[tuple[str, ...], bool]
 _ForeignKeySignature = tuple[tuple[str, ...], str, tuple[str, ...]]
+_JSON_LIST_DEFAULT_COLUMNS = frozenset(
+    {
+        ("documents", "warnings"),
+        ("pipeline_runs", "warnings"),
+    }
+)
+_LEGACY_COLUMN_BACKFILLS = {
+    (
+        "document_chunks",
+        "token_count",
+    ): "CASE WHEN btrim(text) = '' THEN 0 ELSE cardinality(regexp_split_to_array(btrim(text), E'\\\\s+')) END",
+}
 
 
 def apply_missing_columns(engine: Engine, missing_columns: Mapping[str, set[str]]) -> None:
@@ -50,6 +62,7 @@ def apply_missing_columns(engine: Engine, missing_columns: Mapping[str, set[str]
                     )
                     continue
                 _add_column(connection, table, column, preparer, engine.dialect)
+                _backfill_legacy_column(connection, table_name, column_name, preparer)
 
 
 def ensure_indexes(engine: Engine) -> None:
@@ -138,9 +151,7 @@ def ensure_foreign_keys(engine: Engine) -> None:
             for constraint in table.foreign_key_constraints:
                 signature = _constraint_signature(constraint)
                 if not signature[1]:
-                    logger.warning(
-                        "Foreign key on %s has no referred table; skipping.", table.name
-                    )
+                    logger.warning("Foreign key on %s has no referred table; skipping.", table.name)
                     continue
                 if signature in existing_signatures:
                     continue
@@ -167,6 +178,8 @@ def _add_column(
     default_sql, drop_default = _resolve_default_sql(
         column, dialect, allow_application_default=requires_default
     )
+    if requires_default and default_sql is None:
+        default_sql, drop_default = _missing_column_default(table.name, column.name)
     column_type = column.type.compile(dialect=dialect)
 
     column_parts = [preparer.quote(column.name), column_type]
@@ -197,13 +210,31 @@ def _add_column(
         connection.execute(text(drop_ddl))
 
 
-def _table_is_empty(
-    connection: Connection, preparer: IdentifierPreparer, table_name: str
-) -> bool:
+def _missing_column_default(table_name: str, column_name: str) -> tuple[str | None, bool]:
+    """Return a temporary backfill default for known non-scalar migrations."""
+    if (table_name, column_name) in _JSON_LIST_DEFAULT_COLUMNS:
+        return "'[]'", True
+    return None, False
+
+
+def _backfill_legacy_column(
+    connection: Connection,
+    table_name: str,
+    column_name: str,
+    preparer: IdentifierPreparer,
+) -> None:
+    """Populate derived values for rows created before an added column existed."""
+    expression = _LEGACY_COLUMN_BACKFILLS.get((table_name, column_name))
+    if expression is None:
+        return
+    table = preparer.quote(table_name)
+    column = preparer.quote(column_name)
+    connection.execute(text(f"UPDATE {table} SET {column} = {expression} WHERE {column} = 0"))
+
+
+def _table_is_empty(connection: Connection, preparer: IdentifierPreparer, table_name: str) -> bool:
     """Return True when the target table has no rows."""
-    result = connection.execute(
-        text(f"SELECT 1 FROM {preparer.quote(table_name)} LIMIT 1")
-    ).first()
+    result = connection.execute(text(f"SELECT 1 FROM {preparer.quote(table_name)} LIMIT 1")).first()
     return result is None
 
 
@@ -259,9 +290,7 @@ def _index_signature(columns: Sequence[str], unique: bool) -> _IndexSignature:
 def _constraint_signature(constraint: ForeignKeyConstraint) -> _ForeignKeySignature:
     """Build a comparable signature for a foreign key constraint."""
     local_columns = tuple(column.name for column in constraint.columns)
-    referred_table = (
-        constraint.referred_table.name if constraint.referred_table is not None else ""
-    )
+    referred_table = constraint.referred_table.name if constraint.referred_table is not None else ""
     referred_columns = tuple(element.column.name for element in constraint.elements)
     return (local_columns, referred_table, referred_columns)
 
@@ -275,9 +304,7 @@ def _foreign_key_signature(
     return (local_columns, referred_table or "", referred_columns)
 
 
-def _foreign_key_name(
-    table_name: str, local_columns: tuple[str, ...], referred_table: str
-) -> str:
+def _foreign_key_name(table_name: str, local_columns: tuple[str, ...], referred_table: str) -> str:
     """Generate a stable foreign key name within Postgres limits."""
     base = f"fk_{table_name}_{'_'.join(local_columns)}_{referred_table}"
     if len(base) <= _MAX_IDENTIFIER_LENGTH:

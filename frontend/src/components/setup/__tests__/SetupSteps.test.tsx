@@ -7,6 +7,7 @@ vi.mock("@/providers/auth-provider", async () => (await import("@/test/mocks")).
 
 import { initialSetupWizardState } from "@/components/setup/lib/setup-wizard-reducer";
 import { StepModel, StepProviders } from "@/components/setup/SetupSteps";
+import { StepLaunch } from "@/components/setup/SetupStepsLaunch";
 import {
   makeCatalogModel,
   makeConnection,
@@ -49,7 +50,7 @@ function makeWizard(overrides: Partial<SetupWizardApi> = {}): SetupWizardApi {
     connectionsLoading: false,
     connectionsError: null,
     reloadConnections: vi.fn(),
-    coverage: { embedding: true, chat: true, vector_store: true },
+    coverage: { embedding: true, chat: true, reranking: false, vector_store: true },
     providersReady: true,
     models,
     modelsLoading: false,
@@ -60,6 +61,7 @@ function makeWizard(overrides: Partial<SetupWizardApi> = {}): SetupWizardApi {
     finish: vi.fn(),
     busy: false,
     error: null,
+    warning: null,
     clearError: vi.fn(),
     ...overrides,
     modelCatalog: overrides.modelCatalog ?? makeModelCatalog(models),
@@ -106,10 +108,40 @@ describe("StepModel", () => {
   });
 });
 
+describe("StepLaunch", () => {
+  it("renders an authoritative-limit finding as an advisory warning", () => {
+    const wizard = makeWizard({
+      models: [makeCatalogModel({ id: MINILM, max_input_tokens: 512 })],
+    });
+    wizard.state = {
+      ...wizard.state,
+      step: "launch",
+      choices: {
+        ...wizard.state.choices,
+        embeddingModel: MINILM,
+        collectionName: "First",
+        chunkSize: 400,
+        chunkOverlap: 100,
+      },
+    };
+
+    render(<StepLaunch wizard={wizard} />);
+
+    expect(
+      screen.getByText(
+        "Chunk size plus overlap (500) may exceed this model's effective input limit.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Chunk size (tokens)")).toBeInTheDocument();
+    expect(screen.queryByText(/whitespace words/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /finish setup/i })).toBeEnabled();
+  });
+});
+
 describe("StepProviders", () => {
   it("blocks Continue until every capability is covered", () => {
     const wizard = makeWizard({
-      coverage: { embedding: true, chat: true, vector_store: false },
+      coverage: { embedding: true, chat: true, reranking: false, vector_store: false },
       providersReady: false,
     });
     render(<StepProviders wizard={wizard} />);

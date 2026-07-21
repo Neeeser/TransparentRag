@@ -190,7 +190,11 @@ export function AddConnectionDialog({
                   >
                     {selectedType.provider_type === "ollama"
                       ? "Get Ollama"
-                      : `Get a ${selectedType.label} API key`}
+                      : selectedType.config_fields.some(
+                            (field) => field.kind === "secret" && field.required,
+                          )
+                        ? `Get a ${selectedType.label} API key`
+                        : "Provider documentation"}
                   </a>
                 )}
               </div>

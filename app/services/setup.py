@@ -12,7 +12,7 @@ inside the scaffolded pipeline definitions.
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
+from dataclasses import dataclass
 from uuid import uuid4
 
 from sqlmodel import Session
@@ -25,6 +25,8 @@ from app.pipelines.defaults import (
     build_default_retrieval_pipeline,
 )
 from app.pipelines.definition import PipelineDefinition
+from app.pipelines.node import PipelineValidationIssue
+from app.providers.base import effective_embedding_input_limit
 from app.providers.registry import build_adapter, get_provider, resolve_connection
 from app.schemas.enums import IndexBackend, ProviderKind
 from app.schemas.setup import SetupBootstrapRequest, SetupStatusRead
@@ -43,6 +45,14 @@ from app.vectorstores.registry import get_vector_store
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class SetupBootstrapResult:
+    """The created collection and non-blocking pipeline findings."""
+
+    collection: models.Collection
+    warnings: list[PipelineValidationIssue]
+
+
 class SetupService:
     """Derive first-run readiness and install the wizard's choices."""
 
@@ -57,7 +67,13 @@ class SetupService:
         coverage = self._provider_coverage(user)
         has_index = self._has_index(user)
         has_collection = bool(self._collections.list_for_user(user.id))
-        providers_ready = all(coverage[kind] for kind in ProviderKind)
+        # Setup needs exactly these kinds — never `all(ProviderKind)`, which
+        # silently strengthens the gate whenever the enum grows (adding
+        # RERANKING once trapped users in the wizard on every page load).
+        providers_ready = all(
+            coverage[kind]
+            for kind in (ProviderKind.EMBEDDING, ProviderKind.CHAT, ProviderKind.VECTOR_STORE)
+        )
         return SetupStatusRead(
             has_embedding_provider=coverage[ProviderKind.EMBEDDING],
             has_chat_provider=coverage[ProviderKind.CHAT],
@@ -81,12 +97,18 @@ class SetupService:
                 coverage[kind] = True
         return coverage
 
-    def bootstrap(self, user: models.User, payload: SetupBootstrapRequest) -> models.Collection:
+    def bootstrap(self, user: models.User, payload: SetupBootstrapRequest) -> SetupBootstrapResult:
         """Install default pipelines and the first collection in one commit."""
         connection = resolve_connection(self.session, user, payload.embedding_connection_id)
-        get_provider(connection, ProviderKind.EMBEDDING)
+        embedding_provider = get_provider(connection, ProviderKind.EMBEDDING)
+        published_limit = embedding_provider.embedding_input_limit(payload.embedding_model)
+        effective_limit = (
+            effective_embedding_input_limit(published_limit)
+            if published_limit is not None
+            else None
+        )
         self._validate_index(user, payload)
-        defaults = self._install_default_pipelines(user, payload)
+        defaults, warnings = self._install_default_pipelines(user, payload, effective_limit)
         collection = models.Collection(
             id=uuid4(),
             user_id=user.id,
@@ -100,7 +122,7 @@ class SetupService:
         self.session.commit()
         self.session.refresh(collection)
         record(CollectionCreated(user_id=user.id, collection_id=collection.id))
-        return collection
+        return SetupBootstrapResult(collection=collection, warnings=warnings)
 
     def _has_index(self, user: models.User) -> bool:
         """True when any reachable backend holds at least one index.
@@ -144,8 +166,14 @@ class SetupService:
             )
 
     def _install_default_pipelines(
-        self, user: models.User, payload: SetupBootstrapRequest
-    ) -> dict[models.PipelineKind, models.Pipeline]:
+        self,
+        user: models.User,
+        payload: SetupBootstrapRequest,
+        embedding_input_limit: int | None = None,
+    ) -> tuple[
+        dict[models.PipelineKind, models.Pipeline],
+        list[PipelineValidationIssue],
+    ]:
         """Create (or refresh) the default pipelines from the wizard's choices."""
         definitions: dict[models.PipelineKind, PipelineDefinition] = {
             models.PipelineKind.INGESTION: build_default_ingestion_pipeline(
@@ -155,6 +183,7 @@ class SetupService:
                 index_name=payload.index_name,
                 chunk_size=payload.chunk_size,
                 chunk_overlap=payload.chunk_overlap,
+                embedding_input_limit=embedding_input_limit,
             ),
             models.PipelineKind.RETRIEVAL: build_default_retrieval_pipeline(
                 embedding_connection_id=payload.embedding_connection_id,
@@ -163,6 +192,12 @@ class SetupService:
                 index_name=payload.index_name,
             ),
         }
+        warnings = [
+            issue
+            for definition in definitions.values()
+            for issue in self._pipelines.validate_definition(user, definition).issues
+            if issue.severity == "warning"
+        ]
         installed: dict[models.PipelineKind, models.Pipeline] = {}
         for kind, definition in definitions.items():
             existing = next(
@@ -185,9 +220,10 @@ class SetupService:
                     is_default=True,
                 )
             else:
-                # An identical definition raises "no changes" -- that is
-                # already the desired end state, so suppress it.
-                with suppress(InvalidInputError):
+                # An identical generated definition is already the desired end
+                # state. Other InvalidInputErrors (including provider limits)
+                # must remain visible to the setup caller.
+                if self._pipelines.get_definition(existing) != definition:
                     self._pipelines.update_pipeline(
                         pipeline=existing,
                         definition=definition,
@@ -195,4 +231,4 @@ class SetupService:
                         actor_id=user.id,
                     )
                 installed[kind] = existing
-        return installed
+        return installed, warnings

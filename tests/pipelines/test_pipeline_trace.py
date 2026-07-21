@@ -17,6 +17,8 @@ from app.pipelines.definition import (
 from app.pipelines.execution.context import PipelineRunContext
 from app.pipelines.execution.executor import PipelineExecutor
 from app.pipelines.node import PipelineNodeBase
+from app.pipelines.nodes.reranking import RerankerConfig, RerankerNode
+from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.ports import NodePort
 from app.pipelines.registry import NodeRegistry
 from app.pipelines.tracing import (
@@ -25,6 +27,7 @@ from app.pipelines.tracing import (
     PipelineTraceRecorder,
     serialize_payload,
 )
+from app.retrieval.models import DocumentChunk, DocumentMetadata, RetrievalResponse, ScoredChunk
 from app.utils.file_storage import FileStorage
 from tests.pipelines.conftest import StubProviderResolver, StubVectorStoreProvider
 
@@ -75,6 +78,7 @@ class EchoNode(PipelineNodeBase):
     example = "Payload(text='hello') -> Payload(text='hello')."
     input_ports = (NodePort(key="value", label="Value", data_type="payload"),)
     output_ports = (NodePort(key="result", label="Result", data_type="payload"),)
+
     class EchoConfig(BaseModel):
         """Empty config for echo node."""
 
@@ -290,6 +294,36 @@ def test_trace_recorder_mark_run_completed_is_idempotent(session: Session) -> No
     assert run.status == models.PipelineRunStatus.COMPLETED
 
 
+def test_trace_recorder_reassigns_warnings_for_json_persistence(session: Session) -> None:
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+    pipeline = models.Pipeline(
+        user_id=user.id,
+        name="Trace Pipeline",
+        kind=models.PipelineKind.INGESTION,
+        current_version=1,
+    )
+    session.add(pipeline)
+    session.flush()
+    run = models.PipelineRun(
+        pipeline_id=pipeline.id,
+        pipeline_version_id=None,
+        pipeline_version=1,
+        kind=models.PipelineKind.INGESTION,
+        user_id=user.id,
+        collection_id=collection.id,
+        status=models.PipelineRunStatus.RUNNING,
+    )
+    session.add(run)
+    session.flush()
+
+    recorder = PipelineTraceRecorder(session, run, PipelineDefinition())
+    recorder.record_warning("split chunk 0")
+    recorder.record_warning("split chunk 2")
+
+    assert run.warnings == ["split chunk 0", "split chunk 2"]
+
+
 def test_trace_recorder_normalizes_non_dict_payloads() -> None:
     payload = PipelineTraceRecorder._normalize_payload([1, 2, 3])
 
@@ -376,3 +410,32 @@ def test_trace_recorder_normalizes_base_model() -> None:
     payload = PipelineTraceRecorder._normalize_payload(_Payload(value="ok"))
 
     assert payload["value"] == "ok"
+
+
+def test_reranker_trace_identifies_provider_model_without_result_limit() -> None:
+    matches = [
+        ScoredChunk(
+            chunk=DocumentChunk(
+                document_id="doc",
+                chunk_id=f"doc:{index}",
+                text=f"chunk {index}",
+                order=index,
+                metadata=DocumentMetadata(),
+            ),
+            score=1.0 - index / 10,
+        )
+        for index in range(3)
+    ]
+    before = RetrievalPayload(response=RetrievalResponse(matches=matches))
+    after = RetrievalPayload(response=RetrievalResponse(matches=list(reversed(matches))))
+    connection_id = uuid4()
+    summary = RerankerNode(
+        RerankerConfig(connection_id=connection_id, model_name="rerank-model")
+    ).summarize_io({"results": before}, {"results": after})
+
+    reranker = next(value.value for value in summary.outputs if value.label == "Reranker")
+    assert reranker == {
+        "connection_id": str(connection_id),
+        "model_name": "rerank-model",
+    }
+    assert "max_results" not in reranker

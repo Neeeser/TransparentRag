@@ -150,10 +150,23 @@ def test_builders_stamp_the_explicit_embedding_choice(session: Session) -> None:
     assert embedder.config["model_name"] == "wizard/model"
     assert embedder.config["connection_id"] == str(EMBED_CONNECTION_ID)
     assert chunker.config == {"chunk_size": 512, "chunk_overlap": 64}
+    assert all(not node.type.startswith("tokenizer.") for node in ingestion.nodes)
+    assert all(edge.target_port != "tokenizer" for edge in ingestion.edges)
     assert indexer.config["index_name"] == "first-index"
     assert query_embedder.config["model_name"] == "wizard/model"
     assert query_embedder.config["connection_id"] == str(EMBED_CONNECTION_ID)
     assert retriever.config["index_name"] == "first-index"
+
+
+def test_ingestion_builder_scales_chunk_window_to_embedding_limit() -> None:
+    ingestion = _build_ingestion(
+        chunk_size=512,
+        chunk_overlap=200,
+        embedding_input_limit=496,
+    )
+
+    chunker = next(node for node in ingestion.nodes if node.id == "chunk-document")
+    assert chunker.config == {"chunk_size": 356, "chunk_overlap": 140}
 
 
 def test_default_scaffold_omits_bm25_when_pgvector_extension_unavailable(
@@ -193,5 +206,40 @@ def test_default_scaffolds_carry_no_positions(session: Session) -> None:
     editor and freeze the scaffold in a layout the algorithm never chose —
     the drift this rule exists to prevent.
     """
+
+
 for definition in (_build_ingestion(), _build_retrieval()):
-        assert all(node.position is None for node in definition.nodes)
+    assert all(node.position is None for node in definition.nodes)
+
+
+def test_default_retrieval_pipeline_declares_result_limit_argument() -> None:
+    """The scaffold exposes the caller-facing final result limit explicitly."""
+    from app.pipelines.resolution import declared_arguments
+
+    definition = build_default_retrieval_pipeline(
+        embedding_connection_id=uuid4(), embedding_model="test-embed"
+    )
+    arguments = declared_arguments(definition)
+    assert [argument.name for argument in arguments] == ["result_limit"]
+    result_limit = arguments[0]
+    assert result_limit.type.value == "integer"
+    assert result_limit.default == 5
+    assert (result_limit.minimum, result_limit.maximum) == (1, 10)
+    assert result_limit.expose_to_llm is True
+
+
+def test_default_retrieval_pipeline_uses_result_limit_for_fetch_and_final_cut() -> None:
+    """Every scaffold retriever carries its fetch depth explicitly — the
+    declared top_k variable, never an invisible request fallback."""
+    definition = build_default_retrieval_pipeline(
+        embedding_connection_id=uuid4(), embedding_model="test-embed"
+    )
+    retrievers = [
+        node for node in definition.nodes if node.type in ("retriever.vector", "retriever.bm25")
+    ]
+    assert retrievers
+    assert all(node.config["top_k"] == {"$expr": "result_limit"} for node in retrievers)
+    limit = next(node for node in definition.nodes if node.id == "limit-results")
+    assert limit.type == "limit.results"
+    assert limit.name == "Result Limit"
+    assert limit.config == {"max_results": {"$expr": "result_limit"}}

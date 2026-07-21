@@ -105,11 +105,41 @@ colocate a single file with its consumer.
   calls `handle.trace.mark_run_failed(exc)` — never hand-rolls the same
   status/error/completed_at update (that duplication is what `PipelineRunner`
   replaced).
+- **Trace summaries preserve complete result identity.** Every item-producing node
+  attaches a full ordered `ItemListTrace` for each relevant input/output port,
+  including stable ids and scores, alongside its unchanged human-readable preview.
+  Never truncate these identity lists or store derived effects: consumers need the
+  complete lists to explain filtering, branches, merges, and reordering. A node's
+  item list reflects the chunks that node actually emits: the embedding guard
+  (`nodes/embedding.py`) may split an oversized chunk into several re-keyed,
+  independently-indexed chunks, so its output list legitimately differs from the
+  chunker's — the journey shows that split honestly rather than hiding it.
 - **Config resolution is registry-driven — hardcoding a node type-id string outside
   the node class that owns it is a lockstep bug.** `pipelines/settings.py` reads
   type ids off node *classes* and walks the registry for interchangeable variants
   (fixed-strategy chunkers), so a newly registered variant is picked up with no
   second place to update.
+- **Config values may be expression-tagged (`{"$expr": "top_k * 2"}`) — resolve
+  before you `model_validate`.** `PipelineRunner.start` resolves the whole
+  definition against the run's variable environment before the run row exists;
+  every *static* consumer (settings resolution, validation hooks, tokenizer
+  prefetch, embedding-choice extraction) reads configs through
+  `resolution.resolve_static_definition` — validating a raw definition's config
+  crashes the moment a field holds an expression (that shipped as a
+  `resolve_retrieval_settings` crash). Identity fields (backend, index name,
+  namespace, dimension, embedder model) carry the `static_only` marker so the
+  taint rule keeps them independent of caller input — purge coverage depends on it.
+- **The expression grammar lives twice** (`app/pipelines/expressions/` is the
+  source of truth; `frontend/src/lib/expressions/` mirrors it for live editor
+  feedback), pinned by the shared vectors in `tests/assets/expression_vectors.json`
+  that both pytest and vitest execute. A grammar or semantics change lands in both
+  implementations plus the vectors, never one side — the vectors are what make the
+  drift impossible, so never skip them.
+- **One PR ships at most one stored-data migration.** A shape that only ever
+  existed on the branch is reworked *inside* the pending migration (hand-fix your
+  own dev DB rows), never patched with a second version bump — releases migrate
+  release-to-release, and stacked steps for shapes no deployment ever ran are
+  permanent startup complexity for nothing.
 - **Variadic input ports (`NodePort.accepts_many`) are the fan-in mechanism** — the
   executor collects every inbound edge into a list and the validator rejects
   multiple edges into a non-variadic port (that used to clobber silently). Fusion
@@ -282,10 +312,14 @@ frontend form code — only a new `ConfigFieldKind` would.
   `CREATE EXTENSION IF NOT EXISTS vector`; on failure it logs and flips the
   `app/db/pgvector_support.py` availability flag instead of failing startup.
   pg_search follows the same pattern (`app/db/pg_search_support.py`, clear
-  `InvalidInputError` at sparse-index creation). Dev machines need the extensions
-  for the full suite (`brew install pgvector`; run against
-  `paradedb/paradedb:latest-pg17` for BM25 coverage); dependent tests use the
-  `pgvector_session`/`pg_search_session` fixtures and skip with a named reason.
+  `InvalidInputError` at sparse-index creation). **Run the suite against the
+  Dockerized ParadeDB DB — `make test`/`make coverage` start it for you
+  (`docker-compose.dev.yml`, loopback-only port 54329); it ships the `pg_search`
+  the release image runs.** On a Postgres without `pg_search` (e.g. a bare
+  external `TEST_DATABASE_URL` override) the BM25 path is untested —
+  `pg_search_session` tests skip with a named reason — so a green run there is
+  not proof a sparse/hybrid change works; verify against the ParadeDB dev DB.
+  Dependent tests use the `pgvector_session`/`pg_search_session` fixtures.
 - **The lexical (BM25) plane mirrors the dense one, backend-natively.**
   `upsert_lexical`/`lexical_query` serve sparse indexes
   (`IndexSpec(vector_type="sparse")`): pgvector via ParadeDB pg_search BM25 over
@@ -400,6 +434,10 @@ this file in the same PR.
 
 ## Code quality standards
 
+- **A gate never iterates a whole enum** (`all(coverage[k] for k in ProviderKind)`)
+  — enumerate the members it actually requires. Adding an enum member silently
+  strengthens every whole-enum gate: adding `RERANKING` once trapped users in the
+  setup wizard on every page load.
 - **Strong typing everywhere.** No `Any` as an escape hatch; no `isinstance`
   ladders in place of a schema or discriminated union. Python ≥3.11 house style:
   `X | None`, `list[X]`, `dict[K, V]` — not `Optional`/`List` (ruff `UP` flags
@@ -507,6 +545,11 @@ this file in the same PR.
   carries `dimension` (for index creation/validation). When the embeddings envelope
   carries an `error` instead of `data`, raise `ExternalServiceError` with the
   provider's message (502), never a bare `ValueError` (500).
+- **A stream parser is written against captured wire frames, not assumed shapes**
+  — Cohere's v2 SSE stream ends with a bare `data: [DONE]` sentinel and its chat
+  API 400s on an empty assistant history entry; both shipped as live-only bugs
+  because the mocked fixtures encoded the shape we expected instead of a
+  captured stream tail.
 - **Never feature-detect a pinned SDK with `inspect.signature`.** A runtime probe
   of Pinecone's `create_index` was always-false dead code on the version actually
   pinned, silently no-opping a config field. Introspect the *installed* SDK while

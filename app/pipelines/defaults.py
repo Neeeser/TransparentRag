@@ -23,8 +23,10 @@ from app.pipelines.nodes.indexing import (
     VectorIndexerNode,
     default_index_name,
 )
+from app.pipelines.nodes.limiting import ResultLimitNode
 from app.pipelines.nodes.retrieval import Bm25RetrieverNode, VectorRetrieverNode
 from app.pipelines.template import DEFAULT_NAMESPACE_TEMPLATE
+from app.pipelines.variables import PipelineVariable, VariableSource, VariableType
 from app.schemas.enums import IndexBackend
 from app.services.app_config import get_app_config
 from app.services.errors import InvalidInputError
@@ -35,6 +37,20 @@ from app.vectorstores.registry import CAPABILITIES_BY_BACKEND, lexical_available
 # frontend's shared auto-layout (`layoutPipelineNodes`), which lays out any
 # definition whose nodes lack saved positions on first open. Hand-placing
 # coordinates here would duplicate layout knowledge the algorithm owns.
+
+# The historical tool contract as an input variable: definitions own the
+# declaration; the retrieval.input node just accepts it by name.
+DEFAULT_RESULT_LIMIT_VARIABLE = PipelineVariable(
+    name="result_limit",
+    type=VariableType.INTEGER,
+    source=VariableSource.INPUT,
+    description="Maximum number of results to return.",
+    value=5,
+    minimum=1,
+    maximum=10,
+    expose_to_llm=True,
+)
+
 
 def _default_backend() -> IndexBackend:
     """Return the deployment's configured default index backend."""
@@ -55,14 +71,37 @@ def bm25_sibling_index_name(index_name: str, backend: IndexBackend) -> str:
     return candidate
 
 
+def _clamp_chunk_window(
+    chunk_size: int, chunk_overlap: int, embedding_input_limit: int | None
+) -> tuple[int, int]:
+    """Fit the default chunk window within a known embedding token budget.
+
+    Scale both values together so the wizard preserves its requested overlap
+    ratio. Unknown limits leave the wizard's explicit values unchanged.
+    """
+    if embedding_input_limit is None or chunk_size + chunk_overlap <= embedding_input_limit:
+        return chunk_size, chunk_overlap
+    if embedding_input_limit <= 1:
+        return 1, 0
+    requested_total = chunk_size + chunk_overlap
+    scale = embedding_input_limit / requested_total
+    clamped_size = max(1, int(chunk_size * scale))
+    clamped_overlap = max(0, embedding_input_limit - clamped_size)
+    clamped_overlap = min(clamped_overlap, clamped_size - 1)
+    return clamped_size, clamped_overlap
+
+
+# The setup wizard passes the complete explicit scaffold configuration here.
+# pylint: disable=too-many-arguments
 def build_default_ingestion_pipeline(
     *,
     embedding_connection_id: UUID,
     embedding_model: str,
     backend: IndexBackend | None = None,
     index_name: str | None = None,
-    chunk_size: int = 1024,
+    chunk_size: int = 512,
     chunk_overlap: int = 200,
+    embedding_input_limit: int | None = None,
 ) -> PipelineDefinition:
     """Return the default (hybrid) ingestion pipeline definition.
 
@@ -76,6 +115,9 @@ def build_default_ingestion_pipeline(
     backend = backend or _default_backend()
     index_name = index_name or default_index_name(backend)
     include_bm25 = lexical_available(backend)
+    chunk_size, chunk_overlap = _clamp_chunk_window(
+        chunk_size, chunk_overlap, embedding_input_limit
+    )
     nodes = [
         PipelineNodeDefinition(
             id="ingest-input",
@@ -100,7 +142,7 @@ def build_default_ingestion_pipeline(
             id="embed-chunks",
             type="embedder.text",
             name="Embedder",
-config={
+            config={
                 "connection_id": str(embedding_connection_id),
                 "model_name": embedding_model,
             },
@@ -195,6 +237,9 @@ config={
     return PipelineDefinition(nodes=nodes, edges=edges, viewport={})
 
 
+# pylint: enable=too-many-arguments
+
+
 def build_default_retrieval_pipeline(
     *,
     embedding_connection_id: UUID,
@@ -218,12 +263,15 @@ def build_default_retrieval_pipeline(
             id="query-input",
             type="retrieval.input",
             name="Retrieval Input",
+            # The definition owns the caller-facing result limit. The external
+            # query API's top_k field is translated at the runner boundary.
+            config={"arguments": [DEFAULT_RESULT_LIMIT_VARIABLE.name]},
         ),
         PipelineNodeDefinition(
             id="embed-query",
             type="embedder.text",
             name="Embedder",
-config={
+            config={
                 "connection_id": str(embedding_connection_id),
                 "model_name": embedding_model,
             },
@@ -232,10 +280,13 @@ config={
             id="vector-retriever",
             type=VectorRetrieverNode.type,
             name="Semantic Retriever",
+            # Fetch depth is always explicit — the declared result limit,
+            # never an invisible request fallback.
             config={
                 "backend": backend.value,
                 "index_name": index_name,
                 "namespace": DEFAULT_NAMESPACE_TEMPLATE,
+                "top_k": {"$expr": DEFAULT_RESULT_LIMIT_VARIABLE.name},
             },
         ),
         PipelineNodeDefinition(
@@ -271,12 +322,20 @@ config={
                         "backend": backend.value,
                         "index_name": bm25_sibling_index_name(index_name, backend),
                         "namespace": DEFAULT_NAMESPACE_TEMPLATE,
+                        "top_k": {"$expr": DEFAULT_RESULT_LIMIT_VARIABLE.name},
                     },
                 ),
                 PipelineNodeDefinition(
                     id="fuse-results",
                     type=RRFusionNode.type,
                     name="RRF Fusion",
+                ),
+                # Fusion never cuts; Result Limit is the explicit final cap.
+                PipelineNodeDefinition(
+                    id="limit-results",
+                    type=ResultLimitNode.type,
+                    name="Result Limit",
+                    config={"max_results": {"$expr": DEFAULT_RESULT_LIMIT_VARIABLE.name}},
                 ),
             ]
         )
@@ -304,8 +363,15 @@ config={
                     target_port="results",
                 ),
                 PipelineEdgeDefinition(
-                    id="edge-fusion-output",
+                    id="edge-fusion-limit",
                     source="fuse-results",
+                    target="limit-results",
+                    source_port="results",
+                    target_port="results",
+                ),
+                PipelineEdgeDefinition(
+                    id="edge-limit-output",
+                    source="limit-results",
                     target="retrieval-output",
                     source_port="results",
                     target_port="results",
@@ -322,4 +388,9 @@ config={
                 target_port="results",
             )
         )
-    return PipelineDefinition(nodes=nodes, edges=edges, viewport={})
+    return PipelineDefinition(
+        nodes=nodes,
+        edges=edges,
+        viewport={},
+        variables=[DEFAULT_RESULT_LIMIT_VARIABLE.model_copy(deep=True)],
+    )

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo } from "react";
 
-import { useFlowPlayback } from "@/components/pipelines/flow/use-flow-playback";
+import { buildFlowTiming } from "@/components/pipelines/flow/flow-timing";
+import { DEFAULT_PROCESS_MS, useFlowPlayback } from "@/components/pipelines/flow/use-flow-playback";
 
 import type { UseFlowPlaybackResult } from "@/components/pipelines/flow/use-flow-playback";
 import type { TraceGraph, TraceStep } from "@/components/traces/trace-graph";
@@ -28,10 +29,24 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
 export function useTraceStepper(graph: TraceGraph): UseTraceStepperResult {
   const initialIndex = useMemo(() => {
     const failed = graph.steps.findIndex((step) => step.run?.status === "failed");
-    return failed === -1 ? 0 : failed;
-  }, [graph.steps]);
+    if (failed !== -1) return failed;
+    if (graph.combined) {
+      const firstRetrieval = graph.steps.findIndex((step) => step.stage === "retrieval");
+      if (firstRetrieval !== -1) return firstRetrieval;
+    }
+    return 0;
+  }, [graph.combined, graph.steps]);
 
-  const playback = useFlowPlayback({ steps: graph.steps, edges: graph.edges, initialIndex });
+  const timing = useMemo(
+    () => buildFlowTiming(graph.nodes, graph.edges, DEFAULT_PROCESS_MS),
+    [graph.nodes, graph.edges],
+  );
+  const playback = useFlowPlayback({
+    steps: graph.steps,
+    edges: graph.edges,
+    timing,
+    initialIndex,
+  });
   const { activeIndex, stepForward, stepBack, toggle, seek } = playback;
 
   useEffect(() => {

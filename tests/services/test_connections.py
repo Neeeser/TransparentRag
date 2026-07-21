@@ -7,12 +7,13 @@ from sqlmodel import Session
 
 from app.db import models
 from app.providers.openrouter import OpenRouterAdapter
+from app.schemas.enums import ProviderKind
 from app.schemas.providers import (
     ConnectionUpdate,
     ConnectionValidationResult,
 )
 from app.services import connections as connections_module
-from app.services.connections import ConnectionService
+from app.services.connections import ConnectionService, connection_to_read
 from tests.utils.providers import add_connection
 
 
@@ -119,3 +120,71 @@ def test_committed_update_survives_cache_cleanup_failure(
 
     assert result.label == "After"
     assert "Cache cleanup failed" in caplog.text
+
+
+def test_connection_read_uses_configured_adapter_kinds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = models.ProviderConnection(
+        provider_type="openrouter",
+        label="Dynamic",
+        config={"api_key": "secret"},
+    )
+    monkeypatch.setattr(
+        OpenRouterAdapter,
+        "kinds",
+        property(lambda _self: (ProviderKind.RERANKING,)),
+        raising=False,
+    )
+
+    result = connection_to_read(connection)
+
+    assert result.kinds == [ProviderKind.RERANKING]
+    assert result.config_valid is True
+
+
+def test_list_connections_renders_rows_with_malformed_stored_config(
+    session: Session,
+) -> None:
+    """A row whose stored config no longer validates still lists (and is deletable).
+
+    Regression: `connection_to_read` began constructing the real adapter, whose
+    config parse raises `InvalidInputError` — one malformed row turned the whole
+    connections listing (and every hasKind gate built on it) into a 400.
+    """
+    user = _user(session)
+    add_connection(session, user, "tei", {"base_url": ""}, label="Broken TEI")
+
+    rows = ConnectionService(session).list_connections(user)
+
+    assert [row.label for row in rows] == ["Broken TEI"]
+    # Capability probing is impossible without a valid config; the descriptor's
+    # potential kinds keep the row visible, but `config_valid=False` tells the
+    # frontend those kinds must not satisfy capability gates (they would
+    # otherwise enable features the backend coverage check rejects).
+    assert rows[0].kinds == [ProviderKind.EMBEDDING, ProviderKind.RERANKING]
+    assert rows[0].config_valid is False
+
+
+def test_coverage_uses_configured_adapter_kinds(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = _user(session)
+    add_connection(
+        session, user, "openrouter", {"api_key": "secret"}, label="Dynamic"
+    )
+    monkeypatch.setattr(
+        OpenRouterAdapter,
+        "kinds",
+        property(lambda _self: (ProviderKind.RERANKING,)),
+        raising=False,
+    )
+    monkeypatch.setattr(connections_module, "pgvector_available", lambda: False)
+
+    result = ConnectionService(session).coverage(user)
+
+    assert result.has_reranking is True
+    assert result.has_embedding is False
+    assert result.has_chat is False
+    assert result.has_vector_store is False

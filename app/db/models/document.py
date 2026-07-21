@@ -41,6 +41,10 @@ class Document(SQLModel, TimestampMixin, table=True):
         sa_column=Column(String, nullable=False),
     )
     error_message: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    warnings: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False),
+    )
     num_chunks: int = Field(default=0, nullable=False)
     num_tokens: int = Field(default=0, nullable=False)
     chunk_size: int = Field(default=1024, nullable=False)
@@ -68,6 +72,7 @@ class DocumentChunkRecord(SQLModel, TimestampMixin, table=True):
     collection_id: UUID = Field(foreign_key="collections.id", nullable=False, index=True)
     chunk_index: int = Field(nullable=False, index=True)
     text: str = Field(sa_column=Column(Text, nullable=False))
+    token_count: int = Field(default=0, nullable=False)
     embedding: list[float] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     chunk_metadata: dict[str, Any] = Field(
         default_factory=dict,

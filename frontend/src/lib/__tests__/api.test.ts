@@ -24,10 +24,12 @@ import {
   fetchDocumentTrace,
   fetchQueryEventTrace,
   fetchEmbeddingModels,
+  fetchRerankingModels,
   fetchPipeline,
   fetchPipelineNodes,
   fetchPipelineRunTrace,
   fetchPipelines,
+  ensureHuggingFaceTokenizer,
   getBasePrompt,
   getChatHistory,
   getCollectionPrompt,
@@ -117,6 +119,7 @@ const testEmail = "test@example.com";
 const testPassword = "secret";
 const badRequestStatus = "Bad Request";
 const streamingRequestFailedMessage = "Streaming request failed.";
+const huggingFaceModelId = "owner/model";
 
 describe("api", () => {
   it("falls back to a same-origin base URL when NEXT_PUBLIC_API_BASE_URL is unset", async () => {
@@ -204,6 +207,28 @@ describe("api", () => {
     const headers = options?.headers as Headers;
     expect(headers.get("Authorization")).toBe("Bearer token");
     expect(headers.get("Content-Type")).toBe("application/json");
+  });
+
+  it("posts HuggingFace tokenizer download consent", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as typeof fetch;
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({ model_id: huggingFaceModelId, cached: true }),
+    );
+
+    await ensureHuggingFaceTokenizer("token", {
+      model_id: huggingFaceModelId,
+      consent: true,
+      remember: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/tokenizers/huggingface"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ model_id: huggingFaceModelId, consent: true, remember: true }),
+      }),
+    );
   });
 
   it("skips JSON headers for FormData uploads", async () => {
@@ -385,12 +410,16 @@ describe("api", () => {
       .mockResolvedValueOnce(createJsonResponse([]))
       .mockResolvedValueOnce(createJsonResponse([]))
       .mockResolvedValueOnce(createJsonResponse({}))
+      .mockResolvedValueOnce(createJsonResponse({}))
       .mockResolvedValueOnce(createJsonResponse({}));
 
     await listChatModels("token");
+    await fetchRerankingModels("token", true);
     await listModelEndpoints("token", "conn-1", "openai", "gpt-4o");
     await listChatModels("token");
     await listModelEndpoints("token", "conn-1", "openai", "gpt-4o");
+
+    expect(fetchMock.mock.calls[1]?.[0]).toContain("/api/models?kind=reranking&refresh=true");
   });
 
   it("streams chat events and returns final payload", async () => {

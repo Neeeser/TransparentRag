@@ -44,7 +44,9 @@ from app.pipelines.nodes.retrieval import (
     RetrieverConfig,
     VectorRetrieverNode,
 )
+from app.pipelines.payloads import TokenizerSpec
 from app.pipelines.registry import NodeRegistry
+from app.pipelines.resolution import resolve_static_definition
 from app.pipelines.template import resolve_collection_template
 from app.schemas.enums import IndexBackend
 from app.services.app_config import get_app_config
@@ -79,6 +81,7 @@ class IngestionPipelineSettings:  # pylint: disable=too-many-instance-attributes
     chunk_strategy: models.ChunkStrategy
     chunk_size: int
     chunk_overlap: int
+    tokenizer: TokenizerSpec
     embedding_model: str
     backend: IndexBackend
     index_name: str
@@ -143,40 +146,33 @@ def _resolve_node_config(
     return model.model_validate(node.config if node else {})
 
 
-def _fixed_chunker_classes(
-    registry: NodeRegistry,
-) -> list[type[BaseChunkerNode[FixedChunkerConfig]]]:
-    """Return the registry's fixed-strategy chunker node classes.
-
-    `ChunkerNode` (the configurable-strategy variant) is excluded here --
-    `_resolve_chunker_config` falls back to it separately via
-    `_resolve_node_config`.
-    """
-    classes: list[type[BaseChunkerNode[FixedChunkerConfig]]] = []
-    for node_type in registry.node_types():
-        node_cls = registry.get_node_class(node_type)
-        if node_cls is None or node_cls is ChunkerNode:
-            continue
-        if issubclass(node_cls, BaseChunkerNode):
-            classes.append(node_cls)
-    return classes
-
-
 def _resolve_chunker_config(
     definition: PipelineDefinition,
     registry: NodeRegistry,
 ) -> ChunkerConfig:
-    """Resolve chunking config from whichever chunker node is present."""
-    for node_cls in _fixed_chunker_classes(registry):
-        for candidate in definition.nodes:
-            if candidate.type == node_cls.type:
-                config = FixedChunkerConfig.model_validate(candidate.config)
-                return ChunkerConfig(
-                    strategy=node_cls.strategy,
-                    chunk_size=config.chunk_size,
-                    chunk_overlap=config.chunk_overlap,
-                )
-    return _resolve_node_config(definition, ChunkerNode.type, ChunkerConfig)
+    """Resolve config from the definition's registered chunker."""
+    for candidate in definition.nodes:
+        node_cls = registry.get_node_class(candidate.type)
+        if node_cls is None or not issubclass(node_cls, BaseChunkerNode):
+            continue
+        if node_cls is ChunkerNode:
+            return ChunkerConfig.model_validate(candidate.config)
+        config = FixedChunkerConfig.model_validate(candidate.config)
+        return ChunkerConfig(
+            strategy=node_cls.strategy,
+            chunk_size=config.chunk_size,
+            chunk_overlap=config.chunk_overlap,
+            tokenizer=config.tokenizer,
+            hf_model_id=config.hf_model_id,
+        )
+    return ChunkerConfig()
+
+
+def _resolve_tokenizer_spec(
+    config: ChunkerConfig,
+) -> TokenizerSpec:
+    """Build the ingestion tokenizer spec from the resolved chunker config."""
+    return TokenizerSpec(kind=config.tokenizer, hf_model_id=config.hf_model_id)
 
 
 def _resolve_backend_node_config(
@@ -258,7 +254,9 @@ def resolve_definition_backend(
     base_class: type[BaseIndexerNode] | type[BaseRetrieverNode] = (
         BaseIndexerNode if kind is models.PipelineKind.INGESTION else BaseRetrieverNode
     )
-    backend, _, _ = _resolve_backend_node_config(definition, registry, base_class)
+    backend, _, _ = _resolve_backend_node_config(
+        resolve_static_definition(definition), registry, base_class
+    )
     return backend
 
 
@@ -280,7 +278,13 @@ def resolve_ingestion_settings(
     collection: models.Collection,
     registry: NodeRegistry,
 ) -> IngestionPipelineSettings:
-    """Resolve ingestion settings from a pipeline definition."""
+    """Resolve ingestion settings from a pipeline definition.
+
+    Expressions resolve against the static default environment first — the
+    taint rule guarantees identity fields never depend on runtime input, so
+    the static view is the authoritative one for index targets and purges.
+    """
+    definition = resolve_static_definition(definition)
     chunker = _resolve_chunker_config(definition, registry)
     embedder = _resolve_node_config(definition, EmbedderNode.type, EmbedderConfig)
     backend, indexer_model, dense_found = _resolve_backend_node_config(
@@ -296,6 +300,7 @@ def resolve_ingestion_settings(
         chunk_strategy=chunker.strategy,
         chunk_size=chunker.chunk_size,
         chunk_overlap=chunker.chunk_overlap,
+        tokenizer=_resolve_tokenizer_spec(chunker),
         embedding_model=embedder.model_name,
         embedding_connection_id=embedder.connection_id,
         backend=backend,
@@ -316,7 +321,12 @@ def resolve_retrieval_settings(
     collection: models.Collection,
     registry: NodeRegistry,
 ) -> RetrievalPipelineSettings:
-    """Resolve retrieval settings from a pipeline definition."""
+    """Resolve retrieval settings from a pipeline definition.
+
+    Expressions resolve against the static default environment first (see
+    `resolve_ingestion_settings`).
+    """
+    definition = resolve_static_definition(definition)
     backend, retriever_model, dense_found = _resolve_backend_node_config(
         definition, registry, BaseRetrieverNode
     )

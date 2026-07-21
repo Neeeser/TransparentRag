@@ -118,3 +118,4 @@ def test_setup_bootstrap_returns_the_created_collection(
     assert body["name"] == "First"
     assert body["ingestion_pipeline_id"] is not None
     assert body["retrieval_pipeline_id"] is not None
+    assert response.json()["warnings"]

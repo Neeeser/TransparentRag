@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+from uuid import UUID, uuid4
+
 import pytest
 
+from app.pipelines.defaults import (
+    build_default_ingestion_pipeline,
+    build_default_retrieval_pipeline,
+)
 from app.pipelines.definition import (
     PipelineDefinition,
     PipelineEdgeDefinition,
@@ -12,11 +18,13 @@ from app.pipelines.definition import (
 from app.pipelines.execution.context import PipelineRunContext
 from app.pipelines.node import PipelineNodeBase
 from app.pipelines.nodes.embedding import EmbedderNode
-from app.pipelines.nodes.indexing import IndexerConfig, IndexerNode
+from app.pipelines.nodes.indexing import IndexerConfig
+from app.pipelines.nodes.indexing_legacy import IndexerNode
 from app.pipelines.nodes.io import RetrievalInputNode
+from app.pipelines.nodes.reranking import RerankerConfig, RerankerNode
 from app.pipelines.nodes.retrieval import PineconeRetrieverNode, RetrieverConfig
 from app.pipelines.ports import NodePort
-from app.pipelines.registry import NodeRegistry
+from app.pipelines.registry import NodeRegistry, default_registry
 from app.pipelines.validation import PipelineValidator
 from tests.utils.providers import TEST_EMBED_CONNECTION_ID
 
@@ -147,6 +155,17 @@ def test_node_registry_create_unknown_type_raises() -> None:
     registry = NodeRegistry([_InputNode])
     with pytest.raises(ValueError, match="Unknown node type"):
         registry.create(PipelineNodeDefinition(id="x", type="missing", name="Missing"))
+
+
+def test_default_registry_exposes_only_provider_backed_reranker_config() -> None:
+    registry = default_registry()
+
+    assert "reranker.model" in registry.node_types()
+    assert "reranker.cross_encoder" not in registry.node_types()
+    spec = registry.get_spec("reranker.model")
+    assert spec is not None
+    assert set(spec.config_schema["properties"]) == {"connection_id", "model_name"}
+    assert spec.default_config == {"connection_id": None, "model_name": ""}
 
 
 def test_pipeline_validator_collects_errors() -> None:
@@ -595,3 +614,171 @@ def test_pipeline_validator_flags_unconfigured_embedder() -> None:
     assert result.valid is False
     assert any("no provider connection" in error for error in result.errors)
     assert any("no embedding model" in error for error in result.errors)
+
+
+def test_pipeline_validator_flags_unconfigured_reranker() -> None:
+    definition = PipelineDefinition(
+        nodes=[PipelineNodeDefinition(id="reranker", type="reranker.model", name="Reranker")]
+    )
+
+    result = PipelineValidator(NodeRegistry([RerankerNode])).validate(definition)
+
+    assert result.valid is False
+    assert any("no provider connection" in error for error in result.errors)
+    assert any("no reranking model" in error for error in result.errors)
+
+
+def test_reranker_validation_accepts_provider_and_model() -> None:
+    node = PipelineNodeDefinition(
+        id="reranker",
+        type="reranker.model",
+        name="Reranker",
+        config={"connection_id": str(uuid4()), "model_name": "rerank-model"},
+    )
+    definition = PipelineDefinition(nodes=[node])
+    registry = NodeRegistry([RerankerNode])
+
+    assert RerankerNode.validation_issues_for_node(node, definition, registry) == []
+    assert set(RerankerConfig.model_fields) == {"connection_id", "model_name"}
+
+
+@pytest.mark.parametrize(
+    ("tokenizer", "tokenizer_config", "label"),
+    [
+        ("wordpiece", {}, "WordPiece"),
+        ("cl100k", {}, "cl100k"),
+        ("huggingface", {"hf_model_id": "owner/model"}, "HuggingFace"),
+    ],
+)
+def test_embedding_limit_is_an_error_for_real_tokenizers(
+    tokenizer: str,
+    tokenizer_config: dict[str, str],
+    label: str,
+) -> None:
+    connection_id = uuid4()
+    definition = build_default_ingestion_pipeline(
+        embedding_connection_id=connection_id,
+        embedding_model="sentence-transformers/all-minilm-l6-v2",
+        chunk_size=300,
+        chunk_overlap=200,
+    )
+    chunker = next(node for node in definition.nodes if node.id == "chunk-document")
+    chunker.config = {
+        **chunker.config,
+        "tokenizer": tokenizer,
+        **tokenizer_config,
+    }
+
+    result = PipelineValidator(
+        default_registry(),
+        embedding_input_limit=lambda resolved_id, model: (
+            512
+            if resolved_id == connection_id
+            and model == "sentence-transformers/all-minilm-l6-v2"
+            else None
+        ),
+    ).validate(definition)
+
+    issue = next(
+        item for item in result.issues if item.code == "embedding_input_limit_exceeded"
+    )
+    assert result.valid is False
+    assert issue.severity == "error"
+    assert issue.allowed_max == 496
+    assert issue.configured_value == 500
+    assert issue.node_id == "chunk-document"
+    assert issue.field == "chunk_size"
+    assert label in issue.message
+
+
+def test_embedding_limit_remains_a_warning_for_whitespace_tokenizer() -> None:
+    connection_id = uuid4()
+    definition = build_default_ingestion_pipeline(
+        embedding_connection_id=connection_id,
+        embedding_model="sentence-transformers/all-minilm-l6-v2",
+        chunk_size=300,
+        chunk_overlap=200,
+    )
+    chunker = next(node for node in definition.nodes if node.id == "chunk-document")
+    chunker.config = {**chunker.config, "tokenizer": "whitespace"}
+
+    result = PipelineValidator(
+        default_registry(), embedding_input_limit=lambda _connection_id, _model: 512
+    ).validate(definition)
+
+    issue = next(
+        item for item in result.issues if item.code == "embedding_input_limit_exceeded"
+    )
+    assert result.valid is True
+    assert issue.severity == "warning"
+    assert "whitespace" in issue.message
+    assert "undercounts" in issue.message
+
+
+def test_invalid_huggingface_config_does_not_mask_its_field_issue() -> None:
+    definition = build_default_ingestion_pipeline(
+        embedding_connection_id=uuid4(),
+        embedding_model="sentence-transformers/all-minilm-l6-v2",
+        chunk_size=300,
+        chunk_overlap=200,
+    )
+    chunker = next(node for node in definition.nodes if node.id == "chunk-document")
+    chunker.config = {**chunker.config, "tokenizer": "huggingface"}
+
+    result = PipelineValidator(
+        default_registry(), embedding_input_limit=lambda _connection_id, _model: 512
+    ).validate(definition)
+
+    assert result.valid is False
+    issue = next(item for item in result.issues if item.field == "hf_model_id")
+    assert "tokenizer configuration" in issue.message
+
+
+def test_invalid_chunk_size_is_not_reported_as_a_tokenizer_issue() -> None:
+    definition = build_default_ingestion_pipeline(
+        embedding_connection_id=uuid4(),
+        embedding_model="sentence-transformers/all-minilm-l6-v2",
+    )
+    chunker = next(node for node in definition.nodes if node.id == "chunk-document")
+    chunker.config = {**chunker.config, "chunk_size": 0}
+
+    result = PipelineValidator(default_registry()).validate(definition)
+
+    issue = next(item for item in result.issues if item.field == "chunk_size")
+    assert result.valid is False
+    assert "greater than 0" in issue.message
+    assert all(item.field not in {"tokenizer", "hf_model_id"} for item in result.issues)
+
+
+def test_unknown_embedding_limit_warns_only_on_confirmed_chunker_path() -> None:
+    connection_id = uuid4()
+    ingestion = build_default_ingestion_pipeline(
+        embedding_connection_id=connection_id,
+        embedding_model="unknown/model",
+    )
+    retrieval = build_default_retrieval_pipeline(
+        embedding_connection_id=connection_id,
+        embedding_model="unknown/model",
+    )
+    calls: list[tuple[UUID, str]] = []
+
+    def resolve_limit(resolved_id: UUID, model: str) -> None:
+        calls.append((resolved_id, model))
+        return None
+
+    ingestion_result = PipelineValidator(
+        default_registry(), embedding_input_limit=resolve_limit
+    ).validate(ingestion)
+    retrieval_result = PipelineValidator(
+        default_registry(), embedding_input_limit=resolve_limit
+    ).validate(retrieval)
+
+    assert any(
+        issue.code == "embedding_input_limit_unknown"
+        for issue in ingestion_result.issues
+    )
+    assert not any(
+        issue.code == "embedding_input_limit_unknown"
+        for issue in retrieval_result.issues
+    )
+    assert calls == [(connection_id, "unknown/model")]

@@ -172,11 +172,11 @@ const NODE_CONTENT: Record<string, NodeContent> = {
       output: "Fused results: [chunk B, chunk A, chunk C]",
     },
   },
-  "reranker.cross_encoder": {
+  "reranker.model": {
     description:
-      "When enabled, re-scores the retrieved matches with a cross-encoder model and reorders the list. When disabled, it passes results through unchanged.",
+      "Re-scores every retrieved candidate with the selected model on the configured provider connection and returns the complete reordered list.",
     example: {
-      input: "Results: [chunk B (0.71), chunk A (0.68)]\nReranker enabled",
+      input: "Results: [chunk B (0.71), chunk A (0.68)]",
       output: "Results: [chunk A (0.88), chunk B (0.74)]",
     },
   },

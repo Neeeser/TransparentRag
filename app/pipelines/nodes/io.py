@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.pipelines.execution.context import PipelineRunContext
+from app.pipelines.expressions import ExpressionError, ModelValue, evaluate, parse
 from app.pipelines.node import PipelineNodeBase
 from app.pipelines.payloads import (
     IndexingPayload,
@@ -21,9 +22,13 @@ from app.pipelines.tracing.summaries import (
     summarize_matches,
     summarize_source,
     summarize_text,
+    trace_chunk_items,
+    trace_match_items,
 )
+from app.pipelines.variables import PipelineOutputField
 from app.retrieval.models import DocumentMetadata, QueryRequest
 from app.retrieval.parsers.base import DocumentSource
+from app.services.files import FileSystemService
 
 
 class IngestionInputConfig(BaseModel):
@@ -52,11 +57,18 @@ class IngestionInputNode(PipelineNodeBase[IngestionInputConfig]):
             raise ValueError("Ingestion context is missing a document record.")
         if not context.document.source_path:
             raise ValueError("Document source path is not set for ingestion.")
+        display_path = context.document.name
+        if context.document.file_id:
+            file_service = FileSystemService(context.session)
+            file_node = file_service.nodes.get(context.document.file_id)
+            if file_node:
+                display_path = file_service.read_node(file_node).path
         metadata = DocumentMetadata(
             data={
                 "collection_id": str(context.collection.id),
                 "document_id": str(context.document.id),
                 "filename": context.document.name,
+                "path": display_path,
             }
         )
         source = DocumentSource(
@@ -127,12 +139,25 @@ class IngestionOutputNode(PipelineNodeBase[IngestionOutputConfig]):
                     value={"count": len(payload.chunks)},
                 )
                 for index, payload in enumerate(payloads, start=1)
+            ]
+            + [
+                NodeTraceValue(
+                    label=f"Indexed items (branch {index})",
+                    value=trace_chunk_items(payload.chunks),
+                    kind="items",
+                )
+                for index, payload in enumerate(payloads, start=1)
             ],
             outputs=[
                 NodeTraceValue(
                     label="Result",
                     value={"count": len(merged.chunks)},
-                )
+                ),
+                NodeTraceValue(
+                    label="Result items",
+                    value=trace_chunk_items(merged.chunks),
+                    kind="items",
+                ),
             ],
         )
 
@@ -168,7 +193,17 @@ class IngestionOutputNode(PipelineNodeBase[IngestionOutputConfig]):
 
 
 class RetrievalInputConfig(BaseModel):
-    """Configuration for retrieval input nodes."""
+    """Configuration for retrieval input nodes.
+
+    `arguments` lists the names of input-source variables (declared on
+    `PipelineDefinition.variables`) this pipeline accepts from callers — the
+    search page renders a control per accepted variable and the chat tool
+    schema publishes the `expose_to_llm` ones. The built-in `query` argument
+    is implicit and always present. Definition/bounds/default live on the
+    variable, never here.
+    """
+
+    arguments: list[str] = Field(default_factory=list)
 
 
 class RetrievalInputNode(PipelineNodeBase[RetrievalInputConfig]):
@@ -184,13 +219,18 @@ class RetrievalInputNode(PipelineNodeBase[RetrievalInputConfig]):
     config_model = RetrievalInputConfig
 
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
-        """Create a QueryRequest from context."""
+        """Create a QueryRequest from context.
+
+        `context.top_k` is the run's effective depth: `PipelineRunner.start`
+        already replaced the legacy value with a declared `top_k` argument or
+        variable when one exists, so this node (and the fusion fallback) read
+        one agreed value.
+        """
         if context.query is None:
             raise ValueError("Retrieval context is missing a query string.")
-        top_k = context.top_k or 5
         request = QueryRequest(
             text=context.query,
-            top_k=top_k,
+            top_k=context.top_k or 5,
             namespace=None,
         )
         return {"request": RetrievalRequestPayload(request=request)}
@@ -219,7 +259,14 @@ class RetrievalInputNode(PipelineNodeBase[RetrievalInputConfig]):
 
 
 class RetrievalOutputConfig(BaseModel):
-    """Configuration for retrieval output nodes."""
+    """Configuration for retrieval output nodes.
+
+    `outputs` declares extra named expressions evaluated against the run's
+    variable environment and returned beside the results (e.g. the effective
+    over-retrieval depth). Purely additive: an empty list is today's behavior.
+    """
+
+    outputs: list[PipelineOutputField] = Field(default_factory=list)
 
 
 class RetrievalOutputNode(PipelineNodeBase[RetrievalOutputConfig]):
@@ -235,9 +282,36 @@ class RetrievalOutputNode(PipelineNodeBase[RetrievalOutputConfig]):
     config_model = RetrievalOutputConfig
 
     def run(self, inputs: dict[str, object], context: PipelineRunContext) -> dict[str, object]:
-        """Return the retrieval payload."""
+        """Return the retrieval payload, with declared outputs evaluated."""
         payload = RetrievalPayload.model_validate(inputs.get("results"))
+        outputs = self._evaluate_outputs(context)
+        if outputs:
+            payload = payload.model_copy(update={"outputs": outputs})
         return {"result": payload}
+
+    def _evaluate_outputs(
+        self, context: PipelineRunContext
+    ) -> dict[str, int | float | str | bool]:
+        """Evaluate the config's output expressions against the run environment.
+
+        Validation checks these statically; a failure here (or a bare model
+        value, which has no scalar wire shape) is an honest run error.
+        """
+        if not self.config.outputs or context.variables is None:
+            return {}
+        results: dict[str, int | float | str | bool] = {}
+        for output in self.config.outputs:
+            try:
+                value = evaluate(parse(output.expression), context.variables.values)
+            except ExpressionError as error:
+                raise ValueError(f"Output '{output.name}': {error.message}") from error
+            if isinstance(value, ModelValue):
+                raise ValueError(
+                    f"Output '{output.name}': dereference the model variable with "
+                    ".connection_id or .model_name."
+                )
+            results[output.name] = value
+        return results
 
     def summarize_io(
         self,
@@ -246,17 +320,33 @@ class RetrievalOutputNode(PipelineNodeBase[RetrievalOutputConfig]):
     ) -> NodeTraceSummary:
         """Summarize retrieval output payloads."""
         payload = RetrievalPayload.model_validate(inputs.get("results"))
+        result_payload = RetrievalPayload.model_validate(outputs.get("result"))
+        output_values = [
+            NodeTraceValue(
+                label="Result",
+                value=summarize_matches(result_payload.response.matches),
+            ),
+            NodeTraceValue(
+                label="Result items",
+                value=trace_match_items(result_payload.response.matches),
+                kind="items",
+            ),
+        ]
+        if result_payload.outputs:
+            output_values.append(
+                NodeTraceValue(label="Outputs", value=dict(result_payload.outputs))
+            )
         return NodeTraceSummary(
             inputs=[
                 NodeTraceValue(
                     label="Matches",
                     value=summarize_matches(payload.response.matches),
-                )
-            ],
-            outputs=[
+                ),
                 NodeTraceValue(
-                    label="Result",
-                    value=summarize_matches(payload.response.matches),
-                )
+                    label="Match items",
+                    value=trace_match_items(payload.response.matches),
+                    kind="items",
+                ),
             ],
+            outputs=output_values,
         )

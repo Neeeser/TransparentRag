@@ -1,27 +1,41 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
-import { VariablesTree } from "@/components/traces/debugger/VariablesTree";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { ParameterFieldCard, ParameterInput } from "@/components/ui/parameter-controls";
-import { modelAvailability } from "@/lib/model-catalog-cache";
+import { ParameterFieldCard } from "@/components/ui/parameter-controls";
+import { expressionSource } from "@/lib/expressions";
 import { useAppConfig } from "@/providers/config-provider";
 
-import { EmbeddingModelSelectorCard } from "./EmbeddingModelSelectorCard";
+import { ChunkerTokenizerFields } from "./ChunkerTokenizerFields";
+import { ConfigFieldRow } from "./ConfigFieldRow";
 import { IndexBackendIcon } from "./icons/IndexBackendIcon";
 import {
-  buildPipelineConfigFields,
-  coerceFieldValue,
-  formatConfigValue,
-  getInputValue,
-} from "./lib/pipeline-config";
+  ArgumentsPicker,
+  OutputsEditor,
+  acceptedNamesFromConfig,
+  outputsFromConfig,
+} from "./IoDeclarationEditors";
+import { buildPipelineConfigFields, coerceFieldValue } from "./lib/pipeline-config";
 import { CREATE_SENTINEL } from "./lib/pipeline-kinds";
 import { sortIndexesByName } from "./lib/pipeline-utils";
+import { RERANKER_NODE_TYPE } from "./lib/reranking";
+import {
+  RETRIEVAL_INPUT_TYPE,
+  RETRIEVAL_OUTPUT_TYPE,
+  buildStaticEnvironment,
+} from "./lib/variable-env";
+import { NodeModelSelectors } from "./NodeModelSelectors";
 
 import type { PipelineConfigField } from "./lib/pipeline-config";
+import type { NodeModelCatalogProps } from "./NodeModelSelectors";
 import type { PipelineNodeData } from "./PipelineNode";
-import type { CatalogModel, IndexBackend, ModelCatalogResponse, VectorIndex } from "@/lib/types";
+import type {
+  IndexBackend,
+  PipelineValidationIssue,
+  PipelineVariable,
+  VectorIndex,
+} from "@/lib/types";
 import type { Node } from "@xyflow/react";
 
 export type NodeConfigSectionsProps = {
@@ -29,15 +43,11 @@ export type NodeConfigSectionsProps = {
   onConfigChange: (config: Record<string, unknown>) => void;
   isPreview: boolean;
   validationErrors: string[];
+  validationIssues?: PipelineValidationIssue[];
   vectorIndexes: VectorIndex[];
   onOpenIndexManager?: () => void;
-  embeddingModels: CatalogModel[];
-  embeddingCatalog: ModelCatalogResponse | null;
-  embeddingModelsLoading: boolean;
-  embeddingModelsError: string | null;
-  onCatalogVisible?: () => void;
-  onSelectEmbeddingModel: (model: CatalogModel) => void;
-};
+  variables: PipelineVariable[];
+} & NodeModelCatalogProps;
 
 const BACKEND_OPTIONS: Array<{ value: IndexBackend; label: string; hint: string }> = [
   { value: "pgvector", label: "pgvector", hint: "Built-in Postgres" },
@@ -55,23 +65,25 @@ export function NodeConfigSections({
   onConfigChange,
   isPreview,
   validationErrors,
+  validationIssues = [],
   vectorIndexes,
   onOpenIndexManager,
-  embeddingModels,
-  embeddingCatalog,
-  embeddingModelsLoading,
-  embeddingModelsError,
-  onCatalogVisible,
-  onSelectEmbeddingModel,
+  variables,
+  ...modelCatalogProps
 }: NodeConfigSectionsProps) {
   const { config: appConfig } = useAppConfig();
   const nodeType = node.data.nodeType;
   const config = useMemo<Record<string, unknown>>(() => node.data.config ?? {}, [node]);
   const isEmbedder = nodeType === "embedder.text";
+  const isReranker = nodeType === RERANKER_NODE_TYPE;
+  const isChunker = nodeType.startsWith("chunker.");
+  const isRetrievalInput = nodeType === RETRIEVAL_INPUT_TYPE;
+  const isRetrievalOutput = nodeType === RETRIEVAL_OUTPUT_TYPE;
 
-  useEffect(() => {
-    if (isEmbedder) onCatalogVisible?.();
-  }, [isEmbedder, onCatalogVisible]);
+  // The static expression environment — built from the definition's
+  // variables alone (input-source ones included).
+  const expressionEnv = useMemo(() => buildStaticEnvironment(variables), [variables]);
+
   const isVectorNode = nodeType.startsWith("indexer.") || nodeType.startsWith("retriever.");
   // BM25 nodes target sparse (lexical) indexes; dense nodes never list them.
   const isBm25Node = nodeType.endsWith(".bm25");
@@ -88,12 +100,20 @@ export function NodeConfigSections({
   const filteredFields = fields.filter((field) => {
     const embedderHidden =
       isEmbedder && ["connection_id", "model_name", "dimension"].includes(field.key);
+    const rerankerHidden = isReranker && ["connection_id", "model_name"].includes(field.key);
     const vectorHidden = isVectorNode && ["backend", "index_name", "dimension"].includes(field.key);
-    return !(embedderHidden || vectorHidden);
+    const chunkerTokenizerField = isChunker && ["tokenizer", "hf_model_id"].includes(field.key);
+    const declarationField =
+      (isRetrievalInput && field.key === "arguments") ||
+      (isRetrievalOutput && field.key === "outputs");
+    return !(
+      embedderHidden ||
+      rerankerHidden ||
+      vectorHidden ||
+      chunkerTokenizerField ||
+      declarationField
+    );
   });
-  const selectedEmbeddingModelKey = typeof config.model_name === "string" ? config.model_name : "";
-  const selectedEmbeddingConnectionId =
-    typeof config.connection_id === "string" ? config.connection_id : null;
   const backendIndexes = useMemo(
     () =>
       sortIndexesByName(
@@ -108,15 +128,18 @@ export function NodeConfigSections({
   const indexValue = typeof config.index_name === "string" ? config.index_name : "";
   const selectedIndex = backendIndexes.find((index) => index.name === indexValue) ?? null;
 
-  const handleConfigChange = (field: PipelineConfigField, rawValue: string | boolean) => {
-    const nextValue = coerceFieldValue(field, rawValue);
+  const setConfigValue = (key: string, value: unknown | undefined) => {
     const nextConfig = { ...config };
-    if (nextValue === undefined) {
-      delete nextConfig[field.key];
+    if (value === undefined) {
+      delete nextConfig[key];
     } else {
-      nextConfig[field.key] = nextValue;
+      nextConfig[key] = value;
     }
     onConfigChange(nextConfig);
+  };
+
+  const handleConfigChange = (field: PipelineConfigField, rawValue: string | boolean) => {
+    setConfigValue(field.key, coerceFieldValue(field, rawValue));
   };
 
   const handleBackendChange = (backend: IndexBackend) => {
@@ -149,21 +172,63 @@ export function NodeConfigSections({
     onConfigChange(nextConfig);
   };
 
+  const modelVariables = variables.filter((variable) => variable.type === "model");
+  // A model binding writes both fields as member-access expressions in one
+  // move; the bound variable's name is recovered from the connection_id one.
+  const boundModelVariable = (() => {
+    const source = expressionSource(config.connection_id);
+    const match = source?.match(/^([a-z_][a-z0-9_]*)\.connection_id$/);
+    return match ? match[1] : null;
+  })();
+
+  const handleModelBinding = (name: string) => {
+    const nextConfig = { ...config };
+    if (!name) {
+      delete nextConfig.connection_id;
+      delete nextConfig.model_name;
+    } else {
+      nextConfig.connection_id = { $expr: `${name}.connection_id` };
+      nextConfig.model_name = { $expr: `${name}.model_name` };
+    }
+    delete nextConfig.dimension;
+    onConfigChange(nextConfig);
+  };
+
   return (
     <div className="space-y-4">
-      {isEmbedder ? (
-        <EmbeddingModelSelectorCard
-          models={embeddingModels}
-          selectedModelKey={selectedEmbeddingModelKey}
-          selectedConnectionId={selectedEmbeddingConnectionId}
-          selectedAvailability={modelAvailability(
-            embeddingCatalog,
-            selectedEmbeddingConnectionId,
-            selectedEmbeddingModelKey || null,
-          )}
-          modelsLoading={embeddingModelsLoading}
-          modelsError={embeddingModelsError}
-          onSelectModel={onSelectEmbeddingModel}
+      <NodeModelSelectors
+        nodeType={nodeType}
+        config={config}
+        embeddingBoundToVariable={Boolean(boundModelVariable)}
+        {...modelCatalogProps}
+      />
+      {isEmbedder && modelVariables.length > 0 ? (
+        <ParameterFieldCard
+          label="Model variable"
+          description="Bind the model to a pipeline variable instead of picking one here."
+        >
+          <CustomSelect
+            value={boundModelVariable ?? ""}
+            aria-label="Model variable binding"
+            placeholder="Pick model directly"
+            disabled={isPreview}
+            options={[
+              { value: "", label: "Pick model directly" },
+              ...modelVariables.map((variable) => ({
+                value: variable.name,
+                label: variable.name,
+              })),
+            ]}
+            onValueChange={handleModelBinding}
+          />
+        </ParameterFieldCard>
+      ) : null}
+      {isChunker ? (
+        <ChunkerTokenizerFields
+          config={config}
+          disabled={isPreview}
+          validationIssues={validationIssues}
+          onConfigChange={onConfigChange}
         />
       ) : null}
       {isVectorNode && backendSelectable ? (
@@ -251,40 +316,39 @@ export function NodeConfigSections({
           />
         </ParameterFieldCard>
       ) : null}
+      {isRetrievalInput ? (
+        <ArgumentsPicker
+          acceptedNames={acceptedNamesFromConfig(config)}
+          onChange={(names) => setConfigValue("arguments", names)}
+          variables={variables}
+          disabled={isPreview}
+        />
+      ) : null}
+      {isRetrievalOutput ? (
+        <OutputsEditor
+          outputs={outputsFromConfig(config)}
+          onChange={(outputs) => setConfigValue("outputs", outputs)}
+          env={expressionEnv}
+          disabled={isPreview}
+        />
+      ) : null}
       {filteredFields.length > 0 ? (
         <div className="space-y-3">
-          {filteredFields.map((field) => {
-            const value = getInputValue(field, config);
-            const helper =
-              field.defaultValue !== undefined
-                ? `Default: ${formatConfigValue(field.defaultValue)}`
-                : field.required
-                  ? "Required"
-                  : undefined;
-
-            return (
-              <ParameterFieldCard
-                key={field.key}
-                label={field.label}
-                description={field.description}
-                helper={helper}
-              >
-                <ParameterInput
-                  input={field.input}
-                  value={value}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  placeholder={field.placeholder}
-                  options={field.options}
-                  disabled={isPreview}
-                  onChange={(nextValue) => handleConfigChange(field, nextValue)}
-                />
-              </ParameterFieldCard>
-            );
-          })}
+          {filteredFields.map((field) => (
+            <ConfigFieldRow
+              key={field.key}
+              field={field}
+              nodeId={node.id}
+              config={config}
+              env={expressionEnv}
+              disabled={isPreview}
+              issue={validationIssues.find((item) => item.field === field.key)}
+              onValueChange={setConfigValue}
+              onLiteralChange={handleConfigChange}
+            />
+          ))}
         </div>
-      ) : !isEmbedder && !isVectorNode ? (
+      ) : !isEmbedder && !isReranker && !isVectorNode && !isRetrievalInput && !isRetrievalOutput ? (
         <p className="rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body">
           This node has no configurable settings.
         </p>
@@ -296,42 +360,6 @@ export function NodeConfigSections({
           ))}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/** The node's one-paragraph description, shown first under the drawer header. */
-export function NodeDescription({ node }: { node: Node<PipelineNodeData> }) {
-  return (
-    <p className="text-sm leading-relaxed text-body">
-      {node.data.description || "No description available."}
-    </p>
-  );
-}
-
-/**
- * Example input/output rendered with the trace viewer's VariablesTree so node
- * IO reads the same everywhere in the product.
- */
-export function NodeExampleSection({ node }: { node: Node<PipelineNodeData> }) {
-  const example = node.data.example;
-  if (!example) return null;
-  return (
-    <div className="space-y-4 border-t border-hairline pt-4">
-      <VariablesTree
-        title="Inputs"
-        tone="cyan"
-        summaryItems={[{ label: "example", value: example.input, kind: "text" }]}
-        ioRecords={[]}
-        emptySummaryLabel="No inputs recorded."
-      />
-      <VariablesTree
-        title="Outputs"
-        tone="violet"
-        summaryItems={[{ label: "example", value: example.output, kind: "text" }]}
-        ioRecords={[]}
-        emptySummaryLabel="No outputs recorded."
-      />
     </div>
   );
 }

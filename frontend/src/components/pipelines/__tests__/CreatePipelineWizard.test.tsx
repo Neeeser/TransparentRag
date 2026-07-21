@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreatePipelineWizard } from "@/components/pipelines/CreatePipelineWizard";
 import * as apiModule from "@/lib/api";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import {
   makeBackendInfo,
   makeCatalogModel,
   makeModelCatalog,
+  makeNodeSpec,
   makePineconeBackendInfo,
   makePipeline,
   makeVectorIndex,
@@ -19,6 +21,7 @@ import type { ComponentProps } from "react";
 const pipelineUtils = {
   buildDefaultDefinition: vi.fn(),
 };
+const flowPlayerSpy = vi.fn();
 const createPipelineLabel = "Create pipeline";
 const getNextButton = () => screen.getByRole("button", { name: "Next" });
 const EMBEDDING_SELECTOR_TEST_ID = "embedding-selector";
@@ -35,7 +38,13 @@ vi.mock("@/components/pipelines/lib/pipeline-utils", () => ({
   toFlowEdges: () => [],
 }));
 vi.mock("@/components/pipelines/flow/FlowPlayer", () => ({
-  FlowPlayer: () => <div data-testid="flow-player" />,
+  FlowPlayer: (props: object) => {
+    flowPlayerSpy(props);
+    return <div data-testid="flow-player" />;
+  },
+}));
+vi.mock("@/lib/use-prefers-reduced-motion", () => ({
+  usePrefersReducedMotion: vi.fn(() => false),
 }));
 vi.mock("@/components/pipelines/EmbeddingModelSelectorCard", () => ({
   EmbeddingModelSelectorCard: ({
@@ -56,6 +65,7 @@ vi.mock("@/components/pipelines/EmbeddingModelSelectorCard", () => ({
 }));
 
 const api = vi.mocked(apiModule);
+const prefersReducedMotion = vi.mocked(usePrefersReducedMotion);
 
 type WizardProps = ComponentProps<typeof CreatePipelineWizard>;
 
@@ -92,6 +102,8 @@ describe("CreatePipelineWizard", () => {
   const pipeline = makePipeline({ kind: "ingestion", definition: { nodes: [], edges: [] } });
 
   beforeEach(() => {
+    flowPlayerSpy.mockClear();
+    prefersReducedMotion.mockReturnValue(false);
     pipelineUtils.buildDefaultDefinition.mockReturnValue({ nodes: [], edges: [] });
   });
 
@@ -201,7 +213,7 @@ describe("CreatePipelineWizard", () => {
         indexDimension: 768,
         embeddingConnectionId: "conn-openrouter-1",
         embeddingModel: "emb-1",
-        chunkSize: 1024,
+        chunkSize: 512,
         chunkOverlap: 200,
         includeBm25: true,
         indexNameMaxLength: 45,
@@ -218,6 +230,36 @@ describe("CreatePipelineWizard", () => {
     await user.click(screen.getByRole("button", { name: createPipelineLabel }));
     expect(await screen.findByText("Unable to create pipeline.")).toBeInTheDocument();
   }, 15000);
+
+  it("derives initial chunking values from the backend node catalog", async () => {
+    const user = userEvent.setup();
+    api.createPipeline.mockResolvedValueOnce(pipeline);
+    renderWizard({
+      indexes: [makeVectorIndex({ name: "alpha", dimension: 768 })],
+      nodeSpecs: [
+        makeNodeSpec({
+          type: "chunker.token",
+          default_config: { chunk_size: 384, chunk_overlap: 48 },
+        }),
+      ],
+    });
+
+    await user.type(screen.getByPlaceholderText(/Research library/), "Pipe");
+    await user.click(getNextButton());
+    await chooseIndex(user, "alpha");
+    await user.click(getNextButton());
+    await user.click(screen.getByTestId(EMBEDDING_SELECTOR_TEST_ID));
+    await user.click(getNextButton());
+    await user.click(screen.getByRole("button", { name: createPipelineLabel }));
+
+    await waitFor(() =>
+      expect(pipelineUtils.buildDefaultDefinition).toHaveBeenCalledWith(
+        "ingestion",
+        "pgvector",
+        expect.objectContaining({ chunkSize: 384, chunkOverlap: 48 }),
+      ),
+    );
+  });
 
   it("applies chunking presets on the processing step", async () => {
     const user = userEvent.setup();
@@ -307,6 +349,47 @@ describe("CreatePipelineWizard", () => {
     expect(screen.getByText("Untitled")).toBeInTheDocument();
     expect(screen.getByText(/no index/)).toBeInTheDocument();
     expect(screen.getByText("Workspace default")).toBeInTheDocument();
+  });
+
+  it("previews the hybrid scaffold in topology order instead of serialized node order", async () => {
+    const user = userEvent.setup();
+    pipelineUtils.buildDefaultDefinition.mockReturnValue({
+      nodes: ["input", "semantic", "output", "lexical"].map((id) => ({
+        id,
+        type: `test.${id}`,
+        name: id,
+        config: {},
+      })),
+      edges: [
+        { id: "input-semantic", source: "input", target: "semantic" },
+        { id: "input-lexical", source: "input", target: "lexical" },
+        { id: "semantic-output", source: "semantic", target: "output" },
+        { id: "lexical-output", source: "lexical", target: "output" },
+      ],
+    });
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /Review/ }));
+
+    expect(flowPlayerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        steps: [
+          { nodeIds: ["input"] },
+          { nodeIds: ["lexical", "semantic"] },
+          { nodeIds: ["output"] },
+        ],
+      }),
+    );
+  });
+
+  it("renders the review graph without autoplay under reduced motion", async () => {
+    const user = userEvent.setup();
+    prefersReducedMotion.mockReturnValue(true);
+    renderWizard();
+
+    await user.click(screen.getByRole("button", { name: /Review/ }));
+
+    expect(flowPlayerSpy).toHaveBeenLastCalledWith(expect.objectContaining({ autoPlay: false }));
   });
 });
 

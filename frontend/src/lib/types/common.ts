@@ -29,6 +29,7 @@ export interface User {
   last_used_tool_collection_ids?: UUID[] | null;
   run_settings_order?: RunSettingsSectionKey[] | null;
   remember_session_days: 30 | 90 | 180;
+  remember_hf_tokenizer_downloads: boolean;
   created_at: string;
   updated_at: string;
 }

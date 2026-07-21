@@ -64,6 +64,12 @@ class OpenRouterConnectionConfig(BaseModel):
     api_key: str = Field(min_length=1)
 
 
+class CohereConnectionConfig(BaseModel):
+    """Stored config for a Cohere connection."""
+
+    api_key: str = Field(min_length=1)
+
+
 class OllamaConnectionConfig(BaseModel):
     """Stored config for an Ollama connection."""
 
@@ -74,6 +80,22 @@ class OllamaConnectionConfig(BaseModel):
     @classmethod
     def normalize_base_url(cls, value: str) -> str:
         """Require an http(s) URL and strip the trailing slash."""
+        cleaned = value.strip().rstrip("/")
+        if not cleaned.startswith(("http://", "https://")):
+            raise ValueError("Base URL must start with http:// or https://.")
+        return cleaned
+
+
+class TEIConnectionConfig(BaseModel):
+    """Stored config for a Text Embeddings Inference connection."""
+
+    base_url: str = Field(min_length=1)
+    api_key: str | None = None
+
+    @field_validator("base_url")
+    @classmethod
+    def normalize_base_url(cls, value: str) -> str:
+        """Require an http(s) URL and strip trailing slashes."""
         cleaned = value.strip().rstrip("/")
         if not cleaned.startswith(("http://", "https://")):
             raise ValueError("Base URL must start with http:// or https://.")
@@ -114,6 +136,9 @@ class ConnectionRead(DateTimeConfigMixin, BaseModel):
     provider_type: ProviderType
     label: str
     kinds: list[ProviderKind]
+    # False when the stored config no longer validates: the row still lists
+    # (visible and deletable) but must not satisfy capability gates.
+    config_valid: bool = True
     config: dict[str, str]
     secrets_configured: dict[str, bool]
     created_at: datetime
@@ -144,8 +169,11 @@ class CatalogModel(BaseModel):
     name: str
     description: str | None = None
     context_length: int | None = None
+    max_input_tokens: int | None = None
     pricing: ModelPricing | None = None
     dimension: int | None = None
+    input_modalities: list[str] = Field(default_factory=list)
+    output_modalities: list[str] = Field(default_factory=list)
     supported_parameters: list[str] = Field(default_factory=list)
     default_parameters: dict[str, Any] | None = None
 
@@ -192,4 +220,5 @@ class ProviderCoverage(BaseModel):
 
     has_embedding: bool
     has_chat: bool
+    has_reranking: bool
     has_vector_store: bool

@@ -15,6 +15,7 @@ from sqlmodel import Session
 
 from app.db import models
 from app.db.repositories import (
+    ChunkRepository,
     DocumentRepository,
     PipelineRepository,
     PipelineRunRepository,
@@ -22,8 +23,11 @@ from app.db.repositories import (
     QueryRepository,
 )
 from app.pipelines.definition import PipelineDefinition
+from app.pipelines.tracing.summaries import ItemListTrace
 from app.schemas.traces import (
+    DocumentTraceResponse,
     EndToEndTraceResponse,
+    FocusedItemRead,
     PipelineNodeIORead,
     PipelineNodeRunRead,
     PipelineRunRead,
@@ -47,6 +51,7 @@ class TraceService:
         self._pipelines = PipelineRepository(session)
         self._versions = PipelineVersionRepository(session)
         self._documents = DocumentRepository(session)
+        self._chunks = ChunkRepository(session)
         self._queries = QueryRepository(session)
 
     def get_run_trace(self, run_id: UUID, user_id: UUID) -> PipelineTraceResponse:
@@ -64,6 +69,23 @@ class TraceService:
         if not document.ingestion_run_id:
             raise TraceNotFoundError("Trace not found.")
         return self.get_run_trace(document.ingestion_run_id, user_id)
+
+    def get_document_focused_trace(
+        self,
+        document_id: UUID,
+        user_id: UUID,
+        chunk_id: str | None = None,
+    ) -> DocumentTraceResponse:
+        """Return the ingestion trace with one chunk resolved for focus."""
+        trace = self.get_document_trace(document_id, user_id)
+        if not chunk_id:
+            return DocumentTraceResponse(trace=trace)
+        focused_item, context_items = self._resolve_focused_context(chunk_id, [trace], user_id)
+        return DocumentTraceResponse(
+            trace=trace,
+            focused_item=focused_item,
+            context_items=context_items,
+        )
 
     def get_query_event_trace(self, query_event_id: UUID, user_id: UUID) -> PipelineTraceResponse:
         """Return the retrieval trace for a query event owned by the user."""
@@ -90,7 +112,79 @@ class TraceService:
         """
         retrieval = self.get_query_event_trace(query_event_id, user_id)
         origin = self._resolve_origin(chunk_id, user_id) if chunk_id else None
-        return EndToEndTraceResponse(retrieval=retrieval, origin=origin)
+        focused_item = None
+        context_items: list[FocusedItemRead] = []
+        if chunk_id:
+            traces = [retrieval]
+            if origin:
+                traces.append(origin.trace)
+            focused_item, context_items = self._resolve_focused_context(chunk_id, traces, user_id)
+        return EndToEndTraceResponse(
+            retrieval=retrieval,
+            origin=origin,
+            focused_item=focused_item,
+            context_items=context_items,
+        )
+
+    def _resolve_focused_context(
+        self,
+        focused_id: str,
+        traces: list[PipelineTraceResponse],
+        user_id: UUID,
+    ) -> tuple[FocusedItemRead, list[FocusedItemRead]]:
+        """Resolve focus plus every recorded ±2 neighbor in one batch lookup."""
+        context_ids = self._context_item_ids(traces, focused_id)
+        requested_ids = list(dict.fromkeys([focused_id, *context_ids]))
+        positions: dict[str, tuple[UUID, int]] = {}
+        for item_id in requested_ids:
+            document_id_part, separator, index_part = item_id.partition(":")
+            if not separator:
+                continue
+            try:
+                positions[item_id] = (UUID(document_id_part), int(index_part))
+            except ValueError:
+                continue
+
+        stored = self._chunks.list_context_by_positions_for_user(positions.values(), user_id)
+        stored_by_position = {(item.document_id, item.chunk_index): item for item in stored}
+
+        def build_item(item_id: str) -> FocusedItemRead:
+            position = positions.get(item_id)
+            record = stored_by_position.get(position) if position else None
+            if not record:
+                return FocusedItemRead(id=item_id, status="missing")
+            return FocusedItemRead(
+                id=item_id,
+                status="resolved",
+                text=record.text,
+                document_id=record.document_id,
+                filename=record.filename,
+                chunk_index=record.chunk_index,
+                chunk_count=record.chunk_count,
+            )
+
+        return build_item(focused_id), [build_item(item_id) for item_id in context_ids]
+
+    @staticmethod
+    def _context_item_ids(traces: list[PipelineTraceResponse], focused_id: str) -> list[str]:
+        """Collect deduplicated ±2 neighbors around focus in recorded list order."""
+        context_ids: dict[str, None] = {}
+        for trace in traces:
+            for node_run in trace.node_runs:
+                values = [*node_run.summary.inputs, *node_run.summary.outputs]
+                for value in values:
+                    if value.kind != "items":
+                        continue
+                    item_list = ItemListTrace.model_validate(value.value)
+                    ids = [item.id for item in item_list.items]
+                    for focus_index, item_id in enumerate(ids):
+                        if item_id != focused_id:
+                            continue
+                        start = max(0, focus_index - 2)
+                        stop = focus_index + 3
+                        for neighbor_id in ids[start:stop]:
+                            context_ids.setdefault(neighbor_id, None)
+        return list(context_ids)
 
     def _resolve_origin(self, chunk_id: str, user_id: UUID) -> TraceOriginRead | None:
         """Resolve a chunk id back to its document's ingestion trace."""
@@ -131,8 +225,6 @@ class TraceService:
         return PipelineTraceResponse(
             run=PipelineRunRead.model_validate(run),
             definition=definition,
-            node_runs=[
-                PipelineNodeRunRead.model_validate(node_run) for node_run in node_runs
-            ],
+            node_runs=[PipelineNodeRunRead.model_validate(node_run) for node_run in node_runs],
             node_io=[PipelineNodeIORead.model_validate(io_record) for io_record in node_io],
         )

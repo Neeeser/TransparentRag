@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.schemas.collections import CollectionRead
 from app.schemas.enums import IndexBackend
+from app.schemas.pipelines import PipelineValidationIssueRead
 
 
 class SetupStatusRead(BaseModel):
@@ -30,7 +31,7 @@ class SetupBootstrapRequest(BaseModel):
     backend: IndexBackend
     index_name: str = Field(min_length=1, max_length=45)
     collection_name: str = Field(min_length=1, max_length=200)
-    chunk_size: int = Field(default=1024, gt=0)
+    chunk_size: int = Field(default=512, gt=0)
     chunk_overlap: int = Field(default=200, ge=0)
 
 
@@ -38,3 +39,4 @@ class SetupBootstrapResponse(BaseModel):
     """The first collection the wizard created, ready for uploads."""
 
     collection: CollectionRead
+    warnings: list[PipelineValidationIssueRead] = Field(default_factory=list)

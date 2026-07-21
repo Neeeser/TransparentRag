@@ -12,6 +12,7 @@ import {
   updatePipeline,
   validatePipeline,
 } from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 import { getErrorMessage } from "@/lib/errors";
 
 import type {
@@ -20,6 +21,7 @@ import type {
   Pipeline,
   PipelineDefinition,
   PipelineKind,
+  PipelineValidationIssue,
   PipelineVersion,
 } from "@/lib/types";
 
@@ -27,6 +29,9 @@ interface UsePipelinesParams {
   token: string | null;
   kind: PipelineKind;
 }
+
+/** Structural equality for API payloads (stable key order from the backend). */
+const sameContent = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export interface UsePipelinesResult {
   pipelines: Pipeline[];
@@ -38,6 +43,8 @@ export interface UsePipelinesResult {
   loading: boolean;
   saving: boolean;
   validating: boolean;
+  validationIssues: PipelineValidationIssue[];
+  clearValidationIssues: () => void;
   message: string | null;
   setMessage: (message: string | null) => void;
   changeSummary: string;
@@ -48,7 +55,7 @@ export interface UsePipelinesResult {
   handleDeletePipeline: (pipeline: Pipeline) => void;
   cancelDeletePipeline: () => void;
   handleConfirmDelete: () => Promise<void>;
-  handleSavePipeline: (definition: PipelineDefinition, fallbackSummary: string) => Promise<void>;
+  handleSavePipeline: (definition: PipelineDefinition, fallbackSummary: string) => Promise<boolean>;
   /** Silently persist a layout-only definition (node drags, auto-layout). */
   persistLayout: (definition: PipelineDefinition) => Promise<void>;
   handleActivateVersion: (version: PipelineVersion) => Promise<void>;
@@ -69,6 +76,7 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<PipelineValidationIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [changeSummary, setChangeSummary] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null);
@@ -78,13 +86,20 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
   const layoutSaveInFlight = useRef(false);
   const pendingLayout = useRef<PipelineDefinition | null>(null);
 
+  // Background reloads (the auth provider rotates the token every 12 minutes)
+  // must be invisible: keep the user's selection, keep object identities for
+  // unchanged content (PipelineBuilder's canvas-seeding effect keys on
+  // nodeSpecs — a fresh identity reseeds the canvas and wipes unsaved edits),
+  // and don't flip `loading`, which unmounts the editor behind a spinner.
+  const loadedKindRef = useRef<PipelineKind | null>(null);
+
   useEffect(() => {
     const authToken = token ?? "";
     if (!authToken) return;
     let cancelled = false;
 
     async function load() {
-      setLoading(true);
+      if (loadedKindRef.current !== kind) setLoading(true);
       try {
         const [pipelinesResponse, nodesResponse, collectionsResponse] = await Promise.all([
           fetchPipelines(authToken, kind),
@@ -93,9 +108,18 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
         ]);
         if (cancelled) return;
         setPipelines(pipelinesResponse);
-        setNodeSpecs(nodesResponse);
+        setNodeSpecs((previous) =>
+          sameContent(previous, nodesResponse) ? previous : nodesResponse,
+        );
         setCollections(collectionsResponse);
-        setSelectedPipeline(pipelinesResponse[0] ?? null);
+        setSelectedPipeline((previous) => {
+          const match = previous
+            ? pipelinesResponse.find((pipeline) => pipeline.id === previous.id)
+            : undefined;
+          if (previous && match && sameContent(previous, match)) return previous;
+          return match ?? pipelinesResponse[0] ?? null;
+        });
+        loadedKindRef.current = kind;
       } catch (error) {
         if (!cancelled) {
           setMessage(getErrorMessage(error, "Unable to load pipelines."));
@@ -162,6 +186,15 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     setPipelines((prev) => [created, ...prev]);
     setSelectedPipeline(created);
     setChangeSummary("");
+    setValidationIssues(created.validation_issues ?? []);
+    const warnings = (created.validation_issues ?? []).filter(
+      (issue) => issue.severity === "warning",
+    );
+    setMessage(
+      warnings.length > 0
+        ? `Pipeline created with warnings: ${warnings.map((issue) => issue.message).join(" ")}`
+        : "Pipeline created.",
+    );
   };
 
   const handleDeletePipeline = (pipeline: Pipeline) => {
@@ -204,14 +237,16 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
 
   const handleSavePipeline = async (definition: PipelineDefinition, fallbackSummary: string) => {
     const authToken = token ?? "";
-    if (!authToken || !selectedPipeline) return;
+    if (!authToken || !selectedPipeline) return false;
     setValidating(true);
     setMessage(null);
+    setValidationIssues([]);
     try {
       const validation = await validatePipeline(authToken, definition);
       if (!validation.valid) {
+        setValidationIssues(validation.issues);
         setMessage(`Validation failed: ${validation.errors.join(" ")}`);
-        return;
+        return false;
       }
       const warningText = validation.warnings?.length
         ? `Warnings: ${validation.warnings.join(" ")}`
@@ -223,14 +258,26 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
       });
       applyUpdatedPipeline(updated);
       setChangeSummary("");
+      setValidationIssues(updated.validation_issues ?? []);
       setVersionsReloadKey((prev) => prev + 1);
       setMessage(
         warningText
           ? `Saved as v${updated.current_version}. ${warningText}`
           : `Saved as v${updated.current_version}.`,
       );
+      return true;
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        typeof error.rawDetail === "object" &&
+        error.rawDetail !== null &&
+        "issues" in error.rawDetail &&
+        Array.isArray(error.rawDetail.issues)
+      ) {
+        setValidationIssues(error.rawDetail.issues as PipelineValidationIssue[]);
+      }
       setMessage(getErrorMessage(error, "Unable to save pipeline."));
+      return false;
     } finally {
       setSaving(false);
       setValidating(false);
@@ -279,7 +326,15 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
         version.version,
       );
       applyUpdatedPipeline(updated);
-      setMessage(`Activated version ${version.version}.`);
+      setValidationIssues(updated.validation_issues ?? []);
+      const warnings = (updated.validation_issues ?? []).filter(
+        (issue) => issue.severity === "warning",
+      );
+      setMessage(
+        warnings.length > 0
+          ? `Activated version ${version.version} with warnings: ${warnings.map((issue) => issue.message).join(" ")}`
+          : `Activated version ${version.version}.`,
+      );
     } catch (error) {
       setMessage(getErrorMessage(error, "Unable to activate version."));
     } finally {
@@ -297,6 +352,8 @@ export function usePipelines({ token, kind }: UsePipelinesParams): UsePipelinesR
     loading,
     saving,
     validating,
+    validationIssues,
+    clearValidationIssues: () => setValidationIssues([]),
     message,
     setMessage,
     changeSummary,

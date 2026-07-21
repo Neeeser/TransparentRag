@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import type { ParameterInputKind } from "@/lib/types";
 import type { ReactNode } from "react";
 
@@ -12,6 +14,9 @@ type ParameterFieldCardProps = {
   label: string;
   description?: string | null;
   helper?: string | null;
+  error?: string | null;
+  errorId?: string;
+  controlId?: string;
   overrideActive?: boolean;
   actionLabel?: string;
   actionDisabled?: boolean;
@@ -23,6 +28,9 @@ export function ParameterFieldCard({
   label,
   description,
   helper,
+  error,
+  errorId,
+  controlId,
   overrideActive,
   actionLabel,
   actionDisabled,
@@ -34,7 +42,9 @@ export function ParameterFieldCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-primary">{label}</p>
+            <label htmlFor={controlId} className="text-sm font-semibold text-primary">
+              {label}
+            </label>
             {overrideActive && <span className="h-2 w-2 rounded-full bg-data-pos" />}
           </div>
           {description ? <p className="text-xs text-muted">{description}</p> : null}
@@ -52,6 +62,11 @@ export function ParameterFieldCard({
         ) : null}
       </div>
       {children}
+      {error ? (
+        <p id={errorId} className="text-xs text-data-neg">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -67,6 +82,11 @@ type ParameterInputProps = {
   rows?: number;
   booleanLabel?: string;
   disabled?: boolean;
+  id?: string;
+  ariaInvalid?: boolean;
+  ariaDescribedBy?: string;
+  /** Extra classes merged onto the control (e.g. unrounding an edge a welded addon joins). */
+  className?: string;
   onChange: (value: string | boolean) => void;
 };
 
@@ -84,16 +104,23 @@ export function ParameterInput({
   rows,
   booleanLabel = "Enable",
   disabled,
+  id,
+  ariaInvalid,
+  ariaDescribedBy,
+  className,
   onChange,
 }: ParameterInputProps) {
   if (input === "number" || input === "integer") {
     return (
       <input
+        id={id}
+        aria-invalid={ariaInvalid || undefined}
+        aria-describedby={ariaDescribedBy}
         type="number"
         min={min}
         max={max}
         step={step ?? (input === "integer" ? 1 : 0.05)}
-        className={inputClasses}
+        className={cn(inputClasses, className)}
         placeholder={placeholder}
         value={typeof value === "number" ? value : ""}
         disabled={disabled}
@@ -106,6 +133,9 @@ export function ParameterInput({
     return (
       <label className="flex items-center gap-3 text-sm text-body">
         <input
+          id={id}
+          aria-invalid={ariaInvalid || undefined}
+          aria-describedby={ariaDescribedBy}
           type="checkbox"
           className="h-4 w-4 rounded border-strong bg-transparent accent-[var(--accent-violet)]"
           checked={value === true}
@@ -120,7 +150,10 @@ export function ParameterInput({
   if (input === "select") {
     return (
       <select
-        className={inputClasses}
+        id={id}
+        aria-invalid={ariaInvalid || undefined}
+        aria-describedby={ariaDescribedBy}
+        className={cn(inputClasses, className)}
         value={typeof value === "string" ? value : ""}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
@@ -138,7 +171,10 @@ export function ParameterInput({
   if (useTextarea) {
     return (
       <textarea
-        className={`${inputClasses} h-auto`}
+        id={id}
+        aria-invalid={ariaInvalid || undefined}
+        aria-describedby={ariaDescribedBy}
+        className={cn(inputClasses, "h-auto", className)}
         rows={rows ?? 2}
         placeholder={placeholder}
         value={typeof value === "string" ? value : ""}
@@ -150,8 +186,11 @@ export function ParameterInput({
 
   return (
     <input
+      id={id}
+      aria-invalid={ariaInvalid || undefined}
+      aria-describedby={ariaDescribedBy}
       type="text"
-      className={inputClasses}
+      className={cn(inputClasses, className)}
       placeholder={placeholder}
       value={typeof value === "string" ? value : ""}
       disabled={disabled}

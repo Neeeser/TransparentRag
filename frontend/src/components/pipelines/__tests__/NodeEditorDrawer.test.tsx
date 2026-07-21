@@ -15,6 +15,8 @@ import type { ComponentProps } from "react";
 const NODE_TYPE_EMBEDDER = "embedder.text";
 const NODE_TYPE_INDEXER = "indexer.vector";
 const NODE_TYPE_PARSER = "parser.document";
+const NODE_TYPE_RERANKER = "reranker.model";
+const RERANKER_MODEL_ID = "reranker-1";
 const INDEX_SELECT_LABEL = "Vector index";
 const SAVE_NODE = "Save node";
 const CLOSE_EDITOR = "Close node editor";
@@ -23,6 +25,7 @@ const NODE_LABEL = "Node label";
 
 const parameterInputMock = vi.fn();
 let lastEmbeddingProps: Record<string, unknown> | null = null;
+let lastRerankingProps: Record<string, unknown> | null = null;
 
 vi.mock("@/providers/config-provider", async () => (await import("@/test/mocks")).mockAppConfig());
 
@@ -30,32 +33,60 @@ vi.mock("@/components/ui/parameter-controls", () => ({
   ParameterFieldCard: ({
     label,
     helper,
+    error,
+    errorId,
+    controlId,
     children,
   }: {
     label: string;
     helper?: string | null;
+    error?: string | null;
+    errorId?: string;
+    controlId?: string;
     children: React.ReactNode;
   }) => (
     <div>
-      <span>{label}</span>
+      <label htmlFor={controlId}>{label}</label>
       {helper && <span>{helper}</span>}
       {children}
+      {error && <span id={errorId}>{error}</span>}
     </div>
   ),
-  ParameterInput: (props: { input: string; onChange: (value: string | boolean) => void }) => {
+  ParameterInput: (props: {
+    input: string;
+    id?: string;
+    ariaInvalid?: boolean;
+    ariaDescribedBy?: string;
+    onChange: (value: string | boolean) => void;
+  }) => {
     parameterInputMock(props);
+    if (props.input !== "integer" && props.input !== "number") {
+      return (
+        <button
+          id={props.id}
+          type="button"
+          aria-describedby={props.ariaDescribedBy}
+          onClick={() =>
+            props.onChange(
+              props.input === "boolean" ? true : props.input === "select" ? "huggingface" : "text",
+            )
+          }
+        >
+          {`trigger-${props.input}`}
+        </button>
+      );
+    }
     return (
-      <button
-        type="button"
+      <input
+        id={props.id}
+        type="number"
+        aria-invalid={props.ariaInvalid || undefined}
+        aria-describedby={props.ariaDescribedBy}
         onClick={() => {
           if (props.input === "number") props.onChange("1.2");
-          else if (props.input === "integer") props.onChange("3");
-          else if (props.input === "boolean") props.onChange(true);
-          else props.onChange("text");
+          else props.onChange("3");
         }}
-      >
-        {`trigger-${props.input}`}
-      </button>
+      />
     );
   },
 }));
@@ -64,6 +95,13 @@ vi.mock("@/components/pipelines/EmbeddingModelSelectorCard", () => ({
   EmbeddingModelSelectorCard: (props: Record<string, unknown>) => {
     lastEmbeddingProps = props;
     return <div data-testid="embedding-selector" />;
+  },
+}));
+
+vi.mock("@/components/pipelines/RerankingModelSelectorCard", () => ({
+  RerankingModelSelectorCard: (props: Record<string, unknown>) => {
+    lastRerankingProps = props;
+    return <div data-testid="reranking-selector" />;
   },
 }));
 
@@ -99,11 +137,19 @@ const renderDrawer = (overrides: Partial<DrawerProps> = {}) => {
     onApply: () => undefined,
     isPreview: false,
     validationErrors: [],
+    validationIssues: [],
     vectorIndexes: [],
     embeddingModels: [],
     embeddingCatalog: null,
     embeddingModelsLoading: false,
     embeddingModelsError: null,
+    rerankingModels: [],
+    rerankingCatalog: null,
+    rerankingModelsLoading: false,
+    rerankingModelsError: null,
+    onRetryRerankingModels: () => undefined,
+    hasRerankingProvider: true,
+    variables: [],
     ...overrides,
   };
   return render(<NodeEditorDrawer {...props} />);
@@ -118,6 +164,7 @@ function DrawerWithIndexManager() {
         onClose={() => undefined}
         onApply={() => undefined}
         isPreview={false}
+        variables={[]}
         validationErrors={[]}
         vectorIndexes={indexes}
         onOpenIndexManager={() => setManagerOpen(true)}
@@ -125,6 +172,12 @@ function DrawerWithIndexManager() {
         embeddingCatalog={null}
         embeddingModelsLoading={false}
         embeddingModelsError={null}
+        rerankingModels={[]}
+        rerankingCatalog={null}
+        rerankingModelsLoading={false}
+        rerankingModelsError={null}
+        onRetryRerankingModels={() => undefined}
+        hasRerankingProvider
       />
       <ModalOverlay
         open={managerOpen}
@@ -144,6 +197,7 @@ describe("NodeEditorDrawer", () => {
   beforeEach(() => {
     parameterInputMock.mockClear();
     lastEmbeddingProps = null;
+    lastRerankingProps = null;
   });
 
   it("renders nothing when no node is selected", () => {
@@ -174,6 +228,37 @@ describe("NodeEditorDrawer", () => {
     fireEvent.click(saveButton);
     expect(onApply).toHaveBeenCalledWith("node-1", { label: "Node", config: { mode: "text" } });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the HuggingFace model field only for the HuggingFace chunker tokenizer", async () => {
+    const user = userEvent.setup();
+    renderDrawer({
+      node: makeNode(
+        "chunker.token",
+        { tokenizer: "wordpiece" },
+        {
+          properties: {
+            tokenizer: {
+              type: "string",
+              enum: ["wordpiece", "cl100k", "whitespace", "huggingface"],
+              default: "wordpiece",
+            },
+            hf_model_id: {
+              anyOf: [{ type: "string" }, { type: "null" }],
+              default: null,
+            },
+          },
+        },
+      ),
+    });
+
+    expect(screen.getByRole("combobox", { name: "Tokenizer" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("HuggingFace model id")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "Tokenizer" }));
+    await user.click(screen.getByRole("option", { name: "HuggingFace" }));
+
+    expect(screen.getByLabelText("HuggingFace model id")).toBeInTheDocument();
   });
 
   it("closes directly while clean, via the close button and Escape", () => {
@@ -357,6 +442,77 @@ describe("NodeEditorDrawer", () => {
     });
   });
 
+  it("configures a reranker with only its connection-qualified model", () => {
+    const onApply = vi.fn();
+    const model = makeCatalogModel({
+      connection_id: "reranking-connection",
+      id: RERANKER_MODEL_ID,
+    });
+    renderDrawer({
+      node: makeNode(
+        NODE_TYPE_RERANKER,
+        { top_n: 2, top_k: 3, enabled: false },
+        {
+          properties: {
+            connection_id: { type: "string" },
+            model_name: { type: "string" },
+          },
+        },
+      ),
+      rerankingModels: [model],
+      rerankingCatalog: makeModelCatalog([model]),
+      onApply,
+    });
+
+    expect(screen.getByTestId("reranking-selector")).toBeInTheDocument();
+    act(() => {
+      (lastRerankingProps?.onSelectModel as (selected: unknown) => void)(model);
+    });
+    fireEvent.click(screen.getByRole("button", { name: SAVE_NODE }));
+
+    expect(onApply).toHaveBeenCalledWith("node-1", {
+      label: "Node",
+      config: { connection_id: "reranking-connection", model_name: RERANKER_MODEL_ID },
+    });
+  });
+
+  it("keeps a missing saved reranker visible and blocks saving it", () => {
+    const onApply = vi.fn();
+    const otherModel = makeCatalogModel({ connection_id: "other", id: RERANKER_MODEL_ID });
+    renderDrawer({
+      node: makeNode(NODE_TYPE_RERANKER, {
+        connection_id: "removed",
+        model_name: RERANKER_MODEL_ID,
+      }),
+      rerankingModels: [otherModel],
+      rerankingCatalog: makeModelCatalog([otherModel]),
+      onApply,
+    });
+
+    expect(lastRerankingProps).toMatchObject({
+      selectedConnectionId: "removed",
+      selectedModelKey: RERANKER_MODEL_ID,
+      selectedAvailability: "missing",
+    });
+    fireEvent.change(screen.getByLabelText(NODE_LABEL), { target: { value: RENAMED_LABEL } });
+    expect(screen.getByRole("button", { name: SAVE_NODE })).toBeDisabled();
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("disables preview add-to-canvas when no reranking provider exists", () => {
+    const onAddToCanvas = vi.fn();
+    renderDrawer({
+      node: makeNode(NODE_TYPE_RERANKER),
+      isPreview: true,
+      hasRerankingProvider: false,
+      onAddToCanvas,
+    });
+
+    expect(screen.getByRole("button", { name: "Add to canvas" })).toBeDisabled();
+    expect(screen.getByText("Add a reranking provider to continue")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+  });
+
   it("blocks node edits when a refreshed catalog no longer contains the selected model", () => {
     const onApply = vi.fn();
     const otherConnection = makeCatalogModel({ connection_id: "conn-b", id: "removed-model" });
@@ -393,6 +549,38 @@ describe("NodeEditorDrawer", () => {
     });
 
     expect(screen.getByText("An index is required.")).toBeInTheDocument();
+  });
+
+  it("renders a structured chunk-size error beside the chunk-size field", () => {
+    renderDrawer({
+      node: makeNode(
+        "chunker.token",
+        { chunk_size: 1024 },
+        {
+          properties: {
+            chunk_size: { type: "integer", title: "Chunk Size", default: 512 },
+          },
+        },
+      ),
+      validationIssues: [
+        {
+          code: "embedding_input_limit_exceeded",
+          message:
+            "Chunk size 1,024 exceeds sentence-transformers/all-minilm-l6-v2's 512-token input limit.",
+          severity: "error",
+          node_id: "node-1",
+          field: "chunk_size",
+          configured_value: 1024,
+          model: "sentence-transformers/all-minilm-l6-v2",
+          allowed_max: 512,
+        },
+      ],
+    });
+
+    const message = screen.getByText(/Chunk size 1,024 exceeds/);
+    const input = screen.getByRole("spinbutton", { name: "Chunk Size" });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", message.id);
   });
 
   it("preview mode is read-only with an Add to canvas action", () => {

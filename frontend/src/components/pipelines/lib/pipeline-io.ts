@@ -1,3 +1,5 @@
+import { expressionSource } from "@/lib/expressions";
+
 import type { PipelineNodeData } from "../PipelineNode";
 import type { Connection, Edge, Node } from "@xyflow/react";
 
@@ -147,6 +149,11 @@ const resolveIndexName = (config: Record<string, unknown>) => {
   if (typeof value === "string" && value.trim()) {
     return value.trim();
   }
+  // An expression-valued index name counts as set here; the server validates
+  // it statically (type + the static-only taint rule).
+  if (expressionSource(value)) {
+    return "expression";
+  }
   return "";
 };
 
@@ -157,10 +164,16 @@ export const validatePipelineConfig = (
   const nodeErrors: Record<string, string[]> = {};
   nodes.forEach((node) => {
     const { nodeType } = node.data;
+    const config = resolveNodeConfig(node, configOverrides);
+    if (nodeType.startsWith("chunker.") && config.tokenizer === "huggingface") {
+      const modelId = config.hf_model_id;
+      if (typeof modelId !== "string" || !modelId.trim()) {
+        nodeErrors[node.id] = ["A HuggingFace model id is required."];
+      }
+    }
     if (!nodeType.startsWith("indexer.") && !nodeType.startsWith("retriever.")) {
       return;
     }
-    const config = resolveNodeConfig(node, configOverrides);
     if (!resolveIndexName(config)) {
       nodeErrors[node.id] = ["An index is required. Select an index or create a new one."];
     }

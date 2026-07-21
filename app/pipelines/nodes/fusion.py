@@ -19,7 +19,15 @@ from app.pipelines.node import PipelineNodeBase
 from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.ports import NodePort
 from app.pipelines.tracing import NodeTraceSummary, NodeTraceValue
-from app.pipelines.tracing.summaries import combine_usage, summarize_match_order
+from app.pipelines.tracing.summaries import (
+    RankingEvidence,
+    RankingResultEvidence,
+    RankingSourceEvidence,
+    combine_usage,
+    summarize_match_order,
+    summarize_matches,
+    trace_match_items,
+)
 from app.retrieval.models import RetrievalResponse, ScoredChunk
 
 
@@ -76,12 +84,51 @@ class BaseFusionNode(PipelineNodeBase[FusionConfig]):
                     value=summarize_match_order(payload.response.matches),
                 )
                 for index, payload in enumerate(payloads, start=1)
+            ]
+            + [
+                NodeTraceValue(
+                    label=f"Branch {index} items",
+                    value=trace_match_items(payload.response.matches),
+                    kind="items",
+                )
+                for index, payload in enumerate(payloads, start=1)
             ],
             outputs=[
                 NodeTraceValue(
+                    label="Matches",
+                    value=summarize_matches(output_payload.response.matches, limit=10),
+                ),
+                NodeTraceValue(
                     label="Fused order",
                     value=summarize_match_order(output_payload.response.matches),
-                )
+                ),
+                NodeTraceValue(
+                    label="Fused items",
+                    value=trace_match_items(output_payload.response.matches),
+                    kind="items",
+                ),
+                NodeTraceValue(
+                    label="Ranking evidence",
+                    value=self._ranking_evidence(
+                        [list(payload.response.matches) for payload in payloads],
+                        list(output_payload.response.matches),
+                    ),
+                    kind="ranking",
+                ),
+            ],
+        )
+
+    def _ranking_evidence(
+        self,
+        _branches: list[list[ScoredChunk]],
+        fused: list[ScoredChunk],
+    ) -> RankingEvidence:
+        """Describe output ranking facts; subclasses add method-specific sources."""
+        return RankingEvidence(
+            method=self.type,
+            results=[
+                RankingResultEvidence(id=match.chunk.chunk_id, rank=rank, score=match.score)
+                for rank, match in enumerate(fused, start=1)
             ],
         )
 
@@ -101,12 +148,24 @@ class RRFusionConfig(FusionConfig):
     """Configuration for reciprocal rank fusion.
 
     `k` is the standard RRF dampening constant (Cormack et al.: 60): higher
-    values flatten the difference between ranks. `top_k` caps the fused list;
-    unset, it falls back to the run's requested top_k.
+    values flatten the difference between ranks. Fusion never truncates —
+    cutting the fused list is the Result Limit node's job (`limit.results`), so the
+    cut is always an explicit, traced step.
     """
 
-    k: int = Field(default=60, ge=1)
-    top_k: int | None = Field(default=None, gt=0)
+    k: int = Field(
+        default=60,
+        ge=1,
+        title="Rank dampening (k)",
+        description=(
+            "Smoothing constant in the RRF score, 1 / (k + rank), summed "
+            "across every branch a chunk appears in. It sets how steeply "
+            "early ranks outweigh late ones: at k=1 a rank-1 hit scores 25x "
+            "a rank-49 hit; at the standard k=60, about 1.8x — so appearing "
+            "in several branches counts for more than winning any single "
+            "one. Fusion emits every fused candidate; Result Limit cuts."
+        ),
+    )
 
 
 class RRFusionNode(BaseFusionNode):
@@ -134,7 +193,8 @@ class RRFusionNode(BaseFusionNode):
         Chunk identity is `chunk_id` (stable `{document_id}:{order}` across
         indexes, so the same chunk retrieved by several branches accumulates).
         The fused score replaces per-branch scores — raw BM25 and cosine
-        values are not comparable.
+        values are not comparable. Every fused chunk is emitted; cutting the
+        list is the Result Limit node's job.
         """
         scores: dict[str, float] = {}
         first_seen: dict[str, ScoredChunk] = {}
@@ -144,15 +204,48 @@ class RRFusionNode(BaseFusionNode):
                 scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (self.config.k + rank)
                 first_seen.setdefault(chunk_id, match)
         ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-        # Explicit None checks: a top_k of 0 means zero results, never
-        # "unset — return every fused chunk".
-        if self.config.top_k is not None:
-            limit = self.config.top_k
-        elif context.top_k is not None:
-            limit = max(context.top_k, 0)
-        else:
-            limit = len(ordered)
         return [
             ScoredChunk(chunk=first_seen[chunk_id].chunk, score=score)
-            for chunk_id, score in ordered[:limit]
+            for chunk_id, score in ordered
         ]
+
+    def _ranking_evidence(
+        self,
+        branches: list[list[ScoredChunk]],
+        fused: list[ScoredChunk],
+    ) -> RankingEvidence:
+        """Record every branch rank and its reciprocal-rank contribution."""
+        branch_items = [
+            {
+                match.chunk.chunk_id: (rank, match.score)
+                for rank, match in enumerate(matches, start=1)
+            }
+            for matches in branches
+        ]
+        results: list[RankingResultEvidence] = []
+        for rank, match in enumerate(fused, start=1):
+            sources = [
+                RankingSourceEvidence(
+                    source_index=index,
+                    rank=source_rank,
+                    score=source_score,
+                    contribution=1.0 / (self.config.k + source_rank),
+                )
+                for index, items in enumerate(branch_items)
+                if (source := items.get(match.chunk.chunk_id)) is not None
+                for source_rank, source_score in [source]
+            ]
+            results.append(
+                RankingResultEvidence(
+                    id=match.chunk.chunk_id,
+                    rank=rank,
+                    score=match.score,
+                    sources=sources,
+                )
+            )
+        return RankingEvidence(
+            method="reciprocal_rank_fusion",
+            score_label="RRF score",
+            formula=f"1 / ({self.config.k} + rank)",
+            results=results,
+        )

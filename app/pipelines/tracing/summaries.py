@@ -25,11 +25,86 @@ implementation detail.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Literal
 
-from pydantic import BaseModel, model_serializer
+from pydantic import BaseModel, Field, model_serializer
 
 from app.retrieval.models import DocumentChunk, ScoredChunk
 from app.retrieval.parsers.base import DocumentSource
+
+
+class ItemRef(BaseModel):
+    """One result in an ordered trace list, identified without payload text."""
+
+    id: str
+    score: float | None = None
+
+
+class ItemListTrace(BaseModel):
+    """Complete ordered identities for one item-capable node port.
+
+    This is the traceability extension boundary. Item-producing nodes attach
+    this model alongside their human-readable previews; consumers derive node
+    effects from the complete lists, so this data must never be truncated.
+    """
+
+    kind: Literal["chunks", "matches"]
+    items: list[ItemRef]
+
+
+class RankingSourceEvidence(BaseModel):
+    """One ranking input's facts for one output result.
+
+    `source_index` maps to the node's ordered inbound edges. Labels and node
+    identity stay in the pipeline definition; the evidence records only the
+    domain facts a visualization needs.
+    """
+
+    source_index: int
+    rank: int | None = None
+    score: float | None = None
+    score_label: str | None = None
+    weight: float | None = None
+    contribution: float | None = None
+
+
+class RankingResultEvidence(BaseModel):
+    """One result in a ranking node's output plus its per-source evidence."""
+
+    id: str
+    rank: int
+    score: float | None = None
+    sources: list[RankingSourceEvidence] = Field(default_factory=list)
+
+
+class RankingEvidence(BaseModel):
+    """Method-neutral ranking facts rendered by the trace debugger.
+
+    New retrievers and ranking nodes can emit this contract without adding a
+    node-type branch to the debugger. Optional fields disappear naturally
+    when a method has no score, formula, or decomposable contribution.
+    """
+
+    method: str
+    score_label: str | None = None
+    formula: str | None = None
+    results: list[RankingResultEvidence]
+
+
+def trace_chunk_items(chunks: Sequence[DocumentChunk]) -> ItemListTrace:
+    """Preserve every chunk id in its node-local order."""
+    return ItemListTrace(
+        kind="chunks",
+        items=[ItemRef(id=chunk.chunk_id) for chunk in chunks],
+    )
+
+
+def trace_match_items(matches: Sequence[ScoredChunk]) -> ItemListTrace:
+    """Preserve every match id and score in its node-local order."""
+    return ItemListTrace(
+        kind="matches",
+        items=[ItemRef(id=match.chunk.chunk_id, score=match.score) for match in matches],
+    )
 
 
 class TokenUsage(BaseModel):
@@ -86,9 +161,10 @@ class SourceSummary(BaseModel):
 
 def summarize_source(source: DocumentSource) -> SourceSummary:
     """Summarize a document source payload."""
+    display_path = source.metadata.data.get("path")
     return SourceSummary(
         document_id=source.document_id,
-        path=str(source.path),
+        path=display_path if isinstance(display_path, str) else str(source.path),
         content_type=source.content_type,
     )
 

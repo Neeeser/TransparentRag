@@ -22,7 +22,7 @@ from app.services.app_config import invalidate_app_config_cache
 from app.services.errors import InvalidInputError, NotFoundError
 from app.services.index_admin import IndexAdminService
 from app.services.setup import SetupService
-from tests.utils.providers import add_openrouter_connection
+from tests.utils.providers import add_connection, add_openrouter_connection
 
 
 @pytest.fixture(autouse=True)
@@ -107,15 +107,50 @@ def test_status_complete_when_providers_index_and_collection_exist(
     assert status.setup_complete is True
 
 
+def test_status_complete_without_a_reranking_provider(
+    pgvector_session: Session,
+) -> None:
+    """Reranking is optional: an embedding+chat provider finishes setup.
+
+    Regression: adding ``ProviderKind.RERANKING`` silently strengthened the
+    ``all(ProviderKind)`` readiness gate, so an Ollama-only user was bounced
+    back to the setup wizard on every page load after finishing it.
+    """
+    session = pgvector_session
+    user = _create_user(session)
+    add_connection(
+        session, user, "ollama", {"base_url": "http://localhost:11434"}, label="Ollama"
+    )
+    _create_pgvector_index(session, user)
+    session.add(
+        models.Collection(user_id=user.id, name="c", description="", extra_metadata={})
+    )
+    session.commit()
+
+    status = SetupService(session).status(user)
+
+    assert status.has_embedding_provider is True
+    assert status.has_chat_provider is True
+    assert status.setup_complete is True
+
+
 def test_bootstrap_creates_default_pipelines_and_first_collection(
     pgvector_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = pgvector_session
     user = _create_user(session)
     connection = add_openrouter_connection(session, user)
     _create_pgvector_index(session, user)
 
-    collection = SetupService(session).bootstrap(user, _bootstrap_request(connection))
+    monkeypatch.setattr(
+        "app.providers.openrouter.OpenRouterAdapter.embedding_input_limit",
+        lambda _adapter, _model: 512,
+    )
+    result = SetupService(session).bootstrap(user, _bootstrap_request(connection))
+    collection = result.collection
+
+    assert result.warnings == []
 
     with Session(session.get_bind()) as fresh:
         pipelines = fresh.exec(select(models.Pipeline)).all()
@@ -162,7 +197,7 @@ def test_bootstrap_writes_wizard_choices_into_pipelines(
         for node in definition["nodes"]
         if node["id"] == "chunk-document"
     ]
-    assert chunkers[0]["config"]["chunk_size"] == 512
+    assert chunkers[0]["config"] == {"chunk_size": 356, "chunk_overlap": 140}
 
 
 def test_bootstrap_rejects_missing_index(session: Session) -> None:

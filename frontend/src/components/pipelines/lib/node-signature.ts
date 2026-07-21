@@ -95,15 +95,13 @@ const TYPE_SIGNATURES: Record<string, SignatureResolver> = {
       consumedKeys: ["k", "top_k"],
     };
   },
-  "reranker.cross_encoder": (read) => {
-    const enabled = read("enabled") === true;
+  "reranker.model": (read) => {
     const model = asString(read("model_name"));
     return {
       label: "Model",
-      value: enabled ? (model ?? "—") : "disabled",
-      detail: enabled ? undefined : model,
-      missing: !enabled,
-      consumedKeys: ["enabled", "model_name"],
+      value: model ?? "no model selected",
+      missing: model === undefined,
+      consumedKeys: ["model_name"],
     };
   },
   "parser.document": (read) => {
@@ -112,6 +110,20 @@ const TYPE_SIGNATURES: Record<string, SignatureResolver> = {
       label: "Mode",
       value: mode ?? "auto",
       consumedKeys: ["mode"],
+    };
+  },
+  "retrieval.input": (read) => {
+    const raw = read("arguments");
+    const names = Array.isArray(raw)
+      ? raw
+          .map((entry) => (entry as { name?: unknown }).name)
+          .filter((name): name is string => typeof name === "string")
+      : [];
+    if (names.length === 0) return null;
+    return {
+      label: "Arguments",
+      value: names.join(", "),
+      consumedKeys: ["arguments"],
     };
   },
 };

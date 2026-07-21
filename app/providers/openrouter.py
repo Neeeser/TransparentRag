@@ -14,6 +14,8 @@ from app.providers.chat.base import ChatProvider
 from app.providers.chat.openrouter import OpenRouterProvider
 from app.retrieval.embedders.base import Embedder
 from app.retrieval.embedders.openrouter_embedder import OpenRouterEmbedder
+from app.retrieval.rerankers.base import Reranker
+from app.retrieval.rerankers.openrouter import OpenRouterReranker
 from app.schemas.enums import ProviderKind, ProviderType
 from app.schemas.models import EndpointsListResponse
 from app.schemas.providers import (
@@ -28,7 +30,7 @@ from app.schemas.providers import (
 OPENROUTER_DESCRIPTOR = ProviderDescriptor(
     provider_type=ProviderType.OPENROUTER,
     label="OpenRouter",
-    kinds=(ProviderKind.EMBEDDING, ProviderKind.CHAT),
+    kinds=(ProviderKind.EMBEDDING, ProviderKind.CHAT, ProviderKind.RERANKING),
     config_fields=(
         ProviderConfigField(
             name="api_key",
@@ -102,6 +104,31 @@ class OpenRouterAdapter(ProviderAdapter):
                 for model in snapshot.value
             ]
             return CatalogResult(models=models, meta=_catalog_metadata(snapshot))
+        if kind is ProviderKind.RERANKING:
+            snapshot = client.list_rerank_models(force_refresh=force_refresh)
+            models = [
+                CatalogModel(
+                    connection_id=self.connection.id,
+                    connection_label=self.connection.label,
+                    provider_type=self.provider_type,
+                    id=model.id,
+                    name=model.name,
+                    description=model.description,
+                    context_length=model.context_length,
+                    pricing=model.pricing,
+                    input_modalities=[
+                        str(value)
+                        for value in model.architecture.get("input_modalities", [])
+                    ],
+                    output_modalities=[
+                        str(value)
+                        for value in model.architecture.get("output_modalities", [])
+                    ],
+                    supported_parameters=model.supported_parameters,
+                )
+                for model in snapshot.value
+            ]
+            return CatalogResult(models=models, meta=_catalog_metadata(snapshot))
         embedding_snapshot = client.list_embedding_models(
             force_refresh=force_refresh
         )
@@ -116,6 +143,7 @@ class OpenRouterAdapter(ProviderAdapter):
                 context_length=(
                     int(model.context_length) if model.context_length else None
                 ),
+                max_input_tokens=model.max_input_tokens,
                 pricing=model.pricing,
                 dimension=model.dimension,
             )
@@ -135,10 +163,24 @@ class OpenRouterAdapter(ProviderAdapter):
         self.require_kind(ProviderKind.CHAT)
         return OpenRouterProvider(self._client())
 
+    def reranker(self, model_name: str) -> Reranker:
+        """Construct an OpenRouter-backed reranker."""
+        self.require_kind(ProviderKind.RERANKING)
+        return OpenRouterReranker(self._client(), model_name)
+
     def embedding_dimension(self, model_name: str) -> int | None:
         """Probe the embedding dimension for a model."""
         self.require_kind(ProviderKind.EMBEDDING)
         return self._client().get_embedding_dimension(model_name)
+
+    def embedding_input_limit(self, model_name: str) -> int | None:
+        """Read the resolved endpoint limit from cached OpenRouter metadata."""
+        self.require_kind(ProviderKind.EMBEDDING)
+        normalized = model_name.casefold()
+        for model in self._client().list_embedding_model_metadata().value:
+            if model.id.casefold() == normalized:
+                return model.max_input_tokens
+        return None
 
     def list_model_endpoints(self, author: str, slug: str) -> EndpointsListResponse:
         """Return OpenRouter's per-provider endpoint directory for a model."""

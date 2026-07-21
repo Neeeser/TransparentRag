@@ -4,6 +4,11 @@ import type { IndexBackend, UUID } from "@/lib/types/common";
 export type PipelineKind = "ingestion" | "retrieval";
 export type PipelineRunStatus = "running" | "completed" | "failed";
 export type PipelineIOType = "input" | "output";
+export interface HuggingFaceTokenizerDownload {
+  model_id: string;
+  consent?: boolean;
+  remember?: boolean;
+}
 
 export interface VectorIndex {
   name: string;
@@ -56,6 +61,7 @@ export interface EmbeddingModelInfo {
   name: string;
   description?: string | null;
   context_length?: number | null;
+  max_input_tokens?: number | null;
   pricing?: ModelPricing | null;
   dimension?: number | null;
 }
@@ -70,7 +76,7 @@ export interface PipelineNodeDefinition {
   type: string;
   name: string;
   config: Record<string, unknown>;
-  position?: PipelineNodePosition;
+  position?: PipelineNodePosition | null;
   ui?: Record<string, unknown>;
 }
 
@@ -83,10 +89,66 @@ export interface PipelineEdgeDefinition {
   ui?: Record<string, unknown>;
 }
 
+export type VariableType = "integer" | "number" | "string" | "boolean" | "enum" | "model";
+
+export interface ModelVariableValue {
+  connection_id: string;
+  model_name: string;
+}
+
+export type VariableScalar = number | string | boolean;
+export type VariableValue = VariableScalar | ModelVariableValue;
+
+export type VariableSource = "value" | "expression" | "input";
+
+/** Mirrors `app/pipelines/variables.py::PipelineVariable`.
+ *
+ * `source: "input"` marks a caller-supplied variable: `value` is its default
+ * (null/absent = the caller must supply one) and `expose_to_llm` publishes it
+ * in the chat tool schema. Definitions saved before `source` existed omit it;
+ * the backend infers expression-vs-value.
+ */
+export interface PipelineVariable {
+  name: string;
+  type: VariableType;
+  source?: VariableSource;
+  description?: string;
+  value?: VariableValue | null;
+  expression?: string | null;
+  minimum?: number | null;
+  maximum?: number | null;
+  choices?: string[];
+  expose_to_llm?: boolean;
+}
+
+/** Mirrors `app/pipelines/variables.py::PipelineInputArgument` — the derived
+ * caller-facing shape served by the query-arguments endpoint, never stored on
+ * a definition. */
+export interface PipelineInputArgument {
+  name: string;
+  type: VariableType;
+  description?: string;
+  required?: boolean;
+  default?: VariableScalar | null;
+  minimum?: number | null;
+  maximum?: number | null;
+  choices?: string[];
+  expose_to_llm?: boolean;
+}
+
+/** Mirrors `app/pipelines/variables.py::PipelineOutputField`. */
+export interface PipelineOutputField {
+  name: string;
+  expression: string;
+}
+
 export interface PipelineDefinition {
   nodes: PipelineNodeDefinition[];
   edges: PipelineEdgeDefinition[];
   viewport?: Record<string, unknown>;
+  variables?: PipelineVariable[];
+  /** Definition shape version; the backend stamps and migrates it. */
+  schema_version?: number;
 }
 
 export interface Pipeline {
@@ -100,6 +162,7 @@ export interface Pipeline {
   created_at: string;
   updated_at: string;
   definition: PipelineDefinition;
+  validation_issues?: PipelineValidationIssue[];
 }
 
 /** One structural change a version introduced (`PipelineChangeRead`). */
@@ -145,4 +208,16 @@ export interface PipelineValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
+  issues: PipelineValidationIssue[];
+}
+
+export interface PipelineValidationIssue {
+  code?: string | null;
+  message: string;
+  severity: "error" | "warning";
+  node_id?: string | null;
+  field?: string | null;
+  configured_value?: string | number | boolean | null;
+  model?: string | null;
+  allowed_max?: number | null;
 }

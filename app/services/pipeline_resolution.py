@@ -31,6 +31,7 @@ from app.pipelines.settings import (
     resolve_retrieval_settings,
 )
 from app.services.errors import InvalidInputError
+from app.services.pipeline_validation import log_pipeline_validation_warnings
 from app.services.pipelines import PipelineService
 
 
@@ -80,6 +81,9 @@ def resolve_ingestion_pipeline(
     if not pipeline or pipeline.kind != models.PipelineKind.INGESTION:
         raise PipelineResolutionError("Ingestion pipeline could not be resolved.")
     definition = service.get_definition(pipeline)
+    log_pipeline_validation_warnings(
+        service.validate_definition(user, definition), context="ingestion execution"
+    )
     settings = resolve_ingestion_settings(definition, collection, registry or default_registry())
     return ResolvedIngestionPipeline(
         service=service,
@@ -105,6 +109,9 @@ def resolve_retrieval_pipeline(
     if not pipeline or pipeline.kind != models.PipelineKind.RETRIEVAL:
         raise PipelineResolutionError("Retrieval pipeline could not be resolved.")
     definition = service.get_definition(pipeline)
+    log_pipeline_validation_warnings(
+        service.validate_definition(user, definition), context="retrieval execution"
+    )
     settings = resolve_retrieval_settings(definition, collection, registry or default_registry())
     return ResolvedRetrievalPipeline(
         service=service,

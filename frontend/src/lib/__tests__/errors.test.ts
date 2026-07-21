@@ -38,6 +38,42 @@ describe("formatApiErrorDetail", () => {
       }),
     ).toBe("allow_registration: must be a boolean\nmax_upload_size_mb: must be positive");
   });
+
+  it("renders a FastAPI 422 validation list as 'field: message', not '[object Object]'", () => {
+    // Regression: a 422 detail is a list of {loc, msg, type} objects. Treating
+    // it as a {field: message} map produced "0: [object Object]" (the
+    // "error object 0 0" a user saw when the setup wizard hit a 422).
+    const detail = [
+      {
+        loc: ["body", "dimension"],
+        msg: "Value error, Dense indexes require a dimension.",
+        type: "value_error",
+      },
+    ];
+    const result = formatApiErrorDetail(detail);
+    expect(result).toBe("dimension: Value error, Dense indexes require a dimension.");
+    expect(result).not.toContain("[object Object]");
+  });
+
+  it("joins multiple 422 items on separate lines and falls back to msg with no loc", () => {
+    expect(
+      formatApiErrorDetail([
+        { loc: ["body", "name"], msg: "field required", type: "missing" },
+        { loc: ["body"], msg: "root problem", type: "value_error" },
+      ]),
+    ).toBe("name: field required\nroot problem");
+  });
+
+  it("renders structured pipeline issues without object coercion", () => {
+    const result = formatApiErrorDetail({
+      errors: ["Pipeline is invalid."],
+      issues: [{ field: "chunk_size", message: "Chunk span is too large." }],
+    });
+
+    expect(result).toContain("Pipeline is invalid.");
+    expect(result).toContain("Chunk span is too large.");
+    expect(result).not.toContain("[object Object]");
+  });
 });
 
 describe("isAbortError", () => {

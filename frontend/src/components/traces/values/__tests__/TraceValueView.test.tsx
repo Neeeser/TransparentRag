@@ -1,12 +1,11 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { TraceValueView } from "@/components/traces/values/TraceValueView";
 
 /** Render a value and return the container for shape assertions. */
-const view = (value: unknown, kind = "json", highlightChunkId?: string) =>
-  render(<TraceValueView value={value} kind={kind} highlightChunkId={highlightChunkId} />)
-    .container;
+const view = (value: unknown, kind = "json", focusedItemId?: string) =>
+  render(<TraceValueView value={value} kind={kind} focusedItemId={focusedItemId} />).container;
 
 describe("TraceValueView registry", () => {
   it("renders text summaries as prose with a length chip", () => {
@@ -41,6 +40,29 @@ describe("TraceValueView registry", () => {
     expect(container.querySelector(".border-accent-cyan\\/70")).toBeInTheDocument();
   });
 
+  it("opens a recorded match without changing trace focus", () => {
+    const onOpenItem = vi.fn();
+    const onFocusItem = vi.fn();
+    render(
+      <TraceValueView
+        value={{
+          count: 1,
+          top_matches: [
+            { rank: 1, chunk_id: "c-1", document_id: "d-1", score: 0.9, preview: "Alpha" },
+          ],
+        }}
+        kind="json"
+        onOpenItem={onOpenItem}
+        onFocusItem={onFocusItem}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Inspect result c-1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open chunk c-1" }));
+    expect(onOpenItem).toHaveBeenCalledWith("c-1");
+    expect(onFocusItem).not.toHaveBeenCalled();
+  });
+
   it("renders an embedding summary with a dimension chip", () => {
     view(
       {
@@ -62,6 +84,34 @@ describe("TraceValueView registry", () => {
     });
     expect(screen.getByText("5 chunks")).toBeInTheDocument();
     expect(screen.getByText("First chunk text")).toBeInTheDocument();
+  });
+
+  it("keeps a focused full-list item at its original rank", () => {
+    const onFocusItem = vi.fn();
+    render(
+      <TraceValueView
+        kind="items"
+        value={{
+          kind: "matches",
+          items: Array.from({ length: 10 }, (_, index) => ({
+            id: `c-${index + 1}`,
+            score: 1 - index / 10,
+          })),
+        }}
+        focusedItemId="c-9"
+        onFocusItem={onFocusItem}
+      />,
+    );
+
+    const rows = screen.getAllByRole("button", { name: /Trace this result/ });
+    expect(rows[0]).toHaveAccessibleName("Trace this result c-1");
+    expect(rows[8]).toHaveAccessibleName("Trace this result c-9");
+    expect(screen.getByText("#9")).toBeInTheDocument();
+    expect(screen.getByText("0.200")).toBeInTheDocument();
+    expect(rows[8]).toHaveAttribute("data-focused", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Trace this result c-4" }));
+    expect(onFocusItem).toHaveBeenCalledWith("c-4");
   });
 
   it("renders a scalar record as labelled fields", () => {

@@ -13,9 +13,11 @@ vi.mock("@/lib/api", async () => (await import("@/test/mocks")).mockApi());
 const api = vi.mocked(apiModule);
 
 const runQueryLabel = "Run query";
-const viewTraceLabel = "View retrieval trace";
+const viewTraceLabel = "Trace query";
 const queryInputLabel = "Search query";
 const firstQuery = "first question";
+const traceResultLabel = "Trace result";
+const previousResultText = "Previous result";
 
 async function runQuery(text = "Find") {
   fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: text } });
@@ -61,6 +63,7 @@ describe("CollectionSearch", () => {
     });
     // The source document name comes from chunk metadata.
     expect(screen.getByText("guide.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Final score 0.700")).toBeInTheDocument();
 
     // Expand/collapse the full chunk text.
     const expand = screen.getAllByRole("button", { name: /Chunk text/ })[0];
@@ -71,14 +74,14 @@ describe("CollectionSearch", () => {
     fireEvent.click(screen.getByText(viewTraceLabel));
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1");
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Trace" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: traceResultLabel })[0]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-1");
     // Chunks without a chunk_id fall back to their row id.
-    fireEvent.click(screen.getAllByRole("button", { name: "Trace" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: traceResultLabel })[1]);
     expect(getMockRouter().push).toHaveBeenCalledWith("/traces/queries/event-1?chunk=chunk-3");
   });
 
-  it("filters results below the min-score floor client-side", async () => {
+  it("shows every returned match without a client-side score floor control", async () => {
     api.runCollectionQuery.mockResolvedValueOnce(
       makeQueryResult({
         query_event_id: "event-2",
@@ -94,12 +97,11 @@ describe("CollectionSearch", () => {
     await waitFor(() => {
       expect(screen.getByText("Strong")).toBeInTheDocument();
     });
+    // Every match the pipeline returned is shown; truncation belongs to the
+    // pipeline's Result Limit node, not a client-side slider.
     expect(screen.getByText("Weak")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByRole("slider"), { target: { value: "50" } });
-    expect(screen.queryByText("Weak")).not.toBeInTheDocument();
-    expect(screen.getByText(/1 of 2 matches/)).toBeInTheDocument();
-    expect(screen.getByText(/1 below score floor/)).toBeInTheDocument();
+    expect(screen.getByText(/2 matches/)).toBeInTheDocument();
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
 
   it("remembers recent queries and re-runs them from chips", async () => {
@@ -119,6 +121,32 @@ describe("CollectionSearch", () => {
       query: firstQuery,
       top_k: 5,
     });
+  });
+
+  it("announces a running query without clearing the previous results", async () => {
+    api.runCollectionQuery.mockResolvedValueOnce(
+      makeQueryResult({ chunks: [{ id: "old", score: 0.8, text: previousResultText }] }),
+    );
+    render(<CollectionSearch collectionId="col-1" token="token" />);
+    await runQuery("first query");
+    await waitFor(() => expect(screen.getByText(previousResultText)).toBeInTheDocument());
+
+    let finishQuery: ((value: ReturnType<typeof makeQueryResult>) => void) | undefined;
+    api.runCollectionQuery.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishQuery = resolve;
+      }),
+    );
+    fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: "next query" } });
+    fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Running query…");
+    expect(screen.getByText(previousResultText)).toBeInTheDocument();
+
+    await act(async () => {
+      finishQuery?.(makeQueryResult({ chunks: [] }));
+    });
+    expect(screen.queryByText("Running query…")).not.toBeInTheDocument();
   });
 
   it("surfaces query failures, with a fallback for non-error rejections", async () => {
@@ -147,7 +175,60 @@ describe("CollectionSearch", () => {
       expect(screen.getByText("Alpha")).toBeInTheDocument();
     });
     expect(screen.queryByText(viewTraceLabel)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Trace" }));
+    fireEvent.click(screen.getByRole("button", { name: traceResultLabel }));
     expect(getMockRouter().push).not.toHaveBeenCalled();
+  });
+
+  it("renders no retrieval control until the argument spec resolves", async () => {
+    // Rendering the legacy Top K while the spec is in flight briefly
+    // misrepresents a declaring pipeline (and vice versa).
+    api.fetchCollectionQueryArguments.mockImplementationOnce(() => new Promise(() => {}));
+    render(<CollectionSearch collectionId="col-pending" token="token" />);
+    expect(screen.queryByText("Top K")).not.toBeInTheDocument();
+    await act(async () => Promise.resolve());
+  });
+
+  it("falls back to the legacy control with a notice when the spec fails to load", async () => {
+    api.fetchCollectionQueryArguments.mockRejectedValueOnce(new Error("spec down"));
+    render(<CollectionSearch collectionId="col-err" token="token" />);
+    await waitFor(() => {
+      expect(screen.getByText(/declared arguments/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText("Top K")).toBeInTheDocument();
+  });
+
+  it("submits an explicitly selected false value for a required boolean argument", async () => {
+    api.fetchCollectionQueryArguments.mockResolvedValueOnce({
+      arguments: [
+        {
+          name: "include_archived",
+          type: "boolean",
+          description: "",
+          required: true,
+          default: null,
+          minimum: null,
+          maximum: null,
+          choices: [],
+          expose_to_llm: false,
+        },
+      ],
+    });
+    api.runCollectionQuery.mockResolvedValueOnce(makeQueryResult({ chunks: [] }));
+    render(<CollectionSearch collectionId="col-required-bool" token="token" />);
+
+    const booleanControl = await screen.findByRole("combobox", {
+      name: "Argument include_archived",
+    });
+    fireEvent.change(screen.getByLabelText(queryInputLabel), { target: { value: "Find" } });
+    fireEvent.click(booleanControl);
+    fireEvent.click(screen.getByRole("option", { name: "false" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
+    });
+
+    expect(api.runCollectionQuery).toHaveBeenCalledWith("token", "col-required-bool", {
+      query: "Find",
+      arguments: { include_archived: false },
+    });
   });
 });

@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.db import models
+from app.pipelines.payloads import TokenizerSpec
 from app.pipelines.settings import IngestionPipelineSettings, RetrievalPipelineSettings
 from app.schemas.enums import IndexBackend
 from app.services.prompts import (
@@ -55,6 +56,7 @@ def _ingestion_settings(**overrides: Any) -> IngestionPipelineSettings:
         "chunk_strategy": models.ChunkStrategy.TOKEN,
         "chunk_size": 1024,
         "chunk_overlap": 200,
+        "tokenizer": TokenizerSpec(kind="wordpiece"),
         "embedding_model": "text-embed",
         "backend": IndexBackend.PINECONE,
         "index_name": "pinecone-index",
@@ -167,14 +169,14 @@ def test_render_system_prompt_uses_custom_template(monkeypatch) -> None:
         user,
         ingestion_settings=ingestion_settings,
         retrieval_settings=retrieval_settings,
-        tool_name=collection_tool_name(collection.id),
+        tool_name=collection_tool_name(collection.name),
     )
     rendered = render_system_prompt(
         [PromptContext(template=tool_template, context=context)],
         user,
     )
     assert "Base custom@example.com at 2024-01-02T03:04:05+00:00" in rendered
-    assert f"Tool Demo Collection via {collection_tool_name(collection.id)}" in rendered
+    assert f"Tool Demo Collection via {collection_tool_name(collection.name)}" in rendered
 
 
 def test_default_system_prompt_without_collections_is_tool_agnostic() -> None:

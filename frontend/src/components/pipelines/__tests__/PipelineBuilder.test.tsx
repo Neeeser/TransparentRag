@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PipelineBuilder } from "@/components/pipelines/PipelineBuilder";
 import * as apiModule from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 import {
   makeCollection,
   makeNodeSpec,
@@ -26,12 +27,18 @@ let lastDrawerProps: Record<string, unknown> | null = null;
 let lastSidebarProps: Record<string, unknown> | null = null;
 const baseTimestamp = "2024-01-01T00:00:00.000Z";
 const embedderType = "embedder.openrouter";
+const rerankerType = "reranker.model";
+const rerankerProviderRequired = "Add a reranking provider to continue";
+const rerankerProviderLoading = "Checking reranking providers…";
+const rerankerProviderError = "Unable to load provider connections.";
 const savePipelineLabel = "Save pipeline";
 const openSaveLabel = "Open save dialog";
 const openHistoryLabel = "Open history";
 const saveNodeEditsLabel = "Save node edits";
 const selectNodeLabel = "Select node";
 const deletePipelineLabel = "Delete pipeline";
+const confirmDeleteLabel = "Confirm delete";
+const hfModelId = "owner/model";
 const buildDragEvent = (type: string) =>
   ({
     preventDefault: vi.fn(),
@@ -119,6 +126,14 @@ vi.mock("@/components/pipelines/NodeEditorDrawer", () => ({
     ) => void;
     return (
       <div>
+        {(props.validationIssues as Array<{ message: string; field?: string }> | undefined)?.map(
+          (issue) => (
+            <div role="alert" key={`${issue.field ?? "issue"}-${issue.message}`}>
+              {issue.field ? `${issue.field}: ` : ""}
+              {issue.message}
+            </div>
+          ),
+        )}
         <button
           type="button"
           onClick={() => (props.onOpenIndexManager as (flag?: boolean) => void)?.(true)}
@@ -143,11 +158,33 @@ vi.mock("@/components/pipelines/NodeEditorDrawer", () => ({
 }));
 
 vi.mock("@/components/pipelines/SaveVersionDialog", () => ({
-  SaveVersionDialog: ({ open, onSave }: { open: boolean; onSave: () => void }) =>
+  SaveVersionDialog: ({
+    open,
+    onSave,
+    validationMessage,
+    validationIssues,
+  }: {
+    open: boolean;
+    onSave: () => void;
+    validationMessage?: string | null;
+    validationIssues?: Array<{ message: string; field?: string }>;
+  }) =>
     open ? (
-      <button type="button" onClick={onSave}>
-        Save pipeline
-      </button>
+      <div role="dialog">
+        {validationMessage ? (
+          <div role="alert">
+            {validationMessage}
+            {validationIssues?.map((issue) => (
+              <span key={issue.message}>
+                {issue.field}: {issue.message}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <button type="button" onClick={onSave}>
+          Save pipeline
+        </button>
+      </div>
     ) : null,
 }));
 
@@ -258,6 +295,12 @@ vi.mock("@/components/pipelines/CreatePipelineWizard", () => ({
               created_at: baseTimestamp,
               updated_at: baseTimestamp,
               definition: { nodes: [], edges: [] },
+              validation_issues: [
+                {
+                  message: "Chunking may exceed the model limit.",
+                  severity: "warning",
+                },
+              ],
             })
           }
         >
@@ -295,17 +338,38 @@ vi.mock("@/components/pipelines/index-manager/IndexManagerModal", () => ({
 vi.mock("@/components/ui/confirm-dialog", () => ({
   ConfirmDialog: ({
     open,
+    title,
+    confirmLabel,
+    rememberLabel,
+    rememberChecked,
+    onRememberChange,
     onConfirm,
     onCancel,
   }: {
     open: boolean;
+    title: string;
+    confirmLabel?: string;
+    rememberLabel?: string;
+    rememberChecked?: boolean;
+    onRememberChange?: (checked: boolean) => void;
     onConfirm: () => void;
     onCancel: () => void;
   }) =>
     open ? (
       <div>
+        <p>{title}</p>
+        {rememberLabel && onRememberChange ? (
+          <label>
+            <input
+              type="checkbox"
+              checked={rememberChecked}
+              onChange={(event) => onRememberChange(event.target.checked)}
+            />
+            {rememberLabel}
+          </label>
+        ) : null}
         <button type="button" onClick={onConfirm}>
-          Confirm delete
+          {title.toLowerCase().includes("delete") ? confirmDeleteLabel : confirmLabel}
         </button>
         <button type="button" onClick={onCancel}>
           Cancel delete
@@ -362,9 +426,13 @@ describe("PipelineBuilder", () => {
     });
     api.listIndexes.mockResolvedValue([]);
     api.listPipelineVersions.mockResolvedValue([makePipelineVersion({ id: "v1" })]);
-    api.validatePipeline.mockResolvedValue({ valid: true, errors: [], warnings: [] });
+    api.validatePipeline.mockResolvedValue({ valid: true, errors: [], warnings: [], issues: [] });
     api.updatePipeline.mockResolvedValue(pipeline);
     api.activatePipelineVersion.mockResolvedValue(pipeline);
+    api.ensureHuggingFaceTokenizer.mockResolvedValue({
+      model_id: hfModelId,
+      cached: true,
+    });
 
     io.validatePipelineConnection.mockReturnValue({ valid: true });
     io.validatePipelineEdges.mockReturnValue({ edgeErrors: {}, nodeErrors: {} });
@@ -377,11 +445,124 @@ describe("PipelineBuilder", () => {
     await waitFor(() => {
       expect(api.fetchPipelines).toHaveBeenCalled();
     });
+    await waitFor(() =>
+      expect(lastSidebarProps).toMatchObject({
+        hasRerankingProvider: false,
+        rerankingProviderMessage: rerankerProviderRequired,
+      }),
+    );
+    await waitFor(() =>
+      expect(lastDrawerProps).toMatchObject({
+        embeddingCatalog: expect.any(Object),
+        rerankingCatalog: expect.any(Object),
+      }),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }));
     fireEvent.click(screen.getByRole("button", { name: "Finish create" }));
 
     expect(screen.getByRole("button", { name: "Select pipeline" })).toBeInTheDocument();
+    expect(screen.getByTestId("canvas")).toHaveTextContent(
+      "Pipeline created with warnings: Chunking may exceed the model limit.",
+    );
+    await waitFor(() => expect(api.listPipelineVersions).toHaveBeenLastCalledWith("token", "new"));
+    await act(async () => {
+      await api.listPipelineVersions.mock.results.at(-1)?.value;
+    });
+  });
+
+  it("blocks reranker preview and drop without an actual reranking connection", async () => {
+    const rerankerSpec = makeNodeSpec({
+      type: rerankerType,
+      label: "Reranker",
+      category: "retrieval",
+    });
+    api.fetchPipelineNodes.mockResolvedValueOnce([rerankerSpec]);
+    api.fetchPipelines.mockResolvedValueOnce([
+      makePipeline({ kind: "retrieval", definition: { nodes: [], edges: [] } }),
+    ]);
+    api.listConnections.mockResolvedValueOnce([]);
+
+    render(<PipelineBuilder kind="retrieval" />);
+
+    await waitFor(() => expect(lastSidebarProps).not.toBeNull());
+    expect(lastSidebarProps).toMatchObject({ hasRerankingProvider: false });
+
+    act(() => {
+      (lastSidebarProps?.onPreviewNode as (spec: NodeSpec) => void)(rerankerSpec);
+    });
+    expect(lastDrawerProps?.node).toBeNull();
+
+    const dropEvent = buildDragEvent(rerankerType);
+    act(() => {
+      (lastCanvasProps?.onDrop as (event: unknown) => void)(dropEvent);
+    });
+    expect(screen.getByTestId("canvas")).toHaveTextContent(/reranking provider/);
+  });
+
+  it("blocks reranker insertion while provider connections are still loading", async () => {
+    const rerankerSpec = makeNodeSpec({
+      type: rerankerType,
+      label: "Reranker",
+      category: "retrieval",
+    });
+    api.fetchPipelineNodes.mockResolvedValueOnce([rerankerSpec]);
+    api.fetchPipelines.mockResolvedValueOnce([
+      makePipeline({ kind: "retrieval", definition: { nodes: [], edges: [] } }),
+    ]);
+    let resolveConnections: ((connections: []) => void) | undefined;
+    api.listConnections.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConnections = resolve;
+        }),
+    );
+
+    render(<PipelineBuilder kind="retrieval" />);
+
+    await waitFor(() => expect(lastSidebarProps).not.toBeNull());
+    expect(lastSidebarProps).toMatchObject({
+      hasRerankingProvider: false,
+      rerankingProviderMessage: rerankerProviderLoading,
+    });
+    act(() => {
+      (lastSidebarProps?.onPreviewNode as (spec: NodeSpec) => void)(rerankerSpec);
+    });
+    expect(screen.getByTestId("canvas")).toHaveTextContent(rerankerProviderLoading);
+
+    await act(async () => resolveConnections?.([]));
+    await waitFor(() =>
+      expect(lastSidebarProps).toMatchObject({
+        hasRerankingProvider: false,
+        rerankingProviderMessage: rerankerProviderRequired,
+      }),
+    );
+  });
+
+  it("blocks reranker insertion and surfaces provider connection errors", async () => {
+    const rerankerSpec = makeNodeSpec({
+      type: rerankerType,
+      label: "Reranker",
+      category: "retrieval",
+    });
+    api.fetchPipelineNodes.mockResolvedValueOnce([rerankerSpec]);
+    api.fetchPipelines.mockResolvedValueOnce([
+      makePipeline({ kind: "retrieval", definition: { nodes: [], edges: [] } }),
+    ]);
+    api.listConnections.mockRejectedValueOnce(new Error("Connection request failed."));
+
+    render(<PipelineBuilder kind="retrieval" />);
+
+    await waitFor(() =>
+      expect(lastSidebarProps).toMatchObject({
+        hasRerankingProvider: false,
+        rerankingProviderMessage: rerankerProviderError,
+      }),
+    );
+    act(() => {
+      (lastSidebarProps?.onPreviewNode as (spec: NodeSpec) => void)(rerankerSpec);
+    });
+    expect(screen.getByTestId("canvas")).toHaveTextContent(rerankerProviderError);
   });
 
   it("handles connect, save, and delete logic", async () => {
@@ -400,8 +581,72 @@ describe("PipelineBuilder", () => {
     await waitFor(() => expect(api.updatePipeline).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: deletePipelineLabel }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
+    fireEvent.click(screen.getByRole("button", { name: confirmDeleteLabel }));
     await waitFor(() => expect(api.deletePipeline).toHaveBeenCalled());
+  });
+
+  it("requires consent before saving an uncached HuggingFace tokenizer", async () => {
+    const chunkerSpec = makeNodeSpec({
+      type: "chunker.token",
+      label: "Token Chunker",
+      category: "ingestion",
+      input_ports: [
+        {
+          key: "document",
+          label: "Document",
+          data_type: "document",
+          required: true,
+          accepts_many: false,
+        },
+      ],
+      output_ports: [
+        {
+          key: "chunks",
+          label: "Chunks",
+          data_type: "chunk_batch",
+          required: true,
+          accepts_many: false,
+        },
+      ],
+    });
+    api.fetchPipelines.mockResolvedValueOnce([
+      {
+        ...pipeline,
+        definition: {
+          nodes: [
+            ...pipeline.definition.nodes,
+            {
+              id: "chunker",
+              type: "chunker.token",
+              name: "Token Chunker",
+              config: { tokenizer: "huggingface", hf_model_id: hfModelId },
+              position: { x: -200, y: 0 },
+            },
+          ],
+          edges: [],
+        },
+      },
+    ]);
+    api.fetchPipelineNodes.mockResolvedValueOnce([...nodeSpecs, chunkerSpec]);
+    api.ensureHuggingFaceTokenizer
+      .mockRejectedValueOnce(new ApiError(400, "Download consent is required."))
+      .mockResolvedValue({ model_id: hfModelId, cached: true });
+    render(<PipelineBuilder kind="ingestion" />);
+
+    await waitFor(() => expect((lastCanvasProps?.nodes as unknown[] | undefined)?.length).toBe(2));
+    fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
+    fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
+
+    expect(await screen.findByRole("button", { name: "Download tokenizer" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Remember this choice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download tokenizer" }));
+
+    await waitFor(() => expect(api.updatePipeline).toHaveBeenCalled());
+    expect(api.ensureHuggingFaceTokenizer).toHaveBeenLastCalledWith("token", {
+      model_id: hfModelId,
+      consent: true,
+      remember: true,
+    });
   });
 
   it("handles delete errors", async () => {
@@ -411,7 +656,7 @@ describe("PipelineBuilder", () => {
     await waitFor(() => expect(lastCanvasProps).not.toBeNull());
 
     fireEvent.click(screen.getByRole("button", { name: deletePipelineLabel }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
+    fireEvent.click(screen.getByRole("button", { name: confirmDeleteLabel }));
 
     await waitFor(() => {
       expect(screen.getByTestId("canvas")).toHaveTextContent("Unable to delete pipeline.");
@@ -420,7 +665,12 @@ describe("PipelineBuilder", () => {
 
   it("handles validation errors and activation", async () => {
     io.validatePipelineConfig.mockReturnValue({ nodeErrors: { "node-1": ["Missing"] } });
-    api.validatePipeline.mockResolvedValueOnce({ valid: false, errors: ["Bad"], warnings: [] });
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: false,
+      errors: ["Bad"],
+      warnings: [],
+      issues: [],
+    });
 
     render(<PipelineBuilder kind="ingestion" />);
 
@@ -455,33 +705,104 @@ describe("PipelineBuilder", () => {
     await waitFor(() => expect(api.activatePipelineVersion).toHaveBeenCalled());
   });
 
+  it("keeps the save-version dialog open and surfaces field validation issues", async () => {
+    const issue = {
+      code: "embedding_input_limit_exceeded",
+      message: "Chunk size exceeds the embedding model input limit.",
+      severity: "error" as const,
+      node_id: "node-1",
+      field: "chunk_size",
+    };
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: false,
+      errors: [issue.message],
+      warnings: [],
+      issues: [issue],
+    });
+
+    render(<PipelineBuilder kind="ingestion" />);
+    await waitFor(() => expect(lastCanvasProps).not.toBeNull());
+    await waitFor(() =>
+      expect((lastCanvasProps?.nodes as unknown[] | undefined)?.length).toBeGreaterThan(0),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: selectNodeLabel }));
+    fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
+    fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "Validation failed: Chunk size exceeds the embedding model input limit.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "chunk_size: Chunk size exceeds the embedding model input limit.",
+    );
+    expect(within(dialog).getByRole("button", { name: savePipelineLabel })).toBeInTheDocument();
+    expect(api.updatePipeline).not.toHaveBeenCalled();
+  });
+
   it("surfaces validation warnings and save failures", async () => {
     api.validatePipeline.mockResolvedValueOnce({
       valid: true,
       errors: [],
       warnings: ["Be careful"],
+      issues: [],
     });
-    api.updatePipeline.mockResolvedValueOnce(pipeline);
+    const returnedIssue = {
+      message: "Chunk size is above the selected model limit.",
+      severity: "warning" as const,
+      node_id: "node-1",
+      field: "chunk_size",
+    };
+    api.updatePipeline.mockResolvedValueOnce({
+      ...pipeline,
+      validation_issues: [returnedIssue],
+    });
 
     render(<PipelineBuilder kind="ingestion" />);
 
     await waitFor(() => expect(lastCanvasProps).not.toBeNull());
+    await waitFor(() =>
+      expect((lastCanvasProps?.nodes as unknown[] | undefined)?.length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getByRole("button", { name: selectNodeLabel }));
 
     fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
     fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
     await waitFor(() => {
       expect(api.updatePipeline).toHaveBeenCalled();
       expect(screen.getByTestId("canvas")).toHaveTextContent("Saved as v1. Warnings: Be careful");
+      expect(lastDrawerProps?.validationIssues).toEqual([returnedIssue]);
     });
 
-    api.validatePipeline.mockResolvedValueOnce({ valid: true, errors: [], warnings: [] });
-    api.updatePipeline.mockRejectedValueOnce("Save failed");
+    api.validatePipeline.mockResolvedValueOnce({
+      valid: true,
+      errors: [],
+      warnings: [],
+      issues: [],
+    });
+    const staleIssue = {
+      message: "Selected model is no longer available.",
+      severity: "error" as const,
+      node_id: "node-1",
+      field: "model_name",
+    };
+    api.updatePipeline.mockRejectedValueOnce(
+      new ApiError(400, staleIssue.message, { errors: [staleIssue.message], issues: [staleIssue] }),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: openSaveLabel }));
     fireEvent.click(screen.getByRole("button", { name: savePipelineLabel }));
     await waitFor(() => {
-      expect(screen.getByTestId("canvas")).toHaveTextContent("Unable to save pipeline.");
+      expect(screen.getByTestId("canvas")).toHaveTextContent(staleIssue.message);
+      expect(
+        (lastCanvasProps?.nodes as Array<{ data: { errors?: string[] } }>)[0]?.data.errors,
+      ).toContain(staleIssue.message);
     });
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(staleIssue.message);
   });
 
   it("handles activation errors", async () => {

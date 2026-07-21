@@ -10,6 +10,7 @@ import type { SetupWizardApi } from "@/components/setup/hooks/use-setup-wizard";
 import type { IndexBackend } from "@/lib/types";
 
 const KICKER = "First-run setup";
+const EMBEDDING_INPUT_MARGIN_TOKENS = 16;
 
 export function StepIndex({ wizard }: { wizard: SetupWizardApi }) {
   const { backend, indexName, embeddingDimension, embeddingModel } = wizard.state.choices;
@@ -124,6 +125,13 @@ export function StepIndex({ wizard }: { wizard: SetupWizardApi }) {
 export function StepLaunch({ wizard }: { wizard: SetupWizardApi }) {
   const { collectionName, chunkSize, chunkOverlap, embeddingModel, indexName, backend } =
     wizard.state.choices;
+  const selectedModel = wizard.models?.find((model) => model.id === embeddingModel);
+  const maximum = selectedModel?.max_input_tokens;
+  const chunkSpan = chunkSize + chunkOverlap;
+  const chunkSizeWarning =
+    typeof maximum === "number" && chunkSpan > Math.max(0, maximum - EMBEDDING_INPUT_MARGIN_TOKENS)
+      ? `Chunk size plus overlap (${chunkSpan.toLocaleString()}) may exceed this model's effective input limit.`
+      : null;
   return (
     <SetupStepShell
       stepKey="launch"
@@ -178,6 +186,8 @@ export function StepLaunch({ wizard }: { wizard: SetupWizardApi }) {
           />
         </Field>
       </div>
+      <SetupNotice message={chunkSizeWarning} tone="warning" />
+      <SetupNotice message={wizard.warning} tone="warning" />
       <SetupNotice message={wizard.error} />
     </SetupStepShell>
   );

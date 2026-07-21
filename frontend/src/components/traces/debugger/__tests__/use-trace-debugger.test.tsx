@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { useTraceDebugger } from "@/components/traces/debugger/hooks/use-trace-debugger";
@@ -12,6 +12,7 @@ vi.mock("@/providers/auth-provider", async () =>
 );
 
 const TEST_TOKEN = "test-token";
+const ROUTE_CHUNK_ID = "route-chunk";
 
 const api = vi.mocked(apiModule);
 
@@ -30,6 +31,7 @@ describe("useTraceDebugger", () => {
   it("loads the end-to-end trace when a chunk is targeted", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTraceResponse(),
+      context_items: [],
       origin: {
         document_id: "doc-1",
         document_name: "doc.pdf",
@@ -48,12 +50,112 @@ describe("useTraceDebugger", () => {
     await waitFor(() => expect(result.current.graph).not.toBeNull());
     expect(api.fetchQueryEventEndToEndTrace).toHaveBeenCalledWith(TEST_TOKEN, "qe-1", "chunk-1");
     expect(result.current.graph?.combined).toBe(true);
+    expect(result.current.focusedItemId).toBe("chunk-1");
+  });
+
+  it("resolves the focused chunk when a document trace targets one", async () => {
+    api.fetchDocumentFocusedTrace.mockResolvedValueOnce({
+      trace: makeTraceResponse({
+        run: { ...makeTraceResponse().run, kind: "ingestion" },
+      }),
+      focused_item: {
+        id: "doc-1:7",
+        status: "resolved",
+        text: "The ingested chunk text.",
+        document_id: "doc-1",
+        filename: "doc.pdf",
+        chunk_index: 7,
+        chunk_count: 30,
+      },
+      context_items: [
+        {
+          id: "doc-1:6",
+          status: "resolved",
+          text: "The preceding chunk.",
+          document_id: "doc-1",
+          filename: "doc.pdf",
+          chunk_index: 6,
+          chunk_count: 30,
+        },
+      ],
+    });
+
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "document", id: "doc-1", chunkId: "doc-1:7" }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    expect(api.fetchDocumentFocusedTrace).toHaveBeenCalledWith(TEST_TOKEN, "doc-1", "doc-1:7");
+    expect(result.current.focusedItem?.text).toBe("The ingested chunk text.");
+    expect(result.current.contextItems.map((item) => item.id)).toEqual(["doc-1:6"]);
+    expect(result.current.focusedItemId).toBe("doc-1:7");
+  });
+
+  it("owns focused item selection and clearing", async () => {
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "run", id: "run-1", chunkId: null }),
+    );
+
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    expect(result.current.focusedItemId).toBeNull();
+
+    act(() => result.current.focusItem("doc:4"));
+    expect(result.current.focusedItemId).toBe("doc:4");
+
+    act(() => result.current.clearFocus());
+    expect(result.current.focusedItemId).toBeNull();
+  });
+
+  it("loads the ingestion origin when a query result is focused in the inspector", async () => {
+    api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
+      retrieval: makeTraceResponse(),
+      context_items: [],
+      origin: {
+        document_id: "doc-1",
+        document_name: "doc.pdf",
+        chunk_id: "chunk-4",
+        trace: makeTraceResponse({
+          run: { ...makeTraceResponse().run, id: "run-origin", kind: "ingestion" },
+        }),
+      },
+    });
+    const { result } = renderHook(() =>
+      useTraceDebugger({ kind: "query", id: "qe-1", chunkId: null }),
+    );
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+
+    act(() => result.current.focusItem("chunk-4"));
+
+    await waitFor(() => expect(result.current.graph?.combined).toBe(true));
+    expect(api.fetchQueryEventEndToEndTrace).toHaveBeenCalledWith(TEST_TOKEN, "qe-1", "chunk-4");
+  });
+
+  it("uses a changed route chunk instead of stale local focus", async () => {
+    const { result, rerender } = renderHook(
+      ({ chunkId }: { chunkId: string | null }) =>
+        useTraceDebugger({ kind: "query", id: "qe-1", chunkId }),
+      { initialProps: { chunkId: null as string | null } },
+    );
+    await waitFor(() => expect(result.current.graph).not.toBeNull());
+    act(() => result.current.focusItem("old-chunk"));
+
+    rerender({ chunkId: ROUTE_CHUNK_ID });
+
+    expect(result.current.focusedItemId).toBe(ROUTE_CHUNK_ID);
+    await waitFor(() =>
+      expect(api.fetchQueryEventEndToEndTrace).toHaveBeenCalledWith(
+        TEST_TOKEN,
+        "qe-1",
+        ROUTE_CHUNK_ID,
+      ),
+    );
   });
 
   it("falls back to the plain retrieval graph when no origin exists", async () => {
     api.fetchQueryEventEndToEndTrace.mockResolvedValueOnce({
       retrieval: makeTraceResponse(),
       origin: null,
+      context_items: [],
     });
 
     const { result } = renderHook(() =>

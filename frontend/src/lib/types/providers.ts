@@ -2,10 +2,10 @@ import type { ModelPricing } from "@/lib/types/chat";
 import type { UUID } from "@/lib/types/common";
 
 /** Mirrors `app/schemas/enums.py::ProviderType`. */
-export type ProviderType = "openrouter" | "ollama" | "pinecone";
+export type ProviderType = "openrouter" | "ollama" | "cohere" | "tei" | "pinecone";
 
 /** Mirrors `app/schemas/enums.py::ProviderKind`. */
-export type ProviderKind = "embedding" | "chat" | "vector_store";
+export type ProviderKind = "embedding" | "chat" | "reranking" | "vector_store";
 
 /** Mirrors `app/schemas/providers.py::ConfigFieldKind`. */
 export type ProviderConfigFieldKind = "string" | "secret" | "url";
@@ -39,6 +39,8 @@ export interface ProviderConnection {
   provider_type: ProviderType;
   label: string;
   kinds: ProviderKind[];
+  /** False when the stored config no longer validates — the row lists but must not satisfy capability gates. */
+  config_valid: boolean;
   config: Record<string, string>;
   secrets_configured: Record<string, boolean>;
   created_at: string;
@@ -73,10 +75,21 @@ export interface CatalogModel {
   name: string;
   description?: string | null;
   context_length?: number | null;
+  max_input_tokens?: number | null;
   pricing?: ModelPricing | null;
   dimension?: number | null;
+  input_modalities: string[];
+  output_modalities: string[];
   supported_parameters: string[];
   default_parameters?: Record<string, unknown> | null;
+}
+
+/** Mirrors `app/schemas/providers.py::ProviderCoverage`. */
+export interface ProviderCoverage {
+  has_embedding: boolean;
+  has_chat: boolean;
+  has_reranking: boolean;
+  has_vector_store: boolean;
 }
 
 /** Mirrors `app/schemas/providers.py::ConnectionCatalogError`. */

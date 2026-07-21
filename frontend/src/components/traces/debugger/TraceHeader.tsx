@@ -12,7 +12,6 @@ import type { PipelineTraceResponse } from "@/lib/types";
 type TraceHeaderProps = {
   trace: PipelineTraceResponse;
   combined: boolean;
-  chunkId?: string | null;
   onRefresh: () => void;
 };
 
@@ -23,7 +22,7 @@ const runDurationMs = (trace: PipelineTraceResponse): number | null => {
 };
 
 /** The debugger's top bar: the way back, what run this is, and how it ended. */
-export function TraceHeader({ trace, combined, chunkId, onRefresh }: TraceHeaderProps) {
+export function TraceHeader({ trace, combined, onRefresh }: TraceHeaderProps) {
   const router = useRouter();
   const failed = trace.run.status === "failed";
   const running = trace.run.status === "running";
@@ -47,11 +46,6 @@ export function TraceHeader({ trace, combined, chunkId, onRefresh }: TraceHeader
         <h1 className="truncate text-base font-semibold text-primary">{title}</h1>
       </div>
       <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
-        {chunkId && (
-          <span className="max-w-[180px] truncate rounded-full border border-accent-cyan/40 bg-accent-cyan/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-cyan">
-            chunk {chunkId}
-          </span>
-        )}
         {duration && (
           <span className="font-mono text-[10px] tracking-[0.08em] text-meta">{duration}</span>
         )}

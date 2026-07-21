@@ -69,6 +69,7 @@ export function makeUser(overrides: Partial<User> = {}): User {
     created_at: TIMESTAMP,
     updated_at: TIMESTAMP,
     remember_session_days: 30,
+    remember_hf_tokenizer_downloads: false,
     ...overrides,
   };
 }
@@ -121,6 +122,7 @@ export function makeDocument(overrides: Partial<Document> = {}): Document {
     name: "Document.pdf",
     content_type: "application/pdf",
     status: "ready",
+    warnings: [],
     num_chunks: 4,
     num_tokens: 512,
     chunk_size: 512,
@@ -140,6 +142,7 @@ export function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
     chunk_index: 0,
     text: "Chunk text",
     metadata: {},
+    token_count: 2,
     chunk_size: 512,
     chunk_strategy: "token",
     created_at: TIMESTAMP,
@@ -168,6 +171,7 @@ export function makePipeline(overrides: Partial<Pipeline> = {}): Pipeline {
     is_default: false,
     created_at: TIMESTAMP,
     updated_at: TIMESTAMP,
+    validation_issues: [],
     definition: {
       nodes: [
         {
@@ -220,7 +224,7 @@ export function makeNodeSpec(overrides: Partial<NodeSpec> = {}): NodeSpec {
 export function makeValidation(
   overrides: Partial<PipelineValidationResult> = {},
 ): PipelineValidationResult {
-  return { valid: true, errors: [], warnings: [], ...overrides };
+  return { valid: true, errors: [], warnings: [], issues: [], ...overrides };
 }
 
 export function makeChatSession(overrides: Partial<ChatSession> = {}): ChatSession {
@@ -380,6 +384,7 @@ export function makeTraceResponse(
       user_id: USER_ID,
       collection_id: "col-1",
       status: "completed",
+      warnings: [],
       started_at: TIMESTAMP,
       completed_at: TIMESTAMP,
       created_at: TIMESTAMP,
@@ -420,3 +425,5 @@ export {
   makeModelCatalog,
   makeProviderType,
 } from "@/test/fixtures/providers";
+
+export * from "@/test/fixtures/evals";

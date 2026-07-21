@@ -127,12 +127,30 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     fetchCollectionUmap: vi.fn(async () => null),
     computeCollectionUmap: vi.fn(async () => makeUmapVisualization()),
     runCollectionQuery: vi.fn(async () => makeQueryResult()),
+    fetchCollectionQueryArguments: vi.fn(async () => ({ arguments: [] })),
     fetchPipelineRunTrace: vi.fn(async () => makeTraceResponse()),
     fetchDocumentTrace: vi.fn(async () => makeTraceResponse()),
+    fetchDocumentFocusedTrace: vi.fn(async () => ({
+      trace: makeTraceResponse(),
+      focused_item: null,
+    })),
     fetchQueryEventTrace: vi.fn(async () => makeTraceResponse()),
     fetchQueryEventEndToEndTrace: vi.fn(async () => ({
       retrieval: makeTraceResponse(),
       origin: null,
+    })),
+    // evals
+    fetchEvalBenchmarks: vi.fn(async () => []),
+    fetchEvalMetricCatalog: vi.fn(async () => []),
+    fetchEvalDatasets: vi.fn(async () => []),
+    fetchEvalDataset: vi.fn(async () => null),
+    fetchEvalRuns: vi.fn(async () => []),
+    fetchEvalCollections: vi.fn(async () => []),
+    fetchEvalCollectionDocuments: vi.fn(async () => ({ total: 0, items: [] })),
+    fetchEvalDatasetDocument: vi.fn(async () => ({
+      external_doc_id: "d1",
+      title: null,
+      text: "",
     })),
     // pipelines
     fetchPipelines: vi.fn(async () => []),
@@ -149,6 +167,10 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     deletePipeline: vi.fn(async () => undefined),
     listPipelineVersions: vi.fn(async () => []),
     activatePipelineVersion: vi.fn(async () => makePipeline()),
+    ensureHuggingFaceTokenizer: vi.fn(async (_token: string, payload: { model_id: string }) => ({
+      model_id: payload.model_id,
+      cached: true,
+    })),
     // chat
     listChatSessions: vi.fn(async () => []),
     getChatHistory: vi.fn(async () => []),
@@ -158,6 +180,7 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     streamChat: vi.fn(async () => makeChatCompletion()),
     // models
     fetchEmbeddingModels: vi.fn(async () => makeModelCatalog()),
+    fetchRerankingModels: vi.fn(async () => makeModelCatalog()),
     fetchEmbeddingDimension: vi.fn(async () => ({ dimension: 1536 })),
     listChatModels: vi.fn(async () => makeModelCatalog()),
     listModelEndpoints: vi.fn(async () => ({ data: makeProviderDirectory() })),
@@ -178,6 +201,34 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
             required: false,
           },
         ],
+      }),
+      makeProviderType({
+        provider_type: "cohere",
+        label: "Cohere",
+        kinds: ["embedding", "chat", "reranking"],
+        config_fields: [{ name: "api_key", label: "API key", kind: "secret", required: true }],
+        docs_url: "https://dashboard.cohere.com/api-keys",
+      }),
+      makeProviderType({
+        provider_type: "tei",
+        label: "Hugging Face TEI",
+        kinds: ["embedding", "reranking"],
+        config_fields: [
+          {
+            name: "base_url",
+            label: "Server URL",
+            kind: "url",
+            required: true,
+            description: "Each TEI connection serves one model and task.",
+          },
+          {
+            name: "api_key",
+            label: "API key (optional, for proxied servers)",
+            kind: "secret",
+            required: false,
+          },
+        ],
+        docs_url: "https://huggingface.co/docs/text-embeddings-inference",
       }),
       makeProviderType({
         provider_type: "pgvector",
@@ -207,7 +258,7 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
       has_collection: true,
       setup_complete: true,
     })),
-    bootstrapSetup: vi.fn(async () => ({ collection: makeCollection() })),
+    bootstrapSetup: vi.fn(async () => ({ collection: makeCollection(), warnings: [] })),
     ...overrides,
   };
 }
