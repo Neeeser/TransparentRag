@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { DatasetDocumentsTable } from "@/components/evals/DatasetDocumentsTable";
+import { DatasetQueriesTable } from "@/components/evals/DatasetQueriesTable";
 import {
   DATASET_DOCS_PAGE_SIZE,
   useDatasetDetail,
@@ -58,8 +59,12 @@ export function DatasetDetail({ datasetId }: { datasetId: string }) {
         <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
           {detail.num_corpus_docs.toLocaleString()} corpus docs ·{" "}
           {detail.num_queries.toLocaleString()} queries
+          {detail.status === "generating" &&
+            ` · generating ${detail.progress_done} of ${detail.progress_total}`}
         </p>
       </div>
+
+      {detail.status === "ready" && <DatasetQueriesTable datasetId={datasetId} />}
 
       <GlassCard className="rounded-3xl border border-hairline bg-surface p-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">

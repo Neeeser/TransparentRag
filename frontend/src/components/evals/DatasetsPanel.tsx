@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { GenerateDatasetWizard } from "@/components/evals/GenerateDatasetWizard";
 import { ImportBenchmarkDialog } from "@/components/evals/ImportBenchmarkDialog";
 import { UploadDatasetDialog } from "@/components/evals/UploadDatasetDialog";
 import { Button } from "@/components/ui/button";
@@ -11,34 +12,57 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GlassCard } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 
-import type { BuiltinDatasetInfo, EvalDataset, EvalDatasetUploadPayload } from "@/lib/types";
+import type {
+  BuiltinDatasetInfo,
+  CatalogModel,
+  Collection,
+  EvalDataset,
+  EvalDatasetGeneratePayload,
+  EvalDatasetUploadPayload,
+} from "@/lib/types";
 
 interface DatasetsPanelProps {
   datasets: EvalDataset[];
   benchmarks: BuiltinDatasetInfo[];
+  collections: Collection[];
+  chatModels: CatalogModel[];
   loading: boolean;
   onImport: (key: string) => Promise<boolean>;
   onUpload: (payload: EvalDatasetUploadPayload) => Promise<boolean>;
+  onGenerate: (payload: EvalDatasetGeneratePayload) => Promise<boolean>;
   onDelete: (datasetId: string) => Promise<boolean>;
 }
 
+const IN_FLIGHT_TONE = "bg-accent-violet";
+
 const STATUS_TONE: Record<EvalDataset["status"], string> = {
-  pending: "bg-accent-violet",
-  downloading: "bg-accent-violet",
+  pending: IN_FLIGHT_TONE,
+  downloading: IN_FLIGHT_TONE,
+  generating: IN_FLIGHT_TONE,
   ready: "bg-data-pos",
   failed: "bg-data-neg",
+};
+
+const SOURCE_LABEL: Record<EvalDataset["source"], string> = {
+  builtin_benchmark: "benchmark",
+  custom_upload: "upload",
+  synthetic: "synthetic",
 };
 
 export function DatasetsPanel({
   datasets,
   benchmarks,
+  collections,
+  chatModels,
   loading,
   onImport,
   onUpload,
+  onGenerate,
   onDelete,
 }: DatasetsPanelProps) {
   const [importOpen, setImportOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<EvalDataset | null>(null);
   const importedKeys = new Set(
     datasets
@@ -51,7 +75,10 @@ export function DatasetsPanel({
     <GlassCard className="rounded-3xl border border-hairline bg-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">Datasets</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => setGenerateOpen(true)} className="px-5">
+            Generate from collection
+          </Button>
           <Button variant="secondary" onClick={() => setUploadOpen(true)} className="px-5">
             Upload dataset
           </Button>
@@ -100,9 +127,11 @@ export function DatasetsPanel({
                   <p className="mt-1 truncate text-sm text-body">{dataset.description}</p>
                 )}
                 <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
-                  {dataset.num_queries.toLocaleString()} queries ·{" "}
-                  {dataset.num_corpus_docs.toLocaleString()} docs ·{" "}
-                  {dataset.source === "builtin_benchmark" ? "benchmark" : "upload"}
+                  {dataset.status === "generating"
+                    ? `${dataset.progress_done} of ${dataset.progress_total} questions accepted`
+                    : `${dataset.num_queries.toLocaleString()} queries · ` +
+                      `${dataset.num_corpus_docs.toLocaleString()} docs · ` +
+                      SOURCE_LABEL[dataset.source]}
                 </p>
                 {dataset.status === "failed" && dataset.error_message && (
                   <p className="mt-1 text-xs text-data-neg">{dataset.error_message}</p>
@@ -141,10 +170,24 @@ export function DatasetsPanel({
         onUpload={onUpload}
         onClose={() => setUploadOpen(false)}
       />
+      {/* Mounted per open so every launch starts from a clean wizard state. */}
+      {generateOpen && (
+        <GenerateDatasetWizard
+          open
+          collections={collections}
+          chatModels={chatModels}
+          onGenerate={onGenerate}
+          onClose={() => setGenerateOpen(false)}
+        />
+      )}
       <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete dataset"
-        description={`Delete ${pendingDelete?.name ?? "this dataset"} and its stored corpus, queries, and judgments. Runs referencing it must be deleted first.`}
+        description={
+          pendingDelete?.status === "generating"
+            ? `Stop generating and delete ${pendingDelete?.name ?? "this dataset"}.`
+            : `Delete ${pendingDelete?.name ?? "this dataset"} and its stored corpus, queries, and judgments. Runs referencing it must be deleted first.`
+        }
         confirmLabel="Delete dataset"
         confirmVariant="danger"
         onConfirm={async () => {

@@ -44,9 +44,12 @@ export function EvalsWorkspace() {
         <DatasetsPanel
           datasets={workspace.datasets.data ?? []}
           benchmarks={workspace.benchmarks.data ?? []}
+          collections={workspace.userCollections.data ?? []}
+          chatModels={workspace.chatModels.data?.models ?? []}
           loading={workspace.datasets.loading}
           onImport={workspace.importBenchmark}
           onUpload={workspace.uploadDataset}
+          onGenerate={workspace.generateDataset}
           onDelete={workspace.removeDataset}
         />
         <CollectionsPanel

@@ -7,20 +7,23 @@ import {
   deleteEvalCollection,
   deleteEvalDataset,
   deleteEvalRun,
+  fetchCollections,
   fetchEvalBenchmarks,
   fetchEvalCollections,
   fetchEvalDatasets,
   fetchEvalMetricCatalog,
   fetchEvalRuns,
   fetchPipelines,
+  generateEvalDataset,
   importEvalBenchmark,
+  listChatModels,
   uploadEvalDataset,
 } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useApiQuery } from "@/lib/use-api-query";
 import { useAuth } from "@/providers/auth-provider";
 
-import type { EvalDatasetUploadPayload } from "@/lib/types";
+import type { EvalDatasetGeneratePayload, EvalDatasetUploadPayload } from "@/lib/types";
 
 const ACTIVE_POLL_MS = 2500;
 
@@ -41,13 +44,20 @@ export function useEvalsWorkspace() {
     enabled: !!token,
   });
   const pipelines = useApiQuery(() => fetchPipelines(token!), [token], { enabled: !!token });
+  const userCollections = useApiQuery(() => fetchCollections(token!), [token], {
+    enabled: !!token,
+  });
+  const chatModels = useApiQuery(() => listChatModels(token!), [token], { enabled: !!token });
 
   const hasActiveRun = useMemo(
     () => (runs.data ?? []).some((run) => isRunActive(run.status)),
     [runs.data],
   );
-  const hasDownloadingDataset = useMemo(
-    () => (datasets.data ?? []).some((dataset) => dataset.status === "downloading"),
+  const hasBusyDataset = useMemo(
+    () =>
+      (datasets.data ?? []).some(
+        (dataset) => dataset.status === "downloading" || dataset.status === "generating",
+      ),
     [datasets.data],
   );
 
@@ -58,13 +68,13 @@ export function useEvalsWorkspace() {
   const reloadRuns = runs.reload;
   const reloadDatasets = datasets.reload;
   useEffect(() => {
-    if (!hasActiveRun && !hasDownloadingDataset) return;
+    if (!hasActiveRun && !hasBusyDataset) return;
     const timer = window.setInterval(() => {
       if (hasActiveRun) reloadRuns();
-      if (hasDownloadingDataset) reloadDatasets();
+      if (hasBusyDataset) reloadDatasets();
     }, ACTIVE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [hasActiveRun, hasDownloadingDataset, reloadRuns, reloadDatasets]);
+  }, [hasActiveRun, hasBusyDataset, reloadRuns, reloadDatasets]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, reloads: Array<() => void>) => {
@@ -89,6 +99,12 @@ export function useEvalsWorkspace() {
   const uploadDataset = useCallback(
     (payload: EvalDatasetUploadPayload) =>
       runAction(() => uploadEvalDataset(token!, payload), [datasets.reload]),
+    [runAction, token, datasets.reload],
+  );
+
+  const generateDataset = useCallback(
+    (payload: EvalDatasetGeneratePayload) =>
+      runAction(() => generateEvalDataset(token!, payload), [datasets.reload]),
     [runAction, token, datasets.reload],
   );
 
@@ -120,6 +136,9 @@ export function useEvalsWorkspace() {
     clearActionError: () => setActionError(null),
     importBenchmark,
     uploadDataset,
+    generateDataset,
+    userCollections,
+    chatModels,
     removeDataset,
     removeRun,
     removeCollection,

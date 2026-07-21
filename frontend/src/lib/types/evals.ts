@@ -4,7 +4,9 @@ import type { UUID } from "@/lib/types/common";
 
 export type EvalDatasetSource = "builtin_benchmark" | "custom_upload" | "synthetic";
 
-export type EvalDatasetStatus = "pending" | "downloading" | "ready" | "failed";
+export type EvalDatasetStatus = "pending" | "downloading" | "generating" | "ready" | "failed";
+
+export type EvalQuestionType = "single_fact" | "paraphrased" | "multi_detail";
 
 export type RelevanceGranularity = "document" | "chunk";
 
@@ -30,7 +32,8 @@ export interface BuiltinDatasetInfo {
   num_corpus_docs: number;
 }
 
-/** Mirrors `EvalDatasetRead`. */
+/** Mirrors `EvalDatasetRead`. Progress fields count accepted questions while
+ * a synthetic dataset is `generating`; zero/null on other sources. */
 export interface EvalDataset {
   id: UUID;
   name: string;
@@ -42,6 +45,9 @@ export interface EvalDataset {
   error_message?: string | null;
   num_queries: number;
   num_corpus_docs: number;
+  progress_done: number;
+  progress_total: number;
+  generation_config?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -225,4 +231,42 @@ export interface EvalDatasetUploadPayload {
   corpus: string;
   queries: string;
   qrels: string;
+}
+
+/** Mirrors `EvalDatasetGenerateRequest` (`app/schemas/evals_generation.py`). */
+export interface EvalDatasetGeneratePayload {
+  name: string;
+  description?: string | null;
+  collection_id: UUID;
+  connection_id: UUID;
+  model_name: string;
+  num_questions: number;
+  type_mix?: Partial<Record<EvalQuestionType, number>>;
+  audience?: string | null;
+  example_queries?: string[];
+  seed?: number;
+}
+
+/** Mirrors `EvalDatasetQueryGold` — one gold document reference on a query. */
+export interface EvalDatasetQueryGold {
+  external_doc_id: string;
+  title?: string | null;
+}
+
+/** Mirrors `EvalDatasetQueryRead` — one query in the review table. The
+ * metadata fields are populated for synthetic queries only. */
+export interface EvalDatasetQuery {
+  id: UUID;
+  external_query_id: string;
+  text: string;
+  question_type?: EvalQuestionType | null;
+  scores?: Record<string, number> | null;
+  quote?: string | null;
+  gold: EvalDatasetQueryGold[];
+}
+
+/** Mirrors `EvalDatasetQueriesPage`. */
+export interface EvalDatasetQueriesPage {
+  total: number;
+  items: EvalDatasetQuery[];
 }
