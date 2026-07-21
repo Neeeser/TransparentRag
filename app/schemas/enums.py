@@ -136,9 +136,9 @@ class CollectionPurpose(str, Enum):
 class EvalDatasetSource(str, Enum):
     """Where an eval dataset's corpus/queries/qrels came from.
 
-    `SYNTHETIC` is reserved for a future generator that emits the same triple;
-    it is declared but not implemented in v1. Values are persisted -- add new
-    ones, never rename existing ones.
+    `SYNTHETIC` datasets are generated from one of the user's collections by
+    `app/evals/generation/`. Values are persisted -- add new ones, never
+    rename existing ones.
     """
 
     BUILTIN_BENCHMARK = "builtin_benchmark"
@@ -151,8 +151,21 @@ class EvalDatasetStatus(str, Enum):
 
     PENDING = "pending"
     DOWNLOADING = "downloading"
+    GENERATING = "generating"
     READY = "ready"
     FAILED = "failed"
+
+
+class EvalQuestionType(str, Enum):
+    """The synthetic-generation question shapes a dataset can mix.
+
+    Persisted inside `EvalDatasetQuery.query_metadata` -- add new values,
+    never rename existing ones.
+    """
+
+    SINGLE_FACT = "single_fact"
+    PARAPHRASED = "paraphrased"
+    MULTI_DETAIL = "multi_detail"
 
 
 class RelevanceGranularity(str, Enum):

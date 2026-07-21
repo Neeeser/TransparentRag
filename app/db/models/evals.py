@@ -37,6 +37,17 @@ class EvalDataset(SQLModel, TimestampMixin, table=True):
     error_message: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     num_queries: int = Field(default=0, sa_column=Column(Integer, nullable=False))
     num_corpus_docs: int = Field(default=0, sa_column=Column(Integer, nullable=False))
+    # Synthetic generation only. Progress counts accepted questions during a
+    # `generating` run; `generation_config` records the request that produced
+    # the dataset. `default=0` on the Columns so the bootstrap auto-migration
+    # can backfill rows that predate them.
+    progress_done: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    progress_total: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, default=0)
+    )
+    generation_config: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
 
 
 class EvalDatasetDocument(SQLModel, table=True):
@@ -55,7 +66,12 @@ class EvalDatasetDocument(SQLModel, table=True):
 
 
 class EvalDatasetQuery(SQLModel, table=True):
-    """One query within an eval dataset (keyed by its external id)."""
+    """One query within an eval dataset (keyed by its external id).
+
+    `query_metadata` is populated by synthetic generation only (question type,
+    critique scores, supporting quote, source chunk ids, modality); benchmark
+    and uploaded queries leave it null.
+    """
 
     __tablename__ = "eval_dataset_queries"
 
@@ -63,6 +79,9 @@ class EvalDatasetQuery(SQLModel, table=True):
     dataset_id: UUID = Field(foreign_key="eval_datasets.id", nullable=False, index=True)
     external_query_id: str = Field(sa_column=Column(String, nullable=False, index=True))
     text: str = Field(sa_column=Column(Text, nullable=False))
+    query_metadata: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
 
 
 class EvalRelevanceJudgment(SQLModel, table=True):
