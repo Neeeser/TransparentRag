@@ -100,14 +100,7 @@ describe("generate-dataset wizard reducer", () => {
       { type: "set_example_query", index: 5, value: "f" },
     ]);
     // One initial field + five added = six, all kept.
-    expect(buildGeneratePayload(withMany).example_queries).toEqual([
-      "a",
-      "b",
-      "c",
-      "d",
-      "e",
-      "f",
-    ]);
+    expect(buildGeneratePayload(withMany).example_queries).toEqual(["a", "b", "c", "d", "e", "f"]);
 
     const afterRemoval = generateWizardReducer(withMany, {
       type: "remove_example_query",

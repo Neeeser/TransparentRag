@@ -12,10 +12,7 @@ import {
   resolvedQuestionCount,
   supportsStructuredOutputs,
 } from "@/components/evals/lib/generate-dataset-wizard-reducer";
-import {
-  CHAT_MODEL_SORTS,
-  useModelCatalogFilter,
-} from "@/components/models/model-catalog-filter";
+import { CHAT_MODEL_SORTS, useModelCatalogFilter } from "@/components/models/model-catalog-filter";
 import { ModelCatalogPicker } from "@/components/models/ModelCatalogPicker";
 import { ModelMetaBadge, ModelOptionButton } from "@/components/models/ModelOptionButton";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -256,7 +253,10 @@ export function GenerateDatasetWizard({
             </button>
             {state.steeringOpen && (
               <div className="space-y-4 border-t border-hairline px-4 py-4">
-                <Field label="Audience" hint="Who asks these questions — shapes tone and specificity.">
+                <Field
+                  label="Audience"
+                  hint="Who asks these questions — shapes tone and specificity."
+                >
                   <TextArea
                     rows={2}
                     value={state.audience}

@@ -76,12 +76,12 @@ function resolveEmbeddingSelection({
 }): { selectionUnavailable: boolean; connectionLabel: string } {
   const selectionUnavailable = Boolean(
     selectedAvailability === "missing" ||
-      (selectedAvailability === undefined &&
-        selectedModelKey &&
-        selectedConnectionId &&
-        !currentModelInfo &&
-        !modelsLoading &&
-        !modelsError),
+    (selectedAvailability === undefined &&
+      selectedModelKey &&
+      selectedConnectionId &&
+      !currentModelInfo &&
+      !modelsLoading &&
+      !modelsError),
   );
   const connectionLabel =
     currentModelInfo?.connection_label ??
