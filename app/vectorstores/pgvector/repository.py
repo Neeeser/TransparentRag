@@ -218,7 +218,7 @@ class PgvectorRepository:
         `namespace` always binds as a parameter.
         """
         table = self._table_for(record)
-        sql = f"SELECT count(*) FROM {table}"  # noqa: S608 - table name is validated
+        sql = f"SELECT count(*) FROM {table}"  # table name derived from a validated record
         params: dict[str, object] = {}
         if namespace is not None:
             sql += " WHERE namespace = :namespace"

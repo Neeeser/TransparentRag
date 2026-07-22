@@ -103,7 +103,7 @@ def test_signature_busts_on_pipeline_version_change(session: Session):
         session, user, ingest_model="a", retrieval_model="b"
     )
     service = CollectionDiagnosticsService(session)
-    before = service._signature(collection)  # noqa: SLF001 - behavior under test
+    before = service._signature(collection)
 
     pipelines = PipelineService(session)
     retrieval = pipelines.get_pipeline(collection.retrieval_pipeline_id, user.id)
@@ -118,5 +118,5 @@ def test_signature_busts_on_pipeline_version_change(session: Session):
     )
     session.commit()
 
-    after = service._signature(collection)  # noqa: SLF001 - behavior under test
+    after = service._signature(collection)
     assert before != after

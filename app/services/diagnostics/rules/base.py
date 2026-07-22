@@ -76,7 +76,7 @@ def paired_observation(
     )
 
 
-def build_diagnostic(  # noqa: PLR0913 - mirrors the schema's fields, all keyword-only
+def build_diagnostic(
     # pylint: disable=too-many-arguments  # keyword-only mirror of CollectionDiagnostic
     *,
     code: str,
