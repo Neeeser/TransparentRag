@@ -4,10 +4,12 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { DatasetDocumentsTable } from "@/components/evals/DatasetDocumentsTable";
+import { DatasetQueriesTable } from "@/components/evals/DatasetQueriesTable";
 import {
   DATASET_DOCS_PAGE_SIZE,
   useDatasetDetail,
 } from "@/components/evals/hooks/use-dataset-detail";
+import { coverageLabel, readGenerationCoverage } from "@/components/evals/lib/generation-stats";
 import { GlassCard } from "@/components/ui/panel";
 import { getErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -39,6 +41,7 @@ export function DatasetDetail({ datasetId }: { datasetId: string }) {
     return <p className="text-sm text-muted">Loading dataset…</p>;
   }
   const detail = dataset.data;
+  const coverage = readGenerationCoverage(detail);
   const pipelineName = (id: string | null | undefined) =>
     (pipelines.data ?? []).find((pipeline) => pipeline.id === id)?.name ?? "Unknown pipeline";
 
@@ -58,8 +61,17 @@ export function DatasetDetail({ datasetId }: { datasetId: string }) {
         <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
           {detail.num_corpus_docs.toLocaleString()} corpus docs ·{" "}
           {detail.num_queries.toLocaleString()} queries
+          {detail.status === "generating" &&
+            ` · generating ${detail.progress_done} of ${detail.progress_total}`}
         </p>
+        {coverage && (
+          <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.28em] text-muted">
+            queries cover {coverageLabel(coverage)}
+          </p>
+        )}
       </div>
+
+      {detail.status === "ready" && <DatasetQueriesTable datasetId={datasetId} />}
 
       <GlassCard className="rounded-3xl border border-hairline bg-surface p-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted">

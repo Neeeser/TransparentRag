@@ -40,6 +40,9 @@ def to_dataset_read(dataset: models.EvalDataset) -> EvalDatasetRead:
         error_message=dataset.error_message,
         num_queries=dataset.num_queries,
         num_corpus_docs=dataset.num_corpus_docs,
+        progress_done=dataset.progress_done,
+        progress_total=dataset.progress_total,
+        generation_config=dataset.generation_config,
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
     )

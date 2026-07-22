@@ -31,6 +31,8 @@ import { vi } from "vitest";
 
 import {
   makeAdminUsageSummary,
+  makeEvalDataset,
+  makeEvalDatasetQuery,
   makeAdminUsageTimeseries,
   makeAdminUser,
   makeChatCompletion,
@@ -152,6 +154,10 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
       title: null,
       text: "",
     })),
+    generateEvalDataset: vi.fn(async () => makeEvalDataset({ status: "generating" })),
+    fetchEvalDatasetQueries: vi.fn(async () => ({ total: 0, items: [] })),
+    updateEvalDatasetQuery: vi.fn(async () => makeEvalDatasetQuery()),
+    deleteEvalDatasetQuery: vi.fn(async () => undefined),
     // pipelines
     fetchPipelines: vi.fn(async () => []),
     fetchPipeline: vi.fn(async () => makePipeline()),

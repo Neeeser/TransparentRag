@@ -6,6 +6,9 @@ import type {
   EvalCollectionDocumentsPage,
   EvalDataset,
   EvalDatasetDocument,
+  EvalDatasetGeneratePayload,
+  EvalDatasetQueriesPage,
+  EvalDatasetQuery,
   EvalDatasetUploadPayload,
   EvalMetricInfo,
   EvalRun,
@@ -55,6 +58,55 @@ export async function uploadEvalDataset(
 
 export async function deleteEvalDataset(token: string, datasetId: string): Promise<void> {
   await apiFetch<void>(`/api/evals/datasets/${datasetId}`, { token, method: "DELETE" });
+}
+
+export async function generateEvalDataset(
+  token: string,
+  payload: EvalDatasetGeneratePayload,
+): Promise<EvalDataset> {
+  return apiFetch<EvalDataset>("/api/evals/datasets/generate", {
+    token,
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchEvalDatasetQueries(
+  token: string,
+  datasetId: string,
+  params: { offset?: number; limit?: number } = {},
+): Promise<EvalDatasetQueriesPage> {
+  const query = new URLSearchParams();
+  if (params.offset) query.set("offset", String(params.offset));
+  if (params.limit) query.set("limit", String(params.limit));
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return apiFetch<EvalDatasetQueriesPage>(`/api/evals/datasets/${datasetId}/queries${suffix}`, {
+    token,
+  });
+}
+
+export async function updateEvalDatasetQuery(
+  token: string,
+  datasetId: string,
+  queryId: string,
+  text: string,
+): Promise<EvalDatasetQuery> {
+  return apiFetch<EvalDatasetQuery>(`/api/evals/datasets/${datasetId}/queries/${queryId}`, {
+    token,
+    method: "PATCH",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function deleteEvalDatasetQuery(
+  token: string,
+  datasetId: string,
+  queryId: string,
+): Promise<void> {
+  await apiFetch<void>(`/api/evals/datasets/${datasetId}/queries/${queryId}`, {
+    token,
+    method: "DELETE",
+  });
 }
 
 export async function createEvalRun(

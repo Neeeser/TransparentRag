@@ -50,7 +50,12 @@ class BuiltinDatasetInfo(BaseModel):
 
 
 class EvalDatasetRead(BaseModel):
-    """An imported eval dataset the run engine can evaluate against."""
+    """An imported or generated eval dataset the run engine can evaluate against.
+
+    `progress_done`/`progress_total` count accepted questions while a synthetic
+    dataset is `generating`; `generation_config` echoes the request that
+    produced it (both zero/None for benchmark and uploaded datasets).
+    """
 
     id: UUID
     name: str
@@ -62,6 +67,9 @@ class EvalDatasetRead(BaseModel):
     error_message: str | None = None
     num_queries: int
     num_corpus_docs: int
+    progress_done: int = 0
+    progress_total: int = 0
+    generation_config: dict[str, object] | None = None
     created_at: datetime
     updated_at: datetime
 
