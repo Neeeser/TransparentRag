@@ -213,12 +213,14 @@ def _cmd_logs(args: argparse.Namespace) -> None:
 
 
 def _cmd_list(_: argparse.Namespace) -> None:
-    from sandbox.keys import PROVIDER_ENV_VARS
+    from sandbox.keys import required_env_vars
     from sandbox.registry import all_scenarios
 
     for spec in all_scenarios():
         needs = (
-            " (needs " + ", ".join(PROVIDER_ENV_VARS[p] for p in spec.requires) + ")"
+            " (needs "
+            + ", ".join(v for p in spec.requires for v in required_env_vars(p))
+            + ")"
             if spec.requires
             else ""
         )
@@ -235,7 +237,7 @@ def _cmd_flows(args: argparse.Namespace) -> None:
     import subprocess
 
     from sandbox.harness import servers
-    from sandbox.keys import PROVIDER_ENV_VARS, PreflightError, preflight
+    from sandbox.keys import PreflightError, preflight, required_env_vars
     from sandbox.registry import get_scenario
 
     flows_root = config.REPO_ROOT / "frontend" / "flows"
@@ -258,7 +260,9 @@ def _cmd_flows(args: argparse.Namespace) -> None:
         try:
             preflight(spec.requires)
         except PreflightError:
-            missing = ", ".join(PROVIDER_ENV_VARS[p] for p in spec.requires)
+            missing = ", ".join(
+                v for p in spec.requires for v in required_env_vars(p)
+            )
             results[name] = f"skipped (needs {missing})"
             print(f"skipping {name}: missing provider keys ({missing})")
             continue

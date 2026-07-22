@@ -84,7 +84,14 @@ for setup the harness already did:
 2. A new builder is justified only for a new object type; it follows the
    service-layer rule and records facts + links.
 3. Register with `@scenario(name, description, requires, state)` — `requires`
-   names must exist in `keys.PROVIDER_ENV_VARS`.
+   names must exist in `keys.PROVIDER_SPECS`. A new provider is one
+   `PROVIDER_SPECS` entry declaring its config shape (which env vars map to
+   which `provider_connections.config` keys, and which are required — an
+   API-key provider or a base-URL one like Ollama/TEI); seed it with the
+   generic `add_provider_connection(ctx, "<provider>")` builder. Add the
+   provider's vars to `.env.sandbox.example` in the **same change** — that file
+   is the accurate list of what a scenario can require, and it silently drifts
+   otherwise.
 4. Regenerate the catalog (`python -m sandbox docs`) and commit it with the
    scenario; verify live with `sandbox up <name>` that the app shows exactly
    what `state` claims.

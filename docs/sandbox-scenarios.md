@@ -12,10 +12,12 @@ only). Every seeded scenario with a user logs in as `sandbox@ragworks.dev` /
 | scenario | state | needs keys |
 | --- | --- | --- |
 | `blank` | Empty database — for testing registration, login, and the setup wizard itself. | none |
+| `cohere-connected` | Admin user with a working Cohere connection (API key from `.env.sandbox`), but no index or collection — the setup wizard resumes at index/collection creation. | `COHERE_API_KEY` |
 | `collection-ready` | Setup complete: OpenRouter connection, hybrid default pipelines, and a collection with three ingested sample documents (real chunks and vectors). | `OPENROUTER_API_KEY` |
 | `connected` | Admin user with a working OpenRouter connection, but no index or collection — the setup wizard resumes at index/collection creation. | `OPENROUTER_API_KEY` |
 | `evals-ready` | collection-ready plus a ready BEIR-format eval dataset whose queries target the seeded documents — eval runs can be created immediately. | `OPENROUTER_API_KEY` |
 | `fresh-user` | Admin account exists; no providers, indexes, or collections — the setup wizard shows from its first step. | none |
+| `ollama-connected` | Admin user with a working Ollama connection (base URL from `.env.sandbox`), but no index or collection — the setup wizard resumes at index/collection creation. | `OLLAMA_BASE_URL` |
 
 ## `blank`
 
@@ -25,6 +27,17 @@ After seeding:
 - no users (the first account registered becomes admin)
 - no provider connections, indexes, pipelines, or collections
 - the frontend lands on signup; after login the setup wizard gates the console
+
+## `cohere-connected`
+
+Admin user with a working Cohere connection (API key from `.env.sandbox`), but no index or collection — the setup wizard resumes at index/collection creation.
+
+Requires: `COHERE_API_KEY` in `.env.sandbox`.
+
+After seeding:
+- one admin user (the standard sandbox login)
+- a live-validated Cohere connection (embeddings + reranking)
+- pgvector is available as the vector store; no index or collection yet
 
 ## `collection-ready`
 
@@ -70,3 +83,14 @@ After seeding:
 - one admin user (the standard sandbox login)
 - no provider connections, indexes, pipelines, or collections
 - GET /api/setup/status reports nothing ready; the wizard gates the console
+
+## `ollama-connected`
+
+Admin user with a working Ollama connection (base URL from `.env.sandbox`), but no index or collection — the setup wizard resumes at index/collection creation.
+
+Requires: `OLLAMA_BASE_URL` in `.env.sandbox`.
+
+After seeding:
+- one admin user (the standard sandbox login)
+- a live-validated Ollama connection (embeddings + chat) at OLLAMA_BASE_URL
+- pgvector is available as the vector store; no index or collection yet

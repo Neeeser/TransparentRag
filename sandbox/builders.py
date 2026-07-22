@@ -37,31 +37,45 @@ def create_admin_user(
     ctx.facts.append(f"login: {email} / {password} (role: {user.role})")
 
 
-def add_openrouter_connection(ctx: SeedContext) -> None:
-    """Create a live-validated OpenRouter connection for the seeded user."""
+def add_provider_connection(ctx: SeedContext, provider: str) -> None:
+    """Create a live-validated connection of `provider` type for the seeded user.
+
+    Config is assembled from `.env.sandbox` by `provider_config`, so this works
+    for any provider declared in `keys.PROVIDER_SPECS` — an API-key provider or
+    a base-URL one (Ollama, TEI). Preflight has already validated it, so a
+    missing config here is a harness bug, not user error.
+    """
     from app.db.repositories import ProviderConnectionRepository
     from app.schemas.enums import ProviderType
     from app.schemas.providers import ConnectionCreate
     from app.services.connections import ConnectionService
-    from sandbox.keys import provider_key
+    from sandbox.keys import PROVIDER_SPECS, provider_config
 
     user = ctx.require_user()
-    key = provider_key("openrouter")
-    if not key:
-        raise SystemExit("OPENROUTER_API_KEY missing — preflight should have caught this.")
+    config = provider_config(provider)
+    if config is None:
+        raise SystemExit(
+            f"{provider} config missing — preflight should have caught this."
+        )
+    label = f"{PROVIDER_SPECS[provider].display_name} (sandbox)"
     created = ConnectionService(ctx.session).create(
         user,
         ConnectionCreate(
-            provider_type=ProviderType.OPENROUTER,
-            label="OpenRouter (sandbox)",
-            config={"api_key": key},
+            provider_type=ProviderType(provider),
+            label=label,
+            config=config,
         ),
     )
     connection = ProviderConnectionRepository(ctx.session).get_owned(created.id, user.id)
     if connection is None:
-        raise SystemExit("OpenRouter connection vanished after creation.")
+        raise SystemExit(f"{label} connection vanished after creation.")
     ctx.connection = connection
-    ctx.facts.append(f"provider connection: OpenRouter (sandbox) (id {connection.id})")
+    ctx.facts.append(f"provider connection: {label} (id {connection.id})")
+
+
+def add_openrouter_connection(ctx: SeedContext) -> None:
+    """Create a live-validated OpenRouter connection (the default provider)."""
+    add_provider_connection(ctx, "openrouter")
 
 
 def create_pgvector_index(

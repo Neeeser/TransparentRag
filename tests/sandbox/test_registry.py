@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sandbox.keys import PROVIDER_ENV_VARS
+from sandbox.keys import PROVIDER_SPECS
 from sandbox.registry import all_scenarios, get_scenario
 
 
@@ -27,7 +27,7 @@ def test_every_requirement_maps_to_a_known_env_var() -> None:
     """A scenario can only require providers the preflight knows how to check."""
     for spec in all_scenarios():
         for provider in spec.requires:
-            assert provider in PROVIDER_ENV_VARS, (
+            assert provider in PROVIDER_SPECS, (
                 f"{spec.name} requires unknown provider '{provider}'"
             )
 

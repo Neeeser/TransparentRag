@@ -109,10 +109,17 @@ Real keys make the sandbox path real — actual OpenRouter embeddings and chat.
 Keys live in the gitignored `.env.sandbox` (names documented in
 `.env.sandbox.example`); the harness loads it itself and the app never reads it.
 Each scenario declares which providers it needs, and the harness validates
-those keys against the provider **before touching the database**, so a
-missing or revoked key fails immediately with the variable's name instead of
-seeding a half-working state. Keyless scenarios (`blank`, `fresh-user`) run
-with no `.env.sandbox` at all.
+those credentials against the provider **before touching the database**, so a
+missing or revoked credential fails immediately with the variable's name
+instead of seeding a half-working state. Keyless scenarios (`blank`,
+`fresh-user`) run with no `.env.sandbox` at all.
+
+Every supported provider is covered, not just API-key ones: each provider's
+config shape is declared once in `sandbox/keys.py` (`PROVIDER_SPECS`), so a
+base-URL provider like Ollama or TEI works the same way — set `OLLAMA_BASE_URL`
+(the optional `OLLAMA_API_KEY` only if your server needs one) and seed with
+`ollama-connected`. The generic `add_provider_connection(ctx, "<provider>")`
+builder seeds a connection of any declared type.
 
 Model defaults (embedding `openai/text-embedding-3-small`, chat
 `openai/gpt-4o-mini`) are overridable in `.env.sandbox` via `SANDBOX_EMBEDDING_MODEL`

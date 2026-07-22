@@ -7,7 +7,7 @@ code actually seeds.
 
 from __future__ import annotations
 
-from sandbox.keys import PROVIDER_ENV_VARS
+from sandbox.keys import required_env_vars
 from sandbox.registry import ScenarioSpec, all_scenarios
 
 HEADER = """\
@@ -43,7 +43,11 @@ def _summary_table() -> str:
 def _requires_cell(spec: ScenarioSpec) -> str:
     if not spec.requires:
         return "none"
-    return ", ".join(f"`{PROVIDER_ENV_VARS[provider]}`" for provider in spec.requires)
+    return ", ".join(
+        f"`{env_var}`"
+        for provider in spec.requires
+        for env_var in required_env_vars(provider)
+    )
 
 
 def _section(spec: ScenarioSpec) -> str:
