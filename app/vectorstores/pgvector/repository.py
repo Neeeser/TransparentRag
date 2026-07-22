@@ -210,6 +210,22 @@ class PgvectorRepository:
             return lexical_table_name(record.name)
         return data_table_name(record.name)
 
+    def count_vectors(self, record: VectorIndexRecord, namespace: str | None = None) -> int:
+        """Count rows in a cataloged index's table, optionally by namespace.
+
+        The table name derives from a catalog record whose name already passed
+        the strict identifier rule, so interpolating it into the SQL is safe;
+        `namespace` always binds as a parameter.
+        """
+        table = self._table_for(record)
+        sql = f"SELECT count(*) FROM {table}"  # noqa: S608 - table name is validated
+        params: dict[str, object] = {}
+        if namespace is not None:
+            sql += " WHERE namespace = :namespace"
+            params["namespace"] = namespace
+        result = self._session.execute(text(sql).bindparams(**params)).scalar_one()
+        return int(result)
+
     # -- DML ---------------------------------------------------------------
 
     def upsert_chunks(self, name: str, namespace: str, chunks: Sequence[DocumentChunk]) -> None:

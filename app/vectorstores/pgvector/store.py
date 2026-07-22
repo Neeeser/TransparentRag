@@ -20,6 +20,7 @@ from app.schemas.enums import IndexBackend
 from app.services.errors import ExternalServiceError, InvalidInputError, NotFoundError
 from app.vectorstores.base import (
     IndexSpec,
+    IndexStats,
     VectorIndexDescription,
     VectorStoreBackend,
     VectorStoreCapabilities,
@@ -187,6 +188,15 @@ class PgvectorStore(VectorStoreBackend):
         if record is None:
             return
         self._repo.delete_document(record, namespace, document_id)
+
+    # -- diagnostics probe --------------------------------------------------
+
+    def index_stats(self, index: str, namespace: str | None = None) -> IndexStats:
+        """Existence via the catalog row, count via the backing table."""
+        record = self._repo.get_record(index)
+        if record is None:
+            return IndexStats(exists=False, count=0)
+        return IndexStats(exists=True, count=self._repo.count_vectors(record, namespace))
 
     # -- helpers -------------------------------------------------------------
 

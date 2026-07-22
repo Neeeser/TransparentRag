@@ -71,12 +71,26 @@ def resolve_ingestion_pipeline(
     collection: models.Collection,
     *,
     registry: NodeRegistry | None = None,
+    scaffold: bool = True,
 ) -> ResolvedIngestionPipeline:
-    """Resolve the collection's ingestion pipeline, definition, and settings."""
+    """Resolve the collection's ingestion pipeline, definition, and settings.
+
+    `scaffold=True` (default) runs ensure-defaults → attach, which *persists*
+    default pipelines and binds them to the collection — correct for ingestion
+    and retrieval, which are about to run a pipeline. `scaffold=False` is the
+    read-only variant: it never mutates state (no GET endpoint may), so an
+    unbound collection raises `PipelineResolutionError` instead of scaffolding
+    and binding a default. Diagnostics uses `scaffold=False`.
+    """
     service = PipelineService(session)
-    defaults = service.ensure_default_pipelines(user)
-    service.ensure_collection_pipelines(collection, defaults)
-    pipeline_id = collection.ingestion_pipeline_id or defaults.ingestion.id
+    if scaffold:
+        defaults = service.ensure_default_pipelines(user)
+        service.ensure_collection_pipelines(collection, defaults)
+        pipeline_id = collection.ingestion_pipeline_id or defaults.ingestion.id
+    elif collection.ingestion_pipeline_id is None:
+        raise PipelineResolutionError("No ingestion pipeline is bound to this collection.")
+    else:
+        pipeline_id = collection.ingestion_pipeline_id
     pipeline = service.get_pipeline(pipeline_id, user.id)
     if not pipeline or pipeline.kind != models.PipelineKind.INGESTION:
         raise PipelineResolutionError("Ingestion pipeline could not be resolved.")
@@ -99,12 +113,22 @@ def resolve_retrieval_pipeline(
     collection: models.Collection,
     *,
     registry: NodeRegistry | None = None,
+    scaffold: bool = True,
 ) -> ResolvedRetrievalPipeline:
-    """Resolve the collection's retrieval pipeline, definition, and settings."""
+    """Resolve the collection's retrieval pipeline, definition, and settings.
+
+    See `resolve_ingestion_pipeline` for the `scaffold` contract: `False` is
+    the read-only variant that never persists or binds a default pipeline.
+    """
     service = PipelineService(session)
-    defaults = service.ensure_default_pipelines(user)
-    service.ensure_collection_pipelines(collection, defaults)
-    pipeline_id = collection.retrieval_pipeline_id or defaults.retrieval.id
+    if scaffold:
+        defaults = service.ensure_default_pipelines(user)
+        service.ensure_collection_pipelines(collection, defaults)
+        pipeline_id = collection.retrieval_pipeline_id or defaults.retrieval.id
+    elif collection.retrieval_pipeline_id is None:
+        raise PipelineResolutionError("No retrieval pipeline is bound to this collection.")
+    else:
+        pipeline_id = collection.retrieval_pipeline_id
     pipeline = service.get_pipeline(pipeline_id, user.id)
     if not pipeline or pipeline.kind != models.PipelineKind.RETRIEVAL:
         raise PipelineResolutionError("Retrieval pipeline could not be resolved.")

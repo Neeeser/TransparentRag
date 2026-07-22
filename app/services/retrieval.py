@@ -12,6 +12,7 @@ from sqlmodel import Session
 from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import QueryRepository
+from app.db.repositories.pipeline import PipelineRunRepository
 from app.pipelines.execution.runner import PipelineRunHandle, PipelineRunner
 from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.resolution import VariableResolutionError, declared_arguments
@@ -20,13 +21,15 @@ from app.providers.registry import ProviderResolver
 from app.schemas.retrieval import (
     CollectionQueryArgumentsResponse,
     CollectionQueryResponse,
+    FailedNodeRef,
     QueryArgumentRead,
+    RetrievalFailureDetail,
     RetrievedChunk,
 )
 from app.services.errors import (
-    ExternalServiceError,
     InvalidInputError,
     InvalidQueryArgumentsError,
+    ServiceError,
     is_external_provider_error,
 )
 from app.services.pipeline_resolution import ResolvedRetrievalPipeline, resolve_retrieval_pipeline
@@ -34,6 +37,15 @@ from app.telemetry import record
 from app.telemetry.events import RetrievalQueryRan
 from app.utils.file_storage import FileStorage
 from app.vectorstores.registry import VectorStoreProvider
+
+
+class RetrievalPipelineError(ServiceError):
+    """A retrieval run failed; `.detail` is a `RetrievalFailureDetail` dict.
+
+    The HTTP status is pinned at the raise site (502 for an upstream provider
+    fault, 500 for an internal bug), but both carry the structured detail so
+    the frontend can always link the run trace.
+    """
 
 
 class RetrievalService:  # pylint: disable=too-few-public-methods
@@ -83,9 +95,44 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
             )
         except Exception as exc:
             handle.trace.mark_run_failed(exc)
-            if is_external_provider_error(exc):
-                raise ExternalServiceError(f"Retrieval pipeline failed: {exc}") from exc
-            raise
+            raise self._build_failure(handle, exc) from exc
+
+    def _build_failure(self, handle: PipelineRunHandle, exc: Exception) -> RetrievalPipelineError:
+        """Build the structured, trace-linked error for a failed retrieval run.
+
+        Reads the FAILED node the executor recorded (autoflushed into this
+        session), derives a readable message that names the node, and pins the
+        status: 502 for an upstream provider fault, 500 for an internal bug.
+        The raw provider text stays in the trace, never the primary message.
+        """
+        failed_node_run = PipelineRunRepository(self.session).get_failed_node_run(handle.run.id)
+        failed_node = (
+            FailedNodeRef(
+                node_id=failed_node_run.node_id,
+                node_name=failed_node_run.node_name,
+                node_type=failed_node_run.node_type,
+            )
+            if failed_node_run
+            else None
+        )
+        external = is_external_provider_error(exc)
+        where = f" at {failed_node.node_name}" if failed_node else ""
+        message = (
+            f"Retrieval failed{where}: the model provider returned an error. "
+            "Open the run trace for the provider's full message."
+            if external
+            else f"Retrieval failed{where} due to an internal error. See the run trace for details."
+        )
+        detail = RetrievalFailureDetail(
+            message=message,
+            code="retrieval_pipeline_failed",
+            failed_node=failed_node,
+            pipeline_run_id=handle.run.id,
+        )
+        return RetrievalPipelineError(
+            detail.model_dump(mode="json"),
+            status_code=502 if external else 500,
+        )
 
     # pylint: disable-next=too-many-arguments
     def _record_and_respond(

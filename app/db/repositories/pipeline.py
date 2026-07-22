@@ -130,3 +130,42 @@ class PipelineRunRepository(Repository):
             .order_by(asc(col(models.PipelineNodeIO.created_at)))
         )
         return list(self.session.exec(statement).all())
+
+    def list_recent_for_collection(
+        self,
+        collection_id: UUID,
+        kind: models.PipelineKind,
+        *,
+        status: models.PipelineRunStatus | None = None,
+        limit: int = 5,
+    ) -> list[models.PipelineRun]:
+        """List a collection's most recent runs of a kind, newest first.
+
+        Used by the diagnostics run-failure rules; `status` narrows to (e.g.)
+        FAILED runs.
+        """
+        statement = select(models.PipelineRun).where(
+            col(models.PipelineRun.collection_id) == collection_id,
+            col(models.PipelineRun.kind) == kind,
+        )
+        if status is not None:
+            statement = statement.where(col(models.PipelineRun.status) == status)
+        statement = statement.order_by(desc(col(models.PipelineRun.started_at))).limit(limit)
+        return list(self.session.exec(statement).all())
+
+    def get_failed_node_run(self, run_id: UUID) -> models.PipelineNodeRun | None:
+        """Return the first FAILED node run for a run, in execution order.
+
+        A retrieval failure records the node that broke as a FAILED
+        `PipelineNodeRun`; trace-backed search failures read it back to name
+        the node the user should inspect.
+        """
+        statement = (
+            select(models.PipelineNodeRun)
+            .where(
+                col(models.PipelineNodeRun.run_id) == run_id,
+                col(models.PipelineNodeRun.status) == models.PipelineRunStatus.FAILED,
+            )
+            .order_by(asc(col(models.PipelineNodeRun.sequence_index)))
+        )
+        return self.session.exec(statement).first()

@@ -48,12 +48,25 @@ def is_external_provider_error(exc: Exception) -> bool:
 
 
 class ServiceError(Exception):
-    """Base for domain errors that a route translates into an HTTP response."""
+    """Base for domain errors that a route translates into an HTTP response.
 
-    def __init__(self, detail: str | Mapping[str, object]) -> None:
+    `status_code` pins the HTTP status when the type-based mapping in
+    `to_http_exception` is not expressive enough -- a retrieval pipeline
+    failure carries structured detail but must surface as a 502 (upstream) or a
+    500 (internal bug) depending on the underlying cause, a distinction the
+    error *type* alone cannot make. Left `None`, the type mapping decides.
+    """
+
+    def __init__(
+        self,
+        detail: str | Mapping[str, object],
+        *,
+        status_code: int | None = None,
+    ) -> None:
         """Store the wire detail and a readable message for logging/tests."""
         super().__init__(detail if isinstance(detail, str) else str(detail))
         self.detail: str | Mapping[str, object] = detail
+        self.status_code: int | None = status_code
 
 
 class NotFoundError(ServiceError):

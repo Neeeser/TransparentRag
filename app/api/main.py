@@ -16,6 +16,7 @@ from app.api.routes import (
     collections,
     config,
     connections,
+    diagnostics,
     documents,
     evals,
     files,
@@ -115,6 +116,7 @@ app.include_router(models.router)
 app.include_router(pipelines.router)
 app.include_router(indexes.router)
 app.include_router(collections.router)
+app.include_router(diagnostics.router)
 app.include_router(documents.router)
 app.include_router(evals.router)
 app.include_router(files.router)
