@@ -13,8 +13,18 @@ import {
 
 import type { Node, NodeProps } from "@xyflow/react";
 
+const STACKED_SOCKET_SELECTOR = '[data-socket="stacked"]';
+
 vi.mock("@xyflow/react", () => ({
-  Handle: ({ id, type }: { id: string; type: string }) => <div data-testid={`${type}-${id}`} />,
+  Handle: ({
+    id,
+    type,
+    "data-socket": dataSocket,
+  }: {
+    id: string;
+    type: string;
+    "data-socket"?: string;
+  }) => <div data-testid={`${type}-${id}`} data-socket={dataSocket} />,
   Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
 }));
 
@@ -81,7 +91,7 @@ describe("PipelineNode", () => {
     expect(screen.getByTestId("source-embedded")).toBeInTheDocument();
   });
 
-  it("marks variadic inputs as (many) and single inputs with a one-connection tooltip", () => {
+  it("renders variadic inputs as stacked sockets with a cardinality tooltip", () => {
     render(
       <PipelineNode
         {...nodeProps({
@@ -110,10 +120,18 @@ describe("PipelineNode", () => {
       />,
     );
 
-    const variadic = screen.getByTitle(/accepts any number of connections/);
-    expect(variadic).toHaveTextContent("Results (many)");
-    // The output side carries no connection-cardinality claim.
-    expect(screen.queryAllByTitle(/accepts any number/)).toHaveLength(1);
+    const variadic = screen.getByLabelText("Results input");
+    expect(variadic).toHaveAttribute("tabindex", "0");
+    expect(variadic).toHaveTextContent("Results");
+    expect(variadic).not.toHaveTextContent("(many)");
+    const variadicRow = screen.getByTestId("target-results").parentElement;
+    expect(variadicRow?.querySelectorAll(STACKED_SOCKET_SELECTOR)).toHaveLength(3);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Accepts multiple retrieval result connections",
+    );
+    expect(
+      screen.getByRole("tooltip").parentElement?.querySelectorAll(STACKED_SOCKET_SELECTOR),
+    ).toHaveLength(3);
 
     render(
       <PipelineNode
@@ -140,7 +158,8 @@ describe("PipelineNode", () => {
 
     const single = screen.getByTitle(/accepts one connection/);
     expect(single).toHaveTextContent("Results");
-    expect(single).not.toHaveTextContent("(many)");
+    const singleRow = screen.getAllByTestId("target-results")[1].parentElement;
+    expect(singleRow?.querySelector(STACKED_SOCKET_SELECTOR)).not.toBeInTheDocument();
   });
 
   it("hides at-default settings but counts edited ones", () => {

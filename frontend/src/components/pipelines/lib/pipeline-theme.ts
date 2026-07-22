@@ -237,5 +237,6 @@ export const getPortTypeClasses = (dataType?: string) => {
   return {
     handle: cn(NEUTRAL_BG, style?.bg, style?.ring),
     dot: cn(NEUTRAL_BG, style?.bg),
+    ring: cn("border-stage-neutral/60", style?.ring),
   };
 };
