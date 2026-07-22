@@ -4,6 +4,7 @@ import { Handle, Position } from "@xyflow/react";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { useFlowNodeActive, useFlowPlaybackTiming } from "./flow/active-nodes-context";
@@ -100,8 +101,8 @@ type PortRowProps = {
 /**
  * One port row: label + typed color dot, with its xyflow Handle anchored on the
  * card edge at the row's height. Color encodes the data type; a variadic input
- * (accepts_many — any number of edges may land) gets a stacked double dot and a
- * "(many)" suffix so fan-in ports read differently from single-edge ones.
+ * (accepts_many — any number of edges may land) gets a stacked socket handle
+ * so fan-in ports read differently from single-edge ones.
  * While a wire is dragged, compatible handles swell and pulse; incompatible
  * ones fade so valid drop targets are obvious.
  */
@@ -125,63 +126,87 @@ function PortRow({
       (connecting.from === "target" && !isTargetSide));
   const compatible = wanted && connecting.dataType === dataType;
   const incompatible = Boolean(connecting) && !compatible;
+  const manyTooltip =
+    isTargetSide && acceptsMany
+      ? `Accepts multiple ${dataType.replace(/s$/, "").replaceAll("_", " ")} connections`
+      : "";
 
   return (
-    <div
-      className={cn(
-        "relative flex items-center gap-1.5 py-0.5 text-[10px] leading-4",
-        isTargetSide ? "justify-start" : "justify-end",
-        incompatible && "opacity-40",
-      )}
+    <Tooltip
+      content={manyTooltip}
+      side="top"
+      triggerElement="div"
+      triggerClassName="w-full min-w-0"
     >
-      {isTargetSide ? (
-        acceptsMany ? (
-          <span className="relative h-1.5 w-2.5 shrink-0" aria-hidden>
+      <div
+        className={cn(
+          "relative flex min-w-0 items-center gap-1.5 py-0.5 text-[10px] leading-4",
+          isTargetSide ? "justify-start" : "justify-end",
+          incompatible && "opacity-40",
+        )}
+      >
+        <span
+          aria-label={manyTooltip ? `${label} input` : undefined}
+          tabIndex={manyTooltip ? 0 : undefined}
+          className={cn(
+            "flex items-center gap-1.5 outline-none",
+            "focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          {isTargetSide ? (
+            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", portClasses.dot)} />
+          ) : null}
+          <span
+            className="truncate text-muted"
+            title={
+              isTargetSide && !acceptsMany
+                ? `${label} · ${getPortTypeLabel(dataType)} · accepts one connection`
+                : `${label} · ${getPortTypeLabel(dataType)}`
+            }
+          >
+            {label}
+            {!required && isTargetSide ? <span className="text-faint"> (optional)</span> : null}
+          </span>
+          {!isTargetSide ? (
+            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", portClasses.dot)} />
+          ) : null}
+        </span>
+        {isTargetSide && acceptsMany ? (
+          <>
             <span
+              data-socket="stacked"
+              aria-hidden
               className={cn(
-                "absolute left-1 top-0 h-1.5 w-1.5 rounded-full opacity-40",
-                portClasses.dot,
+                "pointer-events-none absolute left-[-15px] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 bg-canvas-raised opacity-40",
+                portClasses.ring,
               )}
             />
             <span
-              className={cn("absolute left-0 top-0 h-1.5 w-1.5 rounded-full", portClasses.dot)}
+              data-socket="stacked"
+              aria-hidden
+              className={cn(
+                "pointer-events-none absolute left-[-11px] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 bg-canvas-raised opacity-70",
+                portClasses.ring,
+              )}
             />
-          </span>
-        ) : (
-          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", portClasses.dot)} />
-        )
-      ) : null}
-      <span
-        className="truncate text-muted"
-        title={
-          isTargetSide
-            ? `${label} · ${getPortTypeLabel(dataType)} · ${
-                acceptsMany ? "accepts any number of connections" : "accepts one connection"
-              }`
-            : `${label} · ${getPortTypeLabel(dataType)}`
-        }
-      >
-        {label}
-        {acceptsMany && isTargetSide ? <span className="text-faint"> (many)</span> : null}
-        {!required && isTargetSide ? <span className="text-faint"> (optional)</span> : null}
-      </span>
-      {!isTargetSide ? (
-        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", portClasses.dot)} />
-      ) : null}
-      <Handle
-        type={isTargetSide ? "target" : "source"}
-        position={isTargetSide ? Position.Left : Position.Right}
-        id={portKey}
-        isConnectable={connectable}
-        className={cn(
-          "!absolute !top-1/2 !h-3 !w-3 !-translate-y-1/2 !rounded-full !border-2 !border-canvas-raised !transition-all",
-          portClasses.handle,
-          isTargetSide ? "!-left-[19px]" : "!-right-[19px]",
-          compatible && "!h-4 !w-4 animate-pulse !ring-2 !ring-accent-cyan/70",
-          incompatible && "!opacity-30",
-        )}
-      />
-    </div>
+          </>
+        ) : null}
+        <Handle
+          type={isTargetSide ? "target" : "source"}
+          position={isTargetSide ? Position.Left : Position.Right}
+          id={portKey}
+          isConnectable={connectable}
+          data-socket={isTargetSide && acceptsMany ? "stacked" : undefined}
+          className={cn(
+            "!absolute !top-1/2 !h-3 !w-3 !-translate-y-1/2 !rounded-full !border-2 !border-canvas-raised !transition-all",
+            portClasses.handle,
+            isTargetSide ? "!-left-[19px]" : "!-right-[19px]",
+            compatible && "!h-4 !w-4 animate-pulse !ring-2 !ring-accent-cyan/70",
+            incompatible && "!opacity-30",
+          )}
+        />
+      </div>
+    </Tooltip>
   );
 }
 

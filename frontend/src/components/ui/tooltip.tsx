@@ -11,6 +11,8 @@ type TooltipProps = {
   children: ReactNode;
   side?: TooltipSide;
   className?: string;
+  triggerClassName?: string;
+  triggerElement?: "div" | "span";
 };
 
 const sideClasses: Record<TooltipSide, string> = {
@@ -27,13 +29,20 @@ const arrowClasses: Record<TooltipSide, string> = {
   right: "right-full top-1/2 -translate-y-1/2 translate-x-1/2",
 };
 
-export function Tooltip({ content, children, side = "top", className }: TooltipProps) {
+export function Tooltip({
+  content,
+  children,
+  side = "top",
+  className,
+  triggerClassName,
+  triggerElement: Trigger = "span",
+}: TooltipProps) {
   if (!content) {
     return <>{children}</>;
   }
 
   return (
-    <span className="group relative inline-flex">
+    <Trigger className={cn("group relative inline-flex", triggerClassName)}>
       {children}
       <span
         role="tooltip"
@@ -58,6 +67,6 @@ export function Tooltip({ content, children, side = "top", className }: TooltipP
           )}
         />
       </span>
-    </span>
+    </Trigger>
   );
 }
