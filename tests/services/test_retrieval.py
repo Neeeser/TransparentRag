@@ -306,6 +306,72 @@ def test_query_collection_failure_carries_failed_node_and_run(
     assert caught.value.status_code == 500
 
 
+def test_query_collection_db_error_surfaces_as_structured_failure(
+    monkeypatch, pgvector_session: Session
+) -> None:
+    """Regression: a mid-run DB error (a vector-dimension mismatch) must still
+    surface as a structured RetrievalPipelineError, not a raw 500.
+
+    The DB error aborts the transaction, so reading the failed node with a
+    SELECT would raise inside the failure handler (`InternalError` from a
+    query-invoked autoflush) and lose the structured detail — exactly the bug
+    the sandbox e2e caught. Red-green: before reading the failed node from the
+    in-memory trace instead of the poisoned session, this raised the SQLAlchemy
+    error, not `RetrievalPipelineError`.
+    """
+    session = pgvector_session
+
+    class _WrongDimEmbedder:
+        """Indexes at 3d but embeds queries at 5d — a real pgvector mismatch."""
+
+        def __init__(self, model_name: str) -> None:
+            self.model_name = model_name
+
+        @property
+        def usage(self) -> dict[str, int] | None:
+            return None
+
+        def embed_query(self, _query: str):
+            return [0.1, 0.2, 0.3, 0.4, 0.5]
+
+        def embed_documents(self, chunks):
+            return [[0.1, 0.2, 0.3] for _ in chunks]
+
+    class _WrongDimResolver:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def embedder(self, _connection_id, model_name: str, dimensions=None):
+            del dimensions
+            return _WrongDimEmbedder(model_name)
+
+    monkeypatch.setattr("app.services.retrieval.ProviderResolver", _WrongDimResolver)
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+
+    store = PgvectorStore(session)
+    store.create_index(IndexSpec(name="ragworks", dimension=3, metric="cosine"))
+    store.upsert(
+        "ragworks",
+        f"col-{collection.id}",
+        [
+            DocumentChunk(
+                document_id="doc-1",
+                chunk_id="chunk-1",
+                text="Paris is the capital of France.",
+                order=0,
+                metadata=DocumentMetadata(data={}),
+                embedding=[0.1, 0.2, 0.3],
+            )
+        ],
+    )
+
+    with pytest.raises(RetrievalPipelineError) as caught:
+        RetrievalService(session).query_collection(user, collection, query="capital?")
+    assert caught.value.detail["pipeline_run_id"] is not None  # type: ignore[index]
+    assert caught.value.status_code == 500
+
+
 def test_extract_retrieval_payload_raises_for_missing_result() -> None:
     """Pure-function edge case, kept as a direct test for the same reason as
     `IngestionService._extract_indexing_payload`'s test (see test_ingestion.py):

@@ -16,7 +16,7 @@ from app.schemas.retrieval import (
     CollectionQueryResponse,
 )
 from app.services.errors import ServiceError
-from app.services.retrieval import RetrievalService
+from app.services.retrieval import RetrievalPipelineError, RetrievalService
 
 router = APIRouter(prefix="/api/collections", tags=["search"])
 
@@ -38,6 +38,17 @@ def run_collection_query(
             top_k=payload.top_k,
             arguments=payload.arguments,
         )
+    except RetrievalPipelineError as exc:
+        # Persist the failed run so its trace link (`pipeline_run_id`) resolves:
+        # the request session otherwise rolls back on the raised error and the
+        # run row is lost. A transaction poisoned by a DB-shape error (e.g. a
+        # dimension mismatch) can't commit — that rare case has no trace, and
+        # the Diagnostics tab is the fix surface there.
+        try:
+            session.commit()
+        except Exception:  # pylint: disable=broad-exception-caught
+            session.rollback()
+        raise to_http_exception(exc) from exc
     except ServiceError as exc:
         raise to_http_exception(exc) from exc
 

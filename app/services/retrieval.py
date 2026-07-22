@@ -12,7 +12,6 @@ from sqlmodel import Session
 from app.core.config import get_settings
 from app.db import models
 from app.db.repositories import QueryRepository
-from app.db.repositories.pipeline import PipelineRunRepository
 from app.pipelines.execution.runner import PipelineRunHandle, PipelineRunner
 from app.pipelines.payloads import RetrievalPayload
 from app.pipelines.resolution import VariableResolutionError, declared_arguments
@@ -100,12 +99,14 @@ class RetrievalService:  # pylint: disable=too-few-public-methods
     def _build_failure(self, handle: PipelineRunHandle, exc: Exception) -> RetrievalPipelineError:
         """Build the structured, trace-linked error for a failed retrieval run.
 
-        Reads the FAILED node the executor recorded (autoflushed into this
-        session), derives a readable message that names the node, and pins the
-        status: 502 for an upstream provider fault, 500 for an internal bug.
-        The raw provider text stays in the trace, never the primary message.
+        Reads the FAILED node from the in-memory trace recorder -- never a DB
+        query, because a mid-run DB error (e.g. a vector-dimension mismatch)
+        aborts the transaction and any post-failure SELECT would raise. Derives
+        a readable message that names the node and pins the status: 502 for an
+        upstream provider fault, 500 for an internal bug. The raw provider text
+        stays in the trace, never the primary message.
         """
-        failed_node_run = PipelineRunRepository(self.session).get_failed_node_run(handle.run.id)
+        failed_node_run = handle.trace.failed_node_run
         failed_node = (
             FailedNodeRef(
                 node_id=failed_node_run.node_id,
