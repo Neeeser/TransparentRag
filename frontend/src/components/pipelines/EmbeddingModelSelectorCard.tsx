@@ -1,13 +1,95 @@
 "use client";
 
-import { Check, Loader, Search } from "lucide-react";
-import { useMemo, useState } from "react";
-
+import {
+  EMBEDDING_MODEL_SORTS,
+  useModelCatalogFilter,
+} from "@/components/models/model-catalog-filter";
+import { ModelCatalogPicker } from "@/components/models/ModelCatalogPicker";
+import { ModelOptionButton } from "@/components/models/ModelOptionButton";
 import { formatPricePerMillion } from "@/lib/format";
-import { sortEmbeddingModels, type EmbeddingModelSortOption } from "@/lib/model-sorting";
-import { cn } from "@/lib/utils";
 
 import type { CatalogModel } from "@/lib/types";
+
+/** One embedding-model row: connection-qualified subtitle plus context, dimension, and pricing badges. */
+function EmbeddingModelRow({
+  model,
+  selectedModelKey,
+  selectedConnectionId,
+  onSelectModel,
+}: {
+  model: CatalogModel;
+  selectedModelKey: string;
+  selectedConnectionId?: string | null;
+  onSelectModel: (model: CatalogModel) => void;
+}) {
+  const selected =
+    Boolean(selectedModelKey) &&
+    model.id === selectedModelKey &&
+    model.connection_id === selectedConnectionId;
+  const contextLabel = model.context_length
+    ? `${Math.round(model.context_length).toLocaleString()} ctx`
+    : null;
+  const dimensionLabel = model.dimension ? `Dim ${model.dimension.toLocaleString()}` : null;
+  const promptLabel = formatPricePerMillion(model.pricing?.prompt);
+  const completionLabel = formatPricePerMillion(model.pricing?.completion);
+  const description =
+    model.description && model.description.length > 160
+      ? `${model.description.slice(0, 157)}...`
+      : model.description;
+  return (
+    <ModelOptionButton
+      model={model}
+      selected={selected}
+      onSelect={onSelectModel}
+      subtitle={`${model.connection_label} · ${model.id}`}
+    >
+      {description ? <p className="mt-2 text-xs text-muted">{description}</p> : null}
+      <div className="mt-2 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.3em] text-meta">
+        {contextLabel ? <span>{contextLabel}</span> : null}
+        {dimensionLabel ? <span>{dimensionLabel}</span> : null}
+        {promptLabel ? <span>Prompt {promptLabel}</span> : null}
+        {completionLabel ? <span>Completion {completionLabel}</span> : null}
+      </div>
+    </ModelOptionButton>
+  );
+}
+
+/** Whether the saved selection is missing from the catalog, and the connection label to show. */
+function resolveEmbeddingSelection({
+  models,
+  currentModelInfo,
+  selectedModelKey,
+  selectedConnectionId,
+  selectedConnectionLabel,
+  selectedAvailability,
+  modelsLoading,
+  modelsError,
+}: {
+  models: CatalogModel[];
+  currentModelInfo: CatalogModel | null;
+  selectedModelKey: string;
+  selectedConnectionId?: string | null;
+  selectedConnectionLabel?: string | null;
+  selectedAvailability?: "available" | "unknown" | "missing";
+  modelsLoading: boolean;
+  modelsError: string | null;
+}): { selectionUnavailable: boolean; connectionLabel: string } {
+  const selectionUnavailable = Boolean(
+    selectedAvailability === "missing" ||
+      (selectedAvailability === undefined &&
+        selectedModelKey &&
+        selectedConnectionId &&
+        !currentModelInfo &&
+        !modelsLoading &&
+        !modelsError),
+  );
+  const connectionLabel =
+    currentModelInfo?.connection_label ??
+    selectedConnectionLabel ??
+    models.find((model) => model.connection_id === selectedConnectionId)?.connection_label ??
+    "this connection";
+  return { selectionUnavailable, connectionLabel };
+}
 
 type EmbeddingModelSelectorCardProps = {
   models: CatalogModel[];
@@ -21,30 +103,11 @@ type EmbeddingModelSelectorCardProps = {
 };
 
 /**
- * Owns the search/sort state for an embedding model catalog. Previously this
- * filter+sort pipeline was duplicated across PipelineBuilder, IndexManagerModal, and
- * (via prop drilling) the node editor; centralizing it here lets every caller just
- * pass the raw model list.
+ * The embedding model picker: the shared {@link ModelCatalogPicker} chrome with
+ * embedding-specific sort (price / dimension), the selected model's vector
+ * dimension surfaced beside the sort control, and per-model pricing/dimension
+ * badges. Auto-fills the vector dimension when a model is chosen.
  */
-export function useEmbeddingModelFilter(models: CatalogModel[]) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortOption, setSortOption] = useState<EmbeddingModelSortOption>("price");
-
-  const filteredModels = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const matching = term
-      ? models.filter((model) => {
-          const haystack =
-            `${model.name} ${model.id} ${model.connection_label} ${model.description ?? ""}`.toLowerCase();
-          return haystack.includes(term);
-        })
-      : models;
-    return sortEmbeddingModels(matching, sortOption);
-  }, [models, searchTerm, sortOption]);
-
-  return { searchTerm, setSearchTerm, sortOption, setSortOption, filteredModels };
-}
-
 export function EmbeddingModelSelectorCard({
   models,
   selectedModelKey,
@@ -55,77 +118,40 @@ export function EmbeddingModelSelectorCard({
   modelsLoading,
   modelsError,
 }: EmbeddingModelSelectorCardProps) {
-  const { searchTerm, setSearchTerm, sortOption, setSortOption, filteredModels } =
-    useEmbeddingModelFilter(models);
+  const { searchTerm, setSearchTerm, sortValue, setSortValue, filteredModels } =
+    useModelCatalogFilter({ models, sortOptions: EMBEDDING_MODEL_SORTS });
+
   const currentModelInfo =
     models.find(
       (model) => model.id === selectedModelKey && model.connection_id === selectedConnectionId,
     ) ?? null;
-  const selectionUnavailable = Boolean(
-    selectedAvailability === "missing" ||
-    (selectedAvailability === undefined &&
-      selectedModelKey &&
-      selectedConnectionId &&
-      !currentModelInfo &&
-      !modelsLoading &&
-      !modelsError),
-  );
-  const connectionLabel =
-    currentModelInfo?.connection_label ??
-    selectedConnectionLabel ??
-    models.find((model) => model.connection_id === selectedConnectionId)?.connection_label ??
-    "this connection";
-  const unavailableMessage = selectionUnavailable
-    ? `Selected model is no longer available from ${connectionLabel}. Select another model.`
-    : null;
-  const visibleModels = filteredModels.slice(0, 50);
-  const formatCost = (value?: number | string | null) => formatPricePerMillion(value);
+  const { selectionUnavailable, connectionLabel } = resolveEmbeddingSelection({
+    models,
+    currentModelInfo,
+    selectedModelKey,
+    selectedConnectionId,
+    selectedConnectionLabel,
+    selectedAvailability,
+    modelsLoading,
+    modelsError,
+  });
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm text-body">
-            {currentModelInfo?.name || selectedModelKey || "Select an embedding model"}
-          </p>
-          {selectedModelKey && (
-            <p className="text-[11px] text-meta break-all">{selectedModelKey}</p>
-          )}
-        </div>
-        <div className="text-right text-[11px] uppercase tracking-[0.3em] text-meta">
-          {modelsLoading && (
-            <span className="inline-flex items-center gap-1 text-body">
-              <Loader className="h-3.5 w-3.5" />
-              Syncing
-            </span>
-          )}
-        </div>
-      </div>
-      <p className="text-xs text-muted">
-        Pick an embedding model from any connected provider to auto-fill its vector dimension.
-      </p>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-meta" />
-        <input
-          type="search"
-          className="w-full rounded-2xl border border-hairline bg-surface py-2 pl-9 pr-3 text-sm text-primary outline-none placeholder:text-meta focus:border-accent-violet"
-          placeholder="Search embedding models…"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-        />
-      </div>
-      {(modelsError || unavailableMessage) && (
-        <p className="text-sm text-data-neg">{modelsError ?? unavailableMessage}</p>
-      )}
-      {selectionUnavailable && (
-        <div className="rounded-2xl border border-data-warn/40 bg-data-warn/10 px-3 py-2">
-          <p className="text-sm font-semibold text-primary">Unavailable</p>
-          <p className="text-[11px] text-meta break-all">
-            {connectionLabel} · {selectedModelKey}
-          </p>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
+    <ModelCatalogPicker
+      models={filteredModels}
+      selectedModelKey={selectedModelKey}
+      currentModel={currentModelInfo}
+      headerPlaceholder="Select an embedding model"
+      headerSubtitle={selectedModelKey || null}
+      description="Pick an embedding model from any connected provider to auto-fill its vector dimension."
+      modelsLoading={modelsLoading}
+      searchTerm={searchTerm}
+      onSearchChange={setSearchTerm}
+      searchPlaceholder="Search embedding models…"
+      sortOptions={EMBEDDING_MODEL_SORTS}
+      sortValue={sortValue}
+      onSortChange={setSortValue}
+      controlsLeading={
         <div className="flex-1 rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] uppercase tracking-[0.3em] text-muted">Dimension</span>
@@ -136,81 +162,28 @@ export function EmbeddingModelSelectorCard({
             </span>
           </div>
         </div>
-        <div className="min-w-[160px]">
-          <select
-            className="w-full rounded-2xl border border-hairline bg-surface px-3 py-2 text-xs text-body outline-none focus:border-accent-violet"
-            value={sortOption}
-            onChange={(event) => setSortOption(event.target.value as EmbeddingModelSortOption)}
-          >
-            <option value="price">Sort by price</option>
-            <option value="dimension">Sort by dimension</option>
-          </select>
-        </div>
-      </div>
-      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-        {modelsLoading && filteredModels.length === 0 ? (
-          <p className="text-sm text-muted">Loading embedding models…</p>
-        ) : visibleModels.length === 0 ? (
-          <p className="text-sm text-muted">
-            {searchTerm ? `No models match "${searchTerm}".` : "No embedding models available."}
-          </p>
-        ) : (
-          visibleModels.map((model) => {
-            const isSelected =
-              selectedModelKey &&
-              model.id === selectedModelKey &&
-              model.connection_id === selectedConnectionId;
-            const contextLabel = model.context_length
-              ? `${Math.round(model.context_length).toLocaleString()} ctx`
-              : null;
-            const dimensionLabel = model.dimension
-              ? `Dim ${model.dimension.toLocaleString()}`
-              : null;
-            const promptLabel = formatCost(model.pricing?.prompt);
-            const completionLabel = formatCost(model.pricing?.completion);
-            const description =
-              model.description && model.description.length > 160
-                ? `${model.description.slice(0, 157)}...`
-                : model.description;
-            return (
-              <button
-                key={`${model.connection_id}::${model.id}`}
-                type="button"
-                onClick={() => onSelectModel(model)}
-                className={cn(
-                  "w-full rounded-2xl border px-3 py-2 text-left transition",
-                  isSelected
-                    ? "border-accent-violet bg-accent-violet/10 text-primary"
-                    : "border-hairline bg-surface text-body hover:border-strong",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-primary">{model.name}</p>
-                    <p className="text-[11px] text-meta break-all">
-                      {model.connection_label} · {model.id}
-                    </p>
-                  </div>
-                  {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-accent-violet" />}
-                </div>
-                {description && <p className="mt-2 text-xs text-muted">{description}</p>}
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.3em] text-meta">
-                  {contextLabel && <span>{contextLabel}</span>}
-                  {dimensionLabel && <span>{dimensionLabel}</span>}
-                  {promptLabel && <span>Prompt {promptLabel}</span>}
-                  {completionLabel && <span>Completion {completionLabel}</span>}
-                </div>
-              </button>
-            );
-          })
-        )}
-        {filteredModels.length > visibleModels.length ? (
-          <p className="text-xs text-muted">
-            Showing {visibleModels.length} of {filteredModels.length} models. Search to narrow the
-            list.
-          </p>
-        ) : null}
-      </div>
-    </div>
+      }
+      modelsError={modelsError}
+      unavailable={
+        selectionUnavailable
+          ? {
+              key: selectedModelKey,
+              connectionLabel,
+              message: `Selected model is no longer available from ${connectionLabel}. Select another model.`,
+            }
+          : null
+      }
+      noun="embedding model"
+      emptyLabel="No embedding models available."
+      renderModel={(model) => (
+        <EmbeddingModelRow
+          key={`${model.connection_id}::${model.id}`}
+          model={model}
+          selectedModelKey={selectedModelKey}
+          selectedConnectionId={selectedConnectionId}
+          onSelectModel={onSelectModel}
+        />
+      )}
+    />
   );
 }
