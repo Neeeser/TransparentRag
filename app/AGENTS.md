@@ -431,6 +431,32 @@ aggregatable facts beside them — retrieval deliberately writes both. One table
 all event types, on purpose: adding an event never needs a migration.
 `telemetry.enabled` and `telemetry.retention_days` are AppConfig fields.
 
+## Collection diagnostics (`app/services/diagnostics/`)
+
+Cross-pipeline compatibility findings served from `GET /api/collections/{id}/
+diagnostics` (see `docs/diagnostics.md`). The invariants:
+
+- **A finding is always a `CollectionDiagnostic` from a registered rule** — never a
+  one-off warning string. A rule declares a stable `code` + `category` and an
+  `evaluate(ctx) -> list[CollectionDiagnostic]`; adding a check is one rule class +
+  one `registry.py` line + tests, no schema change and no frontend form code.
+- **A rule degrades, never sinks the endpoint.** `CollectionDiagnosticsService`
+  wraps each `evaluate` so a throwing rule becomes one `info` finding and the rest
+  still run; live-probe rules catch their own store failures and emit an
+  "unavailable" `info` finding. The endpoint must always return 200 with a response.
+- **The context resolves both pipeline sides read-only** (`resolve_*_pipeline(...,
+  scaffold=False)`) and reads settings through `ctx.ingestion_settings` /
+  `ctx.retrieval_settings` — never a raw node-config dict, never a re-resolve. A GET
+  that scaffolded/bound a default pipeline would mutate state on every Overview
+  visit; `scaffold=False` is why it can't.
+- **`consistent` deliberately ignores `run_failures` and `node_config`** — it claims
+  the current *configuration* is sound, not that nothing is noteworthy. Keep the
+  Overview copy ("Configuration consistent") honest about that.
+- **The `VectorStoreProber` shares one time budget per request**, not per-probe
+  timeouts that stack — a hybrid default probes two index targets on a cold-cache
+  Overview visit, and a slow store must not stack full timeouts before the card
+  renders.
+
 ## Fixing a bug
 
 Follow the root rule: regression test in the same commit, verified red-green.
