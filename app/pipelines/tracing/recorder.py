@@ -72,6 +72,18 @@ class PipelineTraceRecorder:  # pylint: disable=too-few-public-methods
         self._run = run
         self._definition = definition
         self._sequence = 0
+        self._failed_node_run: models.PipelineNodeRun | None = None
+
+    @property
+    def failed_node_run(self) -> models.PipelineNodeRun | None:
+        """The node run that failed this run, if any.
+
+        Held as the in-memory object so callers can name the failed node
+        without a DB query -- a mid-run DB error (e.g. a vector dimension
+        mismatch) aborts the transaction, so any post-failure SELECT would
+        raise instead of returning the row.
+        """
+        return self._failed_node_run
 
     def start_node(
         self,
@@ -125,6 +137,7 @@ class PipelineTraceRecorder:  # pylint: disable=too-few-public-methods
         node_run.error_message = str(exc)
         node_run.completed_at = completed_at
         node_run.duration_ms = self._duration_ms(node_run.started_at, completed_at)
+        self._failed_node_run = node_run
         self._session.add(node_run)
 
     def mark_run_failed(self, exc: Exception) -> None:

@@ -130,3 +130,26 @@ class PipelineRunRepository(Repository):
             .order_by(asc(col(models.PipelineNodeIO.created_at)))
         )
         return list(self.session.exec(statement).all())
+
+    def list_recent_for_collection(
+        self,
+        collection_id: UUID,
+        kind: models.PipelineKind,
+        *,
+        status: models.PipelineRunStatus | None = None,
+        limit: int = 5,
+    ) -> list[models.PipelineRun]:
+        """List a collection's most recent runs of a kind, newest first.
+
+        Used by the diagnostics run-failure rules; `status` narrows to (e.g.)
+        FAILED runs.
+        """
+        statement = select(models.PipelineRun).where(
+            col(models.PipelineRun.collection_id) == collection_id,
+            col(models.PipelineRun.kind) == kind,
+        )
+        if status is not None:
+            statement = statement.where(col(models.PipelineRun.status) == status)
+        statement = statement.order_by(desc(col(models.PipelineRun.started_at))).limit(limit)
+        return list(self.session.exec(statement).all())
+

@@ -18,6 +18,29 @@ class RetrievedChunk(BaseModel):
     metadata: dict[str, Any]
 
 
+class FailedNodeRef(BaseModel):
+    """Identifies the pipeline node that failed a retrieval run."""
+
+    node_id: str
+    node_name: str
+    node_type: str
+
+
+class RetrievalFailureDetail(BaseModel):
+    """Structured error body for a failed retrieval query.
+
+    Returned as the HTTP error `detail` so the Search page can name the failed
+    node and link to the run trace instead of dumping the raw provider error.
+    `message` is the readable explanation; the raw provider text lives in the
+    trace, not here.
+    """
+
+    message: str
+    code: str
+    failed_node: FailedNodeRef | None = None
+    pipeline_run_id: UUID | None = None
+
+
 class CollectionQueryRequest(BaseModel):
     """Payload for querying a collection.
 

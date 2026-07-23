@@ -248,3 +248,23 @@ def test_concurrent_ensure_index_is_serialized_not_an_integrity_error(
     assert not worker.is_alive(), "session B never finished ensure_index"
     assert b_error == []
     assert PgvectorStore(pgvector_session).describe_index("race-idx").name == "race-idx"
+
+
+def test_index_stats_missing_existing_and_populated(pgvector_session: Session) -> None:
+    """`index_stats` reports absence, then existence with a namespace-scoped count."""
+    store = PgvectorStore(pgvector_session)
+
+    absent = store.index_stats("docs")
+    assert absent.exists is False
+    assert absent.count == 0
+
+    _make_index(store)
+    empty = store.index_stats("docs")
+    assert empty.exists is True
+    assert empty.count == 0
+
+    store.upsert("docs", "ns-a", [_chunk("c1", [0.1, 0.2, 0.3])])
+    store.upsert("docs", "ns-b", [_chunk("c2", [0.4, 0.5, 0.6])])
+
+    assert store.index_stats("docs").count == 2
+    assert store.index_stats("docs", "ns-a").count == 1

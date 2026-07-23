@@ -15,6 +15,7 @@ from app.retrieval.models import DocumentChunk, RetrievalResponse, ScoredChunk
 from app.schemas.enums import IndexBackend
 from app.vectorstores.base import (
     IndexSpec,
+    IndexStats,
     VectorIndexDescription,
     VectorStoreBackend,
     VectorStoreCapabilities,
@@ -159,6 +160,10 @@ class StubVectorStore(VectorStoreBackend):
 
     def delete_document_vectors(self, index: str, namespace: str, document_id: str) -> None:
         self.deleted_documents.append((index, namespace, document_id))
+
+    def index_stats(self, index: str, namespace: str | None = None) -> IndexStats:
+        del index, namespace
+        return IndexStats(exists=True, count=len(self.query_matches))
 
 
 class StubProviderResolver:

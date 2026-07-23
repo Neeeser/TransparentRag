@@ -64,10 +64,14 @@ def to_http_exception(exc: ServiceError) -> HTTPException:
 
     The single mapping every route shares: `NotFoundError` -> 404,
     `ExternalServiceError` -> 502, and any other `ServiceError`
-    (`InvalidInputError` and the base) -> 400. `detail` is passed through
-    verbatim, so structured per-field error maps survive to the client.
+    (`InvalidInputError` and the base) -> 400. A `status_code` pinned on the
+    error wins over the type mapping (retrieval failures pin 502 vs 500 while
+    carrying structured detail). `detail` is passed through verbatim, so
+    structured per-field error maps survive to the client.
     """
-    if isinstance(exc, NotFoundError):
+    if exc.status_code is not None:
+        code = exc.status_code
+    elif isinstance(exc, NotFoundError):
         code = status.HTTP_404_NOT_FOUND
     elif isinstance(exc, ExternalServiceError):
         code = status.HTTP_502_BAD_GATEWAY

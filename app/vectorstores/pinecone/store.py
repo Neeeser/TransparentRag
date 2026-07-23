@@ -35,6 +35,7 @@ from app.schemas.enums import IndexBackend
 from app.services.errors import InvalidInputError, NotFoundError
 from app.vectorstores.base import (
     IndexSpec,
+    IndexStats,
     VectorIndexDescription,
     VectorStoreBackend,
     VectorStoreCapabilities,
@@ -291,6 +292,24 @@ class PineconeStore(VectorStoreBackend):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             if not is_benign_purge_error(exc):
                 raise
+
+    # -- diagnostics probe --------------------------------------------------
+
+    def index_stats(self, index: str, namespace: str | None = None) -> IndexStats:
+        """Existence via `has_index`, count via `describe_index_stats`.
+
+        Reads `total_vector_count` (or the namespace's `vector_count` when a
+        namespace is given) off the SDK stats object.
+        """
+        if not self._client.has_index(index):
+            return IndexStats(exists=False, count=0)
+        stats = self._get_index(index).describe_index_stats()
+        if namespace is not None:
+            ns_stats = (stats.namespaces or {}).get(namespace)
+            count = getattr(ns_stats, "vector_count", 0) if ns_stats is not None else 0
+        else:
+            count = stats.total_vector_count or 0
+        return IndexStats(exists=True, count=int(count))
 
     # -- helpers -------------------------------------------------------------
 

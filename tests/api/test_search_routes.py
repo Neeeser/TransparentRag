@@ -112,3 +112,46 @@ def test_query_rejects_unknown_argument_with_400(client: TestClient, session: Se
     )
     assert response.status_code == 400
     assert "Unknown argument" in response.json()["detail"]
+
+
+def test_query_failure_returns_structured_detail(
+    client: TestClient, monkeypatch, auth_user: models.User
+) -> None:
+    """A failed retrieval returns the structured, trace-linked error body.
+
+    Drives the real route with the provider boundary stubbed to fail, and
+    asserts the HTTP error `detail` is the `RetrievalFailureDetail` object
+    (failed node + run id), not a plain string.
+    """
+
+    class _FailingEmbedder:
+        def __init__(self, model_name: str) -> None:
+            self.model_name = model_name
+
+        @property
+        def usage(self) -> dict[str, int] | None:
+            return None
+
+        def embed_query(self, _query: str) -> list[float]:
+            raise RuntimeError("embed boom")
+
+        def embed_documents(self, chunks: object) -> list[list[float]]:
+            return [[0.1, 0.2, 0.3] for _ in chunks]  # type: ignore[attr-defined]
+
+    class _FailingResolver:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def embedder(self, _connection_id: object, model_name: str, dimensions: object = None):
+            del dimensions
+            return _FailingEmbedder(model_name)
+
+    monkeypatch.setattr("app.services.retrieval.ProviderResolver", _FailingResolver)
+    collection_id = _create_collection(client)
+    response = client.post(f"/api/collections/{collection_id}/query", json={"query": "hi"})
+
+    assert response.status_code == 500
+    detail = response.json()["detail"]
+    assert detail["code"] == "retrieval_pipeline_failed"
+    assert detail["failed_node"]["node_type"]
+    assert detail["pipeline_run_id"]

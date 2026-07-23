@@ -16,9 +16,9 @@ from sqlmodel import Session, select
 from app.db import models
 from app.pipelines.defaults import build_default_ingestion_pipeline
 from app.retrieval.models import DocumentChunk, DocumentMetadata
-from app.services.errors import ExternalServiceError, InvalidInputError
+from app.services.errors import InvalidInputError
 from app.services.pipelines import PipelineService
-from app.services.retrieval import RetrievalService
+from app.services.retrieval import RetrievalPipelineError, RetrievalService
 from app.telemetry.events import RetrievalQueryRan
 from app.vectorstores.base import IndexSpec
 from app.vectorstores.pgvector import PgvectorStore
@@ -178,8 +178,12 @@ def test_query_collection_marks_run_failed_on_exception(monkeypatch, session: Se
     monkeypatch.setattr("app.pipelines.execution.runner.PipelineExecutor", _StubExecutor)
     monkeypatch.setattr("app.services.retrieval.ProviderResolver", _StubProviderResolver)
 
-    with pytest.raises(RuntimeError, match="boom"):
+    # An internal bug surfaces as a structured RetrievalPipelineError pinned to
+    # 500 (not the bare RuntimeError), still carrying the run id for the trace.
+    with pytest.raises(RetrievalPipelineError) as caught:
         service.query_collection(user, collection, query="hello")
+    assert caught.value.status_code == 500
+    assert caught.value.detail["pipeline_run_id"] is not None  # type: ignore[index]
 
     run = session.exec(select(models.PipelineRun)).first()
     assert run is not None
@@ -190,9 +194,10 @@ def test_query_collection_marks_run_failed_on_exception(monkeypatch, session: Se
 def test_query_collection_wraps_pinecone_outage_as_external_service_error(
     monkeypatch, session: Session
 ) -> None:
-    """A Pinecone outage mid-query must surface as a 502-mapped
-    `ExternalServiceError`, not the raw SDK exception (which the route has no
-    handler for and would 500 on) -- while still marking the run FAILED."""
+    """A Pinecone outage mid-query surfaces as a structured RetrievalPipelineError
+    pinned to 502 (external provider fault), carrying the run id for the trace
+    link -- while still marking the run FAILED. The raw SDK message lives in the
+    trace, not the primary error message."""
     user = _create_user(session)
     collection = _create_collection(session, user)
     service = RetrievalService(session)
@@ -213,8 +218,11 @@ def test_query_collection_wraps_pinecone_outage_as_external_service_error(
     monkeypatch.setattr("app.pipelines.execution.runner.PipelineExecutor", _StubExecutor)
     monkeypatch.setattr("app.services.retrieval.ProviderResolver", _StubProviderResolver)
 
-    with pytest.raises(ExternalServiceError, match="Pinecone is unavailable"):
+    with pytest.raises(RetrievalPipelineError) as caught:
         service.query_collection(user, collection, query="hello")
+    assert caught.value.status_code == 502
+    assert caught.value.detail["code"] == "retrieval_pipeline_failed"  # type: ignore[index]
+    assert "Pinecone is unavailable" not in caught.value.detail["message"]  # type: ignore[index]
 
     run = session.exec(select(models.PipelineRun)).first()
     assert run is not None
@@ -243,12 +251,125 @@ def test_query_collection_skips_failed_run_update(monkeypatch, session: Session)
     monkeypatch.setattr("app.pipelines.execution.runner.PipelineExecutor", _StubExecutor)
     monkeypatch.setattr("app.services.retrieval.ProviderResolver", _StubProviderResolver)
 
-    with pytest.raises(RuntimeError, match="boom"):
+    with pytest.raises(RetrievalPipelineError):
         service.query_collection(user, collection, query="hello")
 
     run = session.exec(select(models.PipelineRun)).first()
     assert run is not None
     assert run.status == models.PipelineRunStatus.FAILED
+
+
+def test_query_collection_failure_carries_failed_node_and_run(
+    monkeypatch, pgvector_session: Session
+) -> None:
+    """Regression: a node failing mid-retrieval yields a structured error whose
+    detail names the failed node and the run id (both used to be discarded).
+
+    Red-green: before the fix the service re-raised the bare embedder error
+    with no `failed_node`/`pipeline_run_id`; the assertions below fail.
+    """
+    session = pgvector_session
+
+    class _FailingEmbedder:
+        def __init__(self, model_name: str) -> None:
+            self.model_name = model_name
+
+        @property
+        def usage(self) -> dict[str, int] | None:
+            return None
+
+        def embed_query(self, _query: str):
+            raise RuntimeError("embed boom")
+
+        def embed_documents(self, chunks):
+            return [[0.1, 0.2, 0.3] for _ in chunks]
+
+    class _FailingResolver:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def embedder(self, _connection_id, model_name: str, dimensions=None):
+            del dimensions
+            return _FailingEmbedder(model_name)
+
+    monkeypatch.setattr("app.services.retrieval.ProviderResolver", _FailingResolver)
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+
+    with pytest.raises(RetrievalPipelineError) as caught:
+        RetrievalService(session).query_collection(user, collection, query="hello")
+
+    detail = caught.value.detail
+    assert detail["pipeline_run_id"] is not None  # type: ignore[index]
+    assert detail["failed_node"] is not None  # type: ignore[index]
+    assert detail["failed_node"]["node_type"]  # type: ignore[index]
+    assert caught.value.status_code == 500
+
+
+def test_query_collection_db_error_surfaces_as_structured_failure(
+    monkeypatch, pgvector_session: Session
+) -> None:
+    """Regression: a mid-run DB error (a vector-dimension mismatch) must still
+    surface as a structured RetrievalPipelineError, not a raw 500.
+
+    The DB error aborts the transaction, so reading the failed node with a
+    SELECT would raise inside the failure handler (`InternalError` from a
+    query-invoked autoflush) and lose the structured detail — exactly the bug
+    the sandbox e2e caught. Red-green: before reading the failed node from the
+    in-memory trace instead of the poisoned session, this raised the SQLAlchemy
+    error, not `RetrievalPipelineError`.
+    """
+    session = pgvector_session
+
+    class _WrongDimEmbedder:
+        """Indexes at 3d but embeds queries at 5d — a real pgvector mismatch."""
+
+        def __init__(self, model_name: str) -> None:
+            self.model_name = model_name
+
+        @property
+        def usage(self) -> dict[str, int] | None:
+            return None
+
+        def embed_query(self, _query: str):
+            return [0.1, 0.2, 0.3, 0.4, 0.5]
+
+        def embed_documents(self, chunks):
+            return [[0.1, 0.2, 0.3] for _ in chunks]
+
+    class _WrongDimResolver:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def embedder(self, _connection_id, model_name: str, dimensions=None):
+            del dimensions
+            return _WrongDimEmbedder(model_name)
+
+    monkeypatch.setattr("app.services.retrieval.ProviderResolver", _WrongDimResolver)
+    user = _create_user(session)
+    collection = _create_collection(session, user)
+
+    store = PgvectorStore(session)
+    store.create_index(IndexSpec(name="ragworks", dimension=3, metric="cosine"))
+    store.upsert(
+        "ragworks",
+        f"col-{collection.id}",
+        [
+            DocumentChunk(
+                document_id="doc-1",
+                chunk_id="chunk-1",
+                text="Paris is the capital of France.",
+                order=0,
+                metadata=DocumentMetadata(data={}),
+                embedding=[0.1, 0.2, 0.3],
+            )
+        ],
+    )
+
+    with pytest.raises(RetrievalPipelineError) as caught:
+        RetrievalService(session).query_collection(user, collection, query="capital?")
+    assert caught.value.detail["pipeline_run_id"] is not None  # type: ignore[index]
+    assert caught.value.status_code == 500
 
 
 def test_extract_retrieval_payload_raises_for_missing_result() -> None:

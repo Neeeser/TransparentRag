@@ -84,6 +84,17 @@ class VectorIndexDescription(BaseModel):
     tags: dict[str, str] | None = None
 
 
+class IndexStats(BaseModel):
+    """Lightweight existence + count probe result for one index.
+
+    `exists` is False when the index is not present in the store; `count` is
+    the number of stored vectors (namespace-scoped when a namespace was given).
+    """
+
+    exists: bool
+    count: int = 0
+
+
 def validate_index_name(name: str, capabilities: VectorStoreCapabilities) -> None:
     """Reject an index name that violates the shared name rule.
 
@@ -214,4 +225,16 @@ class VectorStoreBackend(ABC):
         Chunk vector ids are `{document_id}:{order}` (see
         `app/retrieval/chunkers/strategies.py`), so backends can target one
         document's vectors by id prefix or stored document id.
+        """
+
+    # -- diagnostics probe --------------------------------------------------
+
+    @abstractmethod
+    def index_stats(self, index: str, namespace: str | None = None) -> IndexStats:
+        """Return whether an index exists and how many vectors it holds.
+
+        A lightweight probe for collection diagnostics: existence + count, no
+        vectors returned. `namespace` narrows the count when the backend
+        namespaces data (Pinecone); pgvector counts the whole `vec_`/`lex_`
+        table. Kept cheap -- the diagnostics endpoint budgets total probe time.
         """
