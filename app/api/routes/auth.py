@@ -18,6 +18,8 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, verify_password
 from app.db import models
 from app.db.repositories import AuthSessionRepository, UserRepository
+from app.observability import events as log_events
+from app.observability import get_logger
 from app.schemas.auth import (
     AuthSessionRead,
     Token,
@@ -34,6 +36,7 @@ from app.telemetry.events import UserSignedIn
 from app.utils.time import ensure_utc, utc_now
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = get_logger("app.auth")
 _REFRESH_COOKIE = "ragworks_refresh"
 _ROTATION_GRACE = timedelta(seconds=30)
 
@@ -161,6 +164,13 @@ def login_for_access_token(
         or not verify_password(form_data.password, user.hashed_password)
         or not user.is_active
     ):
+        # No email/username in the log — only whether an active account matched,
+        # so a failed sign-in is diagnosable without recording who was tried.
+        logger.warning(
+            log_events.AUTH_LOGIN_FAILED,
+            user_id=str(user.id) if user else None,
+            reason="inactive" if user and not user.is_active else "invalid_credentials",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -172,6 +182,7 @@ def login_for_access_token(
     # the credential exchange lives entirely in this route, so the fact is
     # recorded where it becomes true.
     record(UserSignedIn(user_id=user.id))
+    logger.info(log_events.AUTH_LOGIN_SUCCEEDED, user_id=str(user.id))
     return Token(access_token=access_token)
 
 

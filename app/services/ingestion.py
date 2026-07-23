@@ -9,8 +9,8 @@ attempt: `ready` always means chunks were indexed; any failure lands as
 
 from __future__ import annotations
 
-import logging
-from uuid import UUID
+import time
+from uuid import UUID, uuid4
 
 from sqlmodel import Session
 
@@ -18,6 +18,8 @@ from app.core.config import get_settings
 from app.db import models
 from app.db.engine import session_scope
 from app.db.repositories import ChunkRepository, DocumentRepository
+from app.observability import events as log_events
+from app.observability import get_logger, request_context
 from app.pipelines.execution.runner import PipelineRunHandle, PipelineRunner
 from app.pipelines.payloads import IndexingPayload
 from app.pipelines.settings import IngestionPipelineSettings
@@ -32,10 +34,10 @@ from app.telemetry.events import DocumentIngested
 from app.utils.file_storage import FileStorage
 from app.vectorstores.registry import VectorStoreProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-def run_document_ingestion(document_id: UUID) -> None:
+def run_document_ingestion(document_id: UUID, request_id: str | None = None) -> None:
     """Worker entry point: claim and ingest one pending document, never raise.
 
     Opens its own `session_scope` — queue workers run outside any request
@@ -44,8 +46,12 @@ def run_document_ingestion(document_id: UUID) -> None:
     and returns without touching it. Failures are already recorded on the
     document row by `ingest_document`; this wrapper only keeps the worker
     quiet.
+
+    `request_id` carries the enqueuing request's correlation ID into the
+    worker's logs; a fresh one is minted when the work has no originating
+    request (startup recovery).
     """
-    with session_scope() as session:
+    with request_context(request_id=request_id or str(uuid4())), session_scope() as session:
         if not DocumentRepository(session).claim_for_ingestion(document_id):
             return
         session.commit()  # make the claim visible to pollers and other workers
@@ -64,7 +70,13 @@ def run_document_ingestion(document_id: UUID) -> None:
             # Deliberately broad: the outcome is normally already persisted
             # as a FAILED document with an error message; a queue worker has
             # no caller left to re-raise to.
-            logger.exception("Background ingestion failed for document %s", document_id)
+            logger.error(
+                log_events.BACKGROUND_TASK_FAILED,
+                task="ingestion",
+                document_id=str(document_id),
+                error_type=exc.__class__.__name__,
+                exc_info=True,
+            )
             _ensure_failure_recorded(document_id, exc)
 
 
@@ -88,7 +100,12 @@ def _ensure_failure_recorded(document_id: UUID, exc: Exception) -> None:
     except Exception:  # pylint: disable=broad-exception-caught
         # Swallowing here is deliberate: this is the recorder of last resort,
         # and raising from it would only kill the worker thread.
-        logger.exception("Could not record ingestion failure for document %s", document_id)
+        logger.error(
+            log_events.BACKGROUND_TASK_FAILED,
+            task="ingestion_failure_recording",
+            document_id=str(document_id),
+            exc_info=True,
+        )
 
 
 class IngestionService:  # pylint: disable=too-few-public-methods
@@ -124,6 +141,14 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         self.session.add(document)
         self.session.commit()  # make `processing` visible to pollers mid-run
 
+        logger.info(
+            log_events.INGESTION_STARTED,
+            document_id=str(document.id),
+            collection_id=str(collection.id),
+            index_backend=resolved.settings.backend.value,
+            is_retry=is_retry,
+        )
+        started_at = time.perf_counter()
         runner = PipelineRunner(self.session)
         handle: PipelineRunHandle | None = None
         try:
@@ -131,10 +156,9 @@ class IngestionService:  # pylint: disable=too-few-public-methods
             vector_stores = VectorStoreProvider(user, self.session)
             if is_retry:
                 self._purge_previous_vectors(vector_stores, resolved, document)
-            version = resolved.service.get_current_version(resolved.pipeline)
             handle = runner.start(
                 pipeline=resolved.pipeline,
-                version=version,
+                version=resolved.service.get_current_version(resolved.pipeline),
                 definition=resolved.definition,
                 kind=models.PipelineKind.INGESTION,
                 user=user,
@@ -160,6 +184,14 @@ class IngestionService:  # pylint: disable=too-few-public-methods
                 chunk_records,
             )
             self.session.commit()
+            logger.info(
+                log_events.INGESTION_COMPLETED,
+                document_id=str(document.id),
+                collection_id=str(collection.id),
+                index_backend=resolved.settings.backend.value,
+                chunk_count=len(chunk_records),
+                duration_ms=round((time.perf_counter() - started_at) * 1000, 2),
+            )
             record(
                 DocumentIngested(
                     user_id=user.id,
@@ -174,6 +206,16 @@ class IngestionService:  # pylint: disable=too-few-public-methods
         except Exception as exc:
             self._record_failure(document, handle.trace if handle else None, exc)
             self.session.commit()
+            logger.error(
+                log_events.INGESTION_FAILED,
+                document_id=str(document.id),
+                collection_id=str(collection.id),
+                index_backend=resolved.settings.backend.value,
+                error_type=exc.__class__.__name__,
+                external=is_external_provider_error(exc),
+                duration_ms=round((time.perf_counter() - started_at) * 1000, 2),
+                exc_info=True,
+            )
             record(
                 DocumentIngested(
                     user_id=user.id,
@@ -219,7 +261,11 @@ class IngestionService:  # pylint: disable=too-few-public-methods
                 store.delete_document_vectors(target.index_name, namespace, str(document.id))
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.warning(
-                    "Could not purge previous vectors for document %s: %s", document.id, exc
+                    log_events.VECTORSTORE_CALL_FAILED,
+                    operation="purge_previous_vectors",
+                    document_id=str(document.id),
+                    index_backend=target.backend.value,
+                    error_type=exc.__class__.__name__,
                 )
 
     def _persist_chunks(

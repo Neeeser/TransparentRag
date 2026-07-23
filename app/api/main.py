@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -33,6 +32,12 @@ from app.api.routes import (
 from app.core.config import get_settings
 from app.db.bootstrap import init_db
 from app.db.engine import session_scope
+from app.observability import (
+    RequestContextMiddleware,
+    configure_logging,
+    get_logger,
+)
+from app.observability import events as log_events
 from app.providers.registry import close_provider_clients
 from app.services.accounts import ensure_admin_exists
 from app.services.app_config import get_app_config
@@ -47,34 +52,15 @@ from app.services.tokenizer_migration import migrate_tokenizer_nodes
 from app.telemetry import purge_expired as purge_expired_telemetry
 
 settings = get_settings()
-
-
-def configure_logging(log_level_name: str) -> None:
-    """Configure root/uvicorn loggers from a level name; no-op when blank.
-
-    Called at startup (from `lifespan`) rather than at import time, so tests
-    can exercise it directly instead of reloading this module.
-    """
-    log_level_name = log_level_name.strip().upper()
-    if not log_level_name:
-        return
-    log_level = getattr(logging, log_level_name, logging.INFO)
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-        force=True,
-    )
-    logging.getLogger().setLevel(log_level)
-    logging.getLogger("uvicorn").setLevel(log_level)
-    logging.getLogger("uvicorn.access").setLevel(log_level)
-    logging.getLogger("uvicorn.error").setLevel(log_level)
+logger = get_logger("app.lifespan")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Initialize application resources on startup."""
-    configure_logging(settings.log_level or "")
+    configure_logging(settings.log_level, debug=settings.debug)
     init_db()
+    logger.info(log_events.DB_BOOTSTRAP_COMPLETED)
     with session_scope() as session:
         migrate_provider_connections(session)
         migrate_tokenizer_nodes(session)
@@ -85,11 +71,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     purge_expired_telemetry()
     ingestion_queue.start(get_app_config().uploads.ingestion_concurrency)
     ingestion_queue.recover()
+    logger.info(log_events.APP_STARTUP_COMPLETED)
     try:
         yield
     finally:
         ingestion_queue.stop()
         close_provider_clients()
+        logger.info(log_events.APP_SHUTDOWN_COMPLETED)
 
 
 app = FastAPI(
@@ -105,7 +93,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
+# Outermost application middleware: binds the correlation ID before any route
+# runs and logs the request outcome after. Added last so it wraps CORS too.
+app.add_middleware(RequestContextMiddleware)
 
 app.include_router(health.router)
 app.include_router(config.router)

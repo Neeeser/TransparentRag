@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session
@@ -26,6 +26,7 @@ def get_user_repository(session: Session = Depends(get_session)) -> UserReposito
 
 
 def get_current_user(
+    request: Request,
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session),
 ) -> User:
@@ -72,6 +73,11 @@ def get_current_user(
             or ensure_utc(auth_session.expires_at) <= utc_now()
         ):
             raise credentials_exception
+    # Attribute the request to the authenticated user (internal UUID, opaque
+    # operational metadata) for the completion event. Written to request.state,
+    # not a context var: sync routes run in a threadpool whose context-var
+    # writes do not reach the middleware, but `scope["state"]` is shared.
+    request.state.user_id = str(user.id)
     return user
 
 

@@ -310,7 +310,7 @@ def test_stream_chat_yields_events(monkeypatch) -> None:
             yield {"type": "final", "payload": {"ok": True}}
 
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
+    monkeypatch.setattr(chat_routes, "get_current_user", lambda request, token, session: user)
 
     response = chat_routes.stream_chat(
         ChatMessageCreate(content="hi"),
@@ -343,7 +343,7 @@ def test_stream_chat_handles_errors(monkeypatch) -> None:
             raise RuntimeError("boom")
 
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
+    monkeypatch.setattr(chat_routes, "get_current_user", lambda request, token, session: user)
 
     response = chat_routes.stream_chat(
         ChatMessageCreate(content="hi"),
@@ -382,7 +382,7 @@ def test_stream_chat_surfaces_openrouter_auth_failure_as_error_event(monkeypatch
             raise AuthenticationError("Invalid API key", response=response, body=None)
 
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
+    monkeypatch.setattr(chat_routes, "get_current_user", lambda request, token, session: user)
 
     response = chat_routes.stream_chat(
         ChatMessageCreate(content="hi"),
@@ -424,7 +424,7 @@ def test_stream_chat_closes_on_disconnect(monkeypatch) -> None:
             yield {"type": "token", "content": "hi"}
 
     monkeypatch.setattr(chat_routes, "ChatService", _StubChatService)
-    monkeypatch.setattr(chat_routes, "get_current_user", lambda token, session: user)
+    monkeypatch.setattr(chat_routes, "get_current_user", lambda request, token, session: user)
 
     response = chat_routes.stream_chat(
         ChatMessageCreate(content="hi"),
