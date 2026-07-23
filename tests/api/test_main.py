@@ -1,8 +1,9 @@
-"""Tests for `configure_logging`, a pure function extracted from import-time setup.
+"""Tests for logging configuration and the app lifespan.
 
-Import-time logging configuration used to require reloading `app.api.main` to
-exercise (see removed `test_main_logging.py`); it is now a plain function
-called from `lifespan`, so it is testable directly.
+`configure_logging` now lives in `app.observability` (structured JSON to
+stdout); `app.api.main` re-imports it and calls it from `lifespan`. The
+pipeline's own behavior is pinned in `tests/observability/`; here we assert the
+level resolution and that the lifespan wires it.
 """
 
 from __future__ import annotations
@@ -14,28 +15,16 @@ from app.api import main as main_module
 from app.api.main import configure_logging
 
 
-def test_configure_logging_sets_level_when_name_given(monkeypatch) -> None:
-    recorded: dict[str, object] = {}
-
-    def _basic_config(**kwargs):
-        recorded.update(kwargs)
-
-    monkeypatch.setattr(logging, "basicConfig", _basic_config)
-
-    configure_logging("debug")
-
-    assert recorded["level"] == logging.DEBUG
-    assert "format" in recorded
-    assert logging.getLogger("uvicorn").level == logging.DEBUG
+def test_configure_logging_sets_level_from_name() -> None:
+    configure_logging("debug", debug=False)
+    assert logging.getLogger().level == logging.DEBUG
+    # Reset to a sane default so a debug level does not leak into later tests.
+    configure_logging("INFO", debug=False)
 
 
-def test_configure_logging_is_noop_when_name_blank(monkeypatch) -> None:
-    def _basic_config(**_kwargs):
-        raise AssertionError("basicConfig should not be called for a blank level")
-
-    monkeypatch.setattr(logging, "basicConfig", _basic_config)
-
-    configure_logging("")
+def test_configure_logging_defaults_to_info_when_blank() -> None:
+    configure_logging("", debug=False)
+    assert logging.getLogger().level == logging.INFO
 
 
 def test_lifespan_closes_provider_clients(monkeypatch) -> None:

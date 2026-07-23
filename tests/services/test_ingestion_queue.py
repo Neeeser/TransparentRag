@@ -71,7 +71,7 @@ def test_worker_pool_bounds_concurrent_ingestion(monkeypatch: pytest.MonkeyPatch
     ran: list[UUID] = []
     done = threading.Event()
 
-    def tracked_ingestion(document_id: UUID) -> None:
+    def tracked_ingestion(document_id: UUID, request_id: str | None = None) -> None:
         nonlocal active, max_active
         with lock:
             active += 1
@@ -100,7 +100,10 @@ def test_worker_pool_bounds_concurrent_ingestion(monkeypatch: pytest.MonkeyPatch
 def test_enqueue_without_start_runs_inline(monkeypatch: pytest.MonkeyPatch) -> None:
     """A never-started queue (scripts, tests) still ingests, synchronously."""
     ran: list[UUID] = []
-    monkeypatch.setattr("app.services.ingestion.run_document_ingestion", ran.append)
+    monkeypatch.setattr(
+        "app.services.ingestion.run_document_ingestion",
+        lambda document_id, request_id=None: ran.append(document_id),
+    )
     document_id = uuid4()
     IngestionQueue().enqueue(document_id)
     assert ran == [document_id]

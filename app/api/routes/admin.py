@@ -14,6 +14,9 @@ from sqlmodel import Session
 from app.api.dependencies import get_session, require_admin
 from app.api.routes.utils import to_http_exception
 from app.db import models
+from app.observability import events as log_events
+from app.observability import get_logger
+from app.observability.export import build_diagnostics_bundle
 from app.schemas.admin import (
     AdminUsageSummary,
     AdminUsageTimeseries,
@@ -22,6 +25,7 @@ from app.schemas.admin import (
     AppConfigUpdate,
     ConfigFieldRead,
 )
+from app.schemas.observability import DiagnosticsBundle
 from app.services.admin_users import AdminUserService
 from app.services.app_config import AppConfigService
 from app.services.errors import ServiceError
@@ -32,6 +36,7 @@ router = APIRouter(
     tags=["admin"],
     dependencies=[Depends(require_admin)],
 )
+logger = get_logger("app.admin")
 
 
 @router.get("/users", response_model=list[AdminUserRead])
@@ -56,6 +61,12 @@ def update_user(
     return rows[user_id]
 
 
+@router.get("/diagnostics/export", response_model=DiagnosticsBundle)
+def export_diagnostics() -> DiagnosticsBundle:
+    """Return recent redacted backend log records for a support bundle."""
+    return build_diagnostics_bundle()
+
+
 @router.get("/config", response_model=list[ConfigFieldRead])
 def get_config_catalog(session: Session = Depends(get_session)) -> list[ConfigFieldRead]:
     """Return every config field's metadata alongside its resolved value."""
@@ -74,6 +85,15 @@ def update_config(
         service.apply_update(payload, updated_by=current_user.id)
     except ServiceError as exc:
         raise to_http_exception(exc) from exc
+    # Log which fields changed, never their values — a config value can be a
+    # secret (provider defaults, limits), and the field paths are enough to
+    # correlate a behavior change to an admin action.
+    changed_fields = [f"{section}.{field}" for section, fields in payload.items() for field in fields]
+    logger.info(
+        log_events.ADMIN_CONFIG_UPDATED,
+        user_id=str(current_user.id),
+        changed_fields=changed_fields,
+    )
     return service.field_catalog()
 
 

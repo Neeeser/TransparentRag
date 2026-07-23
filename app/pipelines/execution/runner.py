@@ -20,6 +20,8 @@ from sqlmodel import Session
 
 from app.core.config import Settings
 from app.db import models
+from app.observability import events as log_events
+from app.observability import get_logger
 from app.pipelines.definition import PipelineDefinition
 from app.pipelines.execution.context import PipelineRunContext
 from app.pipelines.execution.executor import PipelineExecutionResult, PipelineExecutor
@@ -30,6 +32,8 @@ from app.providers.registry import ProviderResolver
 from app.utils.file_storage import FileStorage
 from app.utils.time import utc_now
 from app.vectorstores.registry import VectorStoreProvider
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -120,8 +124,32 @@ class PipelineRunner:
             trace=trace,
             variables=environment,
         )
+        logger.info(
+            log_events.PIPELINE_RUN_STARTED,
+            pipeline_run_id=str(run.id),
+            collection_id=str(collection.id),
+            kind=kind.value,
+        )
         return PipelineRunHandle(run=run, trace=trace, context=context, definition=resolved)
 
     def execute(self, handle: PipelineRunHandle) -> PipelineExecutionResult:
-        """Run the handle's resolved definition against its context."""
-        return self._executor.execute(handle.definition, handle.context)
+        """Run the handle's resolved definition against its context.
+
+        Terminal run *status* stays owned by the trace recorder; this only
+        emits the observability event for the run's outcome.
+        """
+        try:
+            result = self._executor.execute(handle.definition, handle.context)
+        except Exception as exc:
+            logger.error(
+                log_events.PIPELINE_RUN_FAILED,
+                pipeline_run_id=str(handle.run.id),
+                error_type=exc.__class__.__name__,
+                exc_info=True,
+            )
+            raise
+        logger.info(
+            log_events.PIPELINE_RUN_COMPLETED,
+            pipeline_run_id=str(handle.run.id),
+        )
+        return result

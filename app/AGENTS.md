@@ -431,6 +431,53 @@ aggregatable facts beside them — retrieval deliberately writes both. One table
 all event types, on purpose: adding an event never needs a migration.
 `telemetry.enabled` and `telemetry.retention_days` are AppConfig fields.
 
+## Logging (`app/observability/`)
+
+Structured operational logging for diagnosing failures — connect a failure to a
+request, a user, and an operation — without recording user content or secrets.
+Full policy and the field contract live in `docs/observability.md`; the rules
+that must hold in code:
+
+- **All logging goes through `app/observability/`** — `get_logger(__name__)` and
+  named events. Never a feature-local formatter, logger config, request-ID
+  generator, or redaction implementation; a second one silently diverges from the
+  shared contract and its redaction.
+- **JSON to stdout only.** No application-managed log files, rotation, retention,
+  or shipping — the runtime operator owns collection (12-factor). Adding a log
+  file is the anti-pattern this rule exists to stop.
+- **Event names are stable dotted `domain.action[.outcome]` facts; identifiers
+  are structured fields, never interpolated into the message string** — a
+  message like `f"ingested {doc_id}"` is unqueryable and un-redactable. The
+  canonical names are in `events.py` and pinned by
+  `tests/assets/observability_contract.json` (asserted by pytest *and* vitest —
+  a rename lands on both sides or fails the gate).
+- **`user_id` is the internal UUID, unhashed** (opaque operational metadata the
+  operator joins to the DB), on authenticated request-completion events and
+  user-owned background work; omitted for unauthenticated/health/infra events.
+  Read it from `request.state.user_id` in the middleware, never a context var:
+  sync routes run in a threadpool whose context-var writes don't reach the
+  middleware, but `scope["state"]` is shared.
+- **Never log** email/username, passwords, API keys, auth headers, JWTs,
+  cookies, session IDs, connection strings, request/response bodies, file
+  paths/names, document/chunk text, prompts, chat messages, search queries, or
+  raw provider payloads. `redaction.py` is the safety net (denylisted keys →
+  `[REDACTED]`, control-char stripping, truncation), not a licence to pass these.
+- **Sanitize untrusted values before emitting** (log injection) and **`DEBUG`
+  never relaxes redaction** — it may add diagnostic metadata and switch to the
+  console renderer, nothing more.
+- **The request middleware and diagnostics ring buffer are process-lifetime and
+  restart-scoped by design** — the durable history is stdout. The admin export
+  (`GET /api/admin/diagnostics/export`) serves the buffer; it can never contain
+  anything stdout couldn't, because the buffer tee runs *after* redaction.
+- **The buffer tee strips `ProcessorFormatter` meta keys (`_record`,
+  `_from_structlog`) before storing.** A *foreign* stdlib record (uvicorn,
+  SQLAlchemy, any un-migrated `logging.getLogger`) arrives at the shared
+  pre-chain with a raw `logging.LogRecord` seeded under `_record`;
+  `remove_processors_meta` drops it in the render chain, which runs *after* the
+  tee. Keeping it makes the export 500 serializing a `LogRecord`. A test that
+  only buffers structlog-*native* calls never sees this — exercise a foreign
+  record.
+
 ## Collection diagnostics (`app/services/diagnostics/`)
 
 Cross-pipeline compatibility findings served from `GET /api/collections/{id}/

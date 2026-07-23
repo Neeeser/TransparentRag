@@ -18,12 +18,13 @@ from scratch is safe because re-ingestion overwrites the same
 
 from __future__ import annotations
 
-import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from uuid import UUID
 
-logger = logging.getLogger(__name__)
+from app.observability import current_request_id, get_logger
+
+logger = get_logger(__name__)
 
 
 class IngestionQueue:
@@ -54,7 +55,7 @@ class IngestionQueue:
             self._executor = ThreadPoolExecutor(
                 max_workers=worker_count, thread_name_prefix="ingestion"
             )
-        logger.info("Ingestion queue started with %d worker(s)", worker_count)
+        logger.info("ingestion.queue.started", worker_count=worker_count)
 
     def stop(self) -> None:
         """Shut the pool down without waiting out the backlog.
@@ -76,15 +77,13 @@ class IngestionQueue:
         """
         from app.services.ingestion import run_document_ingestion
 
+        request_id = current_request_id()
         with self._lock:
             executor = self._executor
         if executor is None:
-            logger.warning(
-                "Ingestion queue not started; ingesting document %s inline", document_id
-            )
-            run_document_ingestion(document_id)
+            run_document_ingestion(document_id, request_id)
             return
-        executor.submit(run_document_ingestion, document_id)
+        executor.submit(run_document_ingestion, document_id, request_id)
 
     def recover(self) -> None:
         """Requeue documents stranded by a previous process, then drain.
@@ -102,7 +101,7 @@ class IngestionQueue:
             requeued = repository.requeue_stranded_processing()
             pending = repository.pending_ids()
         if requeued:
-            logger.info("Requeued %d document(s) stranded in processing", requeued)
+            logger.info("ingestion.queue.recovered", requeued=requeued)
         for document_id in pending:
             self.enqueue(document_id)
 

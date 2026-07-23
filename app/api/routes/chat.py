@@ -120,7 +120,7 @@ def stream_chat(
     # streaming generator (which outlives this handler) via `session_cleanup`.
     with ExitStack() as stack:
         session = stack.enter_context(stream_scoped_session())
-        current_user = get_current_user(token=token, session=session)
+        current_user = get_current_user(request=request, token=token, session=session)
         chat_service = ChatService(session)
         session_cleanup = stack.pop_all()
 
