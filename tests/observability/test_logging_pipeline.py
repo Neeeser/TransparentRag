@@ -54,6 +54,23 @@ def test_exception_traceback_is_preserved(log_stream: io.StringIO) -> None:
     assert "ValueError: boom" in record["exception"]  # type: ignore[operator]
 
 
+def test_foreign_stdlib_record_buffers_a_serializable_dict(
+    log_stream: io.StringIO,
+) -> None:
+    """A plain `logging.getLogger` record (uvicorn, SQLAlchemy, un-migrated
+    modules) flows through the ProcessorFormatter's foreign pre-chain, which
+    seeds `_record`/`_from_structlog` onto the event dict. The buffered copy
+    must not retain them, or the admin export 500s serializing a raw
+    `LogRecord`. Regression for the diagnostics-export crash."""
+    from app.observability import get_log_buffer
+
+    logging.getLogger("uvicorn.error").info("Application startup complete.")
+    buffered = get_log_buffer().snapshot()[-1]
+    assert "_record" not in buffered
+    assert "_from_structlog" not in buffered
+    json.dumps(buffered)  # the export bundle serializes exactly this
+
+
 def test_debug_mode_uses_console_renderer_not_json() -> None:
     """DEBUG selects the pretty renderer; output is not JSON but still redacts."""
     structlog.contextvars.clear_contextvars()

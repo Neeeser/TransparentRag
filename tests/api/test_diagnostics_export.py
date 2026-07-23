@@ -44,6 +44,8 @@ def test_export_returns_metadata_and_recent_records(
     assert metadata["record_count"] == len(body["records"])
     assert metadata["buffer_capacity"] >= 1
     assert "note" in metadata
+    # The bundle reports the level actually in effect, never a null override.
+    assert metadata["log_level"] == "INFO"
     events = [r.get("event") for r in body["records"]]
     assert "ingestion.completed" in events
 

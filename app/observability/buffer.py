@@ -49,6 +49,13 @@ class LogRingBuffer:
 
 _buffer = LogRingBuffer()
 
+# Keys structlog's ProcessorFormatter seeds onto a *foreign* stdlib record's
+# event dict before the shared pre-chain runs. `remove_processors_meta` strips
+# them in the render chain, but that runs after this buffer tee — so the tee
+# must drop them itself, or `_record` (a raw, unserializable `logging.LogRecord`)
+# lands in an exported bundle and 500s the admin export.
+_META_KEYS = ("_record", "_from_structlog")
+
 
 def get_log_buffer() -> LogRingBuffer:
     """Return the process-wide log ring buffer."""
@@ -59,5 +66,5 @@ def buffer_processor(
     _logger: WrappedLogger, _method_name: str, event_dict: EventDict
 ) -> EventDict:
     """structlog processor: tee a copy of the redacted event into the buffer."""
-    _buffer.append(dict(event_dict))
+    _buffer.append({k: v for k, v in event_dict.items() if k not in _META_KEYS})
     return event_dict

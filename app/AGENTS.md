@@ -469,6 +469,14 @@ that must hold in code:
   restart-scoped by design** — the durable history is stdout. The admin export
   (`GET /api/admin/diagnostics/export`) serves the buffer; it can never contain
   anything stdout couldn't, because the buffer tee runs *after* redaction.
+- **The buffer tee strips `ProcessorFormatter` meta keys (`_record`,
+  `_from_structlog`) before storing.** A *foreign* stdlib record (uvicorn,
+  SQLAlchemy, any un-migrated `logging.getLogger`) arrives at the shared
+  pre-chain with a raw `logging.LogRecord` seeded under `_record`;
+  `remove_processors_meta` drops it in the render chain, which runs *after* the
+  tee. Keeping it makes the export 500 serializing a `LogRecord`. A test that
+  only buffers structlog-*native* calls never sees this — exercise a foreign
+  record.
 
 ## Collection diagnostics (`app/services/diagnostics/`)
 
