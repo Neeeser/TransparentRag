@@ -35,6 +35,7 @@ from app.pipelines.nodes.chunking import (
     ChunkerNode,
     FixedChunkerConfig,
 )
+from app.pipelines.nodes.counting import Bm25CountConfig, Bm25CountNode
 from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
 from app.pipelines.nodes.indexing import (
     BaseIndexerNode,
@@ -226,7 +227,7 @@ def resolve_definition_backend(
 
 def _sparse_target(
     collection: models.Collection,
-    config: Bm25IndexerConfig | Bm25RetrieverConfig | None,
+    config: Bm25CountConfig | Bm25IndexerConfig | Bm25RetrieverConfig | None,
 ) -> IndexTarget | None:
     """Build the sparse index target for a BM25 node config, if present."""
     if config is None:
@@ -318,7 +319,10 @@ def resolve_pipeline_settings(  # pylint: disable=too-many-locals
     sparse_query = _sparse_target(
         collection, _resolve_bm25_config(definition, Bm25RetrieverNode.type, Bm25RetrieverConfig)
     )
-    if not indexer_found and not retriever_found and (sparse_ingest or sparse_query):
+    sparse_count = _sparse_target(
+        collection, _resolve_bm25_config(definition, Bm25CountNode.type, Bm25CountConfig)
+    )
+    if not indexer_found and not retriever_found and (sparse_ingest or sparse_query or sparse_count):
         # A sparse-only graph gets no phantom dense target.
         dense_targets = []
 
@@ -334,7 +338,7 @@ def resolve_pipeline_settings(  # pylint: disable=too-many-locals
         namespace=primary_namespace,
         dimension=dimension,
         metric=indexer.metric,
-        index_targets=_union_targets(*dense_targets, sparse_ingest, sparse_query),
+        index_targets=_union_targets(*dense_targets, sparse_ingest, sparse_query, sparse_count),
     )
 
 

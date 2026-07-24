@@ -14,6 +14,7 @@ from app.pipelines.nodes.chunking import (
     SentenceChunkerNode,
     TokenChunkerNode,
 )
+from app.pipelines.nodes.counting import Bm25CountNode
 from app.pipelines.nodes.embedding import EmbedderNode
 from app.pipelines.nodes.fusion import RRFusionNode
 from app.pipelines.nodes.indexing import Bm25IndexerNode, VectorIndexerNode
@@ -33,6 +34,7 @@ from app.pipelines.nodes.retrieval import (
     PineconeRetrieverNode,
     VectorRetrieverNode,
 )
+from app.pipelines.nodes.tool_output import ToolOutputNode
 
 
 class NodeRegistry:
@@ -87,6 +89,7 @@ def build_default_registry() -> NodeRegistry:
             PgvectorIndexerNode,
             IngestionOutputNode,
             RetrievalInputNode,
+            Bm25CountNode,
             VectorRetrieverNode,
             Bm25RetrieverNode,
             RRFusionNode,
@@ -95,6 +98,7 @@ def build_default_registry() -> NodeRegistry:
             PgvectorRetrieverNode,
             RerankerNode,
             RetrievalOutputNode,
+            ToolOutputNode,
         ]
     )
 

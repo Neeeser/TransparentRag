@@ -215,3 +215,25 @@ def test_index_targets_dedupe_shared_identity() -> None:
     assert [
         (target.index_name, target.vector_type) for target in settings.index_targets
     ] == [("docs-dense", "dense")]
+
+
+def test_count_node_registers_its_sparse_index_target() -> None:
+    """A count-only tool still lists its BM25 index in index_targets — the
+    Pinecone-prereq check and diagnostics iterate targets, and a target the
+    graph reads must be visible to them."""
+    definition = PipelineDefinition(
+        nodes=[
+            _node(
+                "count-1",
+                "count.bm25",
+                {"backend": "pgvector", "index_name": "docs-dense-bm25"},
+            ),
+        ],
+        edges=[],
+    )
+
+    settings = resolve_pipeline_settings(definition, _collection(), default_registry())
+
+    assert {
+        (target.index_name, target.vector_type) for target in settings.index_targets
+    } == {("docs-dense-bm25", "sparse")}
