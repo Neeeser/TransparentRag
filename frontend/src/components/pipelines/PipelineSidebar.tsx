@@ -10,13 +10,7 @@ import { PipelineNodeLibrary } from "./PipelineNodeLibrary";
 import { VariablesPanel } from "./VariablesPanel";
 
 import type { NodeFamily } from "./lib/pipeline-theme";
-import type {
-  CatalogModel,
-  IndexBackend,
-  NodeSpec,
-  Pipeline,
-  PipelineVariable,
-} from "@/lib/types";
+import type { CatalogModel, IndexBackend, NodeSpec, Pipeline, PipelineVariable } from "@/lib/types";
 
 type SidebarTab = "pipelines" | "variables";
 
