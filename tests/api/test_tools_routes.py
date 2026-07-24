@@ -191,3 +191,85 @@ def test_search_slug_survives_for_default_pipelines(
     listing = client.get(f"/api/collections/{collection_id}/tools").json()
 
     assert listing["tools"][0]["name"] == "search_quarterly_reports"
+
+
+def test_updating_an_unknown_binding_is_not_found(
+    client: TestClient, session: Session
+) -> None:
+    collection_id = _create_collection(client)
+
+    response = client.patch(
+        f"/api/collections/{collection_id}/tools/{uuid4()}",
+        json={"enabled": False},
+    )
+
+    assert response.status_code == 404
+
+
+def test_removing_an_unknown_binding_is_not_found(
+    client: TestClient, session: Session
+) -> None:
+    collection_id = _create_collection(client)
+
+    response = client.delete(f"/api/collections/{collection_id}/tools/{uuid4()}")
+
+    assert response.status_code == 404
+
+
+def test_binding_the_same_pipeline_twice_is_rejected(
+    client: TestClient, session: Session, auth_user: models.User
+) -> None:
+    collection_id = _create_collection(client)
+    listing = client.get(f"/api/collections/{collection_id}/tools").json()
+    already_bound = listing["tools"][0]["pipeline_id"]
+
+    response = client.post(
+        f"/api/collections/{collection_id}/tools",
+        json={"pipeline_id": already_bound},
+    )
+
+    assert response.status_code == 400
+    assert "already bound" in response.json()["detail"]
+
+
+def test_invoke_failure_returns_structured_trace_linked_detail(
+    client: TestClient, session: Session, monkeypatch
+) -> None:
+    """A failed tool run returns the structured, trace-linked error body —
+    the same contract the legacy query endpoint carries."""
+
+    class _FailingEmbedder:
+        def __init__(self, model_name: str) -> None:
+            self.model_name = model_name
+
+        @property
+        def usage(self) -> dict[str, int] | None:
+            return None
+
+        def embed_query(self, _query: str) -> list[float]:
+            raise RuntimeError("embed boom")
+
+        def embed_documents(self, chunks: object) -> list[list[float]]:
+            return [[0.1, 0.2, 0.3] for _ in chunks]  # type: ignore[attr-defined]
+
+    class _FailingResolver:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def embedder(self, _connection_id: object, model_name: str, dimensions: object = None):
+            del dimensions
+            return _FailingEmbedder(model_name)
+
+    monkeypatch.setattr("app.services.tool_invocation.ProviderResolver", _FailingResolver)
+    collection_id = _create_collection(client)
+    binding_id = client.get(f"/api/collections/{collection_id}/tools").json()["tools"][0]["id"]
+
+    response = client.post(
+        f"/api/collections/{collection_id}/tools/{binding_id}/invoke",
+        json={"query": "hi"},
+    )
+
+    assert response.status_code == 500
+    detail = response.json()["detail"]
+    assert detail["code"] == "retrieval_pipeline_failed"
+    assert detail["pipeline_run_id"]

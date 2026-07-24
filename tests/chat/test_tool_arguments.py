@@ -213,3 +213,49 @@ def test_unknown_extra_argument_is_forwarded_for_validation(
         call_arguments={"query": "docs", "made_up": True},
     )
     assert retrieval.calls[0]["arguments"] == {"made_up": True}
+
+
+class TestToolReasoningSelection:
+    """Per-call reasoning is attributed to its own call, not the shared blob."""
+
+    def test_call_specific_reasoning_wins_over_shared(self) -> None:
+        from app.chat.tools import select_tool_reasoning
+
+        run_state = RunState()
+        run_state.reasoning_call_segments["call-1"] = {"type": "text", "content": "mine"}
+
+        entry = select_tool_reasoning(
+            call_id="call-1",
+            run_state=run_state,
+            shared_tool_reasoning={"type": "text", "content": "shared"},
+        )
+
+        assert entry == {"type": "text", "content": "mine"}
+        # Non-destructive: the segment stays for the result-side consumption.
+        assert "call-1" in run_state.reasoning_call_segments
+
+    def test_result_payload_wraps_bare_segment_and_consumes_it(self) -> None:
+        from app.chat.tools import build_reasoning_payload
+
+        run_state = RunState()
+        run_state.reasoning_call_segments["call-1"] = {"type": "text", "content": "why"}
+
+        payload = build_reasoning_payload(
+            call_id="call-1",
+            run_state=run_state,
+            shared_tool_reasoning=None,
+        )
+
+        assert payload == {"segments": [{"type": "text", "content": "why"}]}
+        assert "call-1" not in run_state.reasoning_call_segments
+
+    def test_result_payload_falls_back_to_shared_reasoning(self) -> None:
+        from app.chat.tools import build_reasoning_payload
+
+        payload = build_reasoning_payload(
+            call_id="call-2",
+            run_state=RunState(),
+            shared_tool_reasoning={"segments": [{"type": "text", "content": "shared"}]},
+        )
+
+        assert payload == {"segments": [{"type": "text", "content": "shared"}]}

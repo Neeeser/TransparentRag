@@ -211,3 +211,123 @@ class TestBindingRules:
 
         enabled = service.list_enabled_tools(collection)
         assert enabled == []
+
+
+class TestPurgeTargets:
+    def test_purge_targets_union_and_skip_unresolvable_tools(
+        self, session: Session
+    ) -> None:
+        """Purge targets union every binding's indexes; a tool binding whose
+        graph no longer fits (not callable) is skipped rather than blocking
+        deletion."""
+        from app.services.pipeline_resolution import resolve_purge_targets
+
+        user = _create_user(session)
+        collection = _create_collection(session, user)
+        resolve_ingest_binding(session, user, collection)  # scaffold defaults
+        broken = PipelineService(session).create_pipeline(
+            user=user,
+            name="Not Callable",
+            definition=build_default_ingestion_pipeline(
+                embedding_connection_id=uuid4(), embedding_model="test-embed"
+            ),
+        )
+        session.add(
+            models.CollectionPipelineBinding(
+                collection_id=collection.id,
+                pipeline_id=broken.id,
+                role=models.BindingRole.TOOL,
+                position=5,
+            )
+        )
+        session.commit()
+
+        targets = resolve_purge_targets(session, user, collection)
+
+        names = {item.target.index_name for item in targets}
+        assert names  # ingest + primary tool targets resolved
+        assert all(item.namespace for item in targets)
+
+
+class TestIngestRebinding:
+    def test_set_ingest_pipeline_rebinds_the_existing_row(
+        self, session: Session
+    ) -> None:
+        user = _create_user(session)
+        collection = _create_collection(session, user)
+        service = CollectionToolService(session)
+        resolve_ingest_binding(session, user, collection)  # scaffold defaults
+        replacement = PipelineService(session).create_pipeline(
+            user=user,
+            name="Replacement Ingest",
+            definition=build_default_ingestion_pipeline(
+                embedding_connection_id=uuid4(), embedding_model="test-embed"
+            ),
+        )
+        session.commit()
+
+        binding = service.set_ingest_pipeline(user, collection, replacement.id)
+        session.commit()
+
+        rows = CollectionPipelineBindingRepository(session).list_for_collection(
+            collection.id, role=models.BindingRole.INGEST
+        )
+        assert [row.id for row in rows] == [binding.id]
+        assert rows[0].pipeline_id == replacement.id
+
+    def test_set_ingest_pipeline_rejects_unknown_pipeline(
+        self, session: Session
+    ) -> None:
+        user = _create_user(session)
+        collection = _create_collection(session, user)
+
+        with pytest.raises(NotFoundError):
+            CollectionToolService(session).set_ingest_pipeline(user, collection, uuid4())
+
+
+class TestResolutionEdges:
+    def test_binding_to_a_foreign_pipeline_fails_resolution(
+        self, session: Session
+    ) -> None:
+        """A binding row pointing at a pipeline the user cannot see (another
+        user's) resolves to a clear domain error, never a 500."""
+        from app.services.pipeline_resolution import resolve_tool_binding
+
+        user = _create_user(session)
+        other = _create_user(session, email="edge-other@example.com")
+        foreign_pipeline = _create_search_pipeline(session, other)
+        collection = _create_collection(session, user)
+        binding = models.CollectionPipelineBinding(
+            collection_id=collection.id,
+            pipeline_id=foreign_pipeline.id,
+            role=models.BindingRole.TOOL,
+            is_primary=True,
+        )
+        session.add(binding)
+        session.commit()
+        session.refresh(binding)
+
+        with pytest.raises(PipelineResolutionError, match="could not be resolved"):
+            resolve_tool_binding(session, user, collection, binding.id)
+
+    def test_primary_resolution_falls_back_to_the_first_tool(
+        self, session: Session
+    ) -> None:
+        """A collection whose tool rows carry no primary flag (hand-edited or
+        pre-rule data) still resolves: the first tool serves as primary."""
+        user = _create_user(session)
+        collection = _create_collection(session, user)
+        pipeline = _create_search_pipeline(session, user)
+        session.add(
+            models.CollectionPipelineBinding(
+                collection_id=collection.id,
+                pipeline_id=pipeline.id,
+                role=models.BindingRole.TOOL,
+                is_primary=False,
+            )
+        )
+        session.commit()
+
+        resolved = resolve_primary_tool(session, user, collection)
+
+        assert resolved.pipeline.id == pipeline.id

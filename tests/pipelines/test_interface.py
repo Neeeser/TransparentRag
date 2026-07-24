@@ -125,3 +125,32 @@ class TestInterfaceRoundTrip:
         interface = derive_interface(_retrieval_definition())
         restored = PipelineInterface.model_validate(interface.model_dump(mode="json"))
         assert restored == interface
+
+
+class TestDerivationFallbacks:
+    """Malformed configs degrade to the neutral projection, never crash."""
+
+    def test_malformed_tool_identity_config_yields_no_identity(self) -> None:
+        definition = _retrieval_definition()
+        for node in definition.nodes:
+            if node.type == RetrievalInputNode.type:
+                node.config = {**node.config, "tool_name": ["not", "a", "string"]}
+        interface = derive_interface(definition)
+        assert interface.tool_name is None
+        assert interface.callable is True
+
+    def test_malformed_outputs_config_yields_no_output_fields(self) -> None:
+        definition = _retrieval_definition()
+        for node in definition.nodes:
+            if node.type == "retrieval.output":
+                node.config = {**node.config, "outputs": "garbage"}
+        interface = derive_interface(definition)
+        assert interface.output_fields == []
+
+    def test_tool_output_terminal_derives_structured_kind(self) -> None:
+        definition = _retrieval_definition()
+        for node in definition.nodes:
+            if node.type == "retrieval.output":
+                node.type = "tool.output"
+        interface = derive_interface(definition)
+        assert interface.output_kind is ToolOutputKind.STRUCTURED
