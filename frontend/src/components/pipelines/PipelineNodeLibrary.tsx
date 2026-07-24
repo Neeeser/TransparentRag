@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 
+import { backendSupportLabel, restrictedBackends } from "./lib/backend-support";
 import { getNodeFamilyLabel, getNodeFamilyStyles, type NodeFamily } from "./lib/pipeline-theme";
 import { RERANKER_NODE_TYPE, RERANKER_PROVIDER_REQUIRED } from "./lib/reranking";
 
-import type { NodeSpec } from "@/lib/types";
+import type { IndexBackend, NodeSpec } from "@/lib/types";
 import type { DragEvent } from "react";
 
 type PipelineNodeLibraryProps = {
@@ -13,6 +14,8 @@ type PipelineNodeLibraryProps = {
   onPreviewNode: (spec: NodeSpec) => void;
   hasRerankingProvider?: boolean;
   rerankingProviderMessage?: string | null;
+  /** Backends this deployment knows about; used to flag backend-restricted nodes. */
+  knownBackends?: IndexBackend[];
 };
 
 const NODE_DRAG_TYPE = "application/ragworks-node";
@@ -22,6 +25,7 @@ export function PipelineNodeLibrary({
   onPreviewNode,
   hasRerankingProvider = true,
   rerankingProviderMessage = RERANKER_PROVIDER_REQUIRED,
+  knownBackends = [],
 }: PipelineNodeLibraryProps) {
   const handleDragStart = (event: DragEvent<HTMLButtonElement>, spec: NodeSpec) => {
     if (spec.type === RERANKER_NODE_TYPE && !hasRerankingProvider) {
@@ -47,6 +51,11 @@ export function PipelineNodeLibrary({
               <div className="mt-2 space-y-2">
                 {specs.map((spec) => {
                   const unavailable = spec.type === RERANKER_NODE_TYPE && !hasRerankingProvider;
+                  // Restriction is informational: a store-bound node still
+                  // drags onto the canvas so a user can build a pipeline for
+                  // a backend they haven't selected yet — validation is the
+                  // hard gate. The badge just sets expectations up front.
+                  const restricted = restrictedBackends(spec, knownBackends);
                   return (
                     <div key={spec.type} className="space-y-2">
                       <button
@@ -59,6 +68,11 @@ export function PipelineNodeLibrary({
                       >
                         <p className="font-semibold">{spec.label}</p>
                         <p className="text-[10px] text-meta">{spec.type}</p>
+                        {restricted ? (
+                          <p className="mt-1 text-[10px] font-medium text-accent-cyan">
+                            Only on {backendSupportLabel(restricted)}
+                          </p>
+                        ) : null}
                       </button>
                       {unavailable ? (
                         <p className="text-xs text-muted">

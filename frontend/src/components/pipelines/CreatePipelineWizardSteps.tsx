@@ -211,9 +211,13 @@ export function WizardProcessingStep({
 
 type ReviewStepProps = {
   kind: PipelineKind;
+  /** What to show in the "Type" row (the template label for tool pipelines). */
+  typeLabel: string;
   name: string;
   backend: IndexBackend;
   indexName: string;
+  /** Whether this pipeline embeds — count/facet tools don't, so hide the row. */
+  showEmbedding: boolean;
   selectedModelName: string | null;
   chunkPresetLabel: string | null;
   chunkSize: number;
@@ -224,9 +228,11 @@ type ReviewStepProps = {
 /** Animated preview of the pipeline being created, plus the summary card. */
 export function WizardReviewStep({
   kind,
+  typeLabel,
   name,
   backend,
   indexName,
+  showEmbedding,
   selectedModelName,
   chunkPresetLabel,
   chunkSize,
@@ -263,9 +269,7 @@ export function WizardReviewStep({
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Type</dt>
-            <dd className="mt-0.5 text-primary">
-              {kind === "ingestion" ? "Ingestion" : "Retrieval"}
-            </dd>
+            <dd className="mt-0.5 text-primary">{typeLabel}</dd>
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Vector store</dt>
@@ -273,10 +277,12 @@ export function WizardReviewStep({
               {BACKEND_TITLES[backend]} · {indexName || "no index"}
             </dd>
           </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Embedding model</dt>
-            <dd className="mt-0.5 text-primary">{selectedModelName ?? "Workspace default"}</dd>
-          </div>
+          {showEmbedding ? (
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Embedding model</dt>
+              <dd className="mt-0.5 text-primary">{selectedModelName ?? "Workspace default"}</dd>
+            </div>
+          ) : null}
           {kind === "ingestion" ? (
             <div>
               <dt className="text-[10px] uppercase tracking-[0.3em] text-meta">Chunking</dt>
