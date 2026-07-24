@@ -99,3 +99,20 @@ def capability_issues(
             )
         )
     return issues
+
+
+def lexical_count_support_issue(
+    capabilities: VectorStoreCapabilities,
+    backend_label: str,
+    node_id: str,
+) -> PipelineValidationIssue | None:
+    """Flag a count node targeting a backend that cannot count lexical matches."""
+    if capabilities.supports_lexical_count:
+        return None
+    return PipelineValidationIssue(
+        message=(
+            f"Node '{node_id}' requires lexical match counting, which the "
+            f"{backend_label} backend does not support."
+        ),
+        severity="error",
+    )

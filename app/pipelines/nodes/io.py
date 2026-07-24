@@ -7,8 +7,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from app.pipelines.execution.context import PipelineRunContext
-from app.pipelines.expressions import ExpressionError, ModelValue, evaluate, parse
 from app.pipelines.node import PipelineNodeBase
+from app.pipelines.nodes.tool_output import evaluate_output_fields
 from app.pipelines.payloads import (
     IndexingPayload,
     RetrievalPayload,
@@ -300,26 +300,8 @@ class RetrievalOutputNode(PipelineNodeBase[RetrievalOutputConfig]):
     def _evaluate_outputs(
         self, context: PipelineRunContext
     ) -> dict[str, int | float | str | bool]:
-        """Evaluate the config's output expressions against the run environment.
-
-        Validation checks these statically; a failure here (or a bare model
-        value, which has no scalar wire shape) is an honest run error.
-        """
-        if not self.config.outputs or context.variables is None:
-            return {}
-        results: dict[str, int | float | str | bool] = {}
-        for output in self.config.outputs:
-            try:
-                value = evaluate(parse(output.expression), context.variables.values)
-            except ExpressionError as error:
-                raise ValueError(f"Output '{output.name}': {error.message}") from error
-            if isinstance(value, ModelValue):
-                raise ValueError(
-                    f"Output '{output.name}': dereference the model variable with "
-                    ".connection_id or .model_name."
-                )
-            results[output.name] = value
-        return results
+        """Evaluate the config's output expressions (shared terminal helper)."""
+        return evaluate_output_fields(self.config.outputs, context)
 
     def summarize_io(
         self,

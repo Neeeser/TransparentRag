@@ -85,6 +85,17 @@ class QueryEmbeddingPayload(BaseModel):
     usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
+class StructuredValuesPayload(BaseModel):
+    """Named scalar values produced by a structured tool node.
+
+    The `tool.output` terminal merges every inbound values payload into the
+    result's `outputs` — for structured tools, these ARE the tool result.
+    """
+
+    values: dict[str, int | float | str | bool] = Field(default_factory=dict)
+    usage: TokenUsage = Field(default_factory=TokenUsage)
+
+
 class RetrievalPayload(BaseModel):
     """Payload containing retrieval results.
 
