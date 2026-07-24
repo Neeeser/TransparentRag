@@ -291,9 +291,14 @@ describe("CollectionSearch", () => {
       fireEvent.click(screen.getByRole("button", { name: runQueryLabel }));
     });
 
-    expect(api.invokeCollectionTool).toHaveBeenCalledWith("token", "col-required-bool", "b-primary", {
-      query: "Find",
-      arguments: { include_archived: false },
-    });
+    expect(api.invokeCollectionTool).toHaveBeenCalledWith(
+      "token",
+      "col-required-bool",
+      "b-primary",
+      {
+        query: "Find",
+        arguments: { include_archived: false },
+      },
+    );
   });
 });

@@ -41,10 +41,7 @@ export function CollectionSearch({ collectionId, token }: CollectionSearchProps)
   const chunks = useMemo(() => search.result?.chunks ?? [], [search.result]);
   const topScore = useMemo(() => Math.max(0, ...chunks.map((chunk) => chunk.score ?? 0)), [chunks]);
   const structured = search.result?.kind === "structured";
-  const outputs = useMemo(
-    () => Object.entries(search.result?.outputs ?? {}),
-    [search.result],
-  );
+  const outputs = useMemo(() => Object.entries(search.result?.outputs ?? {}), [search.result]);
 
   const toolOptions = useMemo(
     () =>
