@@ -18,7 +18,6 @@ from app.pipelines.defaults import (
 from app.pipelines.registry import default_registry
 from app.pipelines.settings import (
     PipelineSettings,
-    PipelineSettings,
     resolve_pipeline_settings,
 )
 from app.services.diagnostics.context import DiagnosticContext

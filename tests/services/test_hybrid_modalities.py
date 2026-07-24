@@ -22,7 +22,7 @@ from app.pipelines.definition import (
     PipelineNodeDefinition,
 )
 from app.services import ingestion as ingestion_module
-from app.services import retrieval as retrieval_module
+from app.services import tool_invocation as invocation_module
 from app.services.files import FileSystemService, UploadSpec
 from app.services.ingestion import IngestionService
 from app.services.pipeline_resolution import (
@@ -105,7 +105,7 @@ def _ingest(
 ) -> models.Document:
     """Upload CONTENT and run the collection's real ingestion pipeline."""
     monkeypatch.setattr(ingestion_module, "ProviderResolver", _StubProviderResolver)
-    monkeypatch.setattr(retrieval_module, "ProviderResolver", _StubProviderResolver)
+    monkeypatch.setattr(invocation_module, "ProviderResolver", _StubProviderResolver)
     resolved = resolve_ingest_binding(session, user, collection)
     definition = resolved.definition
     for node in definition.nodes:
@@ -275,15 +275,29 @@ def test_bm25_only_pipelines_ingest_and_retrieve_without_embeddings(
         name="Lexical",
         description="",
         extra_metadata={},
-        ingestion_pipeline_id=ingestion.id,
-        retrieval_pipeline_id=retrieval.id,
     )
     session.add(collection)
     session.commit()
     session.refresh(collection)
+    session.add(
+        models.CollectionPipelineBinding(
+            collection_id=collection.id,
+            pipeline_id=ingestion.id,
+            role=models.BindingRole.INGEST,
+        )
+    )
+    session.add(
+        models.CollectionPipelineBinding(
+            collection_id=collection.id,
+            pipeline_id=retrieval.id,
+            role=models.BindingRole.TOOL,
+            is_primary=True,
+        )
+    )
+    session.commit()
 
     monkeypatch.setattr(ingestion_module, "ProviderResolver", _FailIfUsedResolver)
-    monkeypatch.setattr(retrieval_module, "ProviderResolver", _FailIfUsedResolver)
+    monkeypatch.setattr(invocation_module, "ProviderResolver", _FailIfUsedResolver)
     result = FileSystemService(session).register_upload(
         user,
         collection,

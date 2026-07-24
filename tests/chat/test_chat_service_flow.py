@@ -16,10 +16,9 @@ from app.chat.tools import ToolExecutor
 from app.db import models
 from app.db.repositories import ChatRepository
 from app.schemas.chat import ChatMessageCreate
-from app.schemas.tools import ToolInvocationResponse
 from app.schemas.models import ModelInfo
 from app.schemas.openrouter import OpenRouterChatResponse
-from app.schemas.retrieval import CollectionQueryResponse
+from app.schemas.tools import ToolInvocationResponse
 from app.services.errors import InvalidInputError
 from tests.chat.conftest import (
     ModelOnlyOpenRouter,

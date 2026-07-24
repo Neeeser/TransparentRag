@@ -171,7 +171,7 @@ class TestRunnerEffectiveTopK:
             "pipeline": pipeline,
             "version": version,
             "definition": definition,
-            "kind": models.PipelineKind.RETRIEVAL,
+            "trigger": models.BindingRole.TOOL,
             "user": user,
             "collection": collection,
             "settings": get_settings(),

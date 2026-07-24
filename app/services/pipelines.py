@@ -20,7 +20,6 @@ from app.pipelines.definition import PipelineDefinition
 from app.pipelines.diff import DefinitionChange, diff_definitions, material_changes
 from app.pipelines.interface import PipelineInterface, derive_interface
 from app.pipelines.nodes.chunking import BaseChunkerNode, FixedChunkerConfig
-from app.pipelines.nodes.embedding import EmbedderConfig, EmbedderNode
 from app.pipelines.registry import default_registry
 from app.pipelines.resolution import resolve_static_definition
 from app.pipelines.validation import PipelineValidationResult
@@ -48,6 +47,7 @@ from app.services.pipeline_validation import (
     EmbeddingInputLimitResolver,
     validate_pipeline_definition,
 )
+
 
 def derived_kind(interface: PipelineInterface) -> PipelineKind | None:
     """Map a derived interface onto the wire's UI-grouping kind.

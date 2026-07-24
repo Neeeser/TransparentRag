@@ -16,7 +16,7 @@ from app.pipelines.nodes.indexing import PgvectorIndexerConfig
 from app.pipelines.nodes.indexing_legacy import IndexerNode, PgvectorIndexerNode
 from app.pipelines.payloads import EmbeddingPayload
 from app.pipelines.registry import default_registry
-from app.pipelines.settings import resolve_pipeline_settings, resolve_pipeline_settings
+from app.pipelines.settings import resolve_pipeline_settings
 from app.retrieval.models import Document, DocumentChunk, DocumentMetadata
 from app.schemas.enums import IndexBackend
 from app.utils.file_storage import FileStorage

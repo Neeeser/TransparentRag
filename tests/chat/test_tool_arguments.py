@@ -9,12 +9,12 @@ from sqlmodel import Session, select
 from app.chat.messages import FunctionCall, ToolCall
 from app.chat.state import RunState, ToolExecutionContext
 from app.chat.tools import ToolExecutor
-from app.services.tool_projection import build_parameter_schema
 from app.db import models
 from app.db.repositories import ChatRepository
 from app.pipelines.variables import PipelineInputArgument, VariableType
 from app.schemas.chat import ChatMessageCreate
 from app.services.errors import InvalidQueryArgumentsError
+from app.services.tool_projection import build_parameter_schema
 from tests.chat.conftest import StubInvocationService, make_tool_context
 
 TOP_K = PipelineInputArgument(

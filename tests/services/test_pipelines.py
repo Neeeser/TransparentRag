@@ -7,12 +7,12 @@ import pytest
 from sqlmodel import Session, select
 
 from app.db import models
+from app.db.repositories import CollectionPipelineBindingRepository
 from app.pipelines.defaults import (
     build_default_ingestion_pipeline,
     build_default_retrieval_pipeline,
 )
 from app.pipelines.definition import PipelineDefinition, PipelineNodePosition
-from app.db.repositories import CollectionPipelineBindingRepository
 from app.services.errors import InvalidInputError, NotFoundError
 from app.services.pipelines import (
     DEFAULT_INGEST_SLUG,

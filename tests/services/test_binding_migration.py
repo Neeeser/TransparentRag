@@ -9,8 +9,6 @@ asserted by running the migration twice.
 
 from __future__ import annotations
 
-from uuid import uuid4
-
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text
 from sqlmodel import Session, select
